@@ -145,7 +145,13 @@ Two things to know about this shape:
 Pass an idempotency key as the second argument if you want a create you can safely retry:
 
 ```ts
-const created = await zc.createAgent({ resource, ownership }, 'quickstart-run-01')
+const agent = await zc.createAgent(
+  {
+    resource: { name: 'quickstart-agent', model: { primary: 'litellm/claude-sonnet-5' } },
+    ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
+  },
+  'quickstart-run-01', // your idempotency key
+)
 ```
 
 The uniqueness domain is `(agent.create, key)`. The same key with a different body returns `409 idempotency_conflict`.
@@ -493,7 +499,7 @@ session ses_example
 
 I can research topics, run code, and work with documents.
 
-run succeeded, 58 characters
+run succeeded, 57 characters
 cleaned up agent agt_example
 ```
 
@@ -501,7 +507,7 @@ cleaned up agent agt_example
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `401` on every call | Missing or invalid key | Check `ZOOCLAW_API_KEY` starts with `zct_` and is passed as `auth: { apiKey }`. The gateway and the core API use different `error.type` strings for this, so branch on `e.status`, not on the type |
+| `401` on every call | Missing or invalid key | Check `ZOOCLAW_API_KEY` starts with `zct_` and reaches the client as `apiKey`. The gateway and the core API use different `error.type` strings for this, so branch on `e.status`, not on the type |
 | `409 agent_not_running` on `createSession` | The agent was never started, or was stopped | Call `startAgent()` and wait for `desired_state === 'running'` |
 | Readiness loop never returns | Polling `status.actual_state` | Poll `status.desired_state` instead |
 | Stream never ends | Waiting for the connection to close | Break on `isRunFinished(ev)` |

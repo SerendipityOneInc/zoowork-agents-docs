@@ -10,8 +10,8 @@ Read these before you write code.
 
 1. A newly created agent is **stopped**. You must call `startAgent()`, or `createSession()`
    fails with `409 agent_not_running`.
-2. Wait for `status.desired_state === 'running'`. **Never** wait for `status.actual_state`
-   - it reports chat-channel connectivity, and an API-only agent has no channels, so it stays
+2. Wait for `status.desired_state === 'running'`. **Never** wait for `status.actual_state`:
+   it reports chat-channel connectivity, and an API-only agent has no channels, so it stays
    at `activating` forever and your poll loop never returns.
 3. The same agent comes back in **two different shapes**. `createAgent()` returns a flat
    receipt; `getAgent()` and `updateAgent()` return a projection. The version lives in a

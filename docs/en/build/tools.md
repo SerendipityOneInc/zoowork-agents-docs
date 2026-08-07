@@ -169,7 +169,7 @@ here. What is *installed* in the sandbox is governed by the
 
 ## Reading tool activity
 
-One tool call produces two `agent.tool` events that share a `toolCallId`:
+One tool call produces a sequence of `agent.tool` events that share a `toolCallId`, one per phase:
 
 | `phase` | Carries | Meaning |
 |---|---|---|

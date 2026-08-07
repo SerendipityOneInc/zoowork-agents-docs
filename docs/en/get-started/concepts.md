@@ -255,7 +255,7 @@ matter, and they return an empty value for events of the wrong type:
 import {
   assistantText, // text of an agent.assistant event
   thinkingText,  // text of an agent.thinking event
-  toolCall,      // { phase, toolName, toolCallId, args, isError } of an agent.tool event
+  toolCall,      // the tool call carried by an agent.tool event
   isRunFinished, // true for run.finished
   runOutcome,    // 'succeeded' | 'failed' | 'aborted' for run.finished
 } from '@zooclaw-agents/sdk'
@@ -316,7 +316,7 @@ The outbound vocabulary is larger. It is exported as `SESSION_EVENT_TYPES`.
 | `agent.error` | An error inside the run. |
 | `chat.delta` | Preview frames on a non-durable lane. The SDK stream skips them. |
 | `chat.final`, `chat.aborted`, `chat.error` | Chat-channel terminal frames. |
-| `agent.plan`, `agent.command_output`, `agent.patch`, `agent.compaction` | Further detail emitted by the loop. |
+| `agent.plan`, `agent.command_output`, `agent.patch`, `agent.compaction` | Further detail about what the agent did during the run. |
 | `attachment.created` | An attachment was produced. |
 | `message.outbound` | A message was dispatched to a chat channel. |
 

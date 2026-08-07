@@ -1,13 +1,356 @@
 ---
 title: Agents
 source: /en/build/agents
-source_hash: 19ac0f89dafe259cda4ba692fd32d9aa3086d014dd5363141268b98da8c8df67
+source_hash: 03d573a1944bca2570f976c0ad115510ef34fe96ce66cc242ed624a5a598bd14
 ---
 
 # Agents
 
-::: warning 本页中文版待翻译
-英文版是本站的撰写源，内容完整且已校对结构。中文版正在跟进。
+agent 是一个持久化的配置对象：一个名字、一个模型、若干 persona 文档、labels，以及一份工具策略。你创建它一次，启动它，然后在它下面开 [session](./sessions)。配置存在服务端，所以每个 session 都继承它，你不需要重复发送任何东西。
 
-请先阅读 [English version](/en/build/agents)。
+从别的 managed-agent API 过来的人，会在 ZooClaw 的 agent 上被三件事绊住。写代码之前先读这三条。
+
+1. 新创建的 agent 是**停止状态** 。你必须调 `startAgent()`，否则 `createSession()` 会失败并返回 `409 agent_not_running`。
+2. 等 `status.desired_state === 'running'`。**永远不要** 等 `status.actual_state` —— 它报的是聊天渠道的连通性，而纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，你的轮询循环永远不会返回。
+3. 同一个 agent 会以**两种不同的结构** 返回。`createAgent()` 返回一份扁平的创建回执；`getAgent()` 和 `updateAgent()` 返回一份读取投影。版本号在这两种结构里的位置不一样。
+
+## 准备
+
+本页每段代码都假设有这个客户端。
+
+```ts
+import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
+
+const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_...
+```
+
+## 创建 agent
+
+`createAgent(input, idempotencyKey?)` 接收一个 `resource`（配置本身）和一个 `ownership` 锚点，返回一个 `AgentRecord`。
+
+```ts
+import type { AgentRecord } from '@zooclaw-agents/sdk'
+
+const created: AgentRecord = await zc.createAgent(
+  {
+    resource: {
+      name: 'research-agent',
+      model: { primary: 'litellm/claude-sonnet-5' },
+      labels: { app: 'my-app' },
+      onboarding: false,
+    },
+    ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
+  },
+  'provision-research-agent-1', // Idempotency-Key
+)
+
+console.log(created.agent_id, created.config_version)
+```
+
+`ownership` 是线协议契约规定的必填字段，但网关会用绑定在你 API key 上的锚点覆盖这两个字段。传占位符就行；真实值从 `created.ownership` 读回来。
+
+`Idempotency-Key` 的作用域是 `agent.create + key`。用同一个 key、同一份 body 重放，会收敛到第一次的响应。用同一个 key 配不同的 `resource` 或 `ownership` 重放，返回 `409`。
+
+`onboarding: false` 跳过交互式的 persona 撰写引导。只有当你希望 agent 的头几个回合花在写它自己的 persona 文档上时，才不传这个字段（默认行为）。做 API 驱动的产品，就传 `false`。
+
+### `resource` 的字段
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `name` | string | 必填，不能为空。 |
+| `model.primary` | string | `provider/model-id` 形式的模型别名，例如 `litellm/claude-sonnet-5`。只写模型名会被归一成 `litellm/<model-id>`。列表从 `listModels()` 拿。 |
+| `model.input` | `string[]` | `text` 和/或 `image`。声明 `image` 表示主模型自己读图。 |
+| `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
+| `labels` | `Record<string, string>` | 你自己的键值标签。可以在线协议的列表路由上作为查询条件。 |
+| `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools)。 |
+| `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
+| `mcp` | array | 远程 MCP server 声明。见[工具](./tools)。 |
+| `onboarding` | boolean | `false` 跳过 persona 引导的那几个回合。 |
+
+```ts
+const agent = await zc.createAgent({
+  resource: {
+    name: 'support-triage',
+    model: { primary: 'litellm/claude-sonnet-5', input: ['text', 'image'] },
+    persona: {
+      docs: [
+        { name: 'AGENTS.md', content: 'You triage inbound support tickets. Be terse.' },
+        { name: 'SOUL.md', content: 'Dry, precise, never apologetic.' },
+      ],
+    },
+    tool_policy: { allow: ['read', 'web_search'] },
+    sandbox: { scope: 'session' },
+    labels: { tier: 'free' },
+    onboarding: false,
+  },
+  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
+})
+```
+
+::: warning 尚未验证
+`name`、`model`、`labels` 和 `onboarding` 在我们生命周期 harness 的每一次运行里都被端到端跑过。`persona.docs`、`tool_policy`、`sandbox.scope` 和 `mcp` 按 API 契约会被创建路由接受，但我们没有驱动过一个回合来证明它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
 :::
+
+SDK 类型允许、但你不应该通过公开网关使用的字段：创建时的 `skills`（见 [Skills](./skills)），以及 `environment_id` / `environment_version`（见 [Environments](./environments)）。
+
+## 读取 agent，以及两种响应结构
+
+这是 ZooClaw 代码里 `undefined` 最常见的单一来源。`POST /agents` 返回一份扁平的创建回执。`GET` 和 `PUT` 返回一份读取投影。它们不是同一个对象。
+
+```ts
+// createAgent() - flat receipt
+{
+  agent_id: 'agt_...',
+  computer_id: 'cmp_...',
+  config_version: 1,            // <- top level
+  resolved_skills: [ /* ... */ ],
+  ownership: { owner_uid: '...', org_id: '...' }
+  // no `declared`, no `status`
+}
+```
+
+```ts
+// getAgent() / updateAgent() - projection
+{
+  agent_id: 'agt_...',
+  computer_id: 'cmp_...',
+  ownership: { owner_uid: '...', org_id: '...' },
+  declared: {                   // <- the configuration lives here
+    name: 'research-agent',
+    model: { primary: 'litellm/claude-sonnet-5', input: ['text', 'image'] },
+    labels: { app: 'my-app' },
+    sandbox: { scope: 'agent' }
+  },
+  labels: { app: 'my-app' },
+  resolved_skills: [ /* ... */ ],
+  bootstrap_state: 'skipped',
+  status: {
+    desired_state: 'stopped',
+    actual_state: 'stopped',
+    config_version: 3,          // <- the version lives here
+    render_state: 'ready',
+    status_message: null,
+    channels: { expected: 0, connected: 0, degraded_since: null }
+  }
+  // no top-level `config_version`, no top-level `name`
+}
+```
+
+| | 创建回执 | 读取投影 |
+|---|---|---|
+| 版本号 | `agent.config_version` | `agent.status.config_version` |
+| 名字 | 不存在 | `agent.declared.name` |
+| 生命周期状态 | 不存在 | `agent.status.desired_state` |
+
+写一个访问器，然后到处都用它：
+
+```ts
+const configVersion = (a: AgentRecord): number | undefined =>
+  a.status?.config_version ?? a.config_version
+```
+
+这个数字在两次读取之间还会跳。网关在创建之后立刻注入平台凭证，每一次注入都会 bump 一次版本号：创建回执上写着 `1`，第一次 `getAgent()` 通常就已经是 `3` 了。把 `config_version` 当成一个不透明的单调计数器，永远不要把它当成你自己那次写入的回执。
+
+```ts
+const agent = await zc.getAgent(created.agent_id)
+console.log(agent.declared?.name, agent.status?.desired_state, configVersion(agent))
+```
+
+不存在的、已软删除的、或属于其他租户的 agent id 都返回 `404 not_found` —— 跨租户读取被隐藏成 404，而不是被拒绝成 403。
+
+## 启动 agent
+
+`startAgent()` 把 `desired_state` 翻成 `running`。这是每一次 session 调用的前置条件。它很快 —— 实测在一秒以内。
+
+```ts
+const { warnings } = await zc.startAgent(agent.agent_id)
+console.log(warnings)
+// [ 'channel_routes_reload_failed: routes reload returned 404' ]
+```
+
+### 启停时你一定会看到的那条 warning
+
+`startAgent()` 和 `stopAgent()` 都返回 `{ warnings: string[] }`。纯 API 的 agent —— 也就是没有挂 Mattermost 或飞书聊天渠道的 agent —— 在**每一次** 启动和**每一次** 停止都会报 `channel_routes_reload_failed`，因为根本没有渠道路由可以重载。这是预期内的噪音。不要把非空的 `warnings` 数组当成失败，也不要因此重试。记一条日志然后继续。
+
+### `desired_state` 与 `actual_state`
+
+`AgentStatus` 带两个听起来可以互换、实际上不能互换的状态字段。
+
+| 字段 | 含义 | 取值 |
+|---|---|---|
+| `desired_state` | 生命周期意图。**API 由它把关。** | `running`、`stopped`、`deleted` |
+| `actual_state` | 聊天渠道路由的健康度。与 API 是否就绪无关。 | `activating`、`active`、`degraded`、`error`、`stopped`、`deleting` |
+
+纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 我们每一次跑 harness 都在这个状态下驱动完整的回合。
+
+轮询 `desired_state`，并带上超时：
+
+```ts
+import type { ZooclawClient } from '@zooclaw-agents/sdk'
+
+/**
+ * Block until the agent is startable-and-started. Polls `status.desired_state`,
+ * which is the only field that gates createSession(). Never poll `actual_state`.
+ */
+export async function waitUntilRunning(
+  zc: ZooclawClient,
+  agentId: string,
+  opts: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const timeoutMs = opts.timeoutMs ?? 30_000
+  const intervalMs = opts.intervalMs ?? 250
+  const deadline = Date.now() + timeoutMs
+
+  for (;;) {
+    const agent = await zc.getAgent(agentId)
+    if (agent.status?.desired_state === 'running') return
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `agent ${agentId} did not reach desired_state=running within ${timeoutMs}ms ` +
+          `(desired_state=${agent.status?.desired_state})`,
+      )
+    }
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+}
+```
+
+完整的开通路径：
+
+```ts
+const created = await zc.createAgent({
+  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' }, onboarding: false },
+  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
+})
+
+await zc.startAgent(created.agent_id)      // warnings are informational
+await waitUntilRunning(zc, created.agent_id)
+
+const session = await zc.createSession(created.agent_id, {
+  initial_events: [{ type: 'user.message', content: 'Hello.' }],
+})
+```
+
+跳过启动，下一次调用就会告诉你：
+
+```ts
+try {
+  await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
+} catch (e) {
+  if (e instanceof ZooclawError && e.type === 'agent_not_running') {
+    await zc.startAgent(agentId)
+    await waitUntilRunning(zc, agentId)
+  } else {
+    throw e
+  }
+}
+```
+
+匹配 `e.type`，永远不要匹配 `e.message`。见[错误处理](../reference/errors)。
+
+## 修改 agent
+
+`updateAgent(agentId, sections)` 对你点名的 declared 小节发 PUT。它返回读取投影。
+
+**你没写进 body 的小节会被保留。** 顶层的对象小节只合并一层；小节内部的数组和标量整个替换掉旧值。
+
+```ts
+// The agent was created with name, model, persona and labels.
+// This PUT sends only `labels`.
+const updated = await zc.updateAgent(agent.agent_id, {
+  labels: { tier: 'paid', region: 'apac' },
+})
+
+console.log(Object.keys(updated.declared ?? {}))
+// [ 'name', 'model', 'imageModel', 'imageGenerationModel', 'pdfModel', 'persona', 'labels', 'sandbox', ... ]
+
+console.log(updated.declared?.name)   // 'research-agent'  - survived
+console.log(updated.declared?.model)  // { primary: 'litellm/claude-sonnet-5', ... } - survived
+console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - replaced wholesale
+```
+
+`name`、`model` 和 `persona` 没被动，因为它们不在 body 里。但 `labels` 本身是被整个替换的，不是逐键合并：合并的粒度是小节，不是递归。
+
+### `tool_policy` 是整体替换
+
+`tool_policy` 是合并规则的例外。每一次点名它的 PUT 都会替换掉整个对象。传 `{}` 会把策略清空，退回完整的工具清单。
+
+```ts
+await zc.updateAgent(agentId, { tool_policy: { allow: ['read'] } })
+await zc.updateAgent(agentId, { tool_policy: { allow: ['web_search'] } })
+// The policy is now { allow: ['web_search'] }. `read` is gone.
+
+await zc.updateAgent(agentId, { tool_policy: {} })
+// Policy cleared: the agent gets the full manifest again.
+```
+
+要往策略里加东西，先从 `declared` 里把当前这份读出来，自己算好并集再发。
+
+### 每一次 PUT 都会 bump 版本号
+
+`config_version` 在每一次成功的 PUT 上都自增，包括那种取值与已存储内容逐字节相同的 PUT。没有任何空操作检测。
+
+```ts
+const before = configVersion(await zc.getAgent(agentId))          // 4
+await zc.updateAgent(agentId, { labels: { probe: 'x' } })
+const first = configVersion(await zc.getAgent(agentId))           // 5
+await zc.updateAgent(agentId, { labels: { probe: 'x' } })         // identical body
+const second = configVersion(await zc.getAgent(agentId))          // 6 - bumped anyway
+```
+
+所以「每回合发一次 PUT」这种写法会让版本号无休止地往上翻，而且你没法用「版本号没变」来判断自己那次写入是空操作。下一个回合读到的是新版本；已经在途的回合保持旧版本。
+
+### PUT 会拒绝什么
+
+PUT body 里的 `skills`、`warm`、`credentials`，以及任何未知字段，都返回 `400`。skill 走它自己的路由管理 —— 见 [Skills](./skills)。
+
+## 停止与删除
+
+```ts
+const { warnings } = await zc.stopAgent(agentId)
+// desired_state -> 'stopped'; the same channel_routes_reload_failed warning appears here too.
+```
+
+停止之后，对这个 agent 调 `createSession()` 会稳定地重新返回 `409 agent_not_running`。
+
+`deleteAgent()` 是**软删除** 。它把 agent 运行时标记为已删除，返回 `204`。它不停止 agent，不取消正在跑的 workflow，不删除定时任务，也不释放沙箱。不先停就删，会留下一批仍在运行、而你再也寻址不到的资源。
+
+```ts
+await zc.stopAgent(agentId)   // do this first
+await zc.deleteAgent(agentId) // then this
+```
+
+重复删除同样返回 `204`。删除之后，`getAgent()` 返回 `404 not_found`。
+
+## agent 上的 skill
+
+三个方法，完整说明见 [Skills](./skills)。
+
+```ts
+const skills = await zc.listAgentSkills(agentId)                 // attached skills, resolved and merged
+await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true }) // attach one your tenant owns
+await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
+```
+
+刚创建出来的 agent 已经挂上了整个全局 skill 目录 —— 在你尝试安装任何东西之前，先调 `listAgentSkills()`。`putAgentSkill()` 对 global scope 的 skill 返回 `404`；它只对你自己租户上传的 skill 有效。
+
+## 不支持的能力
+
+::: danger 不支持
+**没有 agent 版本历史，也没有版本固定。** `config_version` 一路往上数，但没有任何路由可以列出历史版本、读取其中一个、把流量固定到其中一个，或者回滚。如果你需要找回旧配置，请在 PUT 之前自己存一份。
+:::
+
+::: danger 不支持
+**没有乐观并发控制。** `updateAgent()` 上没有 `version` 前置条件，并发的写入方永远不会看到 `409`。两个进程改同一个 agent，会按小节静默地后写覆盖先写。如果这件事对你有影响，请自己把写入串行化。
+:::
+
+::: danger 不支持
+**SDK 里没有 `listAgents`。** 没有任何方法可以枚举你的 agent。把 `createAgent()` 返回的 `agent_id` 存下来 —— 那是你能拿到的唯一句柄。线协议上的路由存在，但它是不对称的：它要求 `owner_uid` **和** `org_id` 都精确匹配，所以同一组织内由另一个 token 创建的 agent，可以按 id 读到，却永远不会出现在列表里。
+:::
+
+## 下一步
+
+- [Sessions](./sessions) —— 在一个运行中的 agent 上开 session，驱动一个回合。
+- [事件与流式](./events) —— 用可续传的 SSE 读 agent 在做什么。
+- [Skills](./skills) —— 默认挂了什么，你能改什么。
+- [错误处理](../reference/errors) —— 值得拿来做分支判断的 `ZooclawError.type` 取值。

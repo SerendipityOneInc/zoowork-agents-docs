@@ -38,7 +38,7 @@ features:
 
 ## 这里没有什么
 
-**客户端执行的自定义工具不存在**——没有 `{type: "custom"}` 工具定义，没有 `user.custom_tool_result`，agent 不会回调你的进程。如果你的产品形态是「agent 调用我的函数、我查我的数据库再把结果还回去」，请先读[不支持的能力](/zh/reference/not-supported)，那里列了完整清单和每一条的替代路径（有些是「没有替代」）。
+**客户端执行的自定义工具不存在** ——没有 `{type: "custom"}` 工具定义，没有 `user.custom_tool_result`，agent 不会回调你的进程。如果你的产品形态是「agent 调用我的函数、我查我的数据库再把结果还回去」，请先读[不支持的能力](/zh/reference/not-supported)，那里列了完整清单和每一条的替代路径（有些是「没有替代」）。
 
 ## 从哪开始
 
