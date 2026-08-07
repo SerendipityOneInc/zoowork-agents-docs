@@ -1,0 +1,14 @@
+/* Code-group tabs read as a language switcher, so give them a little more presence
+   than the default: a clearer active state and a touch more breathing room. */
+.vp-code-group .tabs {
+  padding: 0 4px;
+}
+
+.vp-code-group .tabs label {
+  font-size: 13px;
+  padding: 0 14px;
+}
+
+.vp-code-group .tabs input:checked + label {
+  color: var(--vp-c-brand-1);
+}
