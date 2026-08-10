@@ -1,4 +1,5 @@
 ---
+title: ZooClaw Managed Agents
 layout: home
 hero:
   name: ZooClaw Managed Agents
