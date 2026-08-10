@@ -1,4 +1,5 @@
 import { defineConfig, type DefaultTheme } from 'vitepress'
+import llmstxt from 'vitepress-plugin-llms'
 
 // Navigation deliberately mirrors Claude Managed Agents' information architecture
 // (Get started / Build / Reference) so a developer who has read those docs can find
@@ -155,5 +156,23 @@ export default defineConfig({
     footer: {
       message: 'Developer Preview — the API may change before general availability.',
     },
+  },
+  // Emit /llms.txt and /llms-full.txt so an AI coding assistant can read this site
+  // without scraping rendered HTML.
+  //
+  // English only, deliberately. The two trees say the same things, so including both
+  // would roughly double the token cost of llms-full.txt while adding no information —
+  // and the identifiers an assistant needs are English on both sides anyway.
+  //
+  // The English index page is kept (the plugin drops index pages by default): it carries
+  // the orientation an assistant most needs up front, namely what this API is and what
+  // it is not. The root docs/index.md stays out — it is only a redirect stub.
+  vite: {
+    plugins: [
+      llmstxt({
+        workDir: 'en',
+        excludeIndexPage: false,
+      }),
+    ],
   },
 })
