@@ -106,28 +106,98 @@ behaviour, and it is not usable with an API key.
 
 ## Methods
 
-`ZooclawClient` exposes 17 methods. Every session method takes `agentId` first, because
-sessions are nested under an agent on the wire.
+`ZooclawClient` exposes 44 methods, grouped below the way the client groups them. Everything
+the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
+`agentId` first. The skill registry and Environments are top-level resources and take none.
+
+**Models**
 
 | Method | Returns | What it does |
 |---|---|---|
 | `listModels()` | `Promise<ModelInfo[]>` | Lists the model aliases your organization can select. The cheapest check that a key works. |
+
+**Agents**
+
+| Method | Returns | What it does |
+|---|---|---|
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | Creates an agent. Returns the **flat create receipt**, not the read projection. The agent comes back stopped. |
+| `listAgents(opts?)` | `Promise<AgentRecord[]>` | Lists the agents owned by your key's bound user. `opts.labels` filters on declared labels, `opts.page` is 1-based, page size is fixed at 100. The scope is `owner_uid` **and** `org_id`, so an agent a colleague created in your org is fetchable by id and absent from this list. |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | Reads an agent. Returns the **projection**: config under `declared`, version at `status.config_version`. |
 | `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUTs the named declared sections, merging per section. Bumps `config_version` on every call. |
 | `deleteAgent(agentId)` | `Promise<void>` | Soft-deletes the agent. Does not stop it. |
-| `putCredential(agentId, app, body)` | `Promise<void>` | Writes an agent credential. **Returns 404 through the public gateway.** |
-| `listCredentials(agentId)` | `Promise<{ app: string; ref: string }[]>` | Lists agent credential slots. **Returns 404 through the public gateway.** |
+| `putCredential(agentId, app, body)` | `Promise<void>` | Writes an agent credential. **`@deprecated`: returns 404 through the public gateway.** |
+| `listCredentials(agentId)` | `Promise<{ app: string; ref: string }[]>` | Lists agent credential slots. **`@deprecated`: returns 404 through the public gateway.** |
 | `startAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `running`. Required before any session call. |
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `stopped`. |
+| `waitUntilRunning(agentId, opts?)` | `Promise<AgentRecord>` | Polls `status.desired_state` until it reads `running`, then hands back that projection. Defaults: 30s budget, 500ms between polls. Throws `408`/`timeout`. |
 | `listAgentSkills(agentId, opts?)` | `Promise<AgentSkill[]>` | Lists the skills resolved onto the agent. |
 | `putAgentSkill(agentId, skillId, opts?)` | `Promise<{ config_version?: number; warnings?: string[] }>` | Attaches a skill your own tenant owns. Global-catalog ids return 404. |
 | `deleteAgentSkill(agentId, skillId)` | `Promise<void>` | Detaches a skill. |
+
+**Skill registry**
+
+| Method | Returns | What it does |
+|---|---|---|
+| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | Uploads a skill package as a zip; one call creates the skill row **and** version 1. `opts.scope` is `org` or `personal` - `global` and `pack` are 403. The zip's single top-level directory name must equal the `name` in `SKILL.md`'s frontmatter. |
+| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillRecord>` | Publishes a new version of an existing skill from a zip. Agents that installed it unpinned follow the new version on their own. |
+| `listSkills(opts?)` | `Promise<SkillRecord[]>` | The registry catalog visible to your key: global skills plus your org and personal ones. `q` matches on name, `page` is 1-based, page size fixed at 100. |
+| `deleteSkill(skillId)` | `Promise<void>` | Deletes a registry skill (204). No in-use guard for org and personal scopes: agents holding it simply lose it. |
+
+**Sessions and events**
+
+| Method | Returns | What it does |
+|---|---|---|
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | Opens a session. Requires a running agent, else `409 agent_not_running`. |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | Reads a session, optionally with the at-rest transcript. |
+| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | One agent's sessions, newest first by `updated_at`, 50 per page, `page` 1-based. There is no cursor, and this is the surface that carries `run_status`. |
+| `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | Stamps `archived_at`. Afterwards writes are `409 session_archived` while reads keep working. Interrupt an in-flight run first. |
+| `deleteSession(agentId, sessionId)` | `Promise<void>` | Soft-deletes the session (204), cancelling an in-flight run first. Transcripts and events survive for audit. |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string; type?: string; accepted?: boolean }[] }>` | Writes user or system events into a session. |
 | `listEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | Reads the durable event log. **One page per call.** |
+| `listAllEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | Every durable event, by walking `after` until a short page comes back. Reach for this rather than paging `listEvents` by hand. |
 | `streamEvents(agentId, sessionId, opts?)` | `AsyncGenerator<SessionEvent>` | Streams durable events over SSE, resumable with `after`. |
+
+**Approvals**
+
+| Method | Returns | What it does |
+|---|---|---|
+| `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | Tool calls parked on a human decision. `opts.status` may only be omitted or `'pending'`, so resolved ones cannot be listed. This is the platform's separate approvals resource, not the `user.tool_confirmation` event loop; without a Temporal signaler the route answers `501 not_configured`. |
+| `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | Resolves one approval with `allow-once`, `allow-always`, or `deny`; anything else is a 400. Same route family, same `501` without a signaler. |
+
+**Automation: schedules and wake**
+
+| Method | Returns | What it does |
+|---|---|---|
+| `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | The agent's schedules. The list answers the raw Temporal describe with the camelCase projection merged on top - read defensively. |
+| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | Creates a schedule. `201` with a receipt carrying only `schedule_name`, not the definition. Schedules outlive `stopAgent()` and `deleteAgent()`; delete them yourself. |
+| `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | Reads one schedule, in the camelCase read vocabulary. Nothing comes back under the name you sent it in. |
+| `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | Replaces the definition. To change the cadence send `schedule`, never the `scheduleSpec` a read hands you - that one answers `200` and is silently ignored. The SDK strips all six refused fields, so a read-tweak-write round trip works from JavaScript too. |
+| `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | Deletes a schedule. Like `updateSchedule`, it carries no cross-timeout idempotency guarantee - reconcile by listing rather than blind-retrying. |
+| `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | Fires it once, now, out of band. Does not disturb the cadence. |
+| `listScheduleRuns(agentId, scheduleId, opts?)` | `Promise<ScheduleRun[]>` | Past fires, newest first. `limit` defaults to 20 and is capped at 100. Rows mix two shapes - switch on `source`. |
+| `wake(agentId, input)` | `Promise<WakeResult>` | Pushes a reminder into the agent's heartbeat queue. `next-heartbeat` (the default) only writes the pending row; `now` also kicks the heartbeat schedule and is `409` when no heartbeat is enabled. |
+
+**Exec**
+
+| Method | Returns | What it does |
+|---|---|---|
+| `exec(agentId, args)` | `Promise<ExecResult>` | Runs argv - not a shell string - in the agent's sandbox, cwd fixed to `/workspace`. **A non-zero exit is still HTTP 200**: this promise resolves, so check `exit_code`. Requires an agent-scope sandbox and a rendered config. |
+
+**Environments**
+
+| Method | Returns | What it does |
+|---|---|---|
+| `listEnvironments(opts?)` | `Promise<EnvironmentRecord[]>` | The Environments visible to your org, `page` 1-based. The platform default an untouched agent is pinned to is not among them. |
+| `getEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Reads one Environment. `404` for anything outside your org, the platform default included - a selector mismatch, not a permission problem. |
+| `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | Creates an Environment and its first version. `resource.config` takes exactly `packages`, `files`, `build`, and `networking`; anything else is `400 invalid_environment_config`. |
+| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Archives it. The SDK percent-encodes the colon in `{id}:archive` for you - a raw `:` makes the engine miss the route and answer 404, which is the whole reason this method exists. |
+| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | Adds an immutable version to an existing Environment. The SDK wraps your `config` as `{ resource: { config } }`, mirroring create. |
+| `getEnvironmentVersion(environmentId, version)` | `Promise<EnvironmentVersionRecord>` | Reads one version. Poll **this**, on `status`, to decide whether a version is usable; there is no `state` field here, and a loop written against one never terminates. |
+
+The sections below cover the methods whose behaviour needs spelling out at length; the rest are
+one call each. A method being on the client is not a claim that its route has been exercised -
+the [capability matrix](/en/reference/capabilities) is where that is recorded, family by
+family.
 
 All snippets below assume:
 
@@ -347,27 +417,37 @@ console.log(warnings)
 to reload, so it reports `channel_routes_reload_failed` on every start and every stop. Log it
 and continue. Do not retry on it.
 
-Then wait for `status.desired_state === 'running'`, and never for `status.actual_state`:
+Then wait for `status.desired_state === 'running'`, and never for `status.actual_state`. That
+wait is a method - do not write the loop yourself:
 
 ```ts
-import type { ZooclawClient } from '@zooclaw-agents/sdk'
-
-export async function waitUntilRunning(
-  zc: ZooclawClient,
-  agentId: string,
-  timeoutMs = 30_000,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  for (;;) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    if (Date.now() >= deadline) {
-      throw new Error(`agent ${agentId} still ${agent.status?.desired_state} after ${timeoutMs}ms`)
-    }
-    await new Promise((r) => setTimeout(r, 250))
-  }
-}
+const agent = await zc.waitUntilRunning(agentId)
+console.log(agent.status?.desired_state) // 'running'
 ```
+
+```ts
+waitUntilRunning(
+  agentId: string,
+  opts?: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal },
+): Promise<AgentRecord>
+```
+
+| Parameter | Type | Default | Notes |
+|---|---|---|---|
+| `opts.timeoutMs` | `number` | `30_000` | Total budget. Start is sub-second in practice, so this is for a bad day. |
+| `opts.intervalMs` | `number` | `500` | Gap between polls. |
+| `opts.signal` | `AbortSignal` | - | Cancels the wait, including the request in flight. |
+
+It polls `getAgent()` and resolves with the first projection that reads `running`. On timeout
+it throws a `ZooclawError` with `status: 408` and `type: 'timeout'`; on abort, `status: 0` and
+`type: 'aborted'`. **Both are synthesized locally** - the server never sends either, and the
+abort does not leak a `DOMException`.
+
+Both bounds cover an **in-flight request**, not just the gap between polls: every poll carries
+its own signal that fires on your `signal` or on whatever is left of the budget. `fetch`
+imposes no timeout of its own anywhere the SDK runs, so a gateway that accepts the connection
+and then never answers would park a hand-rolled loop forever - an `attempts` counter or a
+`Date.now() >= deadline` check between polls never gets to run.
 
 ---
 
@@ -611,30 +691,31 @@ one page. There is no `has_more` flag and no error: a session with 900 events an
 the first 100 and looks complete.
 :::
 
-Page with `after` until a page comes back shorter than the limit you asked for:
+`listAllEvents` exists for exactly that reason. It pages with `after` until a page comes back
+shorter than the limit it asked for:
 
 ```ts
-import type { SessionEvent } from '@zooclaw-agents/sdk'
-
-const PAGE = 500
-
-async function listAllEvents(agentId: string, sessionId: string): Promise<SessionEvent[]> {
-  const all: SessionEvent[] = []
-  let after: number | undefined
-
-  for (;;) {
-    const page = await zc.listEvents(agentId, sessionId, {
-      limit: PAGE,
-      ...(after === undefined ? {} : { after }),
-    })
-    all.push(...page)
-    if (page.length < PAGE) break
-    after = page[page.length - 1]!.seq
-  }
-
-  return all
-}
+const all = await zc.listAllEvents(agentId, sessionId)
 ```
+
+```ts
+listAllEvents(
+  agentId: string,
+  sessionId: string,
+  opts?: { after?: number; types?: string[]; pageSize?: number },
+): Promise<SessionEvent[]>
+```
+
+| Parameter | Type | Notes |
+|---|---|---|
+| `opts.after` | `number` | Start cursor. Everything at or below it is left out. |
+| `opts.types` | `string[]` | Same server-side filter as `listEvents`, applied to every page. |
+| `opts.pageSize` | `number` | The per-request `limit`. Defaults to 500 and is clamped to it. |
+
+Events come back in ascending `seq`. Two guards a hand-rolled loop usually lacks: events at or
+below the cursor are dropped, so a boundary event replayed at a page edge does not reach you
+twice, and the walk stops if the highest `seq` in a page fails to advance the cursor, so a
+server that ignored `after` returns a duplicate page instead of spinning forever.
 
 ---
 
@@ -701,6 +782,12 @@ line alone, so **`type` is always `undefined` on a stream failure** - branch on 
 
 Every response type ends with `[k: string]: unknown`. The API is Developer Preview and may
 add fields within a version: ignore what you do not recognize rather than failing on it.
+
+The sections here cover the types you handle on the paths this page walks. The skill-registry,
+approval, schedule, wake, exec, and Environment types are all in the
+[complete export list](#complete-export-list), and each carries its field-level traps in the
+JSDoc your editor shows on hover - `ScheduleRecord` and `ScheduleUpdate` especially, because
+the write shape and the read shape of a schedule are different documents.
 
 ### `SessionEvent`
 
@@ -805,17 +892,20 @@ interface AgentResource {
   skills?: { skill_id: string; version?: number | 'latest' }[]
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
+  mcp?: McpServerDeclaration[]
   sandbox?: { scope: 'agent' | 'session' }
   environment_id?: string
   environment_version?: number
   warm?: boolean
+  onboarding?: boolean
   [k: string]: unknown
 }
 ```
 
-The configuration you send to `createAgent()`. `name` is the only required field. The index
-signature is what lets you pass documented fields the interface does not name, such as
-`onboarding: false` and `mcp`.
+The configuration you send to `createAgent()`. `name` is the only required field. `mcp`
+declares remote MCP servers, and `onboarding: false` skips the persona bootstrap turns - set
+it on every API-driven agent unless you actually want them. The index signature is what keeps a
+field a newer server accepts from failing to type-check.
 
 Two fields the type allows that you should not send through the public gateway: `skills` at
 create time (use `putAgentSkill()`), and `warm` (rejected by `updateAgent()`). See
@@ -845,7 +935,8 @@ interface SessionRecord {
   session_id: string
   session_key?: string
   channel?: string
-  status?: string
+  run_status?: string
+  status?: string | null
   metadata?: Record<string, unknown>
   archived?: boolean
   updated_at?: string
@@ -857,9 +948,10 @@ interface SessionRecord {
 `history` is present only when the read asked for `history: true`; it holds the most recent
 `limit` rows, in ascending `seq` order.
 
-`status` is always `null` in practice - read `run_status` off the index signature instead.
-`session_key` is channel-qualified: sessions you create through the API are
-`api:<session_id>`.
+`status` is always `null` in practice - `run_status` is the live field, and `listSessions` is
+the surface that carries it. `session_key` is channel-qualified: sessions you create through
+the API are `api:<session_id>`. `channel` is `api` for sessions you create and `cron` for ones
+a schedule fired.
 
 ### `SessionHistoryEntry`
 
@@ -1119,6 +1211,7 @@ Dropping the `id:` line would freeze your resume cursor, which is why the parser
 import {
   // client
   createZooclawClient,
+  DEFAULT_BASE_URL,
   ZooclawError,
   type ZooclawClient,
   type ZooclawConfig,
@@ -1131,10 +1224,32 @@ import {
   type AgentRecord,
   type AgentStatus,
   type AgentSkill,
+  type McpServerDeclaration,
+  type SkillRecord,
   type SessionRecord,
   type SessionHistoryEntry,
   type SessionEvent,
   type OutboundEvent,
+
+  // approvals
+  type ApprovalDecision,
+  type ApprovalRecord,
+
+  // schedules, wake, exec
+  type ScheduleSpec,
+  type SchedulePayload,
+  type ScheduleInput,
+  type ScheduleUpdate,
+  type ScheduleRecord,
+  type ScheduleRun,
+  type WakeResult,
+  type ExecResult,
+
+  // environments
+  type EnvironmentConfig,
+  type EnvironmentResource,
+  type EnvironmentRecord,
+  type EnvironmentVersionRecord,
 
   // events
   SESSION_EVENT_TYPES,
@@ -1154,9 +1269,16 @@ import {
 } from '@zooclaw-agents/sdk'
 ```
 
+Twelve values and thirty-two types, pinned by a test that asserts the entry point's exports as
+a set - a missing symbol and an accidental extra one both fail it. `DEFAULT_BASE_URL` is the
+public gateway base that `ZOOCLAW_BASE_URL` and the `baseUrl` option override; it is exported
+so you can compare against it or build a URL by hand.
+
 That is the entire public surface. Anything not on this list does not exist - in particular
-there is no `listAgents`, no `listSessions`, no `archiveSession`, no `deleteSession`, and no
-`patchSession`. See [Not supported](/en/reference/not-supported).
+there is no `patchSession`. `PATCH /agents/{id}/sessions/{sid}` answers `405` through the
+gateway, whose catch-all registers GET, POST, PUT, and DELETE only, so PATCH is not proxied at
+all and a session's `metadata` is write-once at `createSession()`. See
+[Not supported](/en/reference/not-supported).
 
 ## Next
 

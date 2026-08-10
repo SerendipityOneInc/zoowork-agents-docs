@@ -1,7 +1,7 @@
 ---
 title: 核心概念
 source: /en/get-started/concepts
-source_hash: 5696f0b7b776bcbd8b54e6026ae4b55ea045b7a4cb33655225148bd36092de15
+source_hash: f243672df09ed1410257439f6ebfce7b509ff24d1ec25cda86cb7ed5292f0751
 ---
 
 # 核心概念
@@ -108,18 +108,13 @@ while ((await zc.getAgent(agentId)).status?.actual_state !== 'running') {
 }
 ```
 
-改成轮询 `desired_state`。它会在远不到一秒内翻成 `running`。
+改成轮询 `desired_state`。它会在远不到一秒内翻成 `running`，而且这个循环 SDK 已经写好了：
 
 ```ts
-async function waitUntilRunning(agentId: string, attempts = 30): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    const a = await zc.getAgent(agentId)
-    if (a.status?.desired_state === 'running') return
-    await new Promise((r) => setTimeout(r, 1000))
-  }
-  throw new Error(`agent ${agentId} did not reach desired_state=running`)
-}
+await zc.waitUntilRunning(agentId)
 ```
+
+`waitUntilRunning()` 按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`，并且用剩余预算给每个请求设上限，所以网关中途卡住时这次等待会按时结束，而不是把 promise 挂死。如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooclawError`。
 
 在一个 `actual_state` 始终没离开过 `activating` 的 agent 上，一个完整的回合照样正常跑完。`desired_state` 是唯一有意义的就绪信号。
 
@@ -195,8 +190,10 @@ s.history?.forEach((row) => {
 session 被创建出来，只要你一直往里 post 就一直累积回合，之后仍然可读。它不会在一个回合结束时过期，SSE 流也不会在回合结束时关闭。
 
 ::: danger 不支持
-SDK 没有暴露 `listSessions`、`archiveSession`、`deleteSession` 或 `patchSession`。没有任何办法通过 SDK 枚举一个 agent 的 session，所以请自己记录 `session_id`。见[不支持的能力](/zh/reference/not-supported)。
+`ZooclawClient` 没有 `patchSession`。对一个 session 发 `PATCH`，经过网关返回的是 `405`，所以 session 的 `metadata` 只能在 `createSession` 时写一次——之后要拿来检索的东西，创建时就放进去。见[不支持的能力](/zh/reference/not-supported)。
 :::
+
+按 agent 的列举和生命周期操作确实有方法——`listSessions(agentId)`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)`。但仍然没有顶层的 session 集合，所以要跨 agent 找回一段会话，还是得自己记录 `session_id`；这三个各自被驱动到什么程度，记在[能力矩阵](/zh/reference/capabilities)里。
 
 **反直觉的地方：** 你通过 API 创建的 session，和同一个 agent 在 ZooClaw App 里进行的对话，是两段互不相干的对话。API session 带一个以 `api:` 开头的 `session_key`；App 里的对话跑在另一个渠道上。它们不共享历史，其中一边的模型看不到另一边说了什么。在 App 里给 agent 的 persona 打样是有用的；指望 API session 记得那段聊天则不是。
 

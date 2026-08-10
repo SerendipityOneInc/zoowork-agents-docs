@@ -39,7 +39,7 @@ did.
 | `tool_policy` replacement | Available, not verified | Documented as the exception to the merge rule: every PUT replaces `tool_policy` wholesale, and `{}` restores the full tool manifest. We have only exercised the merge behaviour on other sections. |
 | `config_version` as an idempotency receipt | Not available | Every successful PUT increments it, including a PUT with identical values. Credential seeding at create time bumps it twice more, so the `1` on your create receipt is already `3` by your first `getAgent()`. It is a change counter, not a content hash. |
 | `deleteAgent()` | Verified | A soft delete. It does not stop the agent, does not remove its schedules, and does not release its sandbox. Call `stopAgent()` first, and remove schedules yourself. |
-| Listing agents | Available, not verified | The wire route takes `owner_uid` plus `org_id` as an exact AND selector, so an agent created by a different key in your organization can be fetched by id but never appears in your list. The SDK exposes no `listAgents()`. Keep your own record of ids. |
+| Listing agents | Available, not verified | `listAgents(opts?)` calls it. The wire route takes `owner_uid` plus `org_id` as an exact AND selector, so an agent created by a different key in your organization can be fetched by id but never appears in your list; keep your own record of those ids. `labels` filters on declared labels and `page` is 1-based, with the page size fixed at 100. `{ labels: { workspace_id: '...' } }` resolves a chat-URL workspace id to its agent. |
 | Agent id from another organization | Verified | Returns **404**, not 403. Existence is hidden, so 404 does not mean "deleted". |
 | Invalid or missing key | Verified | `401` with `error.type` of `service_token.invalid`. Match on `ZooclawError.status` and `.type`, never on message text. |
 | `persona.docs[]` | Available, not verified | Only entries with inline `content` are stored. `MEMORY.md` and any `memory/` name are rejected with `400 invalid_persona_doc_name`. Documents outside the canonical name set are saved but are not assembled into the prompt. |
@@ -60,8 +60,8 @@ did.
 | `getSession()` | Verified | `status` comes back as `null` on this path; the run state lives in `run_status`. The response also carries a `pending_approvals` count. |
 | `getSession({ history: true, limit })` | Verified | `history[]` rows are `{ seq, entry_type, entry, created_at }`. For `entry_type: 'message'`, the text is at `entry.message`. This is the only place you can see token usage and the model that actually answered. |
 | Session `metadata` on create | Available, not verified | Accepted at create time; we have not asserted that it reads back unchanged. |
-| Listing sessions under one agent | Available, not verified | A paginated route exists (fixed 50 per page, newest first). The SDK exposes no method for it. |
-| Archive, soft-delete, PATCH metadata | Available, not verified | Routes exist. PATCH is a shallow replace of `metadata` only; sending `tools` or `mcp` answers `501 reserved_for_session_overrides`. The SDK exposes none of the three, so you would have to call them with your own `fetch`. |
+| Listing sessions under one agent | Available, not verified | A paginated route exists (fixed 50 per page, newest first). `listSessions(agentId, { page })` calls it; `page` is 1-based and there is no cursor. |
+| Archive and soft-delete a session | Available, not verified | `archiveSession()` stamps `archived_at`: afterwards writes answer `409 session_archived` while reads keep working, so interrupt an in-flight run first. `deleteSession()` is a soft delete (`204`) that cancels an in-flight run and leaves transcripts and events for audit. There is no `patchSession`: `PATCH` on a session answers `405` through the gateway, so `metadata` is write-once at create. |
 | Listing sessions across all agents | Not available | There is no top-level session collection. |
 | `resources[]`, file mounts, `vault_ids`, `agent_with_overrides` | Not available | `createSession` takes `initial_events` and `metadata`. Nothing else. |
 
@@ -101,14 +101,14 @@ did.
 | Remote HTTP MCP server | Available, not verified | Declared on the agent, not as its own resource. Remote HTTP transport with a static bearer only. Tool names appear as `mcp__<server>__<tool>` and are pinned per `config_version`. This is the only route by which your own code can back an agent tool, and we have not driven it end to end. |
 | stdio MCP servers, MCP OAuth | Not available | Remote HTTP with a static bearer is the whole of it. |
 | Approval-gated tool execution, end to end | Not available | The pieces exist in the vocabulary; the closed loop is unproven. See [Not supported](/en/reference/not-supported#end-to-end-human-approval). |
-| `POST /agents/{id}/exec` | Available, not verified | An operations extension that runs a command in the agent's sandbox, not a path for agent tool use. Requires an agent-scope sandbox: session-scoped agents get `409 exec_requires_agent_scope`, and a deployment with no sandbox backend gets `501 not_configured`. |
+| `POST /agents/{id}/exec` | Available, not verified | An operations extension that runs a command in the agent's sandbox, not a path for agent tool use. `exec(agentId, args)` calls it, and `args` is argv: use `['bash', '-lc', 'pwd']` for shell semantics. Requires an agent-scope sandbox: session-scoped agents get `409 exec_requires_agent_scope`, and a deployment with no sandbox backend gets `501 not_configured`. |
 
 ## Skills
 
 | Capability | Status | Note |
 |---|---|---|
 | `listAgentSkills()` | Verified | A brand new agent already has the **entire global catalog attached**, including docx, pptx, xlsx, and pdf. You do not install these; they are there from creation. |
-| Reading the skill catalog | Verified | The catalog route answers 200. Every entry we saw had `scope: global`. |
+| Reading the skill catalog | Verified | `listSkills({ scope, q, page })` reads it. The catalog route answers 200. Every entry we saw had `scope: global`. `q` matches on name; `page` is 1-based with a fixed page size of 100. |
 | `putAgentSkill()` on a global-catalog skill | Not available | Returns `404` through the gateway. The install route is only meaningful for skills your own tenant uploaded. Since global skills are attached at creation, this is mostly "you already have them, and you cannot manage them" rather than "you cannot use them". |
 | `putAgentSkill()` / `deleteAgentSkill()` on an `org` or `personal` skill | Available, not verified | The gateway forwards these two scopes. We never had a non-global skill to install, so the whole install-then-read-back cycle is untested. |
 | Uploading your own skill | Available, not verified | A multipart create takes a single `.zip` plus a scope of `org` or `personal`; `name` and `description` come from the `SKILL.md` frontmatter inside the archive. Global scope is not writable from an org key. |
@@ -121,7 +121,7 @@ packages, controlled files, a build script, and a network policy.
 
 | Capability | Status | Note |
 |---|---|---|
-| Environments are reachable through the gateway | Verified | A listing call answers `200` with an empty list. That is the whole of what we have exercised: nothing on the build path below has been run. |
+| Environments are reachable through the gateway | Verified | `listEnvironments()` answers `200` with an empty list. That is the whole of what we have exercised: nothing on the build path below has been run. |
 | Create an environment and build a version | Available, not verified | Versions are immutable and move `queued -> submitting -> building -> verifying -> ready`, with `failed` reachable from any build phase. Poll the specific version, not the environment's top-level state. |
 | apt, npm, pip pre-install | Available, not verified | Installation order is fixed: apt, then npm, then pip. |
 | cargo, gem, go | Not available | Three package managers, not six. |
@@ -138,11 +138,11 @@ packages, controlled files, a build script, and a network policy.
 
 | Capability | Status | Note |
 |---|---|---|
-| Schedules as an agent sub-resource | Available, not verified | List, create, replace, delete, trigger, and read runs, all under `/agents/{id}/schedules`. The SDK exposes none of them. |
+| Schedules as an agent sub-resource | Available, not verified | List, create, replace, delete, trigger, and read runs, all under `/agents/{id}/schedules`, and all seven are on the client: `listSchedules`, `createSchedule`, `getSchedule`, `updateSchedule`, `deleteSchedule`, `triggerSchedule`, `listScheduleRuns`. Two things the types cannot fix for you. The cadence changes only through `schedule: { kind: 'cron', expr, tz }`; the `scheduleSpec` a read hands back is refused by `ScheduleUpdate` and ignored by the server. And `triggerSchedule` against a disabled schedule answers `triggered: true` while the run projection records `status: 'skipped'`. |
 | `cron`, `every`, `at` | Available, not verified | Cron is a five-field expression at most, with no macros. Overlap is fixed to SKIP by the server and is not configurable. |
 | Where the scheduler backend is not wired | Not available | Those deployments answer `501 not_configured`. Do not retry the same call. Check this before you build a product on scheduling. |
 | Heartbeat | Available, not verified | Not a route: a `heartbeat` section in the agent's declared config, reconciled on create and on every PUT. Setting `every` to `0` pauses it and keeps run history. Reconciliation is best effort and failures are not reported back to your call. |
-| Wake | Available, not verified | Queues a reminder for the next heartbeat turn, or triggers the heartbeat schedule immediately. Immediate mode returns `409` when no heartbeat is enabled. |
+| Wake | Available, not verified | `wake(agentId, { text, mode })` queues a reminder for the next heartbeat turn, or triggers the heartbeat schedule immediately. Immediate mode returns `409` when no heartbeat is enabled. |
 | Webhook delivery from a schedule | Not available | `delivery` accepts `none` and a typed `announce`. Webhook delivery is rejected. |
 | Pause and unpause, archive, run history across schedules | Not available | Delete and recreate instead, and read runs one schedule at a time. |
 | Automatic cleanup on agent delete | Not available | Schedules survive both stopping and deleting an agent. List and delete them yourself first, or they keep firing. |

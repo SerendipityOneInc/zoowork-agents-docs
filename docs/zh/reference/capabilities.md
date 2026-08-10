@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 14e55a2f45b1e84a05b43d6bfaac28ad9536c0ae30a24ccec92c7c07f7ca78d6
+source_hash: 7a73d9c9b194bf9db7d2d3e167785825583cb9a638876085b08bcf36a6e18039
 ---
 
 # 能力矩阵
@@ -38,7 +38,7 @@ source_hash: 14e55a2f45b1e84a05b43d6bfaac28ad9536c0ae30a24ccec92c7c07f7ca78d6
 | `tool_policy` 整体替换 | 可用，未实测 | 文档把它写成合并规则的例外：每一次 PUT 都整体替换 `tool_policy`，`{}` 会恢复完整的工具清单。我们只在其他小节上跑过合并行为。 |
 | 把 `config_version` 当幂等回执 | 不存在 | 每一次成功的 PUT 都会 bump 它，值完全相同的 PUT 也一样。创建时的凭证代种还会再多 bump 两次，所以创建回执上的 `1`，到你第一次 `getAgent()` 时已经是 `3`。它是一个变更计数器，不是内容哈希。 |
 | `deleteAgent()` | 已实测 | 软删除。它不停止 agent，不删除它的定时任务，也不释放它的沙箱。先调 `stopAgent()`，定时任务自己删。 |
-| 列出 agent | 可用，未实测 | 线协议上的路由把 `owner_uid` 加 `org_id` 当成精确 AND 选择器，所以同一组织内由另一个 key 创建的 agent，能按 id 读到，却永远不会出现在你的列表里。SDK 没有暴露 `listAgents()`。id 自己记一份。 |
+| 列出 agent | 可用，未实测 | `listAgents(opts?)` 调的就是它。线协议上的路由把 `owner_uid` 加 `org_id` 当成精确 AND 选择器，所以同一组织内由另一个 key 创建的 agent，能按 id 读到，却永远不会出现在你的列表里；这类 id 自己记一份。`labels` 按声明的 label 过滤，`page` 从 1 开始，每页大小固定为 100。`{ labels: { workspace_id: '...' } }` 能把一个聊天 URL 里的 workspace id 解析成它对应的 agent。 |
 | 其他组织的 agent id | 已实测 | 返回 **404** ，不是 403。存在性被隐藏，所以 404 不代表「已删除」。 |
 | key 无效或缺失 | 已实测 | `401`，`error.type` 是 `service_token.invalid`。匹配 `ZooclawError.status` 和 `.type`，永远不要匹配报错文本。 |
 | `persona.docs[]` | 可用，未实测 | 只有带内联 `content` 的条目会被存下来。`MEMORY.md` 和任何 `memory/` 名字会被 `400 invalid_persona_doc_name` 拒绝。规范名字集合之外的文档会被保存，但不会被组装进提示词。 |
@@ -59,8 +59,8 @@ source_hash: 14e55a2f45b1e84a05b43d6bfaac28ad9536c0ae30a24ccec92c7c07f7ca78d6
 | `getSession()` | 已实测 | 这条路径上 `status` 回来是 `null`；run 的状态在 `run_status` 里。响应里还带一个 `pending_approvals` 计数。 |
 | `getSession({ history: true, limit })` | 已实测 | `history[]` 的每一行是 `{ seq, entry_type, entry, created_at }`。`entry_type: 'message'` 时，文本在 `entry.message`。这是唯一能看到 token 用量和实际作答模型的地方。 |
 | 创建时的 session `metadata` | 可用，未实测 | 创建时会被接受；我们没有断言它能原样读回来。 |
-| 列出一个 agent 下的 session | 可用，未实测 | 有一条分页路由（固定每页 50，最新在前）。SDK 没有暴露对应方法。 |
-| 归档、软删除、PATCH metadata | 可用，未实测 | 路由存在。PATCH 只是对 `metadata` 的浅层替换；发 `tools` 或 `mcp` 返回 `501 reserved_for_session_overrides`。这三个 SDK 一个都没暴露，所以你得用自己的 `fetch` 调。 |
+| 列出一个 agent 下的 session | 可用，未实测 | 有一条分页路由（固定每页 50，最新在前）。`listSessions(agentId, { page })` 调的就是它；`page` 从 1 开始，没有游标。 |
+| 归档、软删除一个 session | 可用，未实测 | `archiveSession()` 会盖上 `archived_at`：之后写入返回 `409 session_archived`，读取照常，所以先把进行中的 run 打断。`deleteSession()` 是软删除（`204`），会先取消进行中的 run，转录和事件留作审计。没有 `patchSession`：session 上的 PATCH 通过网关返回 `405`，所以 `metadata` 在创建时写一次就定了。 |
 | 跨所有 agent 列出 session | 不存在 | 没有顶层的 session 集合。 |
 | `resources[]`、文件挂载、`vault_ids`、`agent_with_overrides` | 不存在 | `createSession` 只收 `initial_events` 和 `metadata`。没别的了。 |
 
@@ -100,14 +100,14 @@ source_hash: 14e55a2f45b1e84a05b43d6bfaac28ad9536c0ae30a24ccec92c7c07f7ca78d6
 | 远程 HTTP MCP server | 可用，未实测 | 声明在 agent 上，不是一个独立资源。只有远程 HTTP 传输加一个静态 bearer。工具名以 `mcp__<server>__<tool>` 出现，并按 `config_version` 固定。这是唯一一条能让你自己的代码撑起一个 agent 工具的路径，而我们没有端到端跑通过。 |
 | stdio MCP server、MCP OAuth | 不存在 | 就只有远程 HTTP 加静态 bearer。 |
 | 端到端的审批门控工具执行 | 不存在 | 零件在词表里都有；闭环没有被证明过。见[不支持的能力](/zh/reference/not-supported#end-to-end-human-approval)。 |
-| `POST /agents/{id}/exec` | 可用，未实测 | 一个运维扩展，在 agent 的沙箱里跑一条命令，不是给 agent 用工具的通路。它要求 agent 级的沙箱：session 级的 agent 拿到 `409 exec_requires_agent_scope`，没有沙箱后端的部署拿到 `501 not_configured`。 |
+| `POST /agents/{id}/exec` | 可用，未实测 | 一个运维扩展，在 agent 的沙箱里跑一条命令，不是给 agent 用工具的通路。`exec(agentId, args)` 调的就是它，`args` 是 argv：要 shell 语义就写 `['bash', '-lc', 'pwd']`。它要求 agent 级的沙箱：session 级的 agent 拿到 `409 exec_requires_agent_scope`，没有沙箱后端的部署拿到 `501 not_configured`。 |
 
 ## Skills
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | `listAgentSkills()` | 已实测 | 一个全新的 agent 已经**挂上了整个全局目录** ，docx、pptx、xlsx、pdf 都在里面。你不用装它们；它们从创建那一刻就在。 |
-| 读取 skill 目录 | 已实测 | 目录路由返回 200。我们看到的每一条 `scope` 都是 `global`。 |
+| 读取 skill 目录 | 已实测 | `listSkills({ scope, q, page })` 读的就是它。目录路由返回 200。我们看到的每一条 `scope` 都是 `global`。`q` 按名字匹配；`page` 从 1 开始，每页固定 100。 |
 | 对全局目录里的 skill 调 `putAgentSkill()` | 不存在 | 通过网关返回 `404`。安装路由只对你自己租户上传的 skill 有意义。既然全局 skill 在创建时就挂上了，这条更多是「你已经有了，只是管不了」，而不是「你用不了」。 |
 | 对 `org` 或 `personal` skill 调 `putAgentSkill()` / `deleteAgentSkill()` | 可用，未实测 | 网关会转发这两个 scope。我们手上从来没有过一个非全局的 skill 可装，所以整个「装完再读回来」的循环都没测过。 |
 | 上传你自己的 skill | 可用，未实测 | 一个 multipart 创建接口，收一个 `.zip` 加一个 `org` 或 `personal` 的 scope；`name` 和 `description` 取自压缩包内 `SKILL.md` 的 frontmatter。全局 scope 用组织 key 写不了。 |
@@ -119,7 +119,7 @@ Environment 是一份可选的、不可变的沙箱镜像，你把它固定在 a
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| 通过网关能触达 Environments | 已实测 | 一次列表调用返回 `200` 和一个空列表。我们跑过的就这些：下面构建路径上的每一条都没跑过。 |
+| 通过网关能触达 Environments | 已实测 | `listEnvironments()` 返回 `200` 和一个空列表。我们跑过的就这些：下面构建路径上的每一条都没跑过。 |
 | 创建一个 environment 并构建一个版本 | 可用，未实测 | 版本不可变，按 `queued -> submitting -> building -> verifying -> ready` 推进，`failed` 从任何构建阶段都可达。轮询具体那个版本，不要轮询 environment 的顶层状态。 |
 | apt、npm、pip 预装 | 可用，未实测 | 安装顺序是固定的：先 apt，再 npm，最后 pip。 |
 | cargo、gem、go | 不存在 | 三个包管理器，不是六个。 |
@@ -136,11 +136,11 @@ Environment 是一份可选的、不可变的沙箱镜像，你把它固定在 a
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| 作为 agent 子资源的定时任务 | 可用，未实测 | 列出、创建、替换、删除、触发、读取运行记录，全都在 `/agents/{id}/schedules` 下。SDK 一个都没暴露。 |
+| 作为 agent 子资源的定时任务 | 可用，未实测 | 列出、创建、替换、删除、触发、读取运行记录，全都在 `/agents/{id}/schedules` 下，这七个方法在 client 上都有：`listSchedules`、`createSchedule`、`getSchedule`、`updateSchedule`、`deleteSchedule`、`triggerSchedule`、`listScheduleRuns`。有两件事类型帮不了你。改周期只能靠 `schedule: { kind: 'cron', expr, tz }`；读回来的那个 `scheduleSpec` 会被 `ScheduleUpdate` 拒收，服务端也会忽略它。还有，对一个已禁用的定时任务调 `triggerSchedule`，返回的是 `triggered: true`，而运行投影里记的是 `status: 'skipped'`。 |
 | `cron`、`every`、`at` | 可用，未实测 | cron 最多五个字段，没有宏。重叠策略被服务端固定为 SKIP，不可配置。 |
 | 调度后端没接线的地方 | 不存在 | 那些部署返回 `501 not_configured`。不要原样重试。在你把产品建在调度能力上之前，先确认这一点。 |
 | Heartbeat | 可用，未实测 | 不是一条路由：是 agent declared 配置里的一个 `heartbeat` 小节，在创建时和每一次 PUT 时被协调一次。把 `every` 设成 `0` 会暂停它并保留运行历史。协调是尽力而为的，失败不会回报给你的调用。 |
-| Wake | 可用，未实测 | 给下一个 heartbeat 回合排一条提醒，或者立刻触发 heartbeat 定时任务。立刻模式在没有启用 heartbeat 时返回 `409`。 |
+| Wake | 可用，未实测 | `wake(agentId, { text, mode })` 给下一个 heartbeat 回合排一条提醒，或者立刻触发 heartbeat 定时任务。立刻模式在没有启用 heartbeat 时返回 `409`。 |
 | 从定时任务做 webhook 投递 | 不存在 | `delivery` 只接受 `none` 和一种带类型的 `announce`。webhook 投递会被拒。 |
 | 暂停与恢复、归档、跨定时任务的运行历史 | 不存在 | 删掉重建，运行记录一次读一个定时任务。 |
 | 删除 agent 时自动清理 | 不存在 | 定时任务在 agent 被停掉和被删除之后都还活着。你得先自己列出来删掉，否则它们会继续触发。 |

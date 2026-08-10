@@ -1,7 +1,7 @@
 ---
 title: Sessions
 source: /en/build/sessions
-source_hash: 6331fb8dd03466c7fbb94df03877335d0ab5b65a0cce156a8219ec4dfc1aa8fd
+source_hash: 0ff607e34d2def6c1c1db6cba8f0761a63a420c38be77329ef3cabdc6eca2447
 ---
 
 # Sessions
@@ -265,37 +265,24 @@ const events = await zc.listEvents(agentId, session.session_id, {
 服务端**默认返回 100 条事件，最多 500 条** ，而 `listEvents` 只返回一页。没有 `has_more` 标志，也没有报错：一个有 900 条事件的 session 只返回前 100 条，看上去却是完整的。任何要重建整段对话的代码都必须分页。
 :::
 
-用 `after` 游标翻页 —— 也就是你收到的最后一个事件的 `seq` —— 直到某一页返回的条数少于你请求的 limit：
+`listAllEvents` 就是这个翻页循环。它用 `after` 游标 —— 也就是它收到的最后一个事件的 `seq` —— 一直走，直到某一页返回的条数少于它请求的 limit：
 
 ```ts
-const PAGE = 500
-
-async function listAllEvents(sessionId: string): Promise<SessionEvent[]> {
-  const all: SessionEvent[] = []
-  let after: number | undefined
-
-  for (;;) {
-    const page = await zc.listEvents(agentId, sessionId, {
-      limit: PAGE,
-      ...(after === undefined ? {} : { after }),
-    })
-    all.push(...page)
-    if (page.length < PAGE) break
-    after = page[page.length - 1]!.seq
-  }
-
-  return all
-}
+const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 ```
+
+它存在正是因为上面那种截断，而且它在两个地方比顺手写出来的循环更严格：`seq` 不大于游标的事件会被丢掉，所以页边界不会重复吐出同一个事件；如果某一页里最大的 `seq` 没能把游标推进，这次遍历就直接停下来，所以一个忽略了 `after` 的服务端只会让你拿到一页重复数据，而不是让循环空转到底。`pageSize` 是每次请求的 `limit`（默认值和上限都是 500）；`after` 和 `types` 的含义与 `listEvents` 上一致。
 
 `seq` 是每个 session 内持久且单调的序号，所以同一个游标也能用来续传 SSE 流（`streamEvents({ after })`）。`types` 在服务端过滤，接收一个事件类型列表；它可以和 `after`、`limit` 组合使用。
 
 ## SDK 里没有的
 
 ::: danger 不支持
-`ZooclawClient` 没有 `listSessions`、`archiveSession`、`deleteSession` 或 `patchSession`。没有任何 SDK 方法可以枚举一个 agent 的 session、归档或删除某个 session，或者在创建之后修改 session 的 `metadata`。
+`ZooclawClient` 没有 `patchSession`。对一个 session 发 `PATCH`，经过网关返回的是 `405` —— 网关的 catch-all 只注册了 GET/POST/PUT/DELETE，PATCH 根本没有被代理 —— 这就使得 session 的 `metadata` 只能在 `createSession` 时写一次。
 
 自己记录你创建过的那些 `session_id` —— 把它们和你应用里所属的东西存在一起 —— 并且在创建时就把之后需要检索的一切放进 `metadata`，因为后面加不进去。
 :::
 
 也没有顶层的 session 资源，所以无法跨 agent 列出 session。完整边界见[不支持的能力](/zh/reference/not-supported)。
+
+按 agent 的列举和生命周期操作确实有方法 —— `listSessions(agentId, { page })`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)` —— 但它们不改变上面这两段：跨 agent 还是得你自己扇出去合并，`metadata` 还是只能写一次。这三个各自被驱动到什么程度，记在[能力矩阵](/zh/reference/capabilities)里。

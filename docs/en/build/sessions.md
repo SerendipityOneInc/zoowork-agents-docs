@@ -303,29 +303,19 @@ page. There is no `has_more` flag and no error: a session with 900 events answer
 first 100 and looks complete. Anything that reconstructs a whole conversation must page.
 :::
 
-Page with the `after` cursor - the `seq` of the last event you received - until a page comes
-back shorter than the limit you asked for:
+`listAllEvents` is that paging loop. It walks the `after` cursor - the `seq` of the last event
+it received - until a page comes back shorter than the limit it asked for:
 
 ```ts
-const PAGE = 500
-
-async function listAllEvents(sessionId: string): Promise<SessionEvent[]> {
-  const all: SessionEvent[] = []
-  let after: number | undefined
-
-  for (;;) {
-    const page = await zc.listEvents(agentId, sessionId, {
-      limit: PAGE,
-      ...(after === undefined ? {} : { after }),
-    })
-    all.push(...page)
-    if (page.length < PAGE) break
-    after = page[page.length - 1]!.seq
-  }
-
-  return all
-}
+const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 ```
+
+It exists because of the truncation above, and it is stricter than the obvious loop in two
+places: events at or below the cursor are dropped, so a page boundary cannot duplicate an
+event, and the walk stops if the highest `seq` in a page fails to advance the cursor, so a
+server that ignored `after` returns a duplicate page instead of spinning forever. `pageSize`
+is the per-request `limit` (default and maximum 500); `after` and `types` mean what they mean
+on `listEvents`.
 
 `seq` is a durable, monotonic per-session sequence, so the same cursor also resumes an SSE
 stream (`streamEvents({ after })`). `types` filters server-side and takes a list of event
@@ -334,9 +324,9 @@ types; it composes with `after` and `limit`.
 ## Not in the SDK
 
 ::: danger Not supported
-`ZooclawClient` has no `listSessions`, `archiveSession`, `deleteSession`, or `patchSession`.
-There is no SDK method to enumerate an agent's sessions, to archive or delete one, or to
-change a session's `metadata` after creation.
+`ZooclawClient` has no `patchSession`. `PATCH` on a session answers `405` through the gateway -
+its catch-all registers GET/POST/PUT/DELETE only, so PATCH is not proxied at all - which makes
+a session's `metadata` write-once, at `createSession`.
 
 Keep your own record of the `session_id` values you create - store them alongside whatever
 they belong to in your application - and put anything you need to search on into `metadata`
@@ -345,3 +335,9 @@ at create time, because you cannot add it later.
 
 There is also no top-level session resource, so there is no way to list sessions across
 agents. See [Not supported](/en/reference/not-supported) for the full boundary.
+
+Per-agent listing and lifecycle do have methods - `listSessions(agentId, { page })`,
+`archiveSession(agentId, sessionId)`, `deleteSession(agentId, sessionId)` - and none of them
+changes the two paragraphs above: you still fan out across agents yourself, and `metadata` is
+still write-once. The [capability matrix](/en/reference/capabilities) records how far each of
+the three has been driven.

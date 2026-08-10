@@ -1,7 +1,7 @@
 ---
 title: 快速开始
 source: /en/get-started/quickstart
-source_hash: 97f3ba72909333ae6d487dc0b3aa4bc2a9827be676f23f359c8579c75fbf4bfe
+source_hash: d5534a58316059615de241509da2a8d28530af632e5236c93e66c5274f788523
 ---
 
 # 快速开始
@@ -199,20 +199,13 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/start" \
 请等 `status.desired_state === 'running'`。它翻转所需的时间远不到一秒。
 :::
 
+这个循环 SDK 已经写好了，你不用自己写：
+
 ```ts
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-
-async function waitUntilRunning(agentId: string, attempts = 30): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    await sleep(500)
-  }
-  throw new Error(`agent ${agentId} did not reach desired_state=running`)
-}
-
-await waitUntilRunning(agentId)
+const agent = await zc.waitUntilRunning(agentId)
 ```
+
+它按 30 秒的总预算、每 500 毫秒轮询一次 `status.desired_state`，返回的就是 `getAgent()` 会给你的那份投影。每一次轮询都用剩余预算设了上限，所以网关接了连接又不回话时，这次等待会按时结束，而不是把 promise 挂死。如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooclawError`。
 
 启动之后立刻 `getAgent()` 读一次，长这样（省略了其他字段）：
 
@@ -398,18 +391,6 @@ if (!apiKey) throw new Error('set ZOOCLAW_API_KEY')
 
 const zc = createZooclawClient({ apiKey })
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-
-/** Readiness is desired_state. actual_state tracks chat channels and never reaches active here. */
-async function waitUntilRunning(agentId: string, attempts = 30): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    await sleep(500)
-  }
-  throw new Error(`agent ${agentId} did not reach desired_state=running`)
-}
-
 // 0. Confirm the key works and pick a model.
 const models = await zc.listModels()
 const model = models[0]?.model ?? 'litellm/claude-sonnet-5'
@@ -430,7 +411,8 @@ try {
   // 2. Start it. Without this, createSession returns 409 agent_not_running.
   const { warnings } = await zc.startAgent(agentId)
   if (warnings.length) console.log(`start warnings (expected for API-only agents): ${warnings.join(', ')}`)
-  await waitUntilRunning(agentId)
+  // Readiness is desired_state. waitUntilRunning polls that, never actual_state.
+  await zc.waitUntilRunning(agentId)
   console.log('agent is running')
 
   // 3. Open a session with the first user message already in it.
@@ -504,7 +486,7 @@ cleaned up agent agt_example
 |---|---|---|
 | 每次调用都返回 `401` | key 缺失或无效 | 检查 `ZOOCLAW_API_KEY` 是否以 `zct_` 开头，以及是否以 `apiKey` 传入。网关和核心 API 在这件事上用的 `error.type` 字符串不一样，所以请按 `e.status` 分支，不要按 type |
 | `createSession` 返回 `409 agent_not_running` | agent 从未启动，或已被停止 | 调 `startAgent()`，并等到 `desired_state === 'running'` |
-| 就绪轮询循环永远不返回 | 在轮询 `status.actual_state` | 改成轮询 `status.desired_state` |
+| 就绪轮询循环永远不返回 | 在轮询 `status.actual_state` | 改成轮询 `status.desired_state`，或者直接交给 `zc.waitUntilRunning()` |
 | 流永远不结束 | 在等连接自己关闭 | 在 `isRunFinished(ev)` 处跳出 |
 | 手上的 agent id 却返回 `404 not_found` | 这个 id 属于另一个组织 | 跨租户的 id 是被隐藏，而不是用 403 拒绝 |
 | `409 idempotency_conflict` | 同一个 `Idempotency-Key`，body 不同 | 换一个新 key，或者发送逐字节一致的 `{ resource, ownership }` |

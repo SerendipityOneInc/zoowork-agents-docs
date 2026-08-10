@@ -80,7 +80,10 @@ card, and the run continues or stops based on the click.
 `agent.approval` is in the event vocabulary, `agent.tool` has a `blocked` phase, and
 `user.tool_confirmation` is an accepted write type, but we have never produced a real pending
 approval, so nothing about the round trip is proven. An agent waiting on an approval spends
-the turn waiting.
+the turn waiting. `listApprovals` and `resolveApproval` are on the client, but they call the
+platform's separate approvals REST resource rather than that event loop, and without a
+Temporal signaler the route answers `501 not_configured` - the methods being there changes
+nothing about what has been proven.
 
 **Instead:** gate on your side. Keep the dangerous capability out of the agent's tool policy,
 have the agent describe what it wants to do in text, make the decision in your own UI, then
@@ -91,9 +94,10 @@ send the outcome back as a `user.message`.
 **You would build:** an inbox listing every conversation across all of your agents, sorted by
 recency.
 
-**What happens:** there is no top-level session collection to call. A paginated per-agent
-listing route exists but the SDK does not expose it and we have not driven it, and it would
-still leave you fanning out across agents and merging by hand.
+**What happens:** there is no top-level session collection to call. `listSessions(agentId)`
+reads one agent's sessions - newest first by `updated_at`, 50 per page, 1-based `page`, no
+cursor - and we have not driven it. It still leaves you fanning out across agents and merging
+by hand.
 
 **Instead:** record the `session_id` your own code creates, along with the `agent_id` and
 whatever user it belongs to. Your database is the index. This is worth doing on day one,
@@ -160,7 +164,7 @@ Smaller gaps, same rule: they do not exist, so do not plan on them.
 |---|---|
 | A command-line interface | TypeScript SDK only. |
 | `agent_with_overrides` on session create | `createSession` takes `initial_events` and `metadata`. |
-| Per-session tool or MCP overrides | The session PATCH route answers `501` for `tools` and `mcp`. |
+| Per-session tool or MCP overrides | `PATCH` on a session is `405` through the gateway - the catch-all registers GET, POST, PUT, and DELETE only, so PATCH is not proxied at all. There is no override path and no `patchSession`. |
 | `session.status_*`, `span.*`, `stop_reason` events | Not in the vocabulary. Use `run.finished` and its `payload.status`. |
 | `putCredential()` / `listCredentials()` | On the SDK interface, `404` through the gateway. |
 | Installing a skill from the global catalog | `404`. Global skills are already attached at agent creation. |
@@ -169,6 +173,6 @@ Smaller gaps, same rule: they do not exist, so do not plan on them.
 | Schedule pause and unpause, archive, run history across schedules | Not present. Delete and recreate, and read runs one schedule at a time. |
 | Automatic schedule cleanup when an agent is deleted | Schedules survive stop and delete. Remove them yourself first. |
 | Memory consolidation as a background process | No equivalent. |
-| SDK methods for approvals, artifacts, schedules, files, environments, or session archive and delete | Routes exist for several of these; the SDK exposes none of them, so you would call them with your own `fetch`. |
+| SDK methods for artifacts or files | Routes exist on the wire for files; `ZooclawClient` exposes nothing for either, so you would call them with your own `fetch`. Approvals, schedules, environments, and session archive and delete are all on the client as of 0.0.5 - see the [capability matrix](/en/reference/capabilities). |
 | Key rotation or revocation from your own code | No documented procedure. Treat a leaked key as needing help from whoever issued it. |
 | Scoped, per-user, or read-only API keys | One organization-wide key, with full read and write over every agent in the organization. |

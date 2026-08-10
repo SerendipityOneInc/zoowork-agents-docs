@@ -1,7 +1,7 @@
 ---
 title: 工具
 source: /en/build/tools
-source_hash: 928e9733f92760f7cc27ef6d1ccbc18e42bdb72e6a05cf256bc12d87e9dd7525
+source_hash: 208a612ee9a128cfe564381f342969d5b5a51a5ae643e60d39ebeabded36b879
 ---
 
 # 工具
@@ -226,7 +226,7 @@ for await (const ev of zc.streamEvents(agentId, sessionId)) {
 
 - 我们从来没有制造出一个真实的待审批，所以这条路径上没有任何东西被观察到能工作。
 - 写入侧的事件，和平台另外那套 approvals REST 资源，用两种不同的结构描述同一个操作，而且对不上。
-- SDK 完全没有暴露审批相关的方法：`ZooclawClient` 上没有 `listApprovals`，也没有 `resolveApproval`。
+- `ZooclawClient` 上确实有 `listApprovals` 和 `resolveApproval`，但它们调的是那套 REST 资源，不是 `user.tool_confirmation` 事件闭环。没有 Temporal signaler 时，这条路由返回 `501 not_configured`；再加上我们从没制造出真实的待审批来试它们，这个来回至今没被验证过。
 - 一次 run 卡在没人回应的审批上，它不会等你。这个回合会超时。
 
 如果你看到 `phase: 'blocked'`，把它当作待处理，并预期这个回合会在工具没有执行的情况下结束。这个面当前的状态见[能力矩阵](/zh/reference/capabilities)。

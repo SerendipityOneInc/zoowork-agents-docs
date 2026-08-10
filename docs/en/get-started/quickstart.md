@@ -204,20 +204,17 @@ That warning is expected and harmless. `startAgent` also reloads chat-channel ro
 Wait on `status.desired_state === 'running'`. It flips in well under a second.
 :::
 
+The SDK ships that loop, so you do not write one:
+
 ```ts
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-
-async function waitUntilRunning(agentId: string, attempts = 30): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    await sleep(500)
-  }
-  throw new Error(`agent ${agentId} did not reach desired_state=running`)
-}
-
-await waitUntilRunning(agentId)
+const agent = await zc.waitUntilRunning(agentId)
 ```
+
+It polls `status.desired_state` on a 30-second budget, 500 ms apart, and hands back the same
+projection `getAgent()` would. Each poll is bounded by whatever is left of the budget, so a
+gateway that accepts the connection and then stalls ends the wait on schedule instead of
+hanging it. An agent that never gets there throws a `ZooclawError` with `status === 408` and
+`type === 'timeout'`.
 
 A `getAgent()` read right after start looks like this (other fields omitted):
 
@@ -403,18 +400,6 @@ if (!apiKey) throw new Error('set ZOOCLAW_API_KEY')
 
 const zc = createZooclawClient({ apiKey })
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-
-/** Readiness is desired_state. actual_state tracks chat channels and never reaches active here. */
-async function waitUntilRunning(agentId: string, attempts = 30): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    await sleep(500)
-  }
-  throw new Error(`agent ${agentId} did not reach desired_state=running`)
-}
-
 // 0. Confirm the key works and pick a model.
 const models = await zc.listModels()
 const model = models[0]?.model ?? 'litellm/claude-sonnet-5'
@@ -435,7 +420,8 @@ try {
   // 2. Start it. Without this, createSession returns 409 agent_not_running.
   const { warnings } = await zc.startAgent(agentId)
   if (warnings.length) console.log(`start warnings (expected for API-only agents): ${warnings.join(', ')}`)
-  await waitUntilRunning(agentId)
+  // Readiness is desired_state. waitUntilRunning polls that, never actual_state.
+  await zc.waitUntilRunning(agentId)
   console.log('agent is running')
 
   // 3. Open a session with the first user message already in it.
@@ -509,7 +495,7 @@ cleaned up agent agt_example
 |---|---|---|
 | `401` on every call | Missing or invalid key | Check `ZOOCLAW_API_KEY` starts with `zct_` and reaches the client as `apiKey`. The gateway and the core API use different `error.type` strings for this, so branch on `e.status`, not on the type |
 | `409 agent_not_running` on `createSession` | The agent was never started, or was stopped | Call `startAgent()` and wait for `desired_state === 'running'` |
-| Readiness loop never returns | Polling `status.actual_state` | Poll `status.desired_state` instead |
+| Readiness loop never returns | Polling `status.actual_state` | Poll `status.desired_state` instead, or let `zc.waitUntilRunning()` do it |
 | Stream never ends | Waiting for the connection to close | Break on `isRunFinished(ev)` |
 | `404 not_found` on an agent id you have | The id belongs to another organization | Ids are hidden across tenants rather than rejected with 403 |
 | `409 idempotency_conflict` | Same `Idempotency-Key`, different body | Use a new key, or send a byte-identical `{ resource, ownership }` |

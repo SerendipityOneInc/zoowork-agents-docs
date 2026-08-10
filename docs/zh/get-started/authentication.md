@@ -1,7 +1,7 @@
 ---
 title: 鉴权
 source: /en/get-started/authentication
-source_hash: 6057c1d512ee081015df9557258722af631ec979f8575e5dfa1c010c05a13ca6
+source_hash: febbcfd0bc9c1329418b9157844554013f08f2cfbc5600ce545d4dee692a8d69
 ---
 
 # 鉴权
@@ -65,7 +65,7 @@ const created = await zc.createAgent({
 1. **不要把 404 读成「已删除」。** 它的含义是「这个 key 看不到任何具有该 id 的 agent」，这涵盖了已删除、从未存在、以及属于别人三种情况。如果你需要知道自己的 agent 是否还在，请在你这边自行记录。
 2. **agent id 不是密钥，但也别到处散。** 在同一个组织内，任何 key 都能 `getAgent()` 它得知的任何 agent id，所以粘进群聊的一个 id 就是一份可读的配置。id 本身不是凭证，跨组织知道它也没有任何访问权。
 
-**列表比读取更严格** ：agent 列表要按明确的 `owner_uid` + `org_id` 选择器对，且是 AND 匹配。同一组织内**由另一个 key 创建的 agent，可以按 id 读到，但不会出现在这个 key 的列表里** 。SDK 没有暴露 `listAgents()` 方法——请自行记录你创建过的 agent id。
+**列表比读取更严格** ：agent 列表要按明确的 `owner_uid` + `org_id` 选择器对，且是 AND 匹配。同一组织内**由另一个 key 创建的 agent，可以按 id 读到，但不会出现在这个 key 的列表里** 。`listAgents()` 用的就是这套选择器，所以它只列出你自己这个 key 拥有的 agent——组织内由别的 key 创建的，请自行记录它们的 id。
 
 ## 验证一个 key 是否可用
 
@@ -104,11 +104,15 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 |---|---|
 | `listModels()` | 能 |
 | Agent 的创建、读取、修改、删除 | 能，限于你的组织内 |
+| `listAgents()` | 能——但选择器是 `owner_uid` AND `org_id`，所以你只看得到自己这个 key 创建的 agent |
 | `startAgent()` / `stopAgent()` | 能 |
 | `listAgentSkills()` | 能 |
 | 你的 agent 下的 session、事件、SSE 流 | 能 |
 | 安装你自己组织上传的 skill | 路由对 `org` 和 `personal` scope 是开放的；我们尚未实测（见 [Skills](/zh/build/skills)） |
 | 安装全局目录里的 skill | **不能——返回 404。** 全局 skill 在 agent 创建时就已经挂上了 |
+| 上传 skill（`uploadSkill()` / `uploadSkillVersion()`） | 这条 multipart 路由只收 `org` 和 `personal` scope；`global` 和 `pack` 是 403。实测到哪一步见 [Skills](/zh/build/skills) |
+| 你自己 agent 下的定时任务 | 挂在 agent 下的路由，七个方法都在客户端上。实测到哪一步见[能力矩阵](/zh/reference/capabilities) |
+| 你组织内的 environment | 限于你的组织。平台默认的那个 environment——新建 agent 被钉上的那个——任何 key 都读不到，因为网关强制加了组织选择器，而默认 environment 不属于任何组织。见 [Environments](/zh/build/environments) |
 | `putCredential()` / `listCredentials()` | **不能——设计如此的 404** ；网关自己注入模型凭证 |
 | 其他组织的任何 agent id | **不能——返回 404，不是 403** |
 | 列出同组织内由另一个 key 创建的 agent | 不能——列表选择器是精确匹配；按 id 读取仍然可行 |

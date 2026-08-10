@@ -34,7 +34,10 @@ try {
 
 `ZooclawError` is a real class, so `instanceof` works. Narrow with it before you read
 `.status` or `.type` - a network failure, a DNS error, or an aborted request surfaces as the
-runtime's own `TypeError` or `AbortError`, not as a `ZooclawError`.
+runtime's own `TypeError` or `AbortError`, not as a `ZooclawError`. The one exception is
+`waitUntilRunning()`, which synthesizes its own locally: a budget that runs out is
+`ZooclawError` `408` / `'timeout'`, and an aborted wait is `0` / `'aborted'`. The server sends
+neither, and neither leaks a `DOMException` from the abort underneath.
 
 ## Match on `error.type`, never parse messages
 
@@ -57,7 +60,7 @@ Your requests pass through a gateway that authenticates your key and scopes you 
 organization, then reach the API. **Both can produce an error, and they produce it in their
 own envelope.**
 
-**API errors are passed through unchanged.** The API envelope is:
+**API errors are passed through unchanged.** The commonest API envelope is:
 
 ```json
 { "error": { "type": "agent_not_running", "message": "agent is not running" } }
@@ -67,22 +70,27 @@ own envelope.**
 it runs before it ever forwards your request. A rejected key answers `401` with the type
 `service_token.invalid`, which is a gateway code, not an API one.
 
-The SDK reads `error.type` from whatever envelope comes back, and `error.message` with a
-`message` fallback:
+The SDK unpacks both envelopes, so whichever one comes back reaches you as a `ZooclawError`
+carrying a type:
 
 ```ts
 const j = JSON.parse(text)
-msg  = j?.error?.message || j?.message || `HTTP ${res.status}`
-type = j?.error?.type
+msg  = j?.error?.message || j?.message || j?.detail || msg
+type = j?.error?.type ?? j?.code
 ```
 
-::: warning `type` can be `undefined`
-Three cases leave you with no type at all:
+The API side is itself two families, not one. Sessions, schedules, and environments answer
+`{ error: { type, message } }` with a bare code (`agent_not_running`, `session_archived`); the
+agents family answers `{ code, detail }` with a dotted one (`service_api.not_found`). Both land
+on `ZooclawError`, and the codes are kept verbatim - the SDK does not invent a shared
+vocabulary for them - so read the `not_found` row below before you compare a type with `===`.
 
-1. A gateway-originated failure whose envelope does not carry `error.type` in that position.
-2. Any non-JSON error body - an HTML error page from an intermediary, an empty body, a proxy
+::: warning `type` can be `undefined`
+Two cases leave you with no type at all:
+
+1. Any non-JSON error body - an HTML error page from an intermediary, an empty body, a proxy
    timeout. The SDK keeps a clean `HTTP <status>` message and no type.
-3. **Every SSE stream failure.** `streamEvents()` builds its error from the status line
+2. **Every SSE stream failure.** `streamEvents()` builds its error from the status line
    alone, so `type` is always `undefined` there even when the body had one.
 
 So branch on `status` as well as `type`, and always have a `status`-only fallback.
@@ -109,7 +117,7 @@ Observed on the public gateway against a live deployment, unless a row says othe
 | `type` | HTTP | Cause | What to do |
 |---|---:|---|---|
 | `agent_not_running` | 409 | `createSession()` or `postEvents()` on an agent whose `status.desired_state` is not `running`. A newly created agent is stopped, and so is one you stopped yourself. | Call `startAgent()`, poll `status.desired_state` until it reads `running`, then retry. Never poll `actual_state`. |
-| `not_found` | 404 | Unknown agent or session id, a soft-deleted one, **or one that belongs to another organization**. | Do not read this as "deleted". See [Authentication](/en/get-started/authentication) - cross-tenant reads are hidden as 404, never rejected as 403. Keep your own record of the ids you create. |
+| `not_found` / `service_api.not_found` | 404 | Unknown agent or session id, a soft-deleted one, **or one that belongs to another organization**. Both spellings exist: the agents family answers `service_api.not_found`, the sessions, schedules, and environments family answers a bare `not_found`. | Match on both spellings, or prefer `status === 404`. Do not read this as "deleted". See [Authentication](/en/get-started/authentication) - cross-tenant reads are hidden as 404, never rejected as 403. Keep your own record of the ids you create. |
 | `service_token.invalid` | 401 | The key is missing, malformed, revoked, or its bound user left the organization. Emitted by the gateway, in the gateway's envelope. | Fix the credential. Do not retry - it will fail identically. Verify with `listModels()`. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** `{ resource, ownership }` body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
 | `invalid_request` | 400 | A malformed or rejected request body: a missing `ownership` on create, a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
@@ -184,18 +192,22 @@ Retry safety is per operation, not per error. Nothing in the SDK retries for you
 
 | Operation | Safe to retry? | Why |
 |---|---|---|
-| `listModels`, `getAgent`, `getSession`, `listEvents`, `listAgentSkills` | **Yes** | Reads. Retry on network errors and 5xx with exponential backoff. |
+| `listModels`, `getAgent`, `getSession`, `listEvents`, `listAgentSkills`, and the other `list*` / `get*` reads | **Yes** | Reads. Retry on network errors and 5xx with exponential backoff. |
 | `startAgent`, `stopAgent` | **Yes** | Each call re-runs its convergence actions against the same id. Check `warnings`, and remember `channel_routes_reload_failed` is expected noise on an API-only agent, not a failure. |
 | `deleteAgent` | **Yes** | Soft delete. Repeated calls succeed. |
 | `streamEvents` | **Yes** | Reconnect with `{ after: lastSeq }`. Resume is server-side, so nothing between windows is lost. |
-| `createAgent`, `createSession` | **Only with an `Idempotency-Key`** | Without one, a retry after a timeout creates a second agent, or a second session that runs the opening turn again. |
+| `createAgent`, `createSession`, `createSchedule`, `createEnvironment`, `createEnvironmentVersion`, `uploadSkill`, `uploadSkillVersion` | **Only with an `Idempotency-Key`** | Without one, a retry after a timeout creates a second agent, or a second session that runs the opening turn again. |
 | `updateAgent`, `putAgentSkill`, `deleteAgentSkill`, `putCredential` | **No** | Each success bumps `config_version`, and `putCredential` also appends a secret version. After a timeout, `getAgent()` first and reconcile before you decide. |
+| `updateSchedule`, `deleteSchedule` | **No** | Neither carries a cross-timeout idempotency guarantee. After a timeout, reconcile by listing the agent's schedules and reading their runs rather than sending the write again. |
 | `postEvents` | **No** | There is no idempotency key on this route. A blind retry can deliver the same `user.message` twice and pollute the conversation. De-duplicate on your side. |
 
 ### `Idempotency-Key` on the create calls
 
-Both create methods take the key as their last argument, sent as the `Idempotency-Key`
-header:
+Seven methods take an idempotency key, sent as the `Idempotency-Key` header: `createAgent`,
+`createSession`, `createSchedule`, `createEnvironment`, `createEnvironmentVersion`,
+`uploadSkill`, and `uploadSkillVersion`. The first five take it as a trailing argument; the two
+upload methods take it as `idempotencyKey` on their options object. The two you will reach for
+first:
 
 ```ts
 const created = await zc.createAgent(
@@ -250,22 +262,9 @@ Provisioning that survives the two failures you will actually meet: a stopped ag
 create that may or may not have landed.
 
 ```ts
-import { createZooclawClient, ZooclawError, type ZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
 
 const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
-
-async function waitUntilRunning(zc: ZooclawClient, agentId: string, timeoutMs = 30_000) {
-  const deadline = Date.now() + timeoutMs
-  for (;;) {
-    const agent = await zc.getAgent(agentId)
-    // desired_state is the only field that gates session calls.
-    if (agent.status?.desired_state === 'running') return
-    if (Date.now() >= deadline) {
-      throw new Error(`agent ${agentId} still ${agent.status?.desired_state} after ${timeoutMs}ms`)
-    }
-    await new Promise((r) => setTimeout(r, 250))
-  }
-}
 
 async function openSession(agentId: string, text: string, jobId: string) {
   try {
@@ -279,7 +278,8 @@ async function openSession(agentId: string, text: string, jobId: string) {
 
     if (e.type === 'agent_not_running') {
       await zc.startAgent(agentId)      // warnings here are informational
-      await waitUntilRunning(zc, agentId)
+      // Polls desired_state, the only field that gates session calls. Throws 408/'timeout'.
+      await zc.waitUntilRunning(agentId)
       return zc.createSession(
         agentId,
         { initial_events: [{ type: 'user.message', content: text }] },

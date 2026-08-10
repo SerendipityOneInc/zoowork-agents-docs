@@ -122,18 +122,17 @@ while ((await zc.getAgent(agentId)).status?.actual_state !== 'running') {
 }
 ```
 
-Poll `desired_state` instead. It flips to `running` in well under a second.
+Poll `desired_state` instead. It flips to `running` in well under a second, and the SDK has
+the loop already:
 
 ```ts
-async function waitUntilRunning(agentId: string, attempts = 30): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    const a = await zc.getAgent(agentId)
-    if (a.status?.desired_state === 'running') return
-    await new Promise((r) => setTimeout(r, 1000))
-  }
-  throw new Error(`agent ${agentId} did not reach desired_state=running`)
-}
+await zc.waitUntilRunning(agentId)
 ```
+
+`waitUntilRunning()` polls `desired_state` on a 30-second budget, 500 ms apart, and bounds
+each request with whatever is left of that budget, so a gateway that stalls mid-request ends
+the wait instead of hanging it. It throws a `ZooclawError` with `status === 408` and
+`type === 'timeout'` if the agent never gets there.
 
 A full turn completes normally on an agent whose `actual_state` never leaves `activating`.
 `desired_state` is the only readiness signal that matters.
@@ -230,10 +229,16 @@ readable afterwards. It does not expire at the end of a turn, and the SSE stream
 when a turn ends.
 
 ::: danger Not supported
-The SDK exposes no `listSessions`, `archiveSession`, `deleteSession`, or `patchSession`. There
-is no way to enumerate an agent's sessions through the SDK, so keep your own `session_id`
-records. See [Not supported](/en/reference/not-supported).
+`ZooclawClient` has no `patchSession`. `PATCH` on a session is `405` through the gateway, so a
+session's `metadata` is write-once at `createSession` - put anything you will need to search on
+in there when you create it. See [Not supported](/en/reference/not-supported).
 :::
+
+Per-agent listing and lifecycle do have methods - `listSessions(agentId)`,
+`archiveSession(agentId, sessionId)`, `deleteSession(agentId, sessionId)`. There is still no
+top-level session collection, so keep your own `session_id` records for anything you need to
+reach across agents; the [capability matrix](/en/reference/capabilities) records how far each
+of the three has been driven.
 
 **The surprise:** a session you create through the API and a conversation the same agent is
 having inside the ZooClaw app are two separate conversations. API sessions carry a
