@@ -87,8 +87,9 @@ existence rather than confirming it. Two consequences:
 
 Listing is narrower than fetching: agents are listed by an explicit `owner_uid` + `org_id`
 selector pair, matched as an AND. An agent created by a different key in the same organization
-can be fetched by id but will not appear in that key's list. The SDK exposes no `listAgents()`
-method - keep your own record of the agent ids you create.
+can be fetched by id but will not appear in that key's list. `listAgents()` uses that same
+selector, so it lists only what your own key owns - keep your own record of the ids for
+anything created by another key in your organization.
 
 ## Check that a key works
 
@@ -129,11 +130,15 @@ A missing or invalid key returns **401**. Match on `ZooclawError.status` and
 |---|---|
 | `listModels()` | Yes |
 | Agent create, read, update, delete | Yes, within your organization |
+| `listAgents()` | Yes - but the selector is `owner_uid` AND `org_id`, so you see only the agents your own key created |
 | `startAgent()` / `stopAgent()` | Yes |
 | `listAgentSkills()` | Yes |
 | Sessions, events, SSE stream under your agents | Yes |
 | Installing a skill your own organization uploaded | The route is open to `org` and `personal` scope; we have not exercised it (see [Skills](/en/build/skills)) |
 | Installing a skill from the global catalog | No - returns 404. Global skills are already attached at agent creation |
+| Uploading a skill (`uploadSkill()` / `uploadSkillVersion()`) | The multipart route takes `org` and `personal` scope only; `global` and `pack` are 403. See [Skills](/en/build/skills) for what has been driven |
+| Schedules under your own agents | Agent-scoped routes, all seven on the client. See the [capability matrix](/en/reference/capabilities) for what has been driven |
+| Environments in your organization | Scoped to your org. The platform default Environment - the one a fresh agent is pinned to - is not fetchable by any key, because the gateway forces an org selector and the default belongs to no org. See [Environments](/en/build/environments) |
 | `putCredential()` / `listCredentials()` | No - 404 by design; the gateway seeds model credentials itself |
 | Any agent id in another organization | No - returns 404, not 403 |
 | Listing agents created by a different key in your organization | No - the list selector is exact; fetch by id still works |

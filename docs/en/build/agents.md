@@ -71,7 +71,7 @@ For an API-driven product, pass `false`.
 | `model.primary` | string | Model alias in `provider/model-id` form, e.g. `litellm/claude-sonnet-5`. A bare name is normalized to `litellm/<model-id>`. Get the list from `listModels()`. |
 | `model.input` | `string[]` | `text` and/or `image`. Declaring `image` says the primary model reads images itself. |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | Guidance documents. Only inline `content` is stored. Only the canonical names are read when the prompt is assembled: `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`. Other names are saved but never reach the model. `MEMORY.md` and the `memory/` namespace are reserved and return `400 invalid_persona_doc_name`. |
-| `labels` | `Record<string, string>` | Your own key-value tags. Queryable on the wire list route. |
+| `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
 | `tool_policy` | object | `{}` means the full tool manifest. A non-empty object is an allow/deny policy, e.g. `{ allow: ['read', 'web_search'] }`. See [Tools](./tools). |
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
 | `mcp` | array | Remote MCP server declarations. See [Tools](./tools). |
@@ -213,37 +213,32 @@ connects, so `actual_state` sits at `activating` indefinitely and `active` is un
 Sessions work perfectly while `actual_state` is `activating` - we drive full turns in that
 state on every harness run.
 
-Poll `desired_state`, with a timeout:
+Poll `desired_state`, with a timeout. `waitUntilRunning()` is that loop, already written:
 
 ```ts
-import type { ZooclawClient } from '@zooclaw-agents/sdk'
-
-/**
- * Block until the agent is startable-and-started. Polls `status.desired_state`,
- * which is the only field that gates createSession(). Never poll `actual_state`.
- */
-export async function waitUntilRunning(
-  zc: ZooclawClient,
-  agentId: string,
-  opts: { timeoutMs?: number; intervalMs?: number } = {},
-): Promise<void> {
-  const timeoutMs = opts.timeoutMs ?? 30_000
-  const intervalMs = opts.intervalMs ?? 250
-  const deadline = Date.now() + timeoutMs
-
-  for (;;) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `agent ${agentId} did not reach desired_state=running within ${timeoutMs}ms ` +
-          `(desired_state=${agent.status?.desired_state})`,
-      )
-    }
-    await new Promise((r) => setTimeout(r, intervalMs))
-  }
-}
+const agent = await zc.waitUntilRunning(agentId)
+console.log(agent.status?.desired_state)  // 'running'
 ```
+
+It polls `status.desired_state` - never `actual_state` - and hands back the projection it read.
+The defaults are a 30s budget and 500ms between polls; both are adjustable, and an
+`AbortSignal` cancels the wait.
+
+```ts
+const ac = new AbortController()
+await zc.waitUntilRunning(agentId, { timeoutMs: 60_000, intervalMs: 1_000, signal: ac.signal })
+```
+
+A wait that runs out throws a `ZooclawError` with `status: 408` and `type: 'timeout'`; an
+aborted one throws `status: 0` and `type: 'aborted'`. Both are synthesized locally - the
+server never sends either, and an abort does not leak a `DOMException` at you.
+
+Both bounds cover an **in-flight** poll, not just the gap between polls: every request carries
+its own signal, fired by your `signal` or by whatever is left of the budget. A gateway that
+accepts the connection and then never answers therefore ends the wait on schedule instead of
+hanging it. That is the part a hand-rolled loop misses - `fetch` has no timeout of its own
+anywhere the SDK runs, so a `Date.now() >= deadline` check that only runs between requests
+never gets a turn.
 
 Full provisioning path:
 
@@ -254,7 +249,7 @@ const created = await zc.createAgent({
 })
 
 await zc.startAgent(created.agent_id)      // warnings are informational
-await waitUntilRunning(zc, created.agent_id)
+await zc.waitUntilRunning(created.agent_id)
 
 const session = await zc.createSession(created.agent_id, {
   initial_events: [{ type: 'user.message', content: 'Hello.' }],
@@ -269,7 +264,7 @@ try {
 } catch (e) {
   if (e instanceof ZooclawError && e.type === 'agent_not_running') {
     await zc.startAgent(agentId)
-    await waitUntilRunning(zc, agentId)
+    await zc.waitUntilRunning(agentId)
   } else {
     throw e
   }
@@ -377,6 +372,24 @@ A freshly created agent already has the entire global skill catalog attached - c
 `listAgentSkills()` before you try to install anything. `putAgentSkill()` returns `404` for
 global-scope skills; it only works for skills your own tenant uploaded.
 
+## List your agents
+
+`listAgents({ labels, page })` enumerates the agents owned by the user your key is bound to.
+
+```ts
+const mine = await zc.listAgents()
+const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example' } })
+```
+
+The scope is `owner_uid` **and** `org_id`, both injected by the gateway from your key. An agent
+a colleague created in the same org is readable by `getAgent()` if you know its id, but it
+never appears in your listing - so for anything that spans keys, keep your own record of the
+ids. Page size is fixed at 100 by the engine, so `page` is the only way past the first hundred.
+
+`labels` filters on the labels you declared at create time, one `label.<key>` selector per
+entry. `{ labels: { workspace_id: '...' } }` is the one worth remembering: it turns the
+workspace id in a ZooClaw chat URL - the first path segment - back into the agent behind it.
+
 ## Not supported
 
 ::: danger Not supported
@@ -389,13 +402,6 @@ recover an old configuration, store it yourself before you PUT.
 **No optimistic concurrency.** There is no `version` precondition on `updateAgent()`, and
 concurrent writers never see a `409`. Two processes updating the same agent silently
 last-write-wins per section. Serialize your own writes if that matters.
-:::
-
-::: danger Not supported
-**`listAgents` is not in the SDK.** There is no method to enumerate your agents. Store the
-`agent_id` returned by `createAgent()` - it is the only handle you get. The wire route exists
-but is asymmetric: it requires an exact `owner_uid` **and** `org_id` match, so an agent
-created by another token in the same org can be fetched by id yet never appears in a listing.
 :::
 
 ## Next

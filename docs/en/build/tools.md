@@ -277,8 +277,10 @@ The approval loop does not work end to end today, and you should not build a dem
   working.
 - The write-side event and the platform's separate approvals REST resource describe the same
   operation with two different shapes, and they do not line up.
-- The SDK exposes no approval methods at all: there is no `listApprovals` and no
-  `resolveApproval` on `ZooclawClient`.
+- `ZooclawClient` does have `listApprovals` and `resolveApproval`, but they drive that REST
+  resource, not the `user.tool_confirmation` event loop. Without a Temporal signaler the route
+  answers `501 not_configured`, and with no real pending approval ever produced to try them
+  against, the round trip stays unproven.
 - A run that blocks on an approval nobody answers does not wait for you. The turn times out.
 
 If you see `phase: 'blocked'`, treat it as pending and expect the turn to end without the

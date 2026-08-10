@@ -1,7 +1,7 @@
 ---
 title: Agents
 source: /en/build/agents
-source_hash: 03d573a1944bca2570f976c0ad115510ef34fe96ce66cc242ed624a5a598bd14
+source_hash: 462b2aa2e380095d7d6054952804b2a94f43eca43407f7843cdfc334c07b6070
 ---
 
 # Agents
@@ -61,7 +61,7 @@ console.log(created.agent_id, created.config_version)
 | `model.primary` | string | `provider/model-id` 形式的模型别名，例如 `litellm/claude-sonnet-5`。只写模型名会被归一成 `litellm/<model-id>`。列表从 `listModels()` 拿。 |
 | `model.input` | `string[]` | `text` 和/或 `image`。声明 `image` 表示主模型自己读图。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
-| `labels` | `Record<string, string>` | 你自己的键值标签。可以在线协议的列表路由上作为查询条件。 |
+| `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
 | `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
 | `mcp` | array | 远程 MCP server 声明。见[工具](./tools)。 |
@@ -183,37 +183,23 @@ console.log(warnings)
 
 纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 我们每一次跑 harness 都在这个状态下驱动完整的回合。
 
-轮询 `desired_state`，并带上超时：
+轮询 `desired_state`，并带上超时。`waitUntilRunning()` 就是这个循环，已经写好了：
 
 ```ts
-import type { ZooclawClient } from '@zooclaw-agents/sdk'
-
-/**
- * Block until the agent is startable-and-started. Polls `status.desired_state`,
- * which is the only field that gates createSession(). Never poll `actual_state`.
- */
-export async function waitUntilRunning(
-  zc: ZooclawClient,
-  agentId: string,
-  opts: { timeoutMs?: number; intervalMs?: number } = {},
-): Promise<void> {
-  const timeoutMs = opts.timeoutMs ?? 30_000
-  const intervalMs = opts.intervalMs ?? 250
-  const deadline = Date.now() + timeoutMs
-
-  for (;;) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    if (Date.now() >= deadline) {
-      throw new Error(
-        `agent ${agentId} did not reach desired_state=running within ${timeoutMs}ms ` +
-          `(desired_state=${agent.status?.desired_state})`,
-      )
-    }
-    await new Promise((r) => setTimeout(r, intervalMs))
-  }
-}
+const agent = await zc.waitUntilRunning(agentId)
+console.log(agent.status?.desired_state)  // 'running'
 ```
+
+它轮询的是 `status.desired_state` —— 永远不是 `actual_state` —— 并把读到的那份投影交还给你。默认是 30 秒预算、每次轮询间隔 500 毫秒；两个值都可以调，也可以用 `AbortSignal` 取消这次等待。
+
+```ts
+const ac = new AbortController()
+await zc.waitUntilRunning(agentId, { timeoutMs: 60_000, intervalMs: 1_000, signal: ac.signal })
+```
+
+等待耗尽预算时抛出的 `ZooclawError` 是 `status: 408`、`type: 'timeout'`；被取消时是 `status: 0`、`type: 'aborted'`。这两个都是本地合成出来的 —— 服务端从来不会发它们，而且取消不会把 `DOMException` 漏给你。
+
+这两个上限管的是**在途** 的那次请求，而不只是两次轮询之间的间隔：每一个请求都带自己的 signal，由你的 `signal` 或预算的剩余部分触发。所以网关接了连接却再也不回话时，这次等待仍然按时结束，而不是被挂住。这正是手写循环漏掉的部分 —— SDK 跑的每一种运行时里，`fetch` 都没有自己的超时，所以一个只在两次请求之间执行的 `Date.now() >= deadline` 判断根本轮不到执行。
 
 完整的开通路径：
 
@@ -224,7 +210,7 @@ const created = await zc.createAgent({
 })
 
 await zc.startAgent(created.agent_id)      // warnings are informational
-await waitUntilRunning(zc, created.agent_id)
+await zc.waitUntilRunning(created.agent_id)
 
 const session = await zc.createSession(created.agent_id, {
   initial_events: [{ type: 'user.message', content: 'Hello.' }],
@@ -239,7 +225,7 @@ try {
 } catch (e) {
   if (e instanceof ZooclawError && e.type === 'agent_not_running') {
     await zc.startAgent(agentId)
-    await waitUntilRunning(zc, agentId)
+    await zc.waitUntilRunning(agentId)
   } else {
     throw e
   }
@@ -334,6 +320,19 @@ await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
 
 刚创建出来的 agent 已经挂上了整个全局 skill 目录 —— 在你尝试安装任何东西之前，先调 `listAgentSkills()`。`putAgentSkill()` 对 global scope 的 skill 返回 `404`；它只对你自己租户上传的 skill 有效。
 
+## 列出你的 agent
+
+`listAgents({ labels, page })` 枚举你的 key 所绑定的那个用户拥有的 agent。
+
+```ts
+const mine = await zc.listAgents()
+const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example' } })
+```
+
+作用域是 `owner_uid` **和** `org_id`，两者都由网关从你的 key 上注入。同一组织内由同事创建的 agent，只要你知道它的 id 就能用 `getAgent()` 读到，但它永远不会出现在你的列表里 —— 所以凡是跨 key 的场景，还是要自己记录 id。每页的条数被引擎固定成 100，所以想拿到前一百条之外的东西，只能靠 `page`。
+
+`labels` 按你在创建时声明的 label 过滤，每一项对应一个 `label.<key>` 选择器。`{ labels: { workspace_id: '...' } }` 是最值得记住的一种：它能把 ZooClaw 聊天 URL 里的 workspace id —— 也就是路径的第一段 —— 换回它背后的那个 agent。
+
 ## 不支持的能力
 
 ::: danger 不支持
@@ -342,10 +341,6 @@ await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
 
 ::: danger 不支持
 **没有乐观并发控制。** `updateAgent()` 上没有 `version` 前置条件，并发的写入方永远不会看到 `409`。两个进程改同一个 agent，会按小节静默地后写覆盖先写。如果这件事对你有影响，请自己把写入串行化。
-:::
-
-::: danger 不支持
-**SDK 里没有 `listAgents`。** 没有任何方法可以枚举你的 agent。把 `createAgent()` 返回的 `agent_id` 存下来 —— 那是你能拿到的唯一句柄。线协议上的路由存在，但它是不对称的：它要求 `owner_uid` **和** `org_id` 都精确匹配，所以同一组织内由另一个 token 创建的 agent，可以按 id 读到，却永远不会出现在列表里。
 :::
 
 ## 下一步

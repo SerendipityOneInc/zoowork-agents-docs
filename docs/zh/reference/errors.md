@@ -1,7 +1,7 @@
 ---
 title: 错误处理
 source: /en/reference/errors
-source_hash: 87b456fa720c4acbb484cf4e7f262b8fc1bcb86653f2fb27c2fd54dcd7195999
+source_hash: 020f803d3bf842ced090da29a832eafdb8734d9c44d919468d01bc2534b442fc
 ---
 
 # 错误与重试
@@ -37,7 +37,7 @@ try {
 }
 ```
 
-`ZooclawError` 是一个真正的 class，所以 `instanceof` 能用。读 `.status` 或 `.type` 之前先用它收窄类型——网络故障、DNS 错误、被 abort 的请求，冒出来的是运行时自己的 `TypeError` 或 `AbortError`，不是 `ZooclawError`。
+`ZooclawError` 是一个真正的 class，所以 `instanceof` 能用。读 `.status` 或 `.type` 之前先用它收窄类型——网络故障、DNS 错误、被 abort 的请求，冒出来的是运行时自己的 `TypeError` 或 `AbortError`，不是 `ZooclawError`。唯一的例外是 `waitUntilRunning()`：它在本地自己合成 `ZooclawError`——预算耗尽是 `408` / `'timeout'`，被 abort 是 `0` / `'aborted'`。这两个服务端一个都不发，而且底下那次 abort 的 `DOMException` 不会漏出来。
 
 ## 匹配 `error.type`，永远不要解析报错文本
 
@@ -57,7 +57,7 @@ if (e instanceof ZooclawError && e.type === 'agent_not_running') await zc.startA
 
 你的请求会先经过一个网关，它认证你的 key 并把你限定在你的组织范围内，然后才到达 API。**两者都可能产生错误，而且各用各的信封。**
 
-**API 的错误被原样透传。** API 的信封是：
+**API 的错误被原样透传。** 最常见的那种 API 信封是：
 
 ```json
 { "error": { "type": "agent_not_running", "message": "agent is not running" } }
@@ -65,20 +65,21 @@ if (e instanceof ZooclawError && e.type === 'agent_not_running') await zc.startA
 
 **网关对认证和租户相关的失败发自己的信封** ——这些检查在它转发你的请求之前就跑完了。被拒绝的 key 返回 `401`，type 是 `service_token.invalid`，那是一个网关的代码，不是 API 的。
 
-SDK 会从回来的任何一种信封里读 `error.type`，读 `error.message` 时还带一层 `message` 兜底：
+SDK 会把两种信封都拆开，所以不管回来的是哪一种，到你手上的都是一个带 type 的 `ZooclawError`：
 
 ```ts
 const j = JSON.parse(text)
-msg  = j?.error?.message || j?.message || `HTTP ${res.status}`
-type = j?.error?.type
+msg  = j?.error?.message || j?.message || j?.detail || msg
+type = j?.error?.type ?? j?.code
 ```
 
-::: warning `type` 可能是 `undefined`
-三种情况会让你完全拿不到 type：
+API 这一侧本身就分两族，不是一族。session、定时任务、environment 返回 `{ error: { type, message } }`，代码不带点（`agent_not_running`、`session_archived`）；agent 这一族返回 `{ code, detail }`，代码带点（`service_api.not_found`）。两种最后都落到 `ZooclawError` 上，而且代码原样保留——SDK 不会替它们发明一套统一词表——所以在用 `===` 比较 type 之前，先看下面 `not_found` 那一行。
 
-1. 网关侧产生的失败，它的信封在那个位置上没有 `error.type`。
-2. 任何非 JSON 的错误响应体——中间层返回的 HTML 错误页、空响应体、代理超时。SDK 会保留一条干净的 `HTTP <status>` 文本，没有 type。
-3. **所有 SSE 流的失败。** `streamEvents()` 只根据状态行构造错误，所以哪怕响应体里带了 type，那里的 `type` 也永远是 `undefined`。
+::: warning `type` 可能是 `undefined`
+两种情况会让你完全拿不到 type：
+
+1. 任何非 JSON 的错误响应体——中间层返回的 HTML 错误页、空响应体、代理超时。SDK 会保留一条干净的 `HTTP <status>` 文本，没有 type。
+2. **所有 SSE 流的失败。** `streamEvents()` 只根据状态行构造错误，所以哪怕响应体里带了 type，那里的 `type` 也永远是 `undefined`。
 
 所以除了 `type`，也要按 `status` 分支，并且永远留一条只看 `status` 的兜底分支。
 :::
@@ -101,7 +102,7 @@ if (e instanceof ZooclawError) {
 | `type` | HTTP | 原因 | 怎么办 |
 |---|---:|---|---|
 | `agent_not_running` | 409 | 对一个 `status.desired_state` 不是 `running` 的 agent 调 `createSession()` 或 `postEvents()`。新创建的 agent 是停止的，你自己停掉的也一样。 | 调 `startAgent()`，轮询 `status.desired_state` 直到它是 `running`，再重试。永远不要轮询 `actual_state`。 |
-| `not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。 | 不要把它读成「已删除」。见[鉴权](/zh/get-started/authentication)——跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
+| `not_found` / `service_api.not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。两种拼写都存在：agent 这一族返回 `service_api.not_found`，session、定时任务、environment 这一族返回不带点的 `not_found`。 | 两种拼写都匹配，或者干脆按 `status === 404` 分支。不要把它读成「已删除」。见[鉴权](/zh/get-started/authentication)——跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
 | `service_token.invalid` | 401 | key 缺失、格式不对、已吊销，或者它绑定的用户离开了组织。由网关发出，用网关的信封。 | 修凭证。不要重试——重试会一模一样地失败。用 `listModels()` 验证。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** `{ resource, ownership }` body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
 | `invalid_request` | 400 | 格式错误或被拒绝的请求体：创建时缺 `ownership`、读取时缺选择器、skill 版本固定到一个还没 ready 的版本。 | 改请求。原样重试会一模一样地失败。 |
@@ -158,17 +159,18 @@ if (e instanceof ZooclawError) {
 
 | 操作 | 能否安全重试 | 原因 |
 |---|---|---|
-| `listModels`、`getAgent`、`getSession`、`listEvents`、`listAgentSkills` | **能** | 都是读。网络错误和 5xx 用指数退避重试。 |
+| `listModels`、`getAgent`、`getSession`、`listEvents`、`listAgentSkills`，以及其余的 `list*` / `get*` 读操作 | **能** | 都是读。网络错误和 5xx 用指数退避重试。 |
 | `startAgent`、`stopAgent` | **能** | 每次调用都对同一个 id 重跑一遍它的收敛动作。检查 `warnings`，另外记住 `channel_routes_reload_failed` 在纯 API 的 agent 上是预期内的噪声，不是失败。 |
 | `deleteAgent` | **能** | 软删除。重复调用都会成功。 |
 | `streamEvents` | **能** | 用 `{ after: lastSeq }` 重连。续传发生在服务端，两个窗口之间什么都不会丢。 |
-| `createAgent`、`createSession` | **只在带 `Idempotency-Key` 时能** | 不带的话，超时之后的一次重试会创建出第二个 agent，或者第二个 session，并把开场那一回合再跑一遍。 |
+| `createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion` | **只在带 `Idempotency-Key` 时能** | 不带的话，超时之后的一次重试会创建出第二个 agent，或者第二个 session，并把开场那一回合再跑一遍。 |
 | `updateAgent`、`putAgentSkill`、`deleteAgentSkill`、`putCredential` | **不能** | 每次成功都会 bump `config_version`，`putCredential` 还会追加一个 secret 版本。超时之后先 `getAgent()` 对账，再决定怎么办。 |
+| `updateSchedule`、`deleteSchedule` | **不能** | 这两条都不提供跨超时的幂等保证。超时之后请列出这个 agent 的定时任务、读它们的运行记录来对账，不要把这次写入再发一遍。 |
 | `postEvents` | **不能** | 这条路由上没有幂等 key。盲目重试可能把同一条 `user.message` 投递两次，污染对话。请在你这边做去重。 |
 
 ### create 调用上的 `Idempotency-Key`
 
-两个 create 方法都把这个 key 作为最后一个参数，以 `Idempotency-Key` 请求头发出：
+有七个方法接受幂等 key，都以 `Idempotency-Key` 请求头发出：`createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion`。前五个把它作为最后一个参数传，两个上传方法把它放在 options 对象的 `idempotencyKey` 字段里。你最先会用到的是这两个：
 
 ```ts
 const created = await zc.createAgent(
@@ -211,22 +213,9 @@ const second = (await zc.getAgent(agentId)).status?.config_version   // 6 - bump
 这段开通流程扛得住你真正会遇到的两种失败：agent 是停止的，以及一次不知道有没有落地的创建。
 
 ```ts
-import { createZooclawClient, ZooclawError, type ZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
 
 const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
-
-async function waitUntilRunning(zc: ZooclawClient, agentId: string, timeoutMs = 30_000) {
-  const deadline = Date.now() + timeoutMs
-  for (;;) {
-    const agent = await zc.getAgent(agentId)
-    // desired_state is the only field that gates session calls.
-    if (agent.status?.desired_state === 'running') return
-    if (Date.now() >= deadline) {
-      throw new Error(`agent ${agentId} still ${agent.status?.desired_state} after ${timeoutMs}ms`)
-    }
-    await new Promise((r) => setTimeout(r, 250))
-  }
-}
 
 async function openSession(agentId: string, text: string, jobId: string) {
   try {
@@ -240,7 +229,8 @@ async function openSession(agentId: string, text: string, jobId: string) {
 
     if (e.type === 'agent_not_running') {
       await zc.startAgent(agentId)      // warnings here are informational
-      await waitUntilRunning(zc, agentId)
+      // Polls desired_state, the only field that gates session calls. Throws 408/'timeout'.
+      await zc.waitUntilRunning(agentId)
       return zc.createSession(
         agentId,
         { initial_events: [{ type: 'user.message', content: text }] },

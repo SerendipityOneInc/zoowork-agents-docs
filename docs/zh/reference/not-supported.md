@@ -1,7 +1,7 @@
 ---
 title: 不支持的能力
 source: /en/reference/not-supported
-source_hash: 1f0cda70ab87e3dec84c30eb652aa61536d66bd524b751c16b621d608c5a4fbd
+source_hash: e3dd1d0788e69e92219547341a310c65ee58806b7fa605dce7cc7a4b3fc57244
 ---
 
 # 不支持的能力
@@ -50,7 +50,7 @@ source_hash: 1f0cda70ab87e3dec84c30eb652aa61536d66bd524b751c16b621d608c5a4fbd
 
 **你想建的：** agent 提议一个危险动作，你的 UI 弹出一张同意或拒绝的卡片，run 根据这一次点击继续或停止。
 
-**实际发生的：** 零件是分开存在的，闭环从没被看到合上过。`agent.approval` 在事件词表里，`agent.tool` 有一个 `blocked` 阶段，`user.tool_confirmation` 是被接受的写入类型，但我们从没造出过一个真实的待处理审批，所以这个往返没有任何一环被证明过。一个在等审批的 agent，会把这一回合耗在等待上。
+**实际发生的：** 零件是分开存在的，闭环从没被看到合上过。`agent.approval` 在事件词表里，`agent.tool` 有一个 `blocked` 阶段，`user.tool_confirmation` 是被接受的写入类型，但我们从没造出过一个真实的待处理审批，所以这个往返没有任何一环被证明过。一个在等审批的 agent，会把这一回合耗在等待上。`listApprovals` 和 `resolveApproval` 在 client 上是有的，但它们调的是平台上另一个独立的审批 REST 资源，不是这个事件闭环；而且没有 Temporal signaler 时这条路由返回 `501 not_configured`——有这两个方法，并不改变「什么都没被证明过」这件事。
 
 **替代：** 在你这边做门控。把危险能力从 agent 的 `tool_policy` 里拿掉，让 agent 用文字描述它想做什么，在你自己的 UI 里做决定，再把结果作为 `user.message` 发回去。
 
@@ -58,7 +58,7 @@ source_hash: 1f0cda70ab87e3dec84c30eb652aa61536d66bd524b751c16b621d608c5a4fbd
 
 **你想建的：** 一个收件箱，按时间倒序列出你所有 agent 下的每一段对话。
 
-**实际发生的：** 没有顶层的 session 集合可调。有一条按 agent 分页的列表路由，但 SDK 没有暴露它，我们也没有驱动过它，而且就算有，你还是得跨 agent 扇出再手动合并。
+**实际发生的：** 没有顶层的 session 集合可调。`listSessions(agentId)` 能读一个 agent 下的 session——按 `updated_at` 最新在前，每页 50，`page` 从 1 开始，没有游标——而我们没有驱动过它。它仍然要求你跨 agent 扇出再手动合并。
 
 **替代：** 把你自己的代码创建的 `session_id` 记下来，连同 `agent_id` 和它属于哪个用户。你的数据库就是索引。这件事第一天就该做，因为事后没有任何办法把它重建出来。
 
@@ -102,7 +102,7 @@ source_hash: 1f0cda70ab87e3dec84c30eb652aa61536d66bd524b751c16b621d608c5a4fbd
 |---|---|
 | 命令行工具 | 只有 TypeScript SDK。 |
 | session 创建时的 `agent_with_overrides` | `createSession` 只收 `initial_events` 和 `metadata`。 |
-| 按 session 覆盖工具或 MCP | session 的 PATCH 路由对 `tools` 和 `mcp` 返回 `501`。 |
+| 按 session 覆盖工具或 MCP | session 上的 PATCH 通过网关返回 `405`——网关的兜底路由只注册了 GET、POST、PUT、DELETE，PATCH 压根没被代理。所以既没有覆盖的通路，也没有 `patchSession`。 |
 | `session.status_*`、`span.*`、`stop_reason` 事件 | 不在词表里。用 `run.finished` 和它的 `payload.status`。 |
 | `putCredential()` / `listCredentials()` | 在 SDK 接口上，通过网关是 `404`。 |
 | 从全局目录安装 skill | `404`。全局 skill 在 agent 创建时就已经挂上了。 |
@@ -111,6 +111,6 @@ source_hash: 1f0cda70ab87e3dec84c30eb652aa61536d66bd524b751c16b621d608c5a4fbd
 | 定时任务的暂停与恢复、归档、跨定时任务的运行历史 | 没有。删掉重建，运行记录一次读一个定时任务。 |
 | 删除 agent 时自动清理定时任务 | 定时任务在停止和删除之后都还活着。你得先自己删掉。 |
 | 把记忆整合当成一个后台进程 | 没有对应物。 |
-| 审批、artifact、定时任务、文件、environment、session 归档与删除的 SDK 方法 | 其中几项路由是存在的；SDK 一个都没暴露，所以你得用自己的 `fetch` 调。 |
+| artifact 或文件的 SDK 方法 | 文件在线协议上是有路由的；`ZooclawClient` 对这两者什么都没暴露，所以你得用自己的 `fetch` 调。审批、定时任务、environment、session 的归档与删除，从 0.0.5 起都在 client 上了——见[能力矩阵](/zh/reference/capabilities)。 |
 | 从你自己的代码轮换或吊销 key | 没有文档化的流程。key 一旦泄露，请视为需要签发方帮忙处理。 |
 | 按 scope、按用户或只读的 API key | 只有一个组织级的 key，对组织内每一个 agent 都有完整的读写权限。 |

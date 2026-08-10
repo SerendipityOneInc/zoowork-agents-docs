@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: e9813bbfb97f6bf8c3e605c961547971b7c004d19a7b2c206111da6ff1bddb61
+source_hash: b3772e8f45079d9a6b2e90a1330a424fc4fec2b2b720281cea66cdc9830f6248
 ---
 
 # TypeScript SDK 参考
@@ -109,28 +109,96 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 
 ## 方法
 
-`ZooclawClient` 暴露 17 个方法。每一个 session 方法的第一个参数都是 `agentId`，因为在线格式上
-session 是嵌在 agent 下面的。
+`ZooclawClient` 暴露 44 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
+东西——session、事件、审批、定时任务、`wake`、`exec`——第一个参数都是 `agentId`。skill registry
+和 Environment 是顶层资源，一个都不带。
+
+**模型**
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `listModels()` | `Promise<ModelInfo[]>` | 列出你的组织能选的模型别名。检查一个 key 是否可用的最便宜的方式。 |
+
+**Agent**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | 创建一个 agent。返回的是**扁平的创建回执** ，不是读取投影。返回的 agent 处于停止状态。 |
+| `listAgents(opts?)` | `Promise<AgentRecord[]>` | 列出你的 key 所绑定的那个用户拥有的 agent。`opts.labels` 按 declared 里的 label 过滤，`opts.page` 从 1 开始，页大小固定为 100。作用域是 `owner_uid` **且** `org_id`，所以同事在你组织里建的 agent，按 id 读得到，却不会出现在这个列表里。 |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | 读取一个 agent。返回的是**投影** ：配置在 `declared` 下，版本号在 `status.config_version`。 |
 | `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUT 你点名的 declared section，按 section 合并。每次调用都会 bump `config_version`。 |
 | `deleteAgent(agentId)` | `Promise<void>` | 软删除该 agent。不会停止它。 |
-| `putCredential(agentId, app, body)` | `Promise<void>` | 写入一个 agent 凭证。**经公开网关返回 404。** |
-| `listCredentials(agentId)` | `Promise<{ app: string; ref: string }[]>` | 列出 agent 的凭证槽位。**经公开网关返回 404。** |
+| `putCredential(agentId, app, body)` | `Promise<void>` | 写入一个 agent 凭证。**`@deprecated`：经公开网关返回 404。** |
+| `listCredentials(agentId)` | `Promise<{ app: string; ref: string }[]>` | 列出 agent 的凭证槽位。**`@deprecated`：经公开网关返回 404。** |
 | `startAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `running`。任何 session 调用之前都必须先做这一步。 |
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `stopped`。 |
+| `waitUntilRunning(agentId, opts?)` | `Promise<AgentRecord>` | 轮询 `status.desired_state`，直到它读到 `running`，然后把那份投影交给你。默认：30 秒预算，两次轮询间隔 500 毫秒。超时抛 `408`/`timeout`。 |
 | `listAgentSkills(agentId, opts?)` | `Promise<AgentSkill[]>` | 列出已解析到这个 agent 上的 skill。 |
 | `putAgentSkill(agentId, skillId, opts?)` | `Promise<{ config_version?: number; warnings?: string[] }>` | 安装一个你自己租户拥有的 skill。全局目录的 id 返回 404。 |
 | `deleteAgentSkill(agentId, skillId)` | `Promise<void>` | 卸载一个 skill。 |
+
+**Skill registry**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | 以 zip 上传一个 skill 包；一次调用同时创建 skill 记录**和** 版本 1。`opts.scope` 只能是 `org` 或 `personal`——`global` 和 `pack` 返回 403。zip 里那个唯一的顶层目录名，必须和 `SKILL.md` frontmatter 里的 `name` 一致。 |
+| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillRecord>` | 从一个 zip 发布已有 skill 的新版本。安装时没固定版本的 agent 会自己跟到新版本。 |
+| `listSkills(opts?)` | `Promise<SkillRecord[]>` | 你的 key 能看到的 registry 目录：global skill，加上你自己的 org 和 personal。`q` 按名字匹配，`page` 从 1 开始，页大小固定为 100。 |
+| `deleteSkill(skillId)` | `Promise<void>` | 删除 registry 里的一个 skill（204）。org 和 personal scope 没有占用检查：装了它的 agent 直接失去它。 |
+
+**Session 与事件**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | 开一个 session。要求 agent 处于运行状态，否则 `409 agent_not_running`。 |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | 读取一个 session，可选带上落盘的会话记录。 |
+| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | 一个 agent 的 session，按 `updated_at` 从新到旧，每页 50 条，`page` 从 1 开始。没有游标；`run_status` 就是在这个面上才拿得到。 |
+| `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | 盖上 `archived_at`。之后写入返回 `409 session_archived`，读取照常。先中断正在跑的回合，否则归档会和它抢。 |
+| `deleteSession(agentId, sessionId)` | `Promise<void>` | 软删除这个 session（204），会先取消正在跑的回合。会话记录和事件为审计保留。 |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string; type?: string; accepted?: boolean }[] }>` | 往 session 里写入 user 或 system 事件。 |
 | `listEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | 读取持久事件日志。**一次调用只返回一页。** |
+| `listAllEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | 走 `after` 一直翻到某一页变短，拿到全部持久事件。要全量就用它，别自己给 `listEvents` 翻页。 |
 | `streamEvents(agentId, sessionId, opts?)` | `AsyncGenerator<SessionEvent>` | 通过 SSE 流式读取持久事件，可用 `after` 续传。 |
+
+**审批**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | 停在人工决策上的工具调用。`opts.status` 只能不传、或者传 `'pending'`，所以已处理的那些列不出来。这是平台上另一套独立的审批资源，不是 `user.tool_confirmation` 那条事件通路；没有 Temporal signaler 时这条路由返回 `501 not_configured`。 |
+| `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | 用 `allow-once`、`allow-always` 或 `deny` 处理一条审批；其他取值一律 400。同一族路由，没有 signaler 时同样是 `501`。 |
+
+**自动化：定时任务与 wake**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | 这个 agent 的定时任务。列表返回的是 Temporal 原始的 describe，上面再合并一层 camelCase 投影——防御性地读。 |
+| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | 创建一个定时任务。`201`，回执里只有 `schedule_name`，没有定义本身。定时任务比 `stopAgent()` 和 `deleteAgent()` 活得久；得你自己删。 |
+| `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | 读取一个定时任务，用的是 camelCase 的读取词表。你发进去的东西，没有一样按原来的名字回来。 |
+| `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | 替换定义。要改触发节奏就发 `schedule`，绝不要把读到的 `scheduleSpec` 发回去——那个会返回 `200` 然后被静默忽略。SDK 会把六个被拒的字段全部剥掉，所以「读出来、改一改、再写回去」这套在 JavaScript 里也能成立。 |
+| `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | 删除一个定时任务。和 `updateSchedule` 一样，它不提供跨超时的幂等保证——超时之后靠列出来对账，不要盲目重试。 |
+| `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | 带外地立刻触发一次。不影响原来的节奏。 |
+| `listScheduleRuns(agentId, scheduleId, opts?)` | `Promise<ScheduleRun[]>` | 过去的触发记录，从新到旧。`limit` 默认 20，上限 100。行有两种形状——按 `source` 分支。 |
+| `wake(agentId, input)` | `Promise<WakeResult>` | 往 agent 的 heartbeat 队列里塞一条提醒。`next-heartbeat`（默认）只写入待处理记录；`now` 还会去踢 heartbeat 定时任务，没有启用 heartbeat 时返回 `409`。 |
+
+**Exec**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `exec(agentId, args)` | `Promise<ExecResult>` | 在 agent 的沙箱里跑一条 argv——不是 shell 字符串——cwd 固定为 `/workspace`。**非零退出码依然是 HTTP 200** ：这个 promise 会 resolve，所以要自己看 `exit_code`。它要求 agent 级的沙箱和一份已渲染的配置。 |
+
+**Environment**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `listEnvironments(opts?)` | `Promise<EnvironmentRecord[]>` | 你的组织能看到的 Environment，`page` 从 1 开始。没动过的 agent 固定在上面的那个平台默认 Environment 不在里面。 |
+| `getEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 读取一个 Environment。你组织之外的一律 `404`，平台默认的那个也一样——这是选择器不匹配，不是权限问题。 |
+| `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | 创建一个 Environment 及其第一个版本。`resource.config` 只收 `packages`、`files`、`build`、`networking` 这四个键；出现别的键就是 `400 invalid_environment_config`。 |
+| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 归档它。SDK 会替你把 `{id}:archive` 里的冒号做百分号编码——裸的 `:` 会让引擎匹配不到这条路由、返回 404，这正是这个方法存在的全部理由。 |
+| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | 给已有的 Environment 加一个不可变版本。SDK 会把你的 `config` 包成 `{ resource: { config } }`，和创建时一致。 |
+| `getEnvironmentVersion(environmentId, version)` | `Promise<EnvironmentVersionRecord>` | 读取一个版本。要判断某个版本能不能用，轮询**这个** ，看 `status`；这里没有 `state` 字段，照着 `state` 写的循环永远不会结束。 |
+
+下面的小节只展开那些行为值得细讲的方法；其余的都是一次调用的事。一个方法在客户端上，不等于它这条
+路由已经被跑过——这件事记在[能力矩阵](/zh/reference/capabilities)里，一族一族地记。
 
 下面所有代码片段都假设：
 
@@ -340,27 +408,35 @@ console.log(warnings)
 **`warnings` 是提示信息，不是失败。** 纯 API 的 agent 没有聊天频道路由要重载，所以每次启动、每次停止
 它都会报 `channel_routes_reload_failed`。记一条日志然后继续。不要因为它去重试。
 
-然后等 `status.desired_state === 'running'`，永远不要等 `status.actual_state`：
+然后等 `status.desired_state === 'running'`，永远不要等 `status.actual_state`。这个等待本身
+就是一个方法——不要自己写这个循环：
 
 ```ts
-import type { ZooclawClient } from '@zooclaw-agents/sdk'
-
-export async function waitUntilRunning(
-  zc: ZooclawClient,
-  agentId: string,
-  timeoutMs = 30_000,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  for (;;) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    if (Date.now() >= deadline) {
-      throw new Error(`agent ${agentId} still ${agent.status?.desired_state} after ${timeoutMs}ms`)
-    }
-    await new Promise((r) => setTimeout(r, 250))
-  }
-}
+const agent = await zc.waitUntilRunning(agentId)
+console.log(agent.status?.desired_state) // 'running'
 ```
+
+```ts
+waitUntilRunning(
+  agentId: string,
+  opts?: { timeoutMs?: number; intervalMs?: number; signal?: AbortSignal },
+): Promise<AgentRecord>
+```
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---|---|
+| `opts.timeoutMs` | `number` | `30_000` | 总预算。启动实测在一秒以内，所以这个预算是留给倒霉的那一天的。 |
+| `opts.intervalMs` | `number` | `500` | 两次轮询之间的间隔。 |
+| `opts.signal` | `AbortSignal` | 无 | 取消这次等待，正在飞的那个请求也一起取消。 |
+
+它轮询 `getAgent()`，拿第一份读到 `running` 的投影 resolve。超时时抛出一个 `status: 408`、
+`type: 'timeout'` 的 `ZooclawError`；被 abort 时是 `status: 0`、`type: 'aborted'`。
+**这两个都是本地合成的** ——服务端从来不会发它们，而且这次 abort 不会漏出一个 `DOMException`。
+
+这两个上界管的都是**飞行中的请求** ，不只是两次轮询之间的空档：每一次轮询都带着自己的 signal，
+你的 `signal` 触发和预算耗尽，哪个先来就跟哪个。SDK 跑的每一个运行时里，`fetch` 自己都没有超时，
+所以一个接受了连接然后再也不回话的网关，会把手写的循环永远停在那儿——不管是 `attempts` 计数器，
+还是两次轮询之间的 `Date.now() >= deadline` 检查，都根本轮不到执行。
 
 ---
 
@@ -593,30 +669,29 @@ const events = await zc.listEvents(agentId, sessionId, { types: ['agent.assistan
 一个有 900 个事件的 session 会返回前 100 个，看起来像是完整的。
 :::
 
-用 `after` 翻页，直到某一页返回的条数少于你请求的 limit：
+`listAllEvents` 存在的理由正是这个。它用 `after` 翻页，直到某一页返回的条数少于它请求的 limit：
 
 ```ts
-import type { SessionEvent } from '@zooclaw-agents/sdk'
-
-const PAGE = 500
-
-async function listAllEvents(agentId: string, sessionId: string): Promise<SessionEvent[]> {
-  const all: SessionEvent[] = []
-  let after: number | undefined
-
-  for (;;) {
-    const page = await zc.listEvents(agentId, sessionId, {
-      limit: PAGE,
-      ...(after === undefined ? {} : { after }),
-    })
-    all.push(...page)
-    if (page.length < PAGE) break
-    after = page[page.length - 1]!.seq
-  }
-
-  return all
-}
+const all = await zc.listAllEvents(agentId, sessionId)
 ```
+
+```ts
+listAllEvents(
+  agentId: string,
+  sessionId: string,
+  opts?: { after?: number; types?: string[]; pageSize?: number },
+): Promise<SessionEvent[]>
+```
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| `opts.after` | `number` | 起始游标。小于等于它的都不会返回。 |
+| `opts.types` | `string[]` | 和 `listEvents` 一样的服务端过滤，对每一页都生效。 |
+| `opts.pageSize` | `number` | 每次请求用的 `limit`。默认 500，也被夹到 500。 |
+
+事件按 `seq` 升序返回。有两道手写循环通常没有的保险：小于等于游标的事件会被丢掉，所以页边界上
+被重放的那条事件不会两次到你手里；而且如果某一页里最大的 `seq` 没能把游标往前推，这次遍历就停下，
+所以一个忽略了 `after` 的服务端只会让你拿到一页重复数据，而不是把你卡在死循环里。
 
 ---
 
@@ -680,6 +755,11 @@ console.log(outcome, text)
 
 每一个响应类型的末尾都有 `[k: string]: unknown`。这套 API 处于 Developer Preview 阶段，
 可能在同一个版本内新增字段：对你不认识的东西选择忽略，而不是报错。
+
+这里的小节只覆盖你在本页走过的那些路径上会碰到的类型。skill registry、审批、定时任务、wake、
+exec 和 Environment 相关的类型都在[完整导出清单](#完整导出清单)里，而且每一个都把自己字段级的坑
+写进了 JSDoc，编辑器悬停就能看到——尤其是 `ScheduleRecord` 和 `ScheduleUpdate`，因为一个定时任务
+的写入形状和读取形状是两份不同的文档。
 
 ### `SessionEvent`
 
@@ -782,16 +862,19 @@ interface AgentResource {
   skills?: { skill_id: string; version?: number | 'latest' }[]
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
+  mcp?: McpServerDeclaration[]
   sandbox?: { scope: 'agent' | 'session' }
   environment_id?: string
   environment_version?: number
   warm?: boolean
+  onboarding?: boolean
   [k: string]: unknown
 }
 ```
 
-你发给 `createAgent()` 的配置。`name` 是唯一必填的字段。索引签名的作用，是让你能传那些有文档、
-但接口里没写出名字的字段，比如 `onboarding: false` 和 `mcp`。
+你发给 `createAgent()` 的配置。`name` 是唯一必填的字段。`mcp` 声明远程 MCP server，
+`onboarding: false` 跳过 persona 引导的那几个回合——除非你真想要它们，否则每一个由 API 驱动的
+agent 都该设它。索引签名的作用，是让更新的服务端所接受的新字段照样能通过类型检查。
 
 有两个字段类型上允许、但你不该通过公开网关发送：创建时的 `skills`（改用 `putAgentSkill()`），
 以及 `warm`（`updateAgent()` 会拒绝）。逐字段的说明见 [Agents](/zh/build/agents)。
@@ -819,7 +902,8 @@ interface SessionRecord {
   session_id: string
   session_key?: string
   channel?: string
-  status?: string
+  run_status?: string
+  status?: string | null
   metadata?: Record<string, unknown>
   archived?: boolean
   updated_at?: string
@@ -830,8 +914,9 @@ interface SessionRecord {
 
 只有读取时带了 `history: true`，`history` 才会出现；它装的是最近的 `limit` 行，按 `seq` 升序排列。
 
-`status` 实际上永远是 `null`——改从索引签名上读 `run_status`。`session_key` 带频道前缀：
-你通过 API 创建的 session 是 `api:<session_id>`。
+`status` 实际上永远是 `null`——真正在用的字段是 `run_status`，而 `listSessions` 是它拿得到的那个面。
+`session_key` 带频道前缀：你通过 API 创建的 session 是 `api:<session_id>`。`channel` 在你自己创建的
+session 上是 `api`，在定时任务触发出来的 session 上是 `cron`。
 
 ### `SessionHistoryEntry`
 
@@ -1078,6 +1163,7 @@ for await (const msg of parseSSE(res.body!)) {
 import {
   // client
   createZooclawClient,
+  DEFAULT_BASE_URL,
   ZooclawError,
   type ZooclawClient,
   type ZooclawConfig,
@@ -1090,10 +1176,32 @@ import {
   type AgentRecord,
   type AgentStatus,
   type AgentSkill,
+  type McpServerDeclaration,
+  type SkillRecord,
   type SessionRecord,
   type SessionHistoryEntry,
   type SessionEvent,
   type OutboundEvent,
+
+  // approvals
+  type ApprovalDecision,
+  type ApprovalRecord,
+
+  // schedules, wake, exec
+  type ScheduleSpec,
+  type SchedulePayload,
+  type ScheduleInput,
+  type ScheduleUpdate,
+  type ScheduleRecord,
+  type ScheduleRun,
+  type WakeResult,
+  type ExecResult,
+
+  // environments
+  type EnvironmentConfig,
+  type EnvironmentResource,
+  type EnvironmentRecord,
+  type EnvironmentVersionRecord,
 
   // events
   SESSION_EVENT_TYPES,
@@ -1113,8 +1221,13 @@ import {
 } from '@zooclaw-agents/sdk'
 ```
 
-这就是全部的公开接口面。不在这个清单上的东西就是不存在——特别地，没有 `listAgents`、
-没有 `listSessions`、没有 `archiveSession`、没有 `deleteSession`，也没有 `patchSession`。
+12 个值和 32 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
+符号，它都会失败。`DEFAULT_BASE_URL` 就是那个会被 `ZOOCLAW_BASE_URL` 和 `baseUrl` 选项覆盖掉的
+公开网关 base；把它导出来，是为了让你能拿它做比较，或者自己拼 URL。
+
+这就是全部的公开接口面。不在这个清单上的东西就是不存在——特别地，没有 `patchSession`。
+`PATCH /agents/{id}/sessions/{sid}` 经网关返回 `405`：网关的兜底路由只注册了 GET、POST、PUT 和
+DELETE，PATCH 根本没被代理，所以一个 session 的 `metadata` 是在 `createSession()` 时一次写定的。
 见[不支持的能力](/zh/reference/not-supported)。
 
 ## 下一步

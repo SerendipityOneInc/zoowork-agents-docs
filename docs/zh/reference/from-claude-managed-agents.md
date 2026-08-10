@@ -1,7 +1,7 @@
 ---
 title: 从 Claude Managed Agents 迁移
 source: /en/reference/from-claude-managed-agents
-source_hash: 3c2831ce1dc744ff327705f8ebf4b6c1681be61a444e8acd8d0bca75dacfcdb1
+source_hash: 980c48e1e32d01f634ee6e5f6d303b7d9084e375515ad42ea0abcba48734d180
 ---
 
 # 从 Claude Managed Agents 迁移
@@ -21,7 +21,7 @@ source_hash: 3c2831ce1dc744ff327705f8ebf4b6c1681be61a444e8acd8d0bca75dacfcdb1
 | Claude 概念 | ZooClaw 对应 | 会咬人的差异 |
 |---|---|---|
 | **Agent** | `createAgent()` / `getAgent()` / `updateAgent()` | 新建的 agent 是**停止** 状态，你必须 `startAgent()` 它。`createAgent()` 和 `getAgent()` 返回的是**两种不同的结构** ——版本号在创建回执里是顶层字段，在读取结果里则在 `status.config_version`。`updateAgent()` 按 section 合并（`tool_policy` 是例外，整体替换），每一次 PUT 都会 bump 版本号，哪怕内容一个字节都没变，而且没有乐观并发的前置条件。没有版本历史，不能钉版本，不能回滚。见 [Agents](/zh/build/agents)。 |
-| **Environment** | session 这条路径上没有对应物 | 没有 environment 要创建，`createSession` 里没有 environment id，SDK 也没有创建它的方法。沙箱行为就是 agent 上的一个字段：`sandbox.scope: 'agent' \| 'session'`。`AgentResource` 的类型定义里有 `environment_id` / `environment_version`，但不要通过公开网关使用它们。见 [Environments](/zh/build/environments)。 |
+| **Environment** | session 这条路径上没有对应物 | 没有 environment 要创建，`createSession` 里也没有 environment id。Environment 是它自己的一个资源，SDK 上有六个方法（`listEnvironments`、`getEnvironment`、`createEnvironment`、`createEnvironmentVersion`、`getEnvironmentVersion`、`archiveEnvironment`）——只是它们不在 session 这条路径上。沙箱行为就是 agent 上的一个字段：`sandbox.scope: 'agent' \| 'session'`。`AgentResource` 的类型定义里有 `environment_id` / `environment_version`，但不要通过公开网关使用它们。见 [Environments](/zh/build/environments)。 |
 | **Session** | `createSession(agentId, input)` | 嵌在 agent 下面：`POST /agents/{agent_id}/sessions`。`initial_events` **只** 接受 `user.message`（最多 50 条，content 为字符串）——没有 outcome 定义。没有 `agent_with_overrides`，没有 `resources[]`，没有 `vault_ids`。有一个 Claude 没有的 `Idempotency-Key`（第三个参数）。前置条件：`status.desired_state === 'running'`，否则返回 `409 agent_not_running`。见 [Sessions](/zh/build/sessions)。 |
 | **Event** | `SessionEvent` = `{ seq, eventType, payload, runId?, turn?, createdAt? }` | 另一套词汇：`run.*` / `chat.*` / `agent.*` 下共 19 种类型，外加 `attachment.created` 和 `message.outbound`。**两种线格式都没有顶层的 `type`** ——REST 返回 snake_case（`event_type`、`run_id`、`created_at`），SSE 返回 camelCase（`eventType`、`runId`、`createdAt`）。SDK 的 `normalizeEvent` 把两种都吃下去；直接调 HTTP API 的人得自己处理两种。见[事件与流式](/zh/build/events)。 |
 | **`stop_reason` / `requires_action`** | 带 `payload.status` 的 `run.finished` | 这两个字段都不存在。没有 `session.status_*` 事件，也没有可轮询的 idle 状态。一个回合在 `run.finished` 结束，它的 status 是 `succeeded \| failed \| aborted`。永远不会有东西回过头来要你提供工具结果，因为客户端执行的工具不存在——所以整套 `status_idle` + `requires_action` + 重新提交的循环在这里没有对应物。 |
@@ -31,7 +31,7 @@ source_hash: 3c2831ce1dc744ff327705f8ebf4b6c1681be61a444e8acd8d0bca75dacfcdb1
 | **Vaults** | 无 | 没有按用户托管凭证，没有出站时替换，没有 OAuth 刷新。`putCredential` / `listCredentials` 在客户端接口上存在，但通过公开网关一律返回 `404`，这是设计如此——网关自己注入平台凭证。没有任何受支持的位置可以存放你终端用户的第三方 token。 |
 | **Memory stores** | API 上没有 | 没有 `memory_stores` 资源，没有 CRUD，没有挂载路径，没有版本管理和脱敏。agent 有自己的内部记忆；但它在 API 上不可寻址、不可列出、不可共享，而且某个部署可以把它整个关掉。`MEMORY.md` 和 `memory/` 命名空间是保留的 persona doc 名字，会返回 `400 invalid_persona_doc_name`。 |
 | **Files API + session 的 `resources[]`** | 两个都不在 SDK 里 | 没有「先上传再挂载」这套模型：`createSession` 上没有 `resources[]`，没有 `mount_path`，也没有可以读回来的输出目录。HTTP 接口上确实有一条文件路由，挂在 agent 的子资源下，但 `ZooclawClient` 没有暴露任何文件方法，所以对 SDK 使用者来说它等于不存在。 |
-| **Deployments（定时运行）** | agent 范围内的定时任务，且不在 SDK 里 | 定时能力挂在 agent 下面，不是一个独立资源，而且 `ZooclawClient` 没有对应方法。没有跨 deployment 的运行历史，也没有带签名的 webhook 投递，所以「run 结束时通知我的服务器」只能靠你自己轮询，或者挂一条常开的 SSE 流。 |
+| **Deployments（定时运行）** | agent 范围内的定时任务 | 定时能力挂在 agent 下面，不是一个独立资源；七个定时任务方法都在客户端上。没有跨 deployment 的运行历史，也没有带签名的 webhook 投递，所以「run 结束时通知我的服务器」只能靠你自己轮询，或者挂一条常开的 SSE 流。 |
 | **Skills** | `listAgentSkills()` / `putAgentSkill()` / `deleteAgentSkill()` | skill 挂在 **agent** 这一级。新建出来的 agent 已经挂好了整个全局目录——在你想装任何东西之前，先调一次 `listAgentSkills()`。`putAgentSkill()` 对全局 scope 的 skill 返回 `404`；它只对你自己租户上传的 skill 有意义。见 [Skills](/zh/build/skills)。 |
 
 ## 代码形态差异
@@ -110,25 +110,14 @@ const created = await zc.createAgent({
 
 const { warnings } = await zc.startAgent(created.agent_id)
 // warnings: ["channel_routes_reload_failed: routes reload returned 404"] - expected noise
-await waitUntilRunning(created.agent_id)
+await zc.waitUntilRunning(created.agent_id)
 
 const session = await zc.createSession(created.agent_id, {
   initial_events: [{ type: 'user.message', content: 'hi' }],
 })
 ```
 
-```ts
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-
-async function waitUntilRunning(agentId: string, attempts = 30): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    await sleep(500)
-  }
-  throw new Error(`agent ${agentId} did not reach desired_state=running`)
-}
-```
+`waitUntilRunning()` 就是这个等待的正确写法：它按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`，并用剩余预算给每次轮询设上限，所以网关卡住也挂不死它；agent 始终没到 `running` 时，它抛出 `408` / `'timeout'` 的 `ZooclawError`。
 
 ::: danger 轮询 `desired_state`，永远不要轮询 `actual_state`
 `actual_state` 报的是聊天渠道的连通性，不是 API 的就绪状态。纯 API 的 agent 一个渠道都没有，所以它会永远停在 `activating`，`active` 根本到不了——而且 `running` 压根不在 `actual_state` 这个枚举里
@@ -146,7 +135,7 @@ Claude:   create agent -> create environment -> create session -> stream
 ZooClaw:  create agent -> START agent        -> create session -> stream
 ```
 
-迁移时没有什么要删的——这一步在 ZooClaw 这边根本没有对应的调用，`createSession` 也不接受 environment 参数：
+迁移时没有什么要往下传的——`createSession` 不接受 environment 参数，agent 和 session 之间也没有任何一次调用来替代这一步：
 
 ```ts
 // The whole provisioning path. No environment anywhere.
@@ -160,7 +149,7 @@ const created = await zc.createAgent({
   ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 await zc.startAgent(created.agent_id)
-await waitUntilRunning(created.agent_id)
+await zc.waitUntilRunning(created.agent_id)
 const session = await zc.createSession(created.agent_id, {
   initial_events: [{ type: 'user.message', content: 'Hello.' }],
 })
@@ -280,9 +269,9 @@ for (;;) {
 - **Vaults / 终端用户凭证托管。** 没有地方存放你用户的第三方 token，凭证相关的路由通过公开网关都是 `404`。按终端用户逐个走的「连接你的 Notion」这种流程，在这套 API 上做不出来。
 - **Session 的 `resources[]`：文件与代码仓挂载。** 不能上传一个 CSV 给 agent 读，也不能挂一个 Git 仓库给它改。没有挂载路径，也没有代码仓资源。
 - **Memory stores。** 没有跨 agent 共享的知识库，没有版本管理，agent 记住了什么也没有审计和回滚。
-- **端到端的人工审批（human-in-the-loop）。** 审批相关的事件是存在的，但整个来回在 SDK 里用不了。卡在审批上的 agent，这一回合直接超时。
+- **端到端的人工审批（human-in-the-loop）。** 审批相关的事件是存在的，客户端上也有 `listApprovals` / `resolveApproval`，但整个来回我们从没观察到它闭合过：这两个方法走的是平台另一套审批 REST 资源，不是 `user.tool_confirmation` 那条事件回路；没有 Temporal signaler 时这条路由返回 `501 not_configured`；而且我们从来没造出过一个真实的待定审批。卡在审批上的 agent，这一回合直接超时。
 - **带签名的 webhook。** run 结束时不会有任何东西推给你的服务器。要么轮询，要么把 SSE 流一直挂着。
-- **列出 session，以及列出 agent。** `ZooclawClient` 没有 `listSessions`、`listAgents`、`archiveSession`、`deleteSession`、`patchSession`。你创建的每一个 `agent_id` 和 `session_id` 都要自己持久化，任何以后要用来检索的东西，都要在创建时就放进 `metadata`——事后加不上去。
+- **跨 agent 列出 session，以及 `patchSession`。** `listSessions(agentId)` 读的是单个 agent 的 session，`listAgents()` 返回你自己这个 key 创建的 agent，但没有顶层的 session 集合可查，所以跨 agent 的收件箱得你自己扇出去再合并。`patchSession` 则完全不存在——对 session 发 `PATCH`，经过网关是 `405`。你创建的每一个 `agent_id` 和 `session_id` 都要自己持久化，任何以后要用来检索的东西，都要在创建时就放进 `metadata`——事后加不上去。
 - **Agent 的版本历史与钉版本。** `config_version` 会往上累加，但没有任何路由能读取历史版本、钉到某个版本，或者回滚。覆盖一份配置之前，自己留一份副本。
 
 ## 我们有、Claude 没有的

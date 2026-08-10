@@ -31,7 +31,7 @@ before any session call will work.
 | Claude concept | ZooClaw equivalent | The difference that will bite |
 |---|---|---|
 | **Agent** | `createAgent()` / `getAgent()` / `updateAgent()` | A new agent is **stopped**; you must `startAgent()` it. `createAgent()` and `getAgent()` return **two different shapes** - the version is top-level on create, at `status.config_version` on read. `updateAgent()` merges per section (`tool_policy` is the exception, replaced wholesale), every PUT bumps the version including a byte-identical one, and there is no optimistic-concurrency precondition. No version history, no pinning, no rollback. See [Agents](/en/build/agents). |
-| **Environment** | Nothing in the session path | There is no environment to create, no environment id in `createSession`, and no SDK method to make one. Sandbox behaviour is one field on the agent: `sandbox.scope: 'agent' \| 'session'`. `AgentResource` types `environment_id` / `environment_version`, but do not use them through the public gateway. See [Environments](/en/build/environments). |
+| **Environment** | Nothing in the session path | There is no environment to create and no environment id in `createSession`. Environments are their own resource with six SDK methods (`listEnvironments`, `getEnvironment`, `createEnvironment`, `createEnvironmentVersion`, `getEnvironmentVersion`, `archiveEnvironment`) - they are simply not on the session path. Sandbox behaviour is one field on the agent: `sandbox.scope: 'agent' \| 'session'`. `AgentResource` types `environment_id` / `environment_version`, but do not use them through the public gateway. See [Environments](/en/build/environments). |
 | **Session** | `createSession(agentId, input)` | Nested under the agent: `POST /agents/{agent_id}/sessions`. `initial_events` accepts **only** `user.message` (max 50, string content) - no outcome definitions. There is no `agent_with_overrides`, no `resources[]`, no `vault_ids`. There is an `Idempotency-Key` (third argument), which Claude does not have. Precondition: `status.desired_state === 'running'`, else `409 agent_not_running`. See [Sessions](/en/build/sessions). |
 | **Event** | `SessionEvent` = `{ seq, eventType, payload, runId?, turn?, createdAt? }` | A different vocabulary: 19 types under `run.*` / `chat.*` / `agent.*` plus `attachment.created` and `message.outbound`. **Neither wire shape has a top-level `type`** - REST returns snake_case (`event_type`, `run_id`, `created_at`), SSE returns camelCase (`eventType`, `runId`, `createdAt`). The SDK's `normalizeEvent` absorbs both; anyone calling the HTTP API directly has to handle both. See [Events and streaming](/en/build/events). |
 | **`stop_reason` / `requires_action`** | `run.finished` with `payload.status` | Neither field exists. There are no `session.status_*` events and no idle state to poll. A turn ends at `run.finished`, whose status is `succeeded \| failed \| aborted`. Nothing ever comes back asking you to supply a tool result, because client-executed tools do not exist - so the whole `status_idle` + `requires_action` + resubmit loop has no counterpart here. |
@@ -41,7 +41,7 @@ before any session call will work.
 | **Vaults** | None | No per-user credential custody, no egress-time substitution, no OAuth refresh. `putCredential` / `listCredentials` exist on the client interface but return `404` through the public gateway by design - the gateway provisions platform credentials itself. There is no supported place to hold your end users' third-party tokens. |
 | **Memory stores** | None on the API | No `memory_stores` resource, no CRUD, no mount path, no versioning or redaction. The agent has its own internal memory; it is not addressable, listable, or shareable from the API, and a deployment can have it turned off entirely. `MEMORY.md` and the `memory/` namespace are reserved persona-doc names and return `400 invalid_persona_doc_name`. |
 | **Files API + session `resources[]`** | Neither is in the SDK | There is no upload-then-mount model: no `resources[]` on `createSession`, no `mount_path`, no output directory to read back. A file route exists on the wire as an agent sub-resource, but `ZooclawClient` exposes no file methods, so for SDK users it is absent. |
-| **Deployments (scheduled runs)** | Agent-scoped schedules, not in the SDK | Scheduling lives under the agent rather than as its own resource, and `ZooclawClient` has no method for it. There is no cross-deployment run history and no signed webhook delivery, so "notify my server when a run ends" has to be your own polling or an open SSE stream. |
+| **Deployments (scheduled runs)** | Agent-scoped schedules | Scheduling lives under the agent rather than as its own resource; all seven schedule methods are on the client. There is no cross-deployment run history and no signed webhook delivery, so "notify my server when a run ends" has to be your own polling or an open SSE stream. |
 | **Skills** | `listAgentSkills()` / `putAgentSkill()` / `deleteAgentSkill()` | Skills are attached at the **agent** level. A freshly created agent already has the entire global catalog attached - call `listAgentSkills()` before you try to install anything. `putAgentSkill()` returns `404` for global-scope skills; it is only meaningful for skills your own tenant uploaded. See [Skills](/en/build/skills). |
 
 ## Code shape differences
@@ -125,25 +125,16 @@ const created = await zc.createAgent({
 
 const { warnings } = await zc.startAgent(created.agent_id)
 // warnings: ["channel_routes_reload_failed: routes reload returned 404"] - expected noise
-await waitUntilRunning(created.agent_id)
+await zc.waitUntilRunning(created.agent_id)
 
 const session = await zc.createSession(created.agent_id, {
   initial_events: [{ type: 'user.message', content: 'hi' }],
 })
 ```
 
-```ts
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-
-async function waitUntilRunning(agentId: string, attempts = 30): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    const agent = await zc.getAgent(agentId)
-    if (agent.status?.desired_state === 'running') return
-    await sleep(500)
-  }
-  throw new Error(`agent ${agentId} did not reach desired_state=running`)
-}
-```
+`waitUntilRunning()` is that wait written correctly: it polls `desired_state` on a 30-second
+budget, 500 ms apart, bounds each poll with the time left over so a stalled gateway cannot hang
+it, and throws `ZooclawError` `408` / `'timeout'` if the agent never gets there.
 
 ::: danger Poll `desired_state`, never `actual_state`
 `actual_state` reports chat-channel connectivity, not API readiness. An API-only agent has
@@ -168,8 +159,8 @@ Claude:   create agent -> create environment -> create session -> stream
 ZooClaw:  create agent -> START agent        -> create session -> stream
 ```
 
-There is nothing to delete from your port - the step simply has no ZooClaw call, and
-`createSession` takes no environment argument:
+There is nothing to thread through from your port - `createSession` takes no environment
+argument, and no call sits between the agent and the session:
 
 ```ts
 // The whole provisioning path. No environment anywhere.
@@ -183,7 +174,7 @@ const created = await zc.createAgent({
   ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 await zc.startAgent(created.agent_id)
-await waitUntilRunning(created.agent_id)
+await zc.waitUntilRunning(created.agent_id)
 const session = await zc.createSession(created.agent_id, {
   initial_events: [{ type: 'user.message', content: 'Hello.' }],
 })
@@ -346,14 +337,20 @@ reasoning is on [Not supported](/en/reference/not-supported).
   resource.
 - **Memory stores.** No shared knowledge base across agents, no versioning, no audit or
   rollback of what an agent remembers.
-- **End-to-end human-in-the-loop approvals.** Approval-related events exist, but the round
-  trip is not usable from the SDK. An agent blocked on an approval simply times out the turn.
+- **End-to-end human-in-the-loop approvals.** Approval-related events exist, and so do
+  `listApprovals` / `resolveApproval` on the client, but the round trip has never been observed
+  to close: those two methods are the platform's separate approvals REST resource rather than
+  the `user.tool_confirmation` event loop, the route answers `501 not_configured` without a
+  Temporal signaler, and we have never produced a real pending approval. An agent blocked on an
+  approval simply times out the turn.
 - **Signed webhooks.** Nothing pushes to your server when a run ends. Poll, or hold the SSE
   stream open.
-- **Listing sessions, and listing agents.** `ZooclawClient` has no `listSessions`,
-  `listAgents`, `archiveSession`, `deleteSession`, or `patchSession`. Persist every
-  `agent_id` and `session_id` you create, and put anything you will need to search on into
-  `metadata` at create time - you cannot add it later.
+- **Cross-agent session listing, and `patchSession`.** `listSessions(agentId)` reads one
+  agent's sessions and `listAgents()` returns the agents your own key created, but there is no
+  top-level session collection to query, so a cross-agent inbox is yours to fan out and merge.
+  `patchSession` does not exist at all - `PATCH` on a session is `405` through the gateway.
+  Persist every `agent_id` and `session_id` you create, and put anything you will need to
+  search on into `metadata` at create time - you cannot add it later.
 - **Agent version history and pinning.** `config_version` counts up, but there is no route to
   read a past version, pin to one, or roll back. Keep your own copy of a configuration before
   you overwrite it.
