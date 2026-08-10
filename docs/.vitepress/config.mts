@@ -122,9 +122,11 @@ export default defineConfig({
   cleanUrls: true,
   lastUpdated: true,
   head: [['meta', { name: 'theme-color', content: '#2f6f4f' }]],
+  // Exactly two locales, both under a prefix. Do NOT add a `root` entry: VitePress puts
+  // every key in this object into the language menu, so a root locale labelled 'English'
+  // would show up alongside `en` as a second, identical "English" choice. `docs/index.md`
+  // lives outside both prefixes and just redirects / → /en/; it needs no locale of its own.
   locales: {
-    // `root` only exists to give / a locale; it is never shown as a menu choice.
-    root: { label: 'English', lang: 'en-US', link: '/en/' },
     zh: {
       label: '简体中文',
       lang: 'zh-CN',
