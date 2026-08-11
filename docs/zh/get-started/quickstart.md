@@ -1,17 +1,20 @@
 ---
 title: 快速开始
 source: /en/get-started/quickstart
-source_hash: f494095784e81376208d4e8f38487065dd907fc54fb7d16faf30686b1b9bc2f1
+source_hash: d2cf28ce43db46fe37640c096ff09a9d949c245c272232387399f5184407a40d
 ---
 
 # 快速开始
 
 建一个 agent、启动它、开一个 session、把回复流式读回来。整个流程大约五分钟。
 
-::: tip 更想从一个已经能跑的东西开始？
-三个可运行模板在 [zoowork-quickstarts](https://github.com/SerendipityOneInc/zoowork-quickstarts)：`chat/` 跟你已有的 agent 对话，`skill-lab/` 从零建一个 agent 并给它上传 skill，`app-kit/` 是带鉴权和持久化的生产参考。每个都自包含——填一个 key 就能跑。
+::: tip 先把你的编码助手教会
+```bash
+npx skills add SerendipityOneInc/zoowork-sdk-skills
+```
+装完之后，你的助手在写第一行代码之前就已经懂这套 API——哪些调用存在、哪些不存在，以及那几个「看着对、运行时才炸」的地方。它会装进你有的各种助手：Claude Code、Codex、Cursor 等 70 多个，每个都装进它自己真正会读的目录。需要 Node 22.20 或更高。
 
-这个仓库里还 vendored 了本平台的 agent skill，所以 clone 下来之后，你的编码助手在写第一行代码之前就已经懂这套 API 了。
+更想从一个已经能跑的东西开始？三个模板在 [zoowork-quickstarts](https://github.com/SerendipityOneInc/zoowork-quickstarts)：`chat/` 跟你已有的 agent 对话，`skill-lab/` 从零建一个 agent 并给它上传 skill，`app-kit/` 是带鉴权和持久化的生产参考。
 :::
 
 ## 前置条件
