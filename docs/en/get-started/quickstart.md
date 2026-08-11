@@ -2,15 +2,18 @@
 
 Create an agent, start it, open a session, and stream the reply. About five minutes end to end.
 
-::: tip Would you rather start from something that already runs?
-Three runnable templates live in
+::: tip Teach your coding assistant first
+```bash
+npx skills add SerendipityOneInc/zoowork-sdk-skills
+```
+Your assistant then knows this API before it writes a line — which calls exist, which do not,
+and the places where code that looks right fails at runtime. It installs into Claude Code,
+Codex, Cursor and 70-odd others, each in the directory it reads. Needs Node 22.20 or later.
+
+Would you rather start from something that already runs? Three templates live in
 [zoowork-quickstarts](https://github.com/SerendipityOneInc/zoowork-quickstarts): `chat/` talks
 to an agent you already have, `skill-lab/` builds one and uploads a skill to it, and `app-kit/`
-is the production reference with auth and persistence. Each is self-contained — fill in a key
-and run it.
-
-The repository also vendors this platform's agent skill, so cloning it teaches your coding
-assistant the API before it writes a line.
+is the production reference with auth and persistence.
 :::
 
 ## Prerequisites
