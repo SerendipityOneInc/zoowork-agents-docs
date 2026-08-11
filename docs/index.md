@@ -3,7 +3,10 @@ title: ZooClaw Managed Agents
 ---
 
 <script setup>
-if (typeof window !== 'undefined') window.location.replace('/en/')
+import { withBase } from 'vitepress'
+// Markdown links get the site base applied for us; a raw location.replace does not,
+// so route it through withBase or this redirect breaks whenever the site moves.
+if (typeof window !== 'undefined') window.location.replace(withBase('/en/'))
 </script>
 
 # ZooClaw Managed Agents

@@ -120,6 +120,14 @@ function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
 export default defineConfig({
   title: 'ZooClaw Managed Agents',
   description: 'Build agent products on ZooClaw. TypeScript SDK, sessions, and streaming events.',
+  // The site does not own a host of its own: it is served from a path on the main
+  // domain, at zooclaw.ai/docs, next to /blog and /industry. `base` puts that prefix
+  // on every generated URL; `outDir` mirrors the prefix in the build output so the
+  // deployed asset tree is laid out exactly like the public URL space. Cloudflare
+  // serves `dist/` at the zone root, so `dist/docs/en/…` answers `/docs/en/…` with no
+  // path rewriting and therefore no Worker code in front of the assets.
+  base: '/docs/',
+  outDir: '../dist/docs',
   cleanUrls: true,
   lastUpdated: true,
   head: [['meta', { name: 'theme-color', content: '#2f6f4f' }]],

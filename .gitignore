@@ -1,6 +1,7 @@
 node_modules/
-docs/.vitepress/dist/
+dist/
 docs/.vitepress/cache/
+.wrangler/
 .DS_Store
 *.local
 
