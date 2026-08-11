@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zooclaw-docs",
+  // The newest date the workerd bundled with wrangler 4.120.0 accepts. Bump it and the
+  // pinned wrangler together, never on its own — `wrangler dev` refuses to start
+  // against a date its runtime does not know.
+  "compatibility_date": "2026-08-08",
+  "account_id": "a5e8c2043fd5a1440d0e94e6feee3a89",
+
+  // There is no `main`: this is an assets-only Worker. Every request is answered from
+  // the static build, so no Worker code runs and no invocations are billed.
+  "assets": {
+    "directory": "./dist",
+    // `cleanUrls: true` makes VitePress emit `agents.html` and link to `/docs/en/build/agents`.
+    // auto-trailing-slash is what resolves the one to the other.
+    "html_handling": "auto-trailing-slash",
+    // Walks up from the requested path to the nearest 404.html — dist/docs/404.html,
+    // which VitePress generates.
+    "not_found_handling": "404-page"
+  },
+
+  // A path route on the apex, alongside zooclaw.ai/blog* and zooclaw.ai/industry*.
+  // Everything outside /docs stays with whatever Worker already owns it.
+  "routes": [{ "pattern": "zooclaw.ai/docs*", "zone_name": "zooclaw.ai" }],
+
+  // The docs are reachable at zooclaw.ai/docs; a second public URL on workers.dev
+  // would only be another thing for search engines to index.
+  "workers_dev": false,
+
+  "observability": { "enabled": true }
+}
