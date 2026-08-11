@@ -1,7 +1,7 @@
 ---
 title: Skills
 source: /en/build/skills
-source_hash: 4bc7f4d31618e06e3d5c1822580d5c7d5b6b78096290d254bf057f6db7f5764c
+source_hash: 099e8d3222445e707f3ed1252cc83a981aba86a9c339d272bf28b7922c41052c
 ---
 
 # Skills
@@ -46,8 +46,11 @@ interface AgentSkill {
   scope?: 'global' | 'org' | 'personal' | 'pack' | string
   eligible?: boolean
   files?: { path: string; size?: number; sha256?: string }[]
+  [k: string]: unknown
 }
 ```
+
+实测回来的行比类型里写的多——还有 `description`、`location`（`/skills/<name>/SKILL.md`）、`basePath`（`/opt/zooclaw/skills/<scope>/<name>/<version>`）、`contentHash` 和 `promptVersion`。它们通过索引签名可达，也是确认一个 skill 真的落盘了最省事的办法。
 
 `scope` 是决定你能拿这个条目做什么的字段，先读它：
 
@@ -126,50 +129,84 @@ deleteAgentSkill(agentId: string, skillId: string): Promise<void>
 
 移除一条 `global` 条目并不会把它摘下来。按平台文档描述的行为，对一个 global skill 发 DELETE，删掉的是你的覆盖、恢复的是默认值；只有 `org` 和 `personal` skill 会被真正卸载。
 
-::: warning 尚未验证
-我们的实测只对 `global` skill 试过 `putAgentSkill`，也就是上面那个 404。我们**没有** 观察到 `org` 或 `personal` skill 安装成功，`deleteAgentSkill` 也从来没有对一套真实部署跑过。
-
-路由是存在的，SDK 也调对了。在依赖它之前请自己验证行为，并用 `listAgentSkills` 检查结果，不要相信返回的 `config_version`。
-:::
+安装一个 `org` skill **已经验证**：实测返回 `{ config_version: 4, warnings: [] }`，该 skill 出现在 `listAgentSkills` 里且 `eligible: true`，并在下一个回合按它自己的内容作答。`deleteAgentSkill` **没有**对真实部署跑过；请用 `listAgentSkills` 检查结果，不要相信返回的 `config_version`。
 
 ## 找到 skill id
 
-SDK 没有目录相关的方法。registry 的列表就是对同一个 base URL、用同一个 bearer 发一次普通 `fetch`：
+`listSkills()` 返回你这个 key 能看到的目录：global 条目，加上你自己组织上传的东西。
 
 ```ts
-const base = process.env.ZOOCLAW_BASE_URL!
-const res = await fetch(
-  `${base}/skills?owner_uid=${encodeURIComponent(ownerUid)}&org_id=${encodeURIComponent(orgId)}`,
-  { headers: { Authorization: `Bearer ${process.env.ZOOCLAW_API_KEY}` } },
-)
-const { skills } = await res.json() as {
-  skills: { skill_id: string; name: string; scope: string }[]
-}
+const all = await zc.listSkills()
+const mine = await zc.listSkills({ scope: 'org' })
+const found = await zc.listSkills({ q: 'market', page: 1 })
 ```
 
-这条路由要求两个选择器都传。结果是可见的 global 目录，并上匹配这两个锚点的内容，所以传占位符照样返回 200 和那些 global 条目。要看到你自己组织上传的 skill，你必须传它创建时真实的 `org_id` 或 `owner_uid`。
+**没有 ownership 选择器可传。** 网关从你的 key 推导租户，所以选项只有 `scope`、`q`、`page`；`page` 从 1 开始，页大小固定 100。
+
+一行是一个 `SkillRecord`——`skill_id`、`scope`、`name`、`description`、`latest_version`、`status`、`ownership`。有两个形状要有心理准备：`org` scope 的 skill，`ownership.owner_uid` 回来是 **null**（它属于组织，不属于某个人）；`latest_version` 从 multipart 创建那条路回来是**字符串** `"1"`，而别的地方写成数字——请松散比较，或者 `Number()` 一下。
+
+## 写一个真的会触发的 skill
+
+::: danger `description` 是触发面，正文是载荷
+agent 判断要不要加载你的 skill，读的**只有 frontmatter 里的 `description`**。正文是之后才读的，而且只有在 description 胜出时才读。一个描述「这个 skill 是什么」的 description 永远不会触发，正文写得再好也没用。
+
+```yaml
+# 永不触发——它在描述这个东西是什么
+description: 我们办公室咖啡吧的资料。
+
+# 会触发——它在描述什么场合该用
+description: 用户询问办公室咖啡菜单、咖啡价格，或者想点一杯咖啡时使用——包括提到拿铁、
+  espresso、美式的时候。
+```
+
+这是这套 API 里**唯一一个每一步都返回成功**的失败。我们踩过：skill 上传成功、安装成功、`listAgentSkills` 回来 `eligible: true` 带真实 `basePath`——然后一次都没触发，因为触发词写在正文里，而 description 只写了这东西是什么。只改 description、其他一个字没动，下一个回合就触发了。
+
+当一个 skill「什么也没做」时，先查 description，再查别的。
+:::
+
+把 description 写成**什么时候用它**，并且把用户真的会说出口的词放进去。agent 该知道、该做的一切放正文。
 
 ## 上传你自己的 skill
 
 一个 skill 是一个 zip，里面含单个顶层目录（或者根目录直接放着 `SKILL.md`）。`SKILL.md` 必须是非空的 UTF-8，frontmatter 里带 `name` 和 `description`。`name` 必须匹配 `^[a-z0-9-]{1,64}$`。解压后总大小上限 50 MiB，路径里不能出现 `..`、绝对路径或反斜杠，加密的 zip 会被拒绝。服务端在接收时把归档解开。
 
-创建是对同一个 base URL 上的 `/skills` 发一个 multipart POST，scope 和 ownership 锚点跟文件一起传：
+::: warning zip 的顶层目录名必须等于 frontmatter 里的 `name`
+`coffee-order/SKILL.md` 声明 `name: coffee-order`。不一致会被拒绝，报错里把两个名字都打出来，所以这是摩擦不是陷阱——但它是你手工打包 skill 时第一个会失败的地方。
 
-```bash
-curl -X POST "$ZOOCLAW_BASE_URL/skills" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
-  -F "files[]=@market-research.zip" \
-  -F "scope=personal" \
-  -F "owner_uid=usr_example"
+条目可以是 **stored（不压缩）**，也可以是 deflate，所以一个最小的 zip 写入器就够了；发布一个小 skill 不需要压缩库。
+:::
+
+```ts
+import { readFile } from 'node:fs/promises'
+
+const zip = await readFile('coffee-order.zip')
+const skill = await zc.uploadSkill(zip, { scope: 'org' })
+// { skill_id: 'skl_…', scope: 'org', name: 'coffee-order', latest_version: '1', … }
+
+await zc.putAgentSkill(agentId, skill.skill_id)
 ```
 
-`scope` 必须是 `personal` 或 `org`；这条路由拒绝 `global`。成功时创建一条 skill 记录加版本 1，响应里带 `skill_id` 和 `latest_version: 1`。后续版本发到 `POST /skills/{skill_id}/versions`，用同样的 multipart 表单。
+`scope` 必须是 `org` 或 `personal`；这条路由拒绝 `global` 和 `pack`。一次调用同时创建 skill 记录**和**版本 1。
 
-::: warning 尚未验证
-上传路由是存在的，平台也有文档，但我们没有跑过。我们不会发布一套自己没执行过的分步流程，也没法告诉你网关在实际中拿 `scope` 和 ownership 这两个表单字段做了什么。
+`uploadSkill` 是 create-only。要给一个已存在的 skill 发新版本，用 `uploadSkillVersion(skillId, zip)`——frontmatter 的 `name` 必须和目标 skill 一致。未 pin 版本的 agent 会自己跟随新版本：registry 会 bump 它们的 `config_version`，你**不需要**再调一次 `putAgentSkill`。
 
-如果你要试：先上传，再用上面的目录列表确认，然后 `putAgentSkill`，再用 `listAgentSkills` 证明确实挂上了。不要因为上一步成功了，就假定这一步也成功了。
-:::
+`deleteSkill(skillId)` 没有在用保护。持有该 skill 的 agent 就是直接失去它。
+
+## 怎么证明 skill 真的跑了
+
+事件流里没有任何一条说「选中了这个 skill」。`listAgentSkills` 告诉你的是它**挂上了**，不是它**跑了**：
+
+```json
+{ "skill_id": "skl_…", "name": "coffee-order", "scope": "org", "version": "1",
+  "eligible": true, "location": "/skills/coffee-order/SKILL.md",
+  "basePath": "/opt/zooclaw/skills/org/coffee-order/1" }
+```
+
+`eligible: true` 加一个真实的 `basePath`，意思是已安装、已落盘。模型有没有加载它，只能从答案里看出来。
+
+所以要像测一个事实那样测它，而不是像测一个函数：**在 skill 里放一点模型不可能自己产出的东西**——一个精确的内部价格、一个产品代号、一条强制的回复格式——然后在安装前后各问一次应该会用到它的问题。
+
+这个前后对比就是完整的验证方式。没挂 skill 时问办公室咖啡价格，agent 会信心十足地编出市场价；挂上之后，它按你的文件作答，连只有那个文件里才有的细节都对。[`skill-lab` quickstart](https://github.com/SerendipityOneInc/zoowork-quickstarts) 跑的正是这个对比，而且每个问题都开新 session，这样第二个答案来自 skill，而不是来自 agent 记得第一次说过什么。
 
 ## 这里没有的东西
 

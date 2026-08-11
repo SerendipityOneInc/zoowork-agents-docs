@@ -48,8 +48,14 @@ interface AgentSkill {
   scope?: 'global' | 'org' | 'personal' | 'pack' | string
   eligible?: boolean
   files?: { path: string; size?: number; sha256?: string }[]
+  [k: string]: unknown
 }
 ```
+
+Live rows carry more than the typed fields — `description`, `location`
+(`/skills/<name>/SKILL.md`), `basePath` (`/opt/zooclaw/skills/<scope>/<name>/<version>`),
+`contentHash` and `promptVersion`. They are reachable through the index signature and are the
+cheapest way to confirm a skill is really on disk.
 
 `scope` is the field that decides what you can do with the entry, so read it first:
 
@@ -141,36 +147,59 @@ Removing a `global` entry does not detach it. Per the platform's documented beha
 DELETE against a global skill removes your override and restores the default; only `org` and
 `personal` skills are genuinely uninstalled.
 
-::: warning Not yet verified
-Our live run only ever attempted `putAgentSkill` against a `global` skill, which is the 404
-above. We have **not** observed a successful install of an `org` or `personal` skill, and
-`deleteAgentSkill` has never been exercised against a live deployment.
-
-The routes exist and the SDK calls them correctly. Verify the behaviour yourself before you
-depend on it, and check the result with `listAgentSkills` rather than trusting the returned
+Installing an `org` skill is verified: a live run returned `{ config_version: 4, warnings: [] }`
+and the skill appeared in `listAgentSkills` with `eligible: true` — and answered from its own
+content on the next turn. `deleteAgentSkill` has **not** been exercised against a live
+deployment; check the result with `listAgentSkills` rather than trusting the returned
 `config_version`.
-:::
 
 ## Finding skill ids
 
-The SDK has no catalog method. The registry listing is one plain `fetch` against the same
-base URL with the same bearer:
+`listSkills()` returns the catalog your key can see: the global entries plus anything your
+own organization has uploaded.
 
 ```ts
-const base = process.env.ZOOCLAW_BASE_URL!
-const res = await fetch(
-  `${base}/skills?owner_uid=${encodeURIComponent(ownerUid)}&org_id=${encodeURIComponent(orgId)}`,
-  { headers: { Authorization: `Bearer ${process.env.ZOOCLAW_API_KEY}` } },
-)
-const { skills } = await res.json() as {
-  skills: { skill_id: string; name: string; scope: string }[]
-}
+const all = await zc.listSkills()
+const mine = await zc.listSkills({ scope: 'org' })
+const found = await zc.listSkills({ q: 'market', page: 1 })
 ```
 
-Both selectors are required by the route. The result is the union of the visible global
-catalog plus anything matching those anchors, so placeholder values still return 200 with the
-global entries. To see a skill your own organization uploaded, you must pass the real
-`org_id` or `owner_uid` it was created under.
+There is no ownership selector to pass. The gateway derives your tenant from the key, so
+`scope`, `q` and `page` are the only options; `page` is 1-based with a fixed page size of 100.
+
+A row is a `SkillRecord` - `skill_id`, `scope`, `name`, `description`, `latest_version`,
+`status`, `ownership`. Two shapes to expect: on an `org`-scope skill `ownership.owner_uid`
+comes back `null` (it belongs to the organization, not to a person), and `latest_version` came
+back as the **string** `"1"` from the multipart create while other surfaces spell it as a
+number - compare loosely, or `Number()` it.
+
+## Writing a skill that fires
+
+::: danger The `description` is the trigger. The body is the payload.
+The agent decides whether to load your skill by reading **only the frontmatter
+`description`**. The body is read afterwards, and only if the description won. A description
+that says what the skill *is* will never fire, no matter how good the body is.
+
+```yaml
+# never fires - describes the artifact
+description: Notes about our office coffee bar.
+
+# fires - describes the occasion
+description: Use whenever the user asks about the office coffee menu, coffee prices, or wants
+  to order a coffee - including the words latte, espresso, or americano.
+```
+
+This is the one failure in this API that reports success at every step. We hit it: the skill
+uploaded, installed, and came back from `listAgentSkills` with `eligible: true` and a real
+`basePath` - and never fired once, because the trigger words were in the body and the
+description only named the artifact. Rewriting the description, changing nothing else, made it
+fire on the next turn.
+
+When a skill "does nothing", check the description before you check anything else.
+:::
+
+Write the description as *when to use this*, and put the words a user would actually say into
+it. Everything the agent should know or do goes in the body.
 
 ## Uploading your own skill
 
@@ -180,30 +209,59 @@ frontmatter. `name` must match `^[a-z0-9-]{1,64}$`. Total expanded size is cappe
 paths must not contain `..`, absolute paths, or backslashes, and encrypted zips are rejected.
 The server expands the archive on ingestion.
 
-Creation is a multipart POST to `/skills` on the same base URL, with the scope and ownership
-anchors alongside the file:
+::: warning The zip's top-level directory must match the frontmatter `name`
+`coffee-order/SKILL.md` declaring `name: coffee-order`. A mismatch is rejected with a message
+naming both, so it is friction rather than a trap - but it is the first thing that fails when
+you package a skill by hand.
 
-```bash
-curl -X POST "$ZOOCLAW_BASE_URL/skills" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
-  -F "files[]=@market-research.zip" \
-  -F "scope=personal" \
-  -F "owner_uid=usr_example"
+Entries may be **stored** (uncompressed) as well as deflated, so a minimal zip writer is
+enough; you do not need a compression library to publish a small skill.
+:::
+
+```ts
+import { readFile } from 'node:fs/promises'
+
+const zip = await readFile('coffee-order.zip')
+const skill = await zc.uploadSkill(zip, { scope: 'org' })
+// { skill_id: 'skl_…', scope: 'org', name: 'coffee-order', latest_version: '1', … }
+
+await zc.putAgentSkill(agentId, skill.skill_id)
 ```
 
-`scope` must be `personal` or `org`; `global` is refused on this route. On success one skill
-row plus version 1 are created, and the response carries `skill_id` and `latest_version: 1`.
-Later versions go to `POST /skills/{skill_id}/versions` with the same multipart form.
+`scope` must be `org` or `personal`; `global` and `pack` are refused on this route. One call
+creates the skill row **and** version 1.
 
-::: warning Not yet verified
-The upload route exists and is documented by the platform, but we have not run it. We are not
-publishing a step-by-step flow we have not executed, and we cannot tell you what the gateway
-does with the `scope` and ownership form fields in practice.
+`uploadSkill` is create-only. To publish a new version of a skill that already exists, use
+`uploadSkillVersion(skillId, zip)` - the frontmatter `name` must match the target skill. Agents
+that installed it unpinned follow the new version by themselves: the registry bumps their
+`config_version` and you do **not** call `putAgentSkill` again.
 
-If you try it: upload first, then confirm with the catalog listing above, then
-`putAgentSkill`, then `listAgentSkills` to prove the attachment landed. Do not assume any
-step succeeded because the previous one did.
-:::
+`deleteSkill(skillId)` has no in-use guard. Agents holding the skill simply lose it.
+
+## Proving a skill actually ran
+
+Nothing in the event stream says "this skill was selected". `listAgentSkills` tells you a skill
+is **attached**, not that it **ran**:
+
+```json
+{ "skill_id": "skl_…", "name": "coffee-order", "scope": "org", "version": "1",
+  "eligible": true, "location": "/skills/coffee-order/SKILL.md",
+  "basePath": "/opt/zooclaw/skills/org/coffee-order/1" }
+```
+
+`eligible: true` with a real `basePath` means installed and on disk. Whether the model loaded
+it is only observable in the answer.
+
+So test it the way you would test a fact, not a function: **put something in the skill that the
+model could not otherwise produce** - an exact internal price, a product codename, a required
+reply format - then ask a question that should reach for it, before and after installing.
+
+That before/after is the whole demonstration. Asked about office coffee prices with no skill
+attached, an agent will confidently invent market rates; with the skill attached it answers
+from your file, down to the details that exist nowhere else. The
+[`skill-lab` quickstart](https://github.com/SerendipityOneInc/zoowork-quickstarts) runs exactly
+this comparison, with a fresh session per question so the second answer comes from the skill
+rather than from the agent remembering the first.
 
 ## What is not here
 
