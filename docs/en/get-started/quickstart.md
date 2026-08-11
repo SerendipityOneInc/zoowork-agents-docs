@@ -2,6 +2,17 @@
 
 Create an agent, start it, open a session, and stream the reply. About five minutes end to end.
 
+::: tip Would you rather start from something that already runs?
+Three runnable templates live in
+[zoowork-quickstarts](https://github.com/SerendipityOneInc/zoowork-quickstarts): `chat/` talks
+to an agent you already have, `skill-lab/` builds one and uploads a skill to it, and `app-kit/`
+is the production reference with auth and persistence. Each is self-contained — fill in a key
+and run it.
+
+The repository also vendors this platform's agent skill, so cloning it teaches your coding
+assistant the API before it writes a line.
+:::
+
 ## Prerequisites
 
 - **Node 20 or later.** `@zooclaw-agents/sdk` is an ES module with no runtime dependencies; it uses the platform `fetch`.
