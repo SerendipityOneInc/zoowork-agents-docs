@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: 510d2145d515a41c5287a339bec26f6ba16a047cfcaa84913192a70418910b2b
+source_hash: 0c394d2cf98da3480964c8504100c71bf80633ed9284a49722f38c5b01ba0371
 ---
 
 # TypeScript SDK 参考
@@ -109,7 +109,7 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 
 ## 方法
 
-`ZooclawClient` 暴露 50 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
+`ZooclawClient` 暴露 51 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
 东西——session、事件、审批、定时任务、`wake`、`exec`——第一个参数都是 `agentId`。skill registry
 和 Environment 是顶层资源，一个都不带。
 
@@ -172,7 +172,8 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `getSystemPrompt(agentId)` | `Promise<SystemPromptInfo>` | 声明的 system-prompt pin 和实际生效的渲染模板。新建的 agent 生来就 pin 在当前 active 的平台版本上；`declaration: null` 表示一个模板机制落地之前的老 agent，仍走 virtual legacy 行为。 |
-| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | 按你给的运行时事实装配出完整 prompt，不碰任何 session——确定性输出，`transcript` 恒为 `[]`，`slot_hashes` 里每个模板 slot 一个哈希。`input.config_version` 必须是 agent 当前版本，否则 `409 config_version_changed`。刻意没有 `upgradeSystemPrompt`：引擎的升级路由过网关是 404，pin 只在创建时定。 |
+| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | 按你给的运行时事实装配出完整 prompt，不碰任何 session——确定性输出，`transcript` 恒为 `[]`，`slot_hashes` 里每个模板 slot 一个哈希。`input.config_version` 必须是 agent 当前版本，否则 `409 config_version_changed`。 |
+| `upgradeSystemPrompt(agentId, input)` | `Promise<SystemPromptUpgrade>` | 唯一能挪 pin 的写入。`expected_config_version` 是必填的 CAS（过期是 `409 config_version_changed`——先读新值再升级）；省略 `template_version` 就升到当前 active 的平台版本。200 回执带新的 `config_version`。需要带 fix #3387（2026-08-14）的网关——更老的部署在这条 `{id}:verb` 语法的路由上回网关 404。 |
 
 **Artifacts**
 
@@ -1216,6 +1217,7 @@ import {
   type SystemPromptInfo,
   type SystemPromptPreview,
   type SystemPromptPreviewInput,
+  type SystemPromptUpgrade,
 
   // artifacts
   type ArtifactStatus,
@@ -1260,7 +1262,7 @@ import {
 } from '@zooclaw-agents/sdk'
 ```
 
-12 个值和 41 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
+12 个值和 42 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
 符号，它都会失败。`DEFAULT_BASE_URL` 就是那个会被 `ZOOCLAW_BASE_URL` 和 `baseUrl` 选项覆盖掉的
 公开网关 base；把它导出来，是为了让你能拿它做比较，或者自己拼 URL。
 
