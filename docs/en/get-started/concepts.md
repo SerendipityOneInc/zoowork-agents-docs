@@ -89,9 +89,9 @@ return a `channel_routes_reload_failed` warning on an agent that has no chat cha
 normal noise, not a failure.
 
 ::: danger You must call startAgent()
-Until `startAgent()` returns, `createSession()` fails with `409 agent_not_running`. If you are
-porting code from Claude Managed Agents, this step has no equivalent there and its absence is
-the single most common way to get stuck on the first call.
+Until `startAgent()` returns, `createSession()` fails with `409 agent_not_running`. Creation
+and starting are deliberately separate steps, and skipping the start is the single most
+common way to get stuck on the first call.
 :::
 
 ::: warning Not yet verified
@@ -189,7 +189,7 @@ session.session_key // 'api:...'
 
 ::: danger Not supported
 There is no top-level `/sessions` collection and no session resource with the agent in the
-body. Code ported from Claude Managed Agents will not compile. Rewrite the call sites to pass
+body. Code written against one will not compile here. Rewrite the call sites to pass
 `agentId` explicitly.
 :::
 
@@ -291,7 +291,8 @@ res.events[0]?.accepted // true
 `accepted: false` - a no-op, not an error, and not something to retry.
 
 `system.message` is a real out-of-band channel into the model's context. A note written this
-way is visible to the model on the next turn. Claude Managed Agents has no equivalent.
+way is visible to the model on the next turn - state your application owns, injected without
+appearing as a user turn.
 
 ::: warning Not yet verified
 `user.tool_confirmation` takes

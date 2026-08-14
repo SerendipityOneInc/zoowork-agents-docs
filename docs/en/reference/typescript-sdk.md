@@ -106,7 +106,7 @@ behaviour, and it is not usable with an API key.
 
 ## Methods
 
-`ZooclawClient` exposes 44 methods, grouped below the way the client groups them. Everything
+`ZooclawClient` exposes 50 methods, grouped below the way the client groups them. Everything
 the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
 `agentId` first. The skill registry and Environments are top-level resources and take none.
 
@@ -163,6 +163,27 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 |---|---|---|
 | `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | Tool calls parked on a human decision. `opts.status` may only be omitted or `'pending'`, so resolved ones cannot be listed. This is the platform's separate approvals resource, not the `user.tool_confirmation` event loop; without a Temporal signaler the route answers `501 not_configured`. |
 | `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | Resolves one approval with `allow-once`, `allow-always`, or `deny`; anything else is a 400. Same route family, same `501` without a signaler. |
+
+**System prompt**
+
+| Method | Returns | What it does |
+|---|---|---|
+| `getSystemPrompt(agentId)` | `Promise<SystemPromptInfo>` | The system-prompt pin as declared and the rendered template in effect. A fresh agent is born pinned to the active platform version; `declaration: null` marks a pre-templates agent still on virtual legacy behaviour. |
+| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | Assembles the exact prompt for runtime facts you supply, without touching any session - deterministic, `transcript` always `[]`, one hash per template slot in `slot_hashes`. `input.config_version` must be the agent's current one, else `409 config_version_changed`. There is deliberately no `upgradeSystemPrompt`: the engine's upgrade route is 404 through the gateway, so the pin only moves at create time. |
+
+**Artifacts**
+
+Artifacts are published by the agent's own in-loop `artifact_publish` tool; these methods
+manage what it produced. Every artifact route demands `owner_uid`+`org_id` selectors that the
+gateway does not inject - the SDK derives both from the agent's own projection and caches
+them per agent, so the first artifact call on an agent costs one extra GET.
+
+| Method | Returns | What it does |
+|---|---|---|
+| `listArtifacts(agentId, opts?)` | `Promise<ArtifactPage>` | One page (`{artifacts, page, has_more}`) - and unlike `listEvents`, `has_more` tells you when it truncated. `limit` defaults to 50, capped at 100; filter with `sessionId`, `sourcePath`, `createdBefore`. |
+| `getArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | One artifact row. Foreign and unknown ids are both 404. |
+| `downloadArtifact(agentId, artifactId)` | `Promise<{ artifact_id?: string; url?: string }>` | Mints a fresh access URL for a `ready` artifact. The URL is a revocable bearer capability - treat it as a secret. A row that never finalized answers `409 artifact_not_ready`. |
+| `deleteArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | Deletes one artifact and returns the row as the engine leaves it. |
 
 **Automation: schedules and wake**
 
@@ -893,6 +914,8 @@ interface AgentResource {
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
   mcp?: McpServerDeclaration[]
+  system_prompt?: SystemPromptDeclaration
+  outcome?: OutcomeConfig | null
   sandbox?: { scope: 'agent' | 'session' }
   environment_id?: string
   environment_version?: number
@@ -904,8 +927,11 @@ interface AgentResource {
 
 The configuration you send to `createAgent()`. `name` is the only required field. `mcp`
 declares remote MCP servers, and `onboarding: false` skips the persona bootstrap turns - set
-it on every API-driven agent unless you actually want them. The index signature is what keeps a
-field a newer server accepts from failing to type-check.
+it on every API-driven agent unless you actually want them. `system_prompt` pins a template
+version (omitted on create means "the platform version active right now", pinned from then
+on; replace-on-write on PUT like `tool_policy`), and `outcome` is the agent-level default
+gate for unattended cron fires. The index signature is what keeps a field a newer server
+accepts from failing to type-check.
 
 Two fields the type allows that you should not send through the public gateway: `skills` at
 create time (use `putAgentSkill()`), and `warm` (rejected by `updateAgent()`). See
@@ -1235,6 +1261,21 @@ import {
   type ApprovalDecision,
   type ApprovalRecord,
 
+  // system prompt
+  type SystemPromptDeclaration,
+  type SystemPromptInfo,
+  type SystemPromptPreview,
+  type SystemPromptPreviewInput,
+
+  // artifacts
+  type ArtifactStatus,
+  type ArtifactRecord,
+  type ArtifactPage,
+
+  // outcome
+  type OutcomeConfig,
+  type OutcomeEvaluator,
+
   // schedules, wake, exec
   type ScheduleSpec,
   type SchedulePayload,
@@ -1269,7 +1310,7 @@ import {
 } from '@zooclaw-agents/sdk'
 ```
 
-Twelve values and thirty-two types, pinned by a test that asserts the entry point's exports as
+Twelve values and forty-one types, pinned by a test that asserts the entry point's exports as
 a set - a missing symbol and an accidental extra one both fail it. `DEFAULT_BASE_URL` is the
 public gateway base that `ZOOCLAW_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.

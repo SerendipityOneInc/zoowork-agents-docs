@@ -27,8 +27,8 @@ If your design is "the agent calls my function, my code queries my database, I h
 answer back", that loop is not available. Pick one of the two paths below instead.
 :::
 
-This is the largest single difference from Claude Managed Agents. Code ported from there
-that defines a custom tool has nothing to compile against.
+This is the gap most likely to reshape a design. Code ported from a platform with
+client-executed tools has nothing to compile against here.
 
 ### What to do instead
 

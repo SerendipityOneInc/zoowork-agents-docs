@@ -23,9 +23,9 @@ postEvents(agentId, sessionId, events)
 listEvents(agentId, sessionId, opts?)
 ```
 
-In Claude Managed Agents sessions are a top-level resource with the agent named in the body,
-so code ported from Claude will not compile here until you thread the agent id through -
-see [Porting from Claude](/en/reference/from-claude-managed-agents).
+There is no top-level `/sessions` collection: a session exists only under its agent, and the
+agent id threads through every call. Code written against an API where sessions are top-level
+will not compile here until you pass the agent id through.
 
 All examples on this page use one client:
 

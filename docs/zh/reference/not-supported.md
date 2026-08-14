@@ -1,7 +1,7 @@
 ---
 title: 不支持的能力
 source: /en/reference/not-supported
-source_hash: e3dd1d0788e69e92219547341a310c65ee58806b7fa605dce7cc7a4b3fc57244
+source_hash: f52c9a4375b53ec26e42b660d9ea4ebf049aa9f33ba39947c32b23648b85740d
 ---
 
 # 不支持的能力
@@ -20,7 +20,7 @@ source_hash: e3dd1d0788e69e92219547341a310c65ee58806b7fa605dce7cc7a4b3fc57244
 
 **实际发生的：** 没有可以在 agent 上声明的自定义工具类型，也没有 `user.custom_tool_result` 事件可以用来回答。写入侧只接受四种事件类型：`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`。
 
-**替代：** 两个选项。把你的服务包成一个**远程 HTTP MCP server** 并声明在 agent 上——这是唯一能把你的代码放到一个 agent 工具背后的形态，而我们没有端到端跑通过。或者把决策留在你自己的进程里：等 `run.finished`，把活干完，下一个回合再把答案作为 `user.message` 发回去。第二条路慢一个回合，而且完全已实测。
+**替代：** 两个选项。把你的服务包成一个**远程 HTTP MCP server** 并声明在 agent 上——这是唯一能把你的代码放到一个 agent 工具背后的形态，已经端到端实测过，但有一条硬限制：只有**无鉴权**的 server 能用，因为声明里那个 bearer slug 背后的凭证存储返回 404。或者把决策留在你自己的进程里：等 `run.finished`，把活干完，下一个回合再把答案作为 `user.message` 发回去。第二条路慢一个回合。
 
 ## 保险库式的终端用户凭证托管 {#vault-style-end-user-credential-storage}
 
@@ -28,7 +28,7 @@ source_hash: e3dd1d0788e69e92219547341a310c65ee58806b7fa605dce7cc7a4b3fc57244
 
 **实际发生的：** 没有可供你写入的凭证资源。agent 上的凭证端点通过网关返回 `404`，这是设计如此；平台自己代种模型凭证，别的什么都不暴露。没有 OAuth broker，也没有按 session 注入凭证的机制。
 
-**替代：** 就「按终端用户区分凭证」这件事而言，没有替代。agent 唯一能携带的密钥，是你声明的远程 MCP server 上那个静态 bearer——那是你所有用户共用的一份凭证。如果按用户区分身份对你重要，就在你自己的后端做第三方调用，再把结果作为文本传进 session。
+**替代：** 就「按终端用户区分凭证」这件事而言，没有替代——而且今天连一份共享凭证都做不到：MCP server 声明里的 `credential` slug 能被接受，但它指向的存储返回 404，bearer 实际上挂不上去。在你自己的后端做第三方调用，再把结果作为文本传进 session。
 
 ## 给 session 附加文件与挂载代码仓 {#session-file-attachment-and-repository-mounting}
 
@@ -38,13 +38,13 @@ source_hash: e3dd1d0788e69e92219547341a310c65ee58806b7fa605dce7cc7a4b3fc57244
 
 **替代：** 部分可行。agent 级的 Files API 能往 agent 的工作区里写，但它是一个 agent 一个工作区，不是一个 session 一个，而且它的后端没有接上持久存储，所以别把它当成权威存储。小的输入直接放进 `user.message` 里。代码仓这件事，没有人验证过 agent 能用 token 通过 bash 克隆一个下来，所以别指望它。
 
-## 结果定义与 rubric 评分 {#outcome-definitions-and-rubric-grading}
+## 交互式 session 上的结果定义 {#outcome-definitions-on-interactive-sessions}
 
-**你想建的：** 给 agent 一份验收 rubric，让它一直迭代到评分器判定达标；或者做一套跨多次运行的打分评测。
+**你想建的：** 开一个 session，把验收 rubric 随第一条消息交给 agent，让它一直迭代到评分器判定达标。
 
-**实际发生的：** `initial_events` 只接受 `user.message`。没有 outcome 对象，没有评分器资源，事件词表里也没有任何「达标 / 未达标」的信号。一次 run 以 `run.finished` 结束，状态是 `succeeded`、`failed` 或 `aborted`，它描述的是这一回合有没有跑完，不是答案好不好。
+**实际发生的：** `initial_events` 只接受 `user.message`。session 上没有 outcome 类型的事件，session 事件词表里也没有任何「达标 / 未达标」的信号。一次 run 以 `run.finished` 结束，状态是 `succeeded`、`failed` 或 `aborted`，它描述的是这一回合有没有跑完，不是答案好不好。
 
-**替代：** 在你自己的进程里评分。从 `agent.assistant` 事件里读出 assistant 文本，你想怎么打分就怎么打分，再发一条 `user.message` 继续迭代。这个循环的每一步都是已实测的。
+**替代：** 两条真实路径。**无人值守的 cron 工作**，outcome 门是全套存在的：把 `payload.outcome` 写在 schedule 上——或者在 `resource.outcome` 放一个默认——配一个 `command` 或 `rubric` evaluator，run 会对着它迭代，并且在达标之前扣住发布。见[能力矩阵](/zh/reference/capabilities#automation)。**交互式 session**，在你自己的进程里评分：从 `agent.assistant` 事件里读出 assistant 文本，你想怎么打分就怎么打分，再发一条 `user.message` 继续迭代。这个循环的每一步都是已实测的。
 
 ## 端到端的人工审批 {#end-to-end-human-approval}
 
@@ -92,7 +92,7 @@ source_hash: e3dd1d0788e69e92219547341a310c65ee58806b7fa605dce7cc7a4b3fc57244
 
 **实际发生的：** 没有 worker 注册，没有任务队列，也没有 environment key。工具只在托管沙箱里跑。Environment 能让你预装包、设一份网络白名单，但执行仍然留在平台上。
 
-**替代：** 远程 HTTP MCP server 是唯一能把执行挪到你这边的形态，而它未经实测。你的代码要做的其他一切，都属于你自己的进程，在 session 外围，不在 session 里面。
+**替代：** 远程 HTTP MCP server 是唯一能把执行挪到你这边的形态——已实测，但只支持无鉴权的 server。你的代码要做的其他一切，都属于你自己的进程，在 session 外围，不在 session 里面。
 
 ## 其他同样不存在的 {#also-absent}
 
@@ -111,6 +111,6 @@ source_hash: e3dd1d0788e69e92219547341a310c65ee58806b7fa605dce7cc7a4b3fc57244
 | 定时任务的暂停与恢复、归档、跨定时任务的运行历史 | 没有。删掉重建，运行记录一次读一个定时任务。 |
 | 删除 agent 时自动清理定时任务 | 定时任务在停止和删除之后都还活着。你得先自己删掉。 |
 | 把记忆整合当成一个后台进程 | 没有对应物。 |
-| artifact 或文件的 SDK 方法 | 文件在线协议上是有路由的；`ZooclawClient` 对这两者什么都没暴露，所以你得用自己的 `fetch` 调。审批、定时任务、environment、session 的归档与删除，从 0.0.5 起都在 client 上了——见[能力矩阵](/zh/reference/capabilities)。 |
-| 从你自己的代码轮换或吊销 key | 没有文档化的流程。key 一旦泄露，请视为需要签发方帮忙处理。 |
+| 文件的 SDK 方法 | 文件路由在线协议上存在，但后端没有接线；`ZooclawClient` 对它什么都没暴露，所以你得用自己的 `fetch` 调。artifact 从 0.0.6 起进了 client（`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`）；审批、定时任务、environment、session 的归档与删除从 0.0.5 起就在——见[能力矩阵](/zh/reference/capabilities)。 |
+| 从你自己的代码轮换或吊销 key | 没有 API——但也不再需要找人：ZooClaw App 的 **设置 → API Keys** 可以立即轮换或吊销一把 key（新密钥只显示一次）。key 泄露就当场去那里 Rotate。 |
 | 按 scope、按用户或只读的 API key | 只有一个组织级的 key，对组织内每一个 agent 都有完整的读写权限。 |

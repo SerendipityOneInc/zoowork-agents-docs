@@ -37,8 +37,8 @@ forever for an API-only agent.
 
 **Session.** One conversation, created as a sub-resource of an agent:
 `POST /agents/{id}/sessions`, or `createSession(agentId, input)` in the SDK. It holds the
-transcript and is the scope of every event you write or read. Code ported from Claude
-Managed Agents, where sessions are top-level, will not compile.
+transcript and is the scope of every event you write or read. There is no top-level session
+collection - code written against one will not compile here.
 
 **Event.** The unit in both directions. You write `user.message`, `user.interrupt`, and
 `system.message`; you read back a durable, sequence-numbered log of what the agent did
@@ -48,13 +48,12 @@ stream itself is session-scoped and does not close when a turn ends.
 
 ## What this is not
 
-Several things a Claude Managed Agents developer will reach for do not exist here. The
-largest is **client-executed custom tools**: there is no `{type: "custom"}` tool definition
-and no `user.custom_tool_result` event, so the pattern "the agent calls my function, my
-process queries my database, I hand the result back" has no direct equivalent. Outcome
-definitions and rubric grading, vaults, session `resources[]` mounts, and platform webhooks
-are also absent. Read [Not supported](/en/reference/not-supported) before you design around any
-of them.
+Several things developers reach for on agent platforms do not exist here. The largest is
+**client-executed custom tools**: there is no `{type: "custom"}` tool definition and no
+`user.custom_tool_result` event, so the pattern "the agent calls my function, my process
+queries my database, I hand the result back" has no direct equivalent. Session-level outcome
+definitions, vaults, session `resources[]` mounts, and platform webhooks are also absent.
+Read [Not supported](/en/reference/not-supported) before you design around any of them.
 
 ## Where to start
 

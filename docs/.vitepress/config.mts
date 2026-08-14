@@ -1,11 +1,9 @@
 import { defineConfig, type DefaultTheme } from 'vitepress'
 import llmstxt from 'vitepress-plugin-llms'
 
-// Navigation deliberately mirrors Claude Managed Agents' information architecture
-// (Get started / Build / Reference) so a developer who has read those docs can find
-// the equivalent page here. Where we have no equivalent capability, the page still
-// exists under Reference and says so — silence reads as "not documented yet", which
-// is the one thing we cannot afford.
+// Navigation runs Get started / Build / Reference. Where a capability does not
+// exist, the page still exists under Reference and says so — silence reads as
+// "not documented yet", which is the one thing we cannot afford.
 //
 // The site is bilingual. English is the authored source: the SDK, its errors, and
 // every identifier in this documentation are English, so that is where a claim is
@@ -29,7 +27,6 @@ interface PageSet {
   sdk: string
   errors: string
   capabilities: string
-  fromClaude: string
   notSupported: string
 }
 
@@ -49,7 +46,6 @@ const EN: PageSet = {
   sdk: 'TypeScript SDK',
   errors: 'Errors',
   capabilities: 'Capability matrix',
-  fromClaude: 'Coming from Claude Managed Agents',
   notSupported: 'Not supported',
 }
 
@@ -69,7 +65,6 @@ const ZH: PageSet = {
   sdk: 'TypeScript SDK',
   errors: '错误处理',
   capabilities: '能力矩阵',
-  fromClaude: '从 Claude Managed Agents 迁移',
   notSupported: '不支持的能力',
 }
 
@@ -101,7 +96,6 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
         { text: t.sdk, link: `${base}/reference/typescript-sdk` },
         { text: t.errors, link: `${base}/reference/errors` },
         { text: t.capabilities, link: `${base}/reference/capabilities` },
-        { text: t.fromClaude, link: `${base}/reference/from-claude-managed-agents` },
         { text: t.notSupported, link: `${base}/reference/not-supported` },
       ],
     },

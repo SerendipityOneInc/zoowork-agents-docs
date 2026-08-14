@@ -23,10 +23,11 @@ or your API, and you hand the result back so the agent continues the same turn.
 types: `user.message`, `user.interrupt`, `user.tool_confirmation`, `system.message`.
 
 **Instead:** two options. Wrap your service as a **remote HTTP MCP server** and declare it on
-the agent - the only shape that puts your code behind an agent tool, and one we have not
-driven end to end. Or keep the decision in your own process: wait for `run.finished`, do the
-work, and post the answer back as a `user.message` on the next turn. The second path is
-slower by one turn and fully verified.
+the agent - the only shape that puts your code behind an agent tool. It is verified end to
+end, with one hard limit: only an **unauthenticated** server works, because the credential
+store behind the declared bearer slug answers 404. Or keep the decision in your own process:
+wait for `run.finished`, do the work, and post the answer back as a `user.message` on the
+next turn. The second path is slower by one turn.
 
 ## Vault-style end-user credential storage
 
@@ -38,10 +39,10 @@ on an agent return `404` through the gateway by design; the platform seeds the m
 credential itself and exposes nothing else. There is no OAuth broker and no per-session
 credential injection.
 
-**Instead:** none for per-end-user credentials. The only secret an agent can carry is the
-static bearer on a declared remote MCP server, which is one shared credential for all of your
-users. If per-user identity matters, do the third-party call in your own backend and pass the
-result into the session as text.
+**Instead:** none for per-end-user credentials - and today not even a shared one: the
+`credential` slug on a declared MCP server is accepted but the store it points at answers
+404, so a bearer cannot actually be attached. Do the third-party call in your own backend and
+pass the result into the session as text.
 
 ## Session file attachment and repository mounting
 
@@ -57,19 +58,23 @@ storage, so do not treat it as the store of record. For small inputs, put the co
 directly in the `user.message`. For repositories, nobody has verified an agent cloning one
 with a token over bash, so do not plan on it.
 
-## Outcome definitions and rubric grading
+## Outcome definitions on interactive sessions
 
-**You would build:** give the agent an acceptance rubric and let it iterate until a grader
-says the work is satisfied; or a scored evaluation harness over many runs.
+**You would build:** open a session, hand the agent an acceptance rubric with the first
+message, and let it iterate until a grader passes the work.
 
-**What happens:** `initial_events` accepts only `user.message`. There is no outcome object,
-no grader resource, and no satisfied or unsatisfied signal anywhere in the event vocabulary.
-A run ends at `run.finished` with `succeeded`, `failed`, or `aborted`, which describes
-whether the turn ran, not whether the answer was good.
+**What happens:** `initial_events` accepts only `user.message`. There is no outcome event
+type on a session and no satisfied or unsatisfied signal in the session event vocabulary. A
+run ends at `run.finished` with `succeeded`, `failed`, or `aborted`, which describes whether
+the turn ran, not whether the answer was good.
 
-**Instead:** grade in your own process. Read the assistant text from `agent.assistant` events,
-score it however you like, and post another `user.message` to iterate. Every step of that
-loop is verified.
+**Instead:** two real paths. For **unattended cron work** the outcome gate exists in full:
+put `payload.outcome` on the schedule - or a default at `resource.outcome` - with a `command`
+or `rubric` evaluator, and the run iterates against it and withholds publication until
+satisfied. See the [capability matrix](/en/reference/capabilities#automation). For
+**interactive sessions**, grade in your own process: read the assistant text from
+`agent.assistant` events, score it however you like, and post another `user.message` to
+iterate. Every step of that loop is verified.
 
 ## End-to-end human approval
 
@@ -152,9 +157,9 @@ to a worker you operate.
 Tools run in the managed sandbox only. Environments let you pre-install packages and set a
 network allowlist, but the execution stays on the platform.
 
-**Instead:** a remote HTTP MCP server is the only shape that moves execution to your side,
-and it is unverified. Everything else your code needs to do belongs in your own process,
-around the session rather than inside it.
+**Instead:** a remote HTTP MCP server is the only shape that moves execution to your side -
+verified, but unauthenticated servers only. Everything else your code needs to do belongs in
+your own process, around the session rather than inside it.
 
 ## Also absent
 
@@ -173,6 +178,6 @@ Smaller gaps, same rule: they do not exist, so do not plan on them.
 | Schedule pause and unpause, archive, run history across schedules | Not present. Delete and recreate, and read runs one schedule at a time. |
 | Automatic schedule cleanup when an agent is deleted | Schedules survive stop and delete. Remove them yourself first. |
 | Memory consolidation as a background process | No equivalent. |
-| SDK methods for artifacts or files | Routes exist on the wire for files; `ZooclawClient` exposes nothing for either, so you would call them with your own `fetch`. Approvals, schedules, environments, and session archive and delete are all on the client as of 0.0.5 - see the [capability matrix](/en/reference/capabilities). |
-| Key rotation or revocation from your own code | No documented procedure. Treat a leaked key as needing help from whoever issued it. |
+| SDK methods for files | The files routes exist on the wire but their backend is not wired; `ZooclawClient` exposes nothing for them, so you would call them with your own `fetch`. Artifacts joined the client in 0.0.6 (`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`); approvals, schedules, environments, and session archive and delete have been on it since 0.0.5 - see the [capability matrix](/en/reference/capabilities). |
+| Key rotation or revocation from your own code | No API - but no longer a support ticket either: in the ZooClaw App, **Settings → API Keys** rotates or revokes a key immediately (the new secret is shown exactly once). Treat a leaked key as an immediate rotate there. |
 | Scoped, per-user, or read-only API keys | One organization-wide key, with full read and write over every agent in the organization. |

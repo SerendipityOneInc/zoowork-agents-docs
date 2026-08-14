@@ -1,7 +1,7 @@
 ---
 title: 快速开始
 source: /en/get-started/quickstart
-source_hash: d2cf28ce43db46fe37640c096ff09a9d949c245c272232387399f5184407a40d
+source_hash: 7dbbd30f56247b2464808c026ff1fc245ac70cb7d22768ffb011d5028711c694
 ---
 
 # 快速开始
@@ -177,7 +177,7 @@ try {
 }
 ```
 
-Claude Managed Agents 没有对应的这一步，所以从那边移植过来的代码会在这里失败。
+创建与启动是刻意分开的两步；假设「建完就能用」的代码会在这里失败。
 :::
 
 ::: code-group

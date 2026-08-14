@@ -187,7 +187,8 @@ try {
 }
 ```
 
-Claude Managed Agents has no equivalent step, so ported code fails here.
+Creation and starting are separate on purpose; code that assumes a created agent is live
+fails here.
 :::
 
 ::: code-group
