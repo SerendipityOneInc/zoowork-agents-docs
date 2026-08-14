@@ -42,9 +42,7 @@ This site is written for **external developers** building products on ZooClaw:
 the TypeScript SDK, the `/service/v1` gateway, and an API key. It is not the
 internal operations manual.
 
-Its information architecture deliberately mirrors Claude Managed Agents, so a
-developer who already knows those docs can find the equivalent page. Where a
-capability does not exist here, the page still exists and says so — see
+Where a capability does not exist, the page still exists and says so — see
 `docs/en/reference/capabilities.md` and `docs/en/reference/not-supported.md`.
 
 ## Rules

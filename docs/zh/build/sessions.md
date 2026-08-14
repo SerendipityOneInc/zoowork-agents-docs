@@ -1,7 +1,7 @@
 ---
 title: Sessions
 source: /en/build/sessions
-source_hash: 0ff607e34d2def6c1c1db6cba8f0761a63a420c38be77329ef3cabdc6eca2447
+source_hash: 653c822a2407c62d4a3b62296a79630ce2daeb616162b92cb05233db5211b0ed
 ---
 
 # Sessions
@@ -26,7 +26,7 @@ postEvents(agentId, sessionId, events)
 listEvents(agentId, sessionId, opts?)
 ```
 
-在 Claude Managed Agents 里，session 是顶层资源，agent 写在 body 里，所以从 Claude 移植过来的代码在这里编译不过，除非你把 agent id 一路穿下去 —— 见[从 Claude Managed Agents 迁移](/zh/reference/from-claude-managed-agents)。
+不存在顶层的 `/sessions` 集合：session 只存在于它的 agent 之下，agent id 要一路穿过每一个调用。照「session 是顶层资源、agent 写在 body 里」那种形状写的代码，在这里编译不过。
 
 本页所有示例共用一个客户端：
 

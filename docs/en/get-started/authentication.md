@@ -13,6 +13,21 @@ The base URL, including the version prefix, is:
 https://claw-interface.ecap.yesy.live/service/v1
 ```
 
+## Get a key
+
+Keys are created in the ZooClaw App, under **Settings → API Keys**:
+
+1. Open the ZooClaw App, go to **Settings**, and pick the **API Keys** tab.
+2. **Create API Key**, give it a name you will recognize later (`staging-backend`, not
+   `test`), and copy the secret. It is shown **exactly once** and cannot be retrieved again -
+   losing it means rotating it.
+3. On a personal organization any member can do this. On an enterprise organization the tab
+   requires the **admin** role - if you cannot see it, ask your org admin for a key instead.
+
+The same page manages the key afterwards: **Rotate** invalidates the old secret immediately
+and shows a new one once; **Revoke** kills the key outright. Neither has an API - key
+management is App-only, deliberately.
+
 ## Configure the client
 
 ```ts
@@ -144,8 +159,9 @@ A missing or invalid key returns **401**. Match on `ZooclawError.status` and
 | Listing agents created by a different key in your organization | No - the list selector is exact; fetch by id still works |
 | Per-user or read-only scoping of the key itself | No such variant exists |
 
-::: warning Not yet verified
-We have not exercised key rotation or revocation, so this page does not describe a procedure
-for either. Do not assume a key can be rotated or revoked from your own code, and do not build
-a flow that depends on it. Treat a leaked key as requiring help from whoever issued it.
+::: warning Rotation is App-only, and we have not driven it
+Rotation and revocation exist in the ZooClaw App (**Settings → API Keys**), not as API calls -
+do not build a flow that rotates a key from your own code. We have not exercised either
+ourselves; the buttons and their one-time secret reveal are documented from the product, not
+from a live run. Treat a leaked key as an immediate **Rotate** in the App.
 :::

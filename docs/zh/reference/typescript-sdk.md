@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: b3772e8f45079d9a6b2e90a1330a424fc4fec2b2b720281cea66cdc9830f6248
+source_hash: 510d2145d515a41c5287a339bec26f6ba16a047cfcaa84913192a70418910b2b
 ---
 
 # TypeScript SDK 参考
@@ -109,7 +109,7 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 
 ## 方法
 
-`ZooclawClient` 暴露 44 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
+`ZooclawClient` 暴露 50 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
 东西——session、事件、审批、定时任务、`wake`、`exec`——第一个参数都是 `agentId`。skill registry
 和 Environment 是顶层资源，一个都不带。
 
@@ -166,6 +166,26 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 |---|---|---|
 | `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | 停在人工决策上的工具调用。`opts.status` 只能不传、或者传 `'pending'`，所以已处理的那些列不出来。这是平台上另一套独立的审批资源，不是 `user.tool_confirmation` 那条事件通路；没有 Temporal signaler 时这条路由返回 `501 not_configured`。 |
 | `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | 用 `allow-once`、`allow-always` 或 `deny` 处理一条审批；其他取值一律 400。同一族路由，没有 signaler 时同样是 `501`。 |
+
+**System prompt**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `getSystemPrompt(agentId)` | `Promise<SystemPromptInfo>` | 声明的 system-prompt pin 和实际生效的渲染模板。新建的 agent 生来就 pin 在当前 active 的平台版本上；`declaration: null` 表示一个模板机制落地之前的老 agent，仍走 virtual legacy 行为。 |
+| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | 按你给的运行时事实装配出完整 prompt，不碰任何 session——确定性输出，`transcript` 恒为 `[]`，`slot_hashes` 里每个模板 slot 一个哈希。`input.config_version` 必须是 agent 当前版本，否则 `409 config_version_changed`。刻意没有 `upgradeSystemPrompt`：引擎的升级路由过网关是 404，pin 只在创建时定。 |
+
+**Artifacts**
+
+Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些方法管理它发布出来的东西。
+每条 artifact 路由都强制要求 `owner_uid`+`org_id` 选择器且网关不注入——SDK 从 agent 自己的
+投影里推导并按 agent 缓存，所以对一个 agent 的第一次 artifact 调用多花一次 GET。
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `listArtifacts(agentId, opts?)` | `Promise<ArtifactPage>` | 一次一页（`{artifacts, page, has_more}`）——而且和 `listEvents` 不同，`has_more` 会告诉你截断了。`limit` 默认 50、上限 100；用 `sessionId`、`sourcePath`、`createdBefore` 过滤。 |
+| `getArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | 一行 artifact。外部 id 和未知 id 都是 404。 |
+| `downloadArtifact(agentId, artifactId)` | `Promise<{ artifact_id?: string; url?: string }>` | 为 `ready` 的 artifact 换发一个新访问 URL。URL 是可撤销的 bearer capability——当密钥对待。从未 finalize 的行返回 `409 artifact_not_ready`。 |
+| `deleteArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | 删除一个 artifact，返回引擎留下的那行。 |
 
 **自动化：定时任务与 wake**
 
@@ -863,6 +883,8 @@ interface AgentResource {
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
   mcp?: McpServerDeclaration[]
+  system_prompt?: SystemPromptDeclaration
+  outcome?: OutcomeConfig | null
   sandbox?: { scope: 'agent' | 'session' }
   environment_id?: string
   environment_version?: number
@@ -874,7 +896,9 @@ interface AgentResource {
 
 你发给 `createAgent()` 的配置。`name` 是唯一必填的字段。`mcp` 声明远程 MCP server，
 `onboarding: false` 跳过 persona 引导的那几个回合——除非你真想要它们，否则每一个由 API 驱动的
-agent 都该设它。索引签名的作用，是让更新的服务端所接受的新字段照样能通过类型检查。
+agent 都该设它。`system_prompt` pin 一个模板版本（创建时省略等于「当前 active 的平台版本」，
+从此定住；PUT 时和 `tool_policy` 一样整体替换），`outcome` 是无人值守 cron 触发的 agent 级
+默认门。索引签名的作用，是让更新的服务端所接受的新字段照样能通过类型检查。
 
 有两个字段类型上允许、但你不该通过公开网关发送：创建时的 `skills`（改用 `putAgentSkill()`），
 以及 `warm`（`updateAgent()` 会拒绝）。逐字段的说明见 [Agents](/zh/build/agents)。
@@ -1187,6 +1211,21 @@ import {
   type ApprovalDecision,
   type ApprovalRecord,
 
+  // system prompt
+  type SystemPromptDeclaration,
+  type SystemPromptInfo,
+  type SystemPromptPreview,
+  type SystemPromptPreviewInput,
+
+  // artifacts
+  type ArtifactStatus,
+  type ArtifactRecord,
+  type ArtifactPage,
+
+  // outcome
+  type OutcomeConfig,
+  type OutcomeEvaluator,
+
   // schedules, wake, exec
   type ScheduleSpec,
   type SchedulePayload,
@@ -1221,7 +1260,7 @@ import {
 } from '@zooclaw-agents/sdk'
 ```
 
-12 个值和 32 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
+12 个值和 41 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
 符号，它都会失败。`DEFAULT_BASE_URL` 就是那个会被 `ZOOCLAW_BASE_URL` 和 `baseUrl` 选项覆盖掉的
 公开网关 base；把它导出来，是为了让你能拿它做比较，或者自己拼 URL。
 

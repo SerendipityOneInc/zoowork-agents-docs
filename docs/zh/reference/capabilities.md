@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 7a73d9c9b194bf9db7d2d3e167785825583cb9a638876085b08bcf36a6e18039
+source_hash: 86c8ac3d46678ad7e053e58b847870cf4e80aa829ac45fcf4978f552184b2814
 ---
 
 # 能力矩阵
@@ -18,7 +18,7 @@ source_hash: 7a73d9c9b194bf9db7d2d3e167785825583cb9a638876085b08bcf36a6e18039
 | **可用，未实测** | 路由存在，契约也有文档，但我们没有驱动过它。它可能完全按描述工作。把它当成你还得自己做的活儿，别放进你的演示路径。 |
 | **不存在** | 它就是没有。[不支持的能力](/zh/reference/not-supported)会说明改用什么。 |
 
-所有标着**已实测** 的，都是 2026-08-06 在一套真实部署上、通过公开网关、用一个组织 API key 观察到的——和你的 key 走的是同一条路径。这里没有任何一条是仅凭规范推断出来的。
+所有标着**已实测** 的，都是在一套真实部署上、通过公开网关、用一个组织 API key 观察到的——和你的 key 走的是同一条路径：主体在 2026-08-06，较新的面（system prompt、artifacts、outcome）在 2026-08-14 以同样方式复测。这里没有任何一条是仅凭规范推断出来的。
 
 如果某一行写着已实测，而它在你这边失败了，那是一次回归，值得报上来。如果某一行写着可用，未实测，而它在你这边失败了，那是你先于我们拿到了答案。
 
@@ -35,7 +35,9 @@ source_hash: 7a73d9c9b194bf9db7d2d3e167785825583cb9a638876085b08bcf36a6e18039
 | 用 `status.desired_state` 把关就绪 | 已实测 | 唯一正确的就绪信号。轮询到它是 `running` 为止。 |
 | 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 报的是聊天渠道的连通性，不是 API 是否就绪。纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，`active` 到不了。`running` 甚至根本不在它的枚举里，所以等它的循环永远不会返回。 |
 | `updateAgent()` | 已实测 | **按小节合并** 。你省略的小节会被保留：只带 `labels` 的一次 PUT 不会动 `name`、`model` 和 `persona`。 |
-| `tool_policy` 整体替换 | 可用，未实测 | 文档把它写成合并规则的例外：每一次 PUT 都整体替换 `tool_policy`，`{}` 会恢复完整的工具清单。我们只在其他小节上跑过合并行为。 |
+| `tool_policy` / `system_prompt` 整体替换 | 可用，未实测 | 合并规则的两个例外：每一次 PUT 都整体替换这两个小节。`{}` 会恢复完整的工具清单。我们只在其他小节上跑过合并行为。 |
+| `system_prompt` pin | 已实测 | 新建 agent 会自动 pin 创建那一刻 active 的平台模板版本——2026-08-14 观察到 `{source:'platform',version:1}`——而且这个 pin **永远不跟随**之后的平台 activation。`{source:'custom',base_version,template}` 整体覆盖模板（13 个功能 slot 各出现一次，64 KiB 上限）。引擎的升级路由（`POST /agents/{id}:upgrade-system-prompt`）过网关是 404，所以把 pin 当成创建期决策。 |
+| `getSystemPrompt()` / `previewSystemPrompt()` | 已实测 | 声明 + 实际生效的渲染模板；以及按你给定的运行时事实做确定性的完整 prompt 装配——13 个 `slot_hashes`，`transcript` 恒为 `[]`，过期的 `config_version` 返回 `409 config_version_changed`。2026-08-14 实测。 |
 | 把 `config_version` 当幂等回执 | 不存在 | 每一次成功的 PUT 都会 bump 它，值完全相同的 PUT 也一样。创建时的凭证代种还会再多 bump 两次，所以创建回执上的 `1`，到你第一次 `getAgent()` 时已经是 `3`。它是一个变更计数器，不是内容哈希。 |
 | `deleteAgent()` | 已实测 | 软删除。它不停止 agent，不删除它的定时任务，也不释放它的沙箱。先调 `stopAgent()`，定时任务自己删。 |
 | 列出 agent | 可用，未实测 | `listAgents(opts?)` 调的就是它。线协议上的路由把 `owner_uid` 加 `org_id` 当成精确 AND 选择器，所以同一组织内由另一个 key 创建的 agent，能按 id 读到，却永远不会出现在你的列表里；这类 id 自己记一份。`labels` 按声明的 label 过滤，`page` 从 1 开始，每页大小固定为 100。`{ labels: { workspace_id: '...' } }` 能把一个聊天 URL 里的 workspace id 解析成它对应的 agent。 |
@@ -71,7 +73,7 @@ source_hash: 7a73d9c9b194bf9db7d2d3e167785825583cb9a638876085b08bcf36a6e18039
 | 带 `user.message` 的 `postEvents()` | 已实测 | 多回合可用：agent 在同一个 session 里记得起之前的回合。 |
 | 对进行中的 run 发 `user.interrupt` | 已实测 | 返回 `accepted: true`，run 以带 `status: 'aborted'` 的 `run.finished` 结束。在我们那次运行里大约花了 20 秒才生效，所以别指望立刻停下。 |
 | 没有 run 在跑时发 `user.interrupt` | 已实测 | `202`，`accepted: false`。那是一次空操作，不是错误。不要当成失败处理。 |
-| `system.message` | 已实测 | 会被接受，模型在**下一个** 回合的上下文里拿到它。一条带外注入通道，Claude Managed Agents 里没有对应物。 |
+| `system.message` | 已实测 | 会被接受，模型在**下一个** 回合的上下文里拿到它。一条带外注入通道——你自己应用掌握的状态，不以用户发言的形式塞进去。 |
 | `user.tool_confirmation` | 可用，未实测 | 作为写入侧类型会被接受。文档里的 body 是 `{ type, approval_id, decision }`，`decision` 取 `allow-once`、`allow-always` 或 `deny`；其他结构会被拒。我们从没造出过一个真实的待处理审批，所以这个往返没有被证明过。 |
 | 其他任何写入侧事件类型 | 不存在 | 写入面就是四种类型：`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`。 |
 | `listEvents()` | 已实测 | 服务端默认 100，最大 500，**一次调用只给一页** 。长 session 会静默截断，不报错。用 `after` 翻页，直到返回的行数少于你的 limit。 |
@@ -97,8 +99,8 @@ source_hash: 7a73d9c9b194bf9db7d2d3e167785825583cb9a638876085b08bcf36a6e18039
 | 模型可用的内置工具 | 已实测 | 一个正常回合会产生成对的 `agent.tool` 事件。确切的工具名在运行时随这些事件到达；没有公开的目录路由让你先枚举它们。 |
 | `tool_policy` 的 allow 和 deny | 可用，未实测 | `{}` 表示完整清单。非空对象会被读成一份收窄可用工具面的 allow/deny 策略。我们没有跑过收窄后的策略，所以请通过观察 `agent.tool` 里出现哪些工具，来确认你的策略生效了。 |
 | 客户端执行的自定义工具 | 不存在 | 没有自定义工具类型，也没有 `user.custom_tool_result` 事件。这是最大的一个缺口。围绕它做设计之前，先[读一下替代方案](/zh/reference/not-supported#client-executed-custom-tools)。 |
-| 远程 HTTP MCP server | 可用，未实测 | 声明在 agent 上，不是一个独立资源。只有远程 HTTP 传输加一个静态 bearer。工具名以 `mcp__<server>__<tool>` 出现，并按 `config_version` 固定。这是唯一一条能让你自己的代码撑起一个 agent 工具的路径，而我们没有端到端跑通过。 |
-| stdio MCP server、MCP OAuth | 不存在 | 就只有远程 HTTP 加静态 bearer。 |
+| 远程 HTTP MCP server | 已实测 | 声明在 agent 上（`resource.mcp[]`），不是独立资源；传输是 `streamable-http`（默认）和 `sse`。工具在模型清单里以 `mcp__<server>__<tool>` 出现——server 名不能带下划线——并且对公开 server **真的会执行**。目录按 `config_version` 固定；探测失败的 server 会 pin 一个空目录并发一条 `kind: 'mcp_connection_failed'` 的 `agent.error`，不会让 run 失败。这是唯一一条能让你自己的代码撑起一个 agent 工具的路径，但**只支持无鉴权**：`credential` slug 能声明进去，其背后的存储过网关是 404，所以需要鉴权的 server 今天做不起来。 |
+| stdio MCP server、MCP OAuth | 不存在 | 就只有远程 HTTP。 |
 | 端到端的审批门控工具执行 | 不存在 | 零件在词表里都有；闭环没有被证明过。见[不支持的能力](/zh/reference/not-supported#end-to-end-human-approval)。 |
 | `POST /agents/{id}/exec` | 可用，未实测 | 一个运维扩展，在 agent 的沙箱里跑一条命令，不是给 agent 用工具的通路。`exec(agentId, args)` 调的就是它，`args` 是 argv：要 shell 语义就写 `['bash', '-lc', 'pwd']`。它要求 agent 级的沙箱：session 级的 agent 拿到 `409 exec_requires_agent_scope`，没有沙箱后端的部署拿到 `501 not_configured`。 |
 
@@ -138,6 +140,7 @@ Environment 是一份可选的、不可变的沙箱镜像，你把它固定在 a
 |---|---|---|
 | 作为 agent 子资源的定时任务 | 可用，未实测 | 列出、创建、替换、删除、触发、读取运行记录，全都在 `/agents/{id}/schedules` 下，这七个方法在 client 上都有：`listSchedules`、`createSchedule`、`getSchedule`、`updateSchedule`、`deleteSchedule`、`triggerSchedule`、`listScheduleRuns`。有两件事类型帮不了你。改周期只能靠 `schedule: { kind: 'cron', expr, tz }`；读回来的那个 `scheduleSpec` 会被 `ScheduleUpdate` 拒收，服务端也会忽略它。还有，对一个已禁用的定时任务调 `triggerSchedule`，返回的是 `triggered: true`，而运行投影里记的是 `status: 'skipped'`。 |
 | `cron`、`every`、`at` | 可用，未实测 | cron 最多五个字段，没有宏。重叠策略被服务端固定为 SKIP，不可配置。 |
+| cron job 上的 outcome 门（`payload.outcome`） | 已实测 | 「做完长什么样」，在 run 内部检查：一段 `description`，一个 `command`（沙箱命令，exit 0 即满足）或 `rubric`（独立上下文里的 LLM 评审）evaluator，`maxIterations` 1–5，以及 `publish: after_satisfied \| always \| never`——默认策略下，没通过评估的结果不会被 announce。agent 级默认写在 `resource.outcome`；job 自己的值覆盖默认，显式 `null` 让该 job 退出默认。只作用于 cron 触发。我们 2026-08-14 实测的是**存储往返**——接受、存储、原样读回、不注入默认值；还没有观察过一次真正被评估的触发。 |
 | 调度后端没接线的地方 | 不存在 | 那些部署返回 `501 not_configured`。不要原样重试。在你把产品建在调度能力上之前，先确认这一点。 |
 | Heartbeat | 可用，未实测 | 不是一条路由：是 agent declared 配置里的一个 `heartbeat` 小节，在创建时和每一次 PUT 时被协调一次。把 `every` 设成 `0` 会暂停它并保留运行历史。协调是尽力而为的，失败不会回报给你的调用。 |
 | Wake | 可用，未实测 | `wake(agentId, { text, mode })` 给下一个 heartbeat 回合排一条提醒，或者立刻触发 heartbeat 定时任务。立刻模式在没有启用 heartbeat 时返回 `409`。 |
@@ -154,7 +157,9 @@ Environment 是一份可选的、不可变的沙箱镜像，你把它固定在 a
 | 下载原始字节 | 可用，未实测 | 有一个单独的内容端点返回字节，不做 UTF-8 强制转换，每个文件上限 100 MB。 |
 | 用户文件的持久存储 | 不存在 | 后端没有接到一个共享的持久工作区上。不要把它当成你的权威存储。 |
 | 给 session 附加文件 | 不存在 | 见[不支持的能力](/zh/reference/not-supported#session-file-attachment-and-repository-mounting)。 |
-| 从你自己的代码发布 artifact | 不存在 | 模型有一个在循环内的发布工具，能把工作区里的文件变成一个 URL。没有任何 API 让你的进程去发布、列出或撤销它，而且这个 URL 能活多久取决于部署。 |
+| 从你自己的代码发布 artifact | 不存在 | 发布只在循环内：模型的 `artifact_publish` 工具把工作区文件变成一份不可变快照，配一个可撤销的 capability URL。你的进程造不出一个来。 |
+| 列出与读取已发布的 artifact | 已实测 | `listArtifacts()` / `getArtifact()`。一次一页，带真实的 `has_more`（这个列表——和 `listEvents` 不同——会告诉你它截断了），支持 `session_id` / `source_path` / `created_before` 过滤。这些路由强制要求 `owner_uid`+`org_id` 选择器且网关不注入；SDK 从 agent 自己的投影里推导。2026-08-14 对一个没有 artifact 的 agent 实测——**有内容的行形状仍未观察过**。 |
+| 重新解析与删除 artifact | 可用，未实测 | `downloadArtifact()` 为 `ready` 的 artifact 换发一个新访问 URL——把 URL 当密钥对待，未 finalize 的行返回 `409 artifact_not_ready`；`deleteArtifact()` 删除一个。两条路由都可达（未知 id 是 404，和其他外部 id 一样被隐藏），但都没对一个真实存在的 artifact 跑过。 |
 
 ## 记忆
 
@@ -172,7 +177,7 @@ Environment 是一份可选的、不可变的沙箱镜像，你把它固定在 a
 | 从你自己的代码驱动多个 agent | 已实测 | 建 N 个 agent，跑它们的 session，在你自己的进程里给它们排序。这里涉及的每一个原语都是已实测的。这是受支持的多 agent 模式。 |
 | 声明式的协调者名册 | 不存在 | 没有名册资源，也没有委派配置。 |
 | session 线程与 `thread_*` 事件 | 不存在 | 事件词表里没有任何东西对应子 agent 线程。 |
-| 模型自己派生的子 agent | 可用，未实测 | 模型可能在 session 内派生工作，嵌套深度为一层，并发的子任务数有上限。你没法配置它、没法寻址它、也没法从 API 观察它，所以不管往哪个方向都别围着它做设计。 |
+| 模型自己派生的子 agent | 可用，未实测 | 模型可能在 session 内派生工作（嵌套深度一层，并发子任务数有上限），并且能沿父子边用 `sessions_send` 运行时工具传消息——durable fire-and-forget、有跳数上限、不支持同步等待、只限 parent↔child。这一切都在模型侧：你没法配置它、没法寻址它、也没法从 API 观察它，所以不管往哪个方向都别围着它做设计。 |
 
 ## 怎么报缺口
 

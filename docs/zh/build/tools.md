@@ -1,7 +1,7 @@
 ---
 title: 工具
 source: /en/build/tools
-source_hash: 208a612ee9a128cfe564381f342969d5b5a51a5ae643e60d39ebeabded36b879
+source_hash: 300802d792193da197eaf64d00fab2e866e89f0acbd8091e3283f0e17096cb76
 ---
 
 # 工具
@@ -24,7 +24,7 @@ session 的写入侧只接受四种事件类型：`user.message`、`user.interru
 如果你的设计是「agent 调用我的函数，我的代码查我的数据库，我把答案交回去」，这个闭环不存在。请改走下面两条路之一。
 :::
 
-这是与 Claude Managed Agents 之间最大的一处差异。从那边移植过来、定义了自定义工具的代码，在这里没有任何可以编译的对象。
+这是最有可能改变你整体设计的一个缺口。从带客户端自定义工具的平台移植过来的代码，在这里没有任何可以编译的对象。
 
 ### 替代做法
 

@@ -1,7 +1,7 @@
 ---
 title: 事件与流式
 source: /en/build/events
-source_hash: c99a182444fd3b76648ee78df7c30bf4effc1648dece74be54d114687e2367b0
+source_hash: a255cdc6aa062885795550de92fba4ead117004d51bdb444b2c110fc19c2a39e
 ---
 
 # 事件与流式
@@ -210,7 +210,7 @@ if (r.events[0]?.accepted === false) {
 
 ### `system.message`
 
-注入一条带外说明，模型会在下一个回合读到它。Claude Managed Agents 没有对应能力。
+注入一条带外说明，模型会在下一个回合读到它——它是你自己应用掌握的状态，不以用户发言的形式出现。
 
 ```json
 { "type": "system.message", "text": "Operator note: the user's plan is Enterprise." }
@@ -313,7 +313,7 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { after: 128 })) {
 }
 ```
 
-Claude Managed Agents 没有对应能力。在那边，连接掉了之后唯一的恢复办法是重新列一遍历史，然后自己按 event id 去重。
+在没有服务端续传的平台上，连接掉了之后唯一的恢复办法是重新列一遍历史、自己按 event id 去重；在这里服务端直接从你的游标重放，重连不花任何代价。
 
 如果你直接调 HTTP 端点，用 `?after=<seq>` 或标准的 `Last-Event-ID` 请求头都可以；服务端从两者中较大的那个开始续传。浏览器的 `EventSource` 会自动发送 `Last-Event-ID`，因为服务端写了 `id:` 行。
 

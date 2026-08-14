@@ -15,8 +15,9 @@ routes we have read but not run.
 | **Available, not verified** | The route exists and its contract is documented, but we have not driven it. It may behave exactly as described. Treat it as work you still have to do, and keep it off your demo path. |
 | **Not available** | It does not exist. [Not supported](/en/reference/not-supported) says what to do instead. |
 
-Everything marked **Verified** was observed on a live deployment on 2026-08-06 through the
-public gateway with an org API key, which is the same path your key takes. Nothing here is
+Everything marked **Verified** was observed on a live deployment through the public gateway
+with an org API key — the same path your key takes — on 2026-08-06, with the newer surfaces
+(system prompt, artifacts, outcome) re-verified the same way on 2026-08-14. Nothing here is
 inferred from a specification alone.
 
 If a row says Verified and it fails for you, that is a regression and worth reporting. If a
@@ -36,7 +37,9 @@ did.
 | Gate readiness on `status.desired_state` | Verified | The only correct readiness signal. Poll until it is `running`. |
 | Gate readiness on `status.actual_state` | Not available | `actual_state` reports chat-channel connectivity, not API readiness. An API-only agent has no channels, so it stays at `activating` forever and `active` is unreachable. `running` is not even a member of its enum, so a loop waiting for it never returns. |
 | `updateAgent()` | Verified | Merges **per section**. Sections you omit are preserved: a PUT carrying only `labels` leaves `name`, `model`, and `persona` intact. |
-| `tool_policy` replacement | Available, not verified | Documented as the exception to the merge rule: every PUT replaces `tool_policy` wholesale, and `{}` restores the full tool manifest. We have only exercised the merge behaviour on other sections. |
+| `tool_policy` / `system_prompt` replacement | Available, not verified | The two exceptions to the merge rule: every PUT replaces each of these sections wholesale. `{}` restores the full tool manifest. We have only exercised the merge behaviour on other sections. |
+| `system_prompt` pin | Verified | A fresh create pins the platform template version active at that moment — `{source:'platform',version:1}` observed on 2026-08-14 — and the pin never follows a later platform activation. `{source:'custom',base_version,template}` replaces the whole template (all 13 functional slots exactly once, 64 KiB cap). The engine's upgrade route (`POST /agents/{id}:upgrade-system-prompt`) is 404 through the gateway, so treat the pin as a create-time decision. |
+| `getSystemPrompt()` / `previewSystemPrompt()` | Verified | The declaration plus the rendered template in effect; and deterministic assembly of the exact prompt for runtime facts you supply — 13 `slot_hashes`, `transcript` always `[]`, and a stale `config_version` answers `409 config_version_changed`. Verified 2026-08-14. |
 | `config_version` as an idempotency receipt | Not available | Every successful PUT increments it, including a PUT with identical values. Credential seeding at create time bumps it twice more, so the `1` on your create receipt is already `3` by your first `getAgent()`. It is a change counter, not a content hash. |
 | `deleteAgent()` | Verified | A soft delete. It does not stop the agent, does not remove its schedules, and does not release its sandbox. Call `stopAgent()` first, and remove schedules yourself. |
 | Listing agents | Available, not verified | `listAgents(opts?)` calls it. The wire route takes `owner_uid` plus `org_id` as an exact AND selector, so an agent created by a different key in your organization can be fetched by id but never appears in your list; keep your own record of those ids. `labels` filters on declared labels and `page` is 1-based, with the page size fixed at 100. `{ labels: { workspace_id: '...' } }` resolves a chat-URL workspace id to its agent. |
@@ -72,7 +75,7 @@ did.
 | `postEvents()` with `user.message` | Verified | Multi-turn works: the agent recalls earlier turns in the same session. |
 | `user.interrupt` against a live run | Verified | Returns `accepted: true` and the run ends with `run.finished` carrying `status: 'aborted'`. It took roughly 20 seconds to take effect in our run, so do not expect an instant stop. |
 | `user.interrupt` with no run in flight | Verified | `202` with `accepted: false`. That is a no-op, not an error. Do not treat it as a failure. |
-| `system.message` | Verified | Accepted, and the model has it in context on the **following** turn. An out-of-band injection channel with no equivalent in Claude Managed Agents. |
+| `system.message` | Verified | Accepted, and the model has it in context on the **following** turn. An out-of-band injection channel — state your application owns, pushed in without appearing as a user turn. |
 | `user.tool_confirmation` | Available, not verified | Accepted as a write-side type. The documented body is `{ type, approval_id, decision }` where `decision` is `allow-once`, `allow-always`, or `deny`; other shapes are rejected. We have never produced a real pending approval, so the round trip is unproven. |
 | Any other write-side event type | Not available | The write surface is exactly four types: `user.message`, `user.interrupt`, `user.tool_confirmation`, `system.message`. |
 | `listEvents()` | Verified | Server default 100, maximum 500, **one page per call**. A long session truncates silently with no error. Page with `after` until you get fewer rows than your limit. |
@@ -98,8 +101,8 @@ did.
 | Built-in tools available to the model | Verified | A normal turn produces paired `agent.tool` events. The exact tool names arrive on those events at runtime; there is no published catalog route to enumerate them first. |
 | `tool_policy` allow and deny | Available, not verified | `{}` means the full manifest. A non-empty object is read as an allow/deny policy that narrows the surface. We have not exercised a narrowed policy, so confirm your policy took effect by watching which tools appear in `agent.tool`. |
 | Client-executed custom tools | Not available | There is no custom tool type and no `user.custom_tool_result` event. This is the largest single gap. [Read the alternatives](/en/reference/not-supported#client-executed-custom-tools) before designing around it. |
-| Remote HTTP MCP server | Available, not verified | Declared on the agent, not as its own resource. Remote HTTP transport with a static bearer only. Tool names appear as `mcp__<server>__<tool>` and are pinned per `config_version`. This is the only route by which your own code can back an agent tool, and we have not driven it end to end. |
-| stdio MCP servers, MCP OAuth | Not available | Remote HTTP with a static bearer is the whole of it. |
+| Remote HTTP MCP server | Verified | Declared on the agent (`resource.mcp[]`), not as its own resource; transports are `streamable-http` (the default) and `sse`. Tools appear in the model's manifest as `mcp__<server>__<tool>` — the server name must not contain an underscore — and really execute against a public server. The catalog pins per `config_version`; a failed probe pins an empty catalog and emits `agent.error` with `kind: 'mcp_connection_failed'` rather than failing the run. This is the only route by which your own code can back an agent tool, and it works **unauthenticated only**: the `credential` slug is accepted but the store behind it answers 404 through the gateway, so a server that needs auth cannot be made to work today. |
+| stdio MCP servers, MCP OAuth | Not available | Remote HTTP is the whole of it. |
 | Approval-gated tool execution, end to end | Not available | The pieces exist in the vocabulary; the closed loop is unproven. See [Not supported](/en/reference/not-supported#end-to-end-human-approval). |
 | `POST /agents/{id}/exec` | Available, not verified | An operations extension that runs a command in the agent's sandbox, not a path for agent tool use. `exec(agentId, args)` calls it, and `args` is argv: use `['bash', '-lc', 'pwd']` for shell semantics. Requires an agent-scope sandbox: session-scoped agents get `409 exec_requires_agent_scope`, and a deployment with no sandbox backend gets `501 not_configured`. |
 
@@ -140,6 +143,7 @@ packages, controlled files, a build script, and a network policy.
 |---|---|---|
 | Schedules as an agent sub-resource | Available, not verified | List, create, replace, delete, trigger, and read runs, all under `/agents/{id}/schedules`, and all seven are on the client: `listSchedules`, `createSchedule`, `getSchedule`, `updateSchedule`, `deleteSchedule`, `triggerSchedule`, `listScheduleRuns`. Two things the types cannot fix for you. The cadence changes only through `schedule: { kind: 'cron', expr, tz }`; the `scheduleSpec` a read hands back is refused by `ScheduleUpdate` and ignored by the server. And `triggerSchedule` against a disabled schedule answers `triggered: true` while the run projection records `status: 'skipped'`. |
 | `cron`, `every`, `at` | Available, not verified | Cron is a five-field expression at most, with no macros. Overlap is fixed to SKIP by the server and is not configurable. |
+| An outcome gate on a cron job (`payload.outcome`) | Verified | What "done" looks like, checked inside the run: a `description`, a `command` evaluator (sandbox exit 0 = satisfied) or a `rubric` one (LLM grader in a fresh context), `maxIterations` 1–5, and `publish: after_satisfied \| always \| never` — under the default, a result that failed evaluation is not announced. An agent-level default lives at `resource.outcome`; a job's own value overrides it and an explicit `null` opts the job out. Cron fires only. What we verified on 2026-08-14 is the **storage round trip** — accepted, stored, read back verbatim, no defaults injected; no evaluated fire has been observed yet. |
 | Where the scheduler backend is not wired | Not available | Those deployments answer `501 not_configured`. Do not retry the same call. Check this before you build a product on scheduling. |
 | Heartbeat | Available, not verified | Not a route: a `heartbeat` section in the agent's declared config, reconciled on create and on every PUT. Setting `every` to `0` pauses it and keeps run history. Reconciliation is best effort and failures are not reported back to your call. |
 | Wake | Available, not verified | `wake(agentId, { text, mode })` queues a reminder for the next heartbeat turn, or triggers the heartbeat schedule immediately. Immediate mode returns `409` when no heartbeat is enabled. |
@@ -156,7 +160,9 @@ packages, controlled files, a build script, and a network policy.
 | Download raw bytes | Available, not verified | A separate content endpoint returns bytes without UTF-8 coercion, capped at 100 MB per file. |
 | Durable storage for user files | Not available | The backend is not wired to a shared persistent workspace. Do not make this your store of record. |
 | Attaching a file to a session | Not available | See [Not supported](/en/reference/not-supported#session-file-attachment-and-repository-mounting). |
-| Publishing an artifact from your own code | Not available | The model has an in-loop publish tool that turns a workspace file into a URL. There is no API for your process to publish, list, or revoke one, and the URL's lifetime depends on the deployment. |
+| Publishing an artifact from your own code | Not available | Publishing stays in-loop: the model's `artifact_publish` tool turns a workspace file into an immutable snapshot behind a revocable capability URL. Your process cannot create one. |
+| Listing and reading published artifacts | Verified | `listArtifacts()` / `getArtifact()`. One page per call with a real `has_more` (this list, unlike `listEvents`, says when it truncated), and filters on `session_id`, `source_path`, `created_before`. The routes demand `owner_uid`+`org_id` selectors and the gateway does not inject them; the SDK derives both from the agent's own projection. Verified 2026-08-14 against an agent with no artifacts — the row shape of a populated page is still unobserved. |
+| Re-resolving and deleting an artifact | Available, not verified | `downloadArtifact()` mints a fresh access URL for a `ready` artifact — treat the URL as a secret, and expect `409 artifact_not_ready` before finalization — and `deleteArtifact()` removes one. Both routes are reachable (an unknown id answers 404, hidden like every other foreign id), but neither has been driven against an artifact that actually exists. |
 
 ## Memory
 
@@ -174,7 +180,7 @@ packages, controlled files, a build script, and a network policy.
 | Several agents driven from your own code | Verified | Create N agents, run their sessions, and sequence them in your own process. Every primitive involved is verified. This is the supported multi-agent pattern. |
 | A declarative coordinator roster | Not available | No roster resource, no delegation configuration. |
 | Session threads and `thread_*` events | Not available | Nothing in the event vocabulary corresponds to a sub-agent thread. |
-| Sub-agents spawned by the model itself | Available, not verified | The model may spawn work in-session, with a nesting depth of one and a cap on concurrent children. You cannot configure it, address it, or observe it from the API, so do not design around it either way. |
+| Sub-agents spawned by the model itself | Available, not verified | The model may spawn work in-session, with a nesting depth of one and a cap on concurrent children, and it can message along the parent-child edge with a `sessions_send` runtime tool — durable fire-and-forget, hop-capped, no synchronous wait, parent↔child only. All of it is model-side: you cannot configure it, address it, or observe it from the API, so do not design around it either way. |
 
 ## How to report a gap
 

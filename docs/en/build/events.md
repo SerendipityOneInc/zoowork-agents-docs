@@ -234,8 +234,8 @@ human-in-the-loop approval.
 
 ### `system.message`
 
-Injects an out-of-band note that the model reads on the following turn. There is no equivalent
-in Claude Managed Agents.
+Injects an out-of-band note that the model reads on the following turn - state your
+application owns, pushed in without appearing as a user turn.
 
 ```json
 { "type": "system.message", "text": "Operator note: the user's plan is Enterprise." }
@@ -348,8 +348,9 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { after: 128 })) {
 }
 ```
 
-Claude Managed Agents has no equivalent. On a dropped connection there, the only recovery is to
-re-list history and de-duplicate by event id yourself.
+On a platform without server-side resume, the only recovery after a dropped connection is to
+re-list history and de-duplicate by event id yourself; here the server replays from your
+cursor and the reconnect costs nothing.
 
 If you call the HTTP endpoint directly, either `?after=<seq>` or the standard `Last-Event-ID`
 request header works; the server resumes from whichever is higher. Browser `EventSource` sends

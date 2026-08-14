@@ -1,7 +1,7 @@
 ---
 title: 核心概念
 source: /en/get-started/concepts
-source_hash: f243672df09ed1410257439f6ebfce7b509ff24d1ec25cda86cb7ed5292f0751
+source_hash: e4649c5f7cc20226d63a73926878363cc1062fdaeea56658d555422b8a7d2569
 ---
 
 # 核心概念
@@ -83,7 +83,7 @@ const { warnings } = await zc.startAgent(agentId)
 `startAgent()` 很快——实测在一秒以内。`stopAgent()` 的形态相同。对一个没有聊天渠道的 agent，两者都可能返回 `channel_routes_reload_failed` 警告；那是正常噪声，不是失败。
 
 ::: danger 你必须调用 startAgent()
-在 `startAgent()` 返回之前，`createSession()` 会失败并返回 `409 agent_not_running`。如果你是从 Claude Managed Agents 移植代码，那边没有与这一步对应的东西，而漏掉它是第一次调用就卡住的最常见原因。
+在 `startAgent()` 返回之前，`createSession()` 会失败并返回 `409 agent_not_running`。创建与启动是刻意分开的两步，而漏掉启动是第一次调用就卡住的最常见原因。
 :::
 
 ::: warning 尚未验证
@@ -157,7 +157,7 @@ session.session_key // 'api:...'
 `POST /agents/{agent_id}/sessions`。每一个 session 调用的第一个参数都是 agent id：`createSession(agentId, input)`、`postEvents(agentId, sessionId, events)`、`listEvents(agentId, sessionId, opts)`、`streamEvents(agentId, sessionId, opts)`。
 
 ::: danger 不支持
-不存在顶层的 `/sessions` 集合，也不存在把 agent 放在请求体里的 session 资源。从 Claude Managed Agents 移植过来的代码编译不过。请改写调用点，显式传 `agentId`。
+不存在顶层的 `/sessions` 集合，也不存在把 agent 放在请求体里的 session 资源。照那种形状写的代码在这里编译不过。请改写调用点，显式传 `agentId`。
 :::
 
 `createSession` 的第三个参数接受一个 `Idempotency-Key`；用同一个 key 重试会收敛到第一个 session，而不是再建一个。
@@ -235,7 +235,7 @@ res.events[0]?.accepted // true
 
 对一个正在跑的 run 发 `user.interrupt` 会被接受（`accepted: true`），该 run 以带 `status: 'aborted'` 的 `run.finished` 结束。没有正在进行的 run 时它返回 `accepted: false`——这是空操作，不是错误，也不需要重试。
 
-`system.message` 是一条真正通往模型上下文的带外通道。这样写进去的说明，模型在下一个回合就能看到。Claude Managed Agents 没有对应能力。
+`system.message` 是一条真正通往模型上下文的带外通道。这样写进去的说明，模型在下一个回合就能看到——它是你自己应用掌握的状态，不以用户发言的形式注入。
 
 ::: warning 尚未验证
 `user.tool_confirmation` 接受 `{ approval_id: string, decision: 'allow-once' | 'allow-always' | 'deny' }`，其他任何结构都会被 `400` 拒绝。我们没有端到端实测过它，因为那要求先造出一个真实的待定审批。目前请把「人在环中」的审批当作不可用：一个卡在审批上的 agent 会把这个回合耗到超时。

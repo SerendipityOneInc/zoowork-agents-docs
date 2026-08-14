@@ -1,7 +1,7 @@
 ---
 title: 鉴权
 source: /en/get-started/authentication
-source_hash: febbcfd0bc9c1329418b9157844554013f08f2cfbc5600ce545d4dee692a8d69
+source_hash: 7ba8196ebe653458a34348d61aa275ea838bb5c23c019995ef5535265ae4add7
 ---
 
 # 鉴权
@@ -17,6 +17,19 @@ source_hash: febbcfd0bc9c1329418b9157844554013f08f2cfbc5600ce545d4dee692a8d69
 ```
 https://claw-interface.ecap.yesy.live/service/v1
 ```
+
+## 获取 key
+
+key 在 ZooClaw App 里创建，位置是 **设置 → API Keys**：
+
+1. 打开 ZooClaw App，进入**设置**，切到 **API Keys** 标签页。
+2. 点 **Create API Key**，起一个日后认得出的名字（`staging-backend`，不要叫 `test`），
+   然后复制密钥。它**只显示这一次**，之后无法再取回——弄丢就只能轮换。
+3. 个人组织里任何成员都能建；企业组织里这个标签页要求 **admin** 角色——看不到就找你的
+   组织管理员要一把。
+
+之后的管理也在同一页：**Rotate** 立即作废旧密钥并把新密钥显示一次；**Revoke** 直接吊销。
+两者都没有 API——key 管理刻意只在 App 里。
 
 ## 配置客户端
 
@@ -118,6 +131,8 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 | 列出同组织内由另一个 key 创建的 agent | 不能——列表选择器是精确匹配；按 id 读取仍然可行 |
 | 把 key 本身按用户细分或降为只读 | 不存在这样的变体 |
 
-::: warning 尚未验证
-我们没有实测过 key 的轮换与吊销，所以本页不描述任何相关流程。**不要假设 key 可以从你自己的代码里轮换或吊销** ，也不要构建依赖此能力的流程。key 一旦泄露，请视为需要联系签发方处理。
+::: warning 轮换只在 App 里，而且我们没实测过
+轮换与吊销存在于 ZooClaw App（**设置 → API Keys**），不是 API 调用——**不要构建从你自己的
+代码里轮换 key 的流程**。这两个按钮和它们的一次性密钥展示，我们自己没有实际跑过，是照产品
+写的，不是照一次真实操作写的。key 一旦泄露，立刻去 App 里 **Rotate**。
 :::
