@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 86c8ac3d46678ad7e053e58b847870cf4e80aa829ac45fcf4978f552184b2814
+source_hash: 997dc8cb7f0d2d1c66d9dd315464cf0987ce3232bfb7305fe215a34ddcd39d48
 ---
 
 # 能力矩阵
@@ -36,8 +36,9 @@ source_hash: 86c8ac3d46678ad7e053e58b847870cf4e80aa829ac45fcf4978f552184b2814
 | 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 报的是聊天渠道的连通性，不是 API 是否就绪。纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，`active` 到不了。`running` 甚至根本不在它的枚举里，所以等它的循环永远不会返回。 |
 | `updateAgent()` | 已实测 | **按小节合并** 。你省略的小节会被保留：只带 `labels` 的一次 PUT 不会动 `name`、`model` 和 `persona`。 |
 | `tool_policy` / `system_prompt` 整体替换 | 可用，未实测 | 合并规则的两个例外：每一次 PUT 都整体替换这两个小节。`{}` 会恢复完整的工具清单。我们只在其他小节上跑过合并行为。 |
-| `system_prompt` pin | 已实测 | 新建 agent 会自动 pin 创建那一刻 active 的平台模板版本——2026-08-14 观察到 `{source:'platform',version:1}`——而且这个 pin **永远不跟随**之后的平台 activation。`{source:'custom',base_version,template}` 整体覆盖模板（13 个功能 slot 各出现一次，64 KiB 上限）。引擎的升级路由（`POST /agents/{id}:upgrade-system-prompt`）过网关是 404，所以把 pin 当成创建期决策。 |
+| `system_prompt` pin | 已实测 | 新建 agent 会自动 pin 创建那一刻 active 的平台模板版本——2026-08-14 观察到 `{source:'platform',version:1}`——而且这个 pin **自己永远不跟随**之后的平台 activation。`{source:'custom',base_version,template}` 整体覆盖模板（13 个功能 slot 各出现一次，64 KiB 上限）。要挪 pin 只有一个显式调用——见下一行。 |
 | `getSystemPrompt()` / `previewSystemPrompt()` | 已实测 | 声明 + 实际生效的渲染模板；以及按你给定的运行时事实做确定性的完整 prompt 装配——13 个 `slot_hashes`，`transcript` 恒为 `[]`，过期的 `config_version` 返回 `409 config_version_changed`。2026-08-14 实测。 |
+| `upgradeSystemPrompt()` | 已实测 | 把 pin 挪到当前 active 的平台版本（或用 `template_version` 指定一个）。`expected_config_version` 是真 CAS：过期返回 `409 config_version_changed`，200 回执带**新的** `config_version`——升级就是一次普通的配置写入。2026-08-14 实测，正是网关 fix #3387 打开 `{id}:verb` 路由语法的当天；在更老的网关部署上，这一个调用会撞网关 404。 |
 | 把 `config_version` 当幂等回执 | 不存在 | 每一次成功的 PUT 都会 bump 它，值完全相同的 PUT 也一样。创建时的凭证代种还会再多 bump 两次，所以创建回执上的 `1`，到你第一次 `getAgent()` 时已经是 `3`。它是一个变更计数器，不是内容哈希。 |
 | `deleteAgent()` | 已实测 | 软删除。它不停止 agent，不删除它的定时任务，也不释放它的沙箱。先调 `stopAgent()`，定时任务自己删。 |
 | 列出 agent | 可用，未实测 | `listAgents(opts?)` 调的就是它。线协议上的路由把 `owner_uid` 加 `org_id` 当成精确 AND 选择器，所以同一组织内由另一个 key 创建的 agent，能按 id 读到，却永远不会出现在你的列表里；这类 id 自己记一份。`labels` 按声明的 label 过滤，`page` 从 1 开始，每页大小固定为 100。`{ labels: { workspace_id: '...' } }` 能把一个聊天 URL 里的 workspace id 解析成它对应的 agent。 |

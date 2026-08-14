@@ -106,7 +106,7 @@ behaviour, and it is not usable with an API key.
 
 ## Methods
 
-`ZooclawClient` exposes 50 methods, grouped below the way the client groups them. Everything
+`ZooclawClient` exposes 51 methods, grouped below the way the client groups them. Everything
 the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
 `agentId` first. The skill registry and Environments are top-level resources and take none.
 
@@ -169,7 +169,8 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 | Method | Returns | What it does |
 |---|---|---|
 | `getSystemPrompt(agentId)` | `Promise<SystemPromptInfo>` | The system-prompt pin as declared and the rendered template in effect. A fresh agent is born pinned to the active platform version; `declaration: null` marks a pre-templates agent still on virtual legacy behaviour. |
-| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | Assembles the exact prompt for runtime facts you supply, without touching any session - deterministic, `transcript` always `[]`, one hash per template slot in `slot_hashes`. `input.config_version` must be the agent's current one, else `409 config_version_changed`. There is deliberately no `upgradeSystemPrompt`: the engine's upgrade route is 404 through the gateway, so the pin only moves at create time. |
+| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | Assembles the exact prompt for runtime facts you supply, without touching any session - deterministic, `transcript` always `[]`, one hash per template slot in `slot_hashes`. `input.config_version` must be the agent's current one, else `409 config_version_changed`. |
+| `upgradeSystemPrompt(agentId, input)` | `Promise<SystemPromptUpgrade>` | The one write that moves the pin. `expected_config_version` is a required CAS (stale is `409 config_version_changed` - read fresh, then upgrade); omit `template_version` for the currently active platform version. The 200 receipt carries the new `config_version`. Needs a gateway with fix #3387 (2026-08-14) - older deployments answer a gateway 404 on this route's `{id}:verb` grammar. |
 
 **Artifacts**
 
@@ -1266,6 +1267,7 @@ import {
   type SystemPromptInfo,
   type SystemPromptPreview,
   type SystemPromptPreviewInput,
+  type SystemPromptUpgrade,
 
   // artifacts
   type ArtifactStatus,
@@ -1310,7 +1312,7 @@ import {
 } from '@zooclaw-agents/sdk'
 ```
 
-Twelve values and forty-one types, pinned by a test that asserts the entry point's exports as
+Twelve values and forty-two types, pinned by a test that asserts the entry point's exports as
 a set - a missing symbol and an accidental extra one both fail it. `DEFAULT_BASE_URL` is the
 public gateway base that `ZOOCLAW_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.
