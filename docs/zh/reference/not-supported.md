@@ -1,7 +1,7 @@
 ---
 title: 不支持的能力
 source: /en/reference/not-supported
-source_hash: f52c9a4375b53ec26e42b660d9ea4ebf049aa9f33ba39947c32b23648b85740d
+source_hash: 6c79e72570559ce12397db7f10073767ce9695a37207f8a746b9b3dfc38c734e
 ---
 
 # 不支持的能力
@@ -107,7 +107,7 @@ source_hash: f52c9a4375b53ec26e42b660d9ea4ebf049aa9f33ba39947c32b23648b85740d
 | `putCredential()` / `listCredentials()` | 在 SDK 接口上，通过网关是 `404`。 |
 | 从全局目录安装 skill | `404`。全局 skill 在 agent 创建时就已经挂上了。 |
 | environment 里的 cargo、gem 或 go 包 | 只有 apt、npm 和 pip。 |
-| Environment secret、运行时环境变量、沙箱启动钩子 | environment 配置里不收这些。 |
+| Environment secret、运行时环境变量、沙箱启动钩子 | environment 配置里不收这些。这限制的是你能**加**什么：沙箱里确实有平台为自己的内置技能注入的运行时凭证，但那一层是内部实现，不可扩展。你自己的密钥留在你自己的服务里。 |
 | 定时任务的暂停与恢复、归档、跨定时任务的运行历史 | 没有。删掉重建，运行记录一次读一个定时任务。 |
 | 删除 agent 时自动清理定时任务 | 定时任务在停止和删除之后都还活着。你得先自己删掉。 |
 | 把记忆整合当成一个后台进程 | 没有对应物。 |

@@ -174,7 +174,7 @@ Smaller gaps, same rule: they do not exist, so do not plan on them.
 | `putCredential()` / `listCredentials()` | On the SDK interface, `404` through the gateway. |
 | Installing a skill from the global catalog | `404`. Global skills are already attached at agent creation. |
 | cargo, gem, or go packages in an environment | apt, npm, and pip only. |
-| Environment secrets, runtime environment variables, sandbox start hooks | Not accepted in an environment config. |
+| Environment secrets, runtime environment variables, sandbox start hooks | Not accepted in an environment config. This is a limit on what you can add: the sandbox does carry runtime credentials the platform injects for its own built-in skills, but that surface is internal and not extensible. Your secrets stay in your own service. |
 | Schedule pause and unpause, archive, run history across schedules | Not present. Delete and recreate, and read runs one schedule at a time. |
 | Automatic schedule cleanup when an agent is deleted | Schedules survive stop and delete. Remove them yourself first. |
 | Memory consolidation as a background process | No equivalent. |

@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 997dc8cb7f0d2d1c66d9dd315464cf0987ce3232bfb7305fe215a34ddcd39d48
+source_hash: bee7988ecf2ac33498fa54be4b1bbbcfccb26825ca1bf075c0bc10e61d0da9f9
 ---
 
 # 能力矩阵
@@ -18,7 +18,7 @@ source_hash: 997dc8cb7f0d2d1c66d9dd315464cf0987ce3232bfb7305fe215a34ddcd39d48
 | **可用，未实测** | 路由存在，契约也有文档，但我们没有驱动过它。它可能完全按描述工作。把它当成你还得自己做的活儿，别放进你的演示路径。 |
 | **不存在** | 它就是没有。[不支持的能力](/zh/reference/not-supported)会说明改用什么。 |
 
-所有标着**已实测** 的，都是在一套真实部署上、通过公开网关、用一个组织 API key 观察到的——和你的 key 走的是同一条路径：主体在 2026-08-06，较新的面（system prompt、artifacts、outcome）在 2026-08-14 以同样方式复测。这里没有任何一条是仅凭规范推断出来的。
+所有标着**已实测** 的，都是在一套真实部署上、通过公开网关、用一个组织 API key 观察到的——和你的 key 走的是同一条路径：主体在 2026-08-06，较新的面（system prompt、artifacts、outcome）在 2026-08-14 以同样方式复测，内置技能凭证链路在 2026-08-16 用全新沙箱实测。这里没有任何一条是仅凭规范推断出来的。
 
 如果某一行写着已实测，而它在你这边失败了，那是一次回归，值得报上来。如果某一行写着可用，未实测，而它在你这边失败了，那是你先于我们拿到了答案。
 
@@ -110,6 +110,7 @@ source_hash: 997dc8cb7f0d2d1c66d9dd315464cf0987ce3232bfb7305fe215a34ddcd39d48
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | `listAgentSkills()` | 已实测 | 一个全新的 agent 已经**挂上了整个全局目录** ，docx、pptx、xlsx、pdf 都在里面。你不用装它们；它们从创建那一刻就在。 |
+| 调用平台服务的内置技能（语音、视频、三方 connector） | 已实测 | 在 API 创建的 agent 上零配置可用：平台会在沙箱创建时把这些技能需要的服务凭证注入进去（2026-08-16 全新沙箱实测）。你这边没有任何凭证步骤——也没有塞入自己凭证的口子，见[不支持](/zh/reference/not-supported)。 |
 | 读取 skill 目录 | 已实测 | `listSkills({ scope, q, page })` 读的就是它。目录路由返回 200。我们看到的每一条 `scope` 都是 `global`。`q` 按名字匹配；`page` 从 1 开始，每页固定 100。 |
 | 对全局目录里的 skill 调 `putAgentSkill()` | 不存在 | 通过网关返回 `404`。安装路由只对你自己租户上传的 skill 有意义。既然全局 skill 在创建时就挂上了，这条更多是「你已经有了，只是管不了」，而不是「你用不了」。 |
 | 对 `org` 或 `personal` skill 调 `putAgentSkill()` / `deleteAgentSkill()` | 可用，未实测 | 网关会转发这两个 scope。我们手上从来没有过一个非全局的 skill 可装，所以整个「装完再读回来」的循环都没测过。 |
