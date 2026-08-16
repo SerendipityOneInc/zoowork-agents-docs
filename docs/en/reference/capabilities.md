@@ -17,7 +17,8 @@ routes we have read but not run.
 
 Everything marked **Verified** was observed on a live deployment through the public gateway
 with an org API key — the same path your key takes — on 2026-08-06, with the newer surfaces
-(system prompt, artifacts, outcome) re-verified the same way on 2026-08-14. Nothing here is
+(system prompt, artifacts, outcome) re-verified the same way on 2026-08-14, and the built-in
+skill credential path on a fresh sandbox on 2026-08-16. Nothing here is
 inferred from a specification alone.
 
 If a row says Verified and it fails for you, that is a regression and worth reporting. If a
@@ -38,8 +39,9 @@ did.
 | Gate readiness on `status.actual_state` | Not available | `actual_state` reports chat-channel connectivity, not API readiness. An API-only agent has no channels, so it stays at `activating` forever and `active` is unreachable. `running` is not even a member of its enum, so a loop waiting for it never returns. |
 | `updateAgent()` | Verified | Merges **per section**. Sections you omit are preserved: a PUT carrying only `labels` leaves `name`, `model`, and `persona` intact. |
 | `tool_policy` / `system_prompt` replacement | Available, not verified | The two exceptions to the merge rule: every PUT replaces each of these sections wholesale. `{}` restores the full tool manifest. We have only exercised the merge behaviour on other sections. |
-| `system_prompt` pin | Verified | A fresh create pins the platform template version active at that moment — `{source:'platform',version:1}` observed on 2026-08-14 — and the pin never follows a later platform activation. `{source:'custom',base_version,template}` replaces the whole template (all 13 functional slots exactly once, 64 KiB cap). The engine's upgrade route (`POST /agents/{id}:upgrade-system-prompt`) is 404 through the gateway, so treat the pin as a create-time decision. |
+| `system_prompt` pin | Verified | A fresh create pins the platform template version active at that moment — `{source:'platform',version:1}` observed on 2026-08-14 — and the pin never follows a later platform activation on its own. `{source:'custom',base_version,template}` replaces the whole template (all 13 functional slots exactly once, 64 KiB cap). Moving the pin is one explicit call — the row below. |
 | `getSystemPrompt()` / `previewSystemPrompt()` | Verified | The declaration plus the rendered template in effect; and deterministic assembly of the exact prompt for runtime facts you supply — 13 `slot_hashes`, `transcript` always `[]`, and a stale `config_version` answers `409 config_version_changed`. Verified 2026-08-14. |
+| `upgradeSystemPrompt()` | Verified | Moves the pin to the active platform version (or a specific one via `template_version`). `expected_config_version` is a real CAS: stale answers `409 config_version_changed`, and the 200 receipt carries the NEW `config_version` — an upgrade is a config write like any other. Verified 2026-08-14, the day gateway fix #3387 opened the `{id}:verb` route grammar; on an older gateway deployment this one call answers a gateway 404. |
 | `config_version` as an idempotency receipt | Not available | Every successful PUT increments it, including a PUT with identical values. Credential seeding at create time bumps it twice more, so the `1` on your create receipt is already `3` by your first `getAgent()`. It is a change counter, not a content hash. |
 | `deleteAgent()` | Verified | A soft delete. It does not stop the agent, does not remove its schedules, and does not release its sandbox. Call `stopAgent()` first, and remove schedules yourself. |
 | Listing agents | Available, not verified | `listAgents(opts?)` calls it. The wire route takes `owner_uid` plus `org_id` as an exact AND selector, so an agent created by a different key in your organization can be fetched by id but never appears in your list; keep your own record of those ids. `labels` filters on declared labels and `page` is 1-based, with the page size fixed at 100. `{ labels: { workspace_id: '...' } }` resolves a chat-URL workspace id to its agent. |
@@ -111,6 +113,7 @@ did.
 | Capability | Status | Note |
 |---|---|---|
 | `listAgentSkills()` | Verified | A brand new agent already has the **entire global catalog attached**, including docx, pptx, xlsx, and pdf. You do not install these; they are there from creation. |
+| Built-in skills that call platform services (speech, video, third-party connectors) | Verified | Zero setup on API-created agents: the platform injects the service credentials these skills need into the sandbox when it is created (fresh-sandbox probe, 2026-08-16). There is no credential step on your side — and no way to add your own; see [Not supported](/en/reference/not-supported). |
 | Reading the skill catalog | Verified | `listSkills({ scope, q, page })` reads it. The catalog route answers 200. Every entry we saw had `scope: global`. `q` matches on name; `page` is 1-based with a fixed page size of 100. |
 | `putAgentSkill()` on a global-catalog skill | Not available | Returns `404` through the gateway. The install route is only meaningful for skills your own tenant uploaded. Since global skills are attached at creation, this is mostly "you already have them, and you cannot manage them" rather than "you cannot use them". |
 | `putAgentSkill()` / `deleteAgentSkill()` on an `org` or `personal` skill | Available, not verified | The gateway forwards these two scopes. We never had a non-global skill to install, so the whole install-then-read-back cycle is untested. |

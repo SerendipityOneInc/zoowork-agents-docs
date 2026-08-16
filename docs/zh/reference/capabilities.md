@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 86c8ac3d46678ad7e053e58b847870cf4e80aa829ac45fcf4978f552184b2814
+source_hash: bee7988ecf2ac33498fa54be4b1bbbcfccb26825ca1bf075c0bc10e61d0da9f9
 ---
 
 # 能力矩阵
@@ -18,7 +18,7 @@ source_hash: 86c8ac3d46678ad7e053e58b847870cf4e80aa829ac45fcf4978f552184b2814
 | **可用，未实测** | 路由存在，契约也有文档，但我们没有驱动过它。它可能完全按描述工作。把它当成你还得自己做的活儿，别放进你的演示路径。 |
 | **不存在** | 它就是没有。[不支持的能力](/zh/reference/not-supported)会说明改用什么。 |
 
-所有标着**已实测** 的，都是在一套真实部署上、通过公开网关、用一个组织 API key 观察到的——和你的 key 走的是同一条路径：主体在 2026-08-06，较新的面（system prompt、artifacts、outcome）在 2026-08-14 以同样方式复测。这里没有任何一条是仅凭规范推断出来的。
+所有标着**已实测** 的，都是在一套真实部署上、通过公开网关、用一个组织 API key 观察到的——和你的 key 走的是同一条路径：主体在 2026-08-06，较新的面（system prompt、artifacts、outcome）在 2026-08-14 以同样方式复测，内置技能凭证链路在 2026-08-16 用全新沙箱实测。这里没有任何一条是仅凭规范推断出来的。
 
 如果某一行写着已实测，而它在你这边失败了，那是一次回归，值得报上来。如果某一行写着可用，未实测，而它在你这边失败了，那是你先于我们拿到了答案。
 
@@ -36,8 +36,9 @@ source_hash: 86c8ac3d46678ad7e053e58b847870cf4e80aa829ac45fcf4978f552184b2814
 | 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 报的是聊天渠道的连通性，不是 API 是否就绪。纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，`active` 到不了。`running` 甚至根本不在它的枚举里，所以等它的循环永远不会返回。 |
 | `updateAgent()` | 已实测 | **按小节合并** 。你省略的小节会被保留：只带 `labels` 的一次 PUT 不会动 `name`、`model` 和 `persona`。 |
 | `tool_policy` / `system_prompt` 整体替换 | 可用，未实测 | 合并规则的两个例外：每一次 PUT 都整体替换这两个小节。`{}` 会恢复完整的工具清单。我们只在其他小节上跑过合并行为。 |
-| `system_prompt` pin | 已实测 | 新建 agent 会自动 pin 创建那一刻 active 的平台模板版本——2026-08-14 观察到 `{source:'platform',version:1}`——而且这个 pin **永远不跟随**之后的平台 activation。`{source:'custom',base_version,template}` 整体覆盖模板（13 个功能 slot 各出现一次，64 KiB 上限）。引擎的升级路由（`POST /agents/{id}:upgrade-system-prompt`）过网关是 404，所以把 pin 当成创建期决策。 |
+| `system_prompt` pin | 已实测 | 新建 agent 会自动 pin 创建那一刻 active 的平台模板版本——2026-08-14 观察到 `{source:'platform',version:1}`——而且这个 pin **自己永远不跟随**之后的平台 activation。`{source:'custom',base_version,template}` 整体覆盖模板（13 个功能 slot 各出现一次，64 KiB 上限）。要挪 pin 只有一个显式调用——见下一行。 |
 | `getSystemPrompt()` / `previewSystemPrompt()` | 已实测 | 声明 + 实际生效的渲染模板；以及按你给定的运行时事实做确定性的完整 prompt 装配——13 个 `slot_hashes`，`transcript` 恒为 `[]`，过期的 `config_version` 返回 `409 config_version_changed`。2026-08-14 实测。 |
+| `upgradeSystemPrompt()` | 已实测 | 把 pin 挪到当前 active 的平台版本（或用 `template_version` 指定一个）。`expected_config_version` 是真 CAS：过期返回 `409 config_version_changed`，200 回执带**新的** `config_version`——升级就是一次普通的配置写入。2026-08-14 实测，正是网关 fix #3387 打开 `{id}:verb` 路由语法的当天；在更老的网关部署上，这一个调用会撞网关 404。 |
 | 把 `config_version` 当幂等回执 | 不存在 | 每一次成功的 PUT 都会 bump 它，值完全相同的 PUT 也一样。创建时的凭证代种还会再多 bump 两次，所以创建回执上的 `1`，到你第一次 `getAgent()` 时已经是 `3`。它是一个变更计数器，不是内容哈希。 |
 | `deleteAgent()` | 已实测 | 软删除。它不停止 agent，不删除它的定时任务，也不释放它的沙箱。先调 `stopAgent()`，定时任务自己删。 |
 | 列出 agent | 可用，未实测 | `listAgents(opts?)` 调的就是它。线协议上的路由把 `owner_uid` 加 `org_id` 当成精确 AND 选择器，所以同一组织内由另一个 key 创建的 agent，能按 id 读到，却永远不会出现在你的列表里；这类 id 自己记一份。`labels` 按声明的 label 过滤，`page` 从 1 开始，每页大小固定为 100。`{ labels: { workspace_id: '...' } }` 能把一个聊天 URL 里的 workspace id 解析成它对应的 agent。 |
@@ -109,6 +110,7 @@ source_hash: 86c8ac3d46678ad7e053e58b847870cf4e80aa829ac45fcf4978f552184b2814
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | `listAgentSkills()` | 已实测 | 一个全新的 agent 已经**挂上了整个全局目录** ，docx、pptx、xlsx、pdf 都在里面。你不用装它们；它们从创建那一刻就在。 |
+| 调用平台服务的内置技能（语音、视频、三方 connector） | 已实测 | 在 API 创建的 agent 上零配置可用：平台会在沙箱创建时把这些技能需要的服务凭证注入进去（2026-08-16 全新沙箱实测）。你这边没有任何凭证步骤——也没有塞入自己凭证的口子，见[不支持](/zh/reference/not-supported)。 |
 | 读取 skill 目录 | 已实测 | `listSkills({ scope, q, page })` 读的就是它。目录路由返回 200。我们看到的每一条 `scope` 都是 `global`。`q` 按名字匹配；`page` 从 1 开始，每页固定 100。 |
 | 对全局目录里的 skill 调 `putAgentSkill()` | 不存在 | 通过网关返回 `404`。安装路由只对你自己租户上传的 skill 有意义。既然全局 skill 在创建时就挂上了，这条更多是「你已经有了，只是管不了」，而不是「你用不了」。 |
 | 对 `org` 或 `personal` skill 调 `putAgentSkill()` / `deleteAgentSkill()` | 可用，未实测 | 网关会转发这两个 scope。我们手上从来没有过一个非全局的 skill 可装，所以整个「装完再读回来」的循环都没测过。 |
