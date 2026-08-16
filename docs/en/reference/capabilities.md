@@ -17,7 +17,8 @@ routes we have read but not run.
 
 Everything marked **Verified** was observed on a live deployment through the public gateway
 with an org API key — the same path your key takes — on 2026-08-06, with the newer surfaces
-(system prompt, artifacts, outcome) re-verified the same way on 2026-08-14. Nothing here is
+(system prompt, artifacts, outcome) re-verified the same way on 2026-08-14, and the built-in
+skill credential path on a fresh sandbox on 2026-08-16. Nothing here is
 inferred from a specification alone.
 
 If a row says Verified and it fails for you, that is a regression and worth reporting. If a
@@ -112,6 +113,7 @@ did.
 | Capability | Status | Note |
 |---|---|---|
 | `listAgentSkills()` | Verified | A brand new agent already has the **entire global catalog attached**, including docx, pptx, xlsx, and pdf. You do not install these; they are there from creation. |
+| Built-in skills that call platform services (speech, video, third-party connectors) | Verified | Zero setup on API-created agents: the platform injects the service credentials these skills need into the sandbox when it is created (fresh-sandbox probe, 2026-08-16). There is no credential step on your side — and no way to add your own; see [Not supported](/en/reference/not-supported). |
 | Reading the skill catalog | Verified | `listSkills({ scope, q, page })` reads it. The catalog route answers 200. Every entry we saw had `scope: global`. `q` matches on name; `page` is 1-based with a fixed page size of 100. |
 | `putAgentSkill()` on a global-catalog skill | Not available | Returns `404` through the gateway. The install route is only meaningful for skills your own tenant uploaded. Since global skills are attached at creation, this is mostly "you already have them, and you cannot manage them" rather than "you cannot use them". |
 | `putAgentSkill()` / `deleteAgentSkill()` on an `org` or `personal` skill | Available, not verified | The gateway forwards these two scopes. We never had a non-global skill to install, so the whole install-then-read-back cycle is untested. |

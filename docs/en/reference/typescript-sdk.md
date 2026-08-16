@@ -100,9 +100,8 @@ type ZooclawAuth = { serviceToken: string } | { apiKey: string }
 auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 ```
 
-The `{ serviceToken }` variant exists for an internal deployment that reaches the API without
-the gateway; it produces the identical bearer header and changes nothing else about the SDK's
-behaviour, and it is not usable with an API key.
+The `{ serviceToken }` variant is internal-only and not usable with an API key; with a
+`zct_` key, always pass `{ apiKey }`.
 
 ## Methods
 
@@ -392,16 +391,10 @@ putCredential(agentId: string, app: string, body: Record<string, unknown>): Prom
 
 ::: danger Not supported through the public gateway
 The credential routes return **404** with an API key. The gateway seeds the agent's model
-credentials itself; it deliberately does not expose credential writes. There is no supported
-way to store your own or your end users' third-party credentials.
-
-The method remains on the interface because the same SDK also drives an internal deployment.
-Do not build against it. See [Authentication](/en/get-started/authentication).
+credentials itself and does not expose credential writes; there is no supported way to store
+your own or your end users' secrets. Internal-only — do not build against it. Keep secrets in
+your own service; see [Authentication](/en/get-started/authentication).
 :::
-
-For that internal deployment: the body shape is credential-specific (`{ api_key }` for the
-model backend, `{ token }` for the user-internal token), each PUT appends a new secret
-version, and a timed-out PUT must be reconciled with `listCredentials()` before any retry.
 
 ---
 
@@ -411,11 +404,8 @@ version, and a timed-out PUT must be reconciled with `listCredentials()` before 
 listCredentials(agentId: string): Promise<{ app: string; ref: string }[]>
 ```
 
-Returns the agent's credential slots, unwrapped from the wire's `{ credentials: [...] }`
-envelope; an absent list becomes `[]`.
-
 ::: danger Not supported through the public gateway
-Returns **404** with an API key, same as `putCredential()`.
+Returns **404** with an API key, same as `putCredential()`. Internal-only.
 :::
 
 ---

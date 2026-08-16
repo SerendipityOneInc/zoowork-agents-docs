@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: 0c394d2cf98da3480964c8504100c71bf80633ed9284a49722f38c5b01ba0371
+source_hash: b373b678001876e4db7ca0b22f444a821311aa2b056b95b0386293dc0ee070f1
 ---
 
 # TypeScript SDK 参考
@@ -104,8 +104,7 @@ type ZooclawAuth = { serviceToken: string } | { apiKey: string }
 auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 ```
 
-`{ serviceToken }` 这个变体是给一套不经过网关直连 API 的内部部署用的；它生成的 bearer 头完全相同，
-对 SDK 的其他行为没有任何影响，而且它不能和 API key 一起用。
+`{ serviceToken }` 变体仅供内部使用，不能和 API key 一起用；持 `zct_` key 一律传 `{ apiKey }`。
 
 ## 方法
 
@@ -385,15 +384,10 @@ putCredential(agentId: string, app: string, body: Record<string, unknown>): Prom
 ```
 
 ::: danger 公开网关不支持
-用 API key 调凭证相关的路由，一律返回 **404** 。网关自己会给 agent 代种模型凭证；它刻意不开放凭证写入。
-目前没有任何受支持的方式来托管你自己的、或你终端用户的第三方凭证。
-
-这个方法还留在接口上，是因为同一套 SDK 也驱动着一套内部部署。不要基于它开发。见[鉴权](/zh/get-started/authentication)。
+用 API key 调凭证相关的路由，一律返回 **404** 。网关自己会给 agent 代种模型凭证，不开放凭证写入；
+没有任何受支持的方式来托管你自己的、或你终端用户的密钥。仅供内部使用——不要基于它开发。
+你的密钥留在你自己的服务里；见[鉴权](/zh/get-started/authentication)。
 :::
-
-对那套内部部署来说：请求体的形状按凭证类型而定（模型后端是 `{ api_key }`，用户内部 token 是
-`{ token }`），每次 PUT 会追加一个新的密钥版本，超时的 PUT 必须先用 `listCredentials()` 对账，
-才能重试。
 
 ---
 
@@ -403,10 +397,8 @@ putCredential(agentId: string, app: string, body: Record<string, unknown>): Prom
 listCredentials(agentId: string): Promise<{ app: string; ref: string }[]>
 ```
 
-返回该 agent 的凭证槽位，已从线上的 `{ credentials: [...] }` 信封里拆出来；列表缺失时返回 `[]`。
-
 ::: danger 公开网关不支持
-用 API key 调用返回 **404** ，和 `putCredential()` 一样。
+用 API key 调用返回 **404** ，和 `putCredential()` 一样。仅供内部使用。
 :::
 
 ---
