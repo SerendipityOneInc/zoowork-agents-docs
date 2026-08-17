@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: b373b678001876e4db7ca0b22f444a821311aa2b056b95b0386293dc0ee070f1
+source_hash: 6fe78a71b28820007ccf2ba9e9afb5ed656ce76b54e058601d6b4bde143f0141
 ---
 
 # TypeScript SDK 参考
@@ -60,7 +60,7 @@ URL 字符串，绝不会是 `Request` 对象。你提供的、用于流式的 f
 ## `createZooclawClient(config)`
 
 ```ts
-function createZooclawClient(cfg: ZooclawConfig): ZooclawClient
+function createZooclawClient(cfg?: ZooclawConfig): ZooclawClient
 ```
 
 返回一个 `ZooclawClient`。它是一个由闭包组成的普通对象：不建立任何连接，不发出任何请求，缺少 API key
@@ -79,16 +79,21 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
 
 ```ts
 interface ZooclawConfig {
-  baseUrl: string
-  auth: ZooclawAuth
+  apiKey?: string
+  baseUrl?: string
+  auth?: ZooclawAuth
   fetch?: (input: string, init?: RequestInit) => Promise<Response>
 }
 ```
 
+每个字段都是可选的；只要导出了 `ZOOCLAW_API_KEY`，整个对象也可以省掉——
+`createZooclawClient()` 是合法调用。
+
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
+| `apiKey` | `string` | 否 | 你那个 `zct_...` key。取值顺序：这个选项，然后 `ZOOCLAW_API_KEY`。日常就用这个字段。 |
 | `baseUrl` | `string` | 否 | API 的 base，**要带版本前缀** 。取值顺序：这个选项，然后 `ZOOCLAW_BASE_URL`，然后导出的 `DEFAULT_BASE_URL`（公开网关）。只有当你要指向另一套部署时才设置它。末尾的斜杠会被去掉；`/models`、`/agents/{id}/sessions` 这类路径会直接拼在后面。 |
-| `auth` | `ZooclawAuth` | 否 | `{ apiKey }`。见下。 |
+| `auth` | `ZooclawAuth` | 否 | 进阶用法。这里传 `{ apiKey }` 等价于顶层的 `apiKey`；两个都传时以 `auth` 为准。见下。 |
 | `fetch` | function | 否 | 默认是 `globalThis.fetch`。 |
 
 ### `ZooclawAuth`

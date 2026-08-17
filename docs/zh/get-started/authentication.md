@@ -1,7 +1,7 @@
 ---
 title: 鉴权
 source: /en/get-started/authentication
-source_hash: 7ba8196ebe653458a34348d61aa275ea838bb5c23c019995ef5535265ae4add7
+source_hash: 973fe1c2ae232ff00081a05472626ae7f8d2ef08182b53154cff8564deb83bb7
 ---
 
 # 鉴权
