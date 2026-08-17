@@ -36,8 +36,8 @@ import { createZooclawClient } from '@zooclaw-agents/sdk'
 const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
 ```
 
-`baseUrl` is optional - it defaults to the public API, and `ZOOCLAW_BASE_URL` overrides it.
-appends paths such as `/models` and `/agents/{id}/sessions` directly to it.
+`baseUrl` is optional - it defaults to the public API, and `ZOOCLAW_BASE_URL` overrides it. The
+client appends paths such as `/models` and `/agents/{id}/sessions` directly to it.
 
 ## Server-side only
 

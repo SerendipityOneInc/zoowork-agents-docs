@@ -1,3 +1,183 @@
+/* ZooClaw docs theme.
+ *
+ * The palette is inherited from the ZooClaw app (`web/app/src/app/globals.css`), not invented
+ * here: near-black ink on near-white, GitHub-dark for the dark theme, Inter, a three-step
+ * radius, and a three-layer shadow. The app's one brand accent — rewards orange #ff6b35 —
+ * is the only chromatic colour on the site.
+ *
+ * Where the accent is allowed: links, the active nav and sidebar item, the home CTA, the
+ * focus ring, the active code-group tab. Nowhere else. In particular inline code stays ink
+ * (VitePress paints it with the brand by default, which on a reference site this dense would
+ * turn roughly half the running text orange), and the tip container stays neutral so it stops
+ * competing with the warning and danger blocks that carry real severity.
+ *
+ * #ff6b35 is only 2.84:1 on white, so it can never be link text. The accent is a ladder:
+ * a darkened step for text and a full-strength step for fills. Contrast, measured:
+ *   light  link #b8410f on #ffffff = 5.52:1   fill #ff6b35 with #18181b label = 6.00:1
+ *   dark   link #ff8a5c on #0d1117 = 8.15:1   fill #ff6b35 with #0d1117 label = 6.67:1
+ */
+
+:root {
+  --zc-ink: #18181b;
+  --zc-accent: #ff6b35;
+  --zc-accent-ink: #b8410f;
+
+  /* Three-step radius, from the app. */
+  --zc-radius-sm: 6px;
+  --zc-radius: 10px;
+  --zc-radius-lg: 16px;
+
+  /* Three layers: hairline ring, main depth, ambient. */
+  --zc-shadow: 0 0 0 1px rgb(0 0 0 / 0.03), 0 2px 4px rgb(0 0 0 / 0.05),
+    0 12px 24px rgb(0 0 0 / 0.05);
+
+  --vp-c-brand-1: var(--zc-accent-ink);
+  --vp-c-brand-2: #9c3a10;
+  --vp-c-brand-3: var(--zc-accent);
+  --vp-c-brand-soft: rgb(255 107 53 / 0.12);
+
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-alt: #f7f7f8;
+  --vp-c-bg-soft: #f5f5f5;
+  --vp-c-bg-elv: #ffffff;
+
+  --vp-c-text-1: var(--zc-ink);
+  --vp-c-text-2: #5b5b63;
+  --vp-c-text-3: #8b8b93;
+
+  --vp-c-divider: #e4e4e7;
+  --vp-c-border: #d4d4d8;
+  --vp-c-gutter: #e4e4e7;
+
+  /* The one filled control on the site. Ink label on brand orange. */
+  --vp-button-brand-bg: var(--zc-accent);
+  --vp-button-brand-text: var(--zc-ink);
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-hover-bg: #f2551a;
+  --vp-button-brand-hover-text: var(--zc-ink);
+  --vp-button-brand-hover-border: transparent;
+  --vp-button-brand-active-bg: #e04e18;
+  --vp-button-brand-active-text: var(--zc-ink);
+  --vp-button-brand-active-border: transparent;
+
+  /* Inline code is running text here, not an accent. */
+  --vp-code-color: var(--vp-c-text-1);
+  --vp-code-bg: rgb(24 24 27 / 0.06);
+  --vp-code-link-color: var(--vp-c-brand-1);
+  --vp-code-link-hover-color: var(--vp-c-brand-2);
+
+  /* Tip drops to neutral; warning moves to a true gold so it cannot be confused with the
+     brand orange sitting next to it; danger keeps red. Three severities, three hues. */
+  --vp-custom-block-tip-border: var(--vp-c-divider);
+  --vp-custom-block-tip-text: var(--vp-c-text-1);
+  --vp-custom-block-tip-bg: var(--vp-c-bg-alt);
+  --vp-custom-block-tip-code-bg: rgb(24 24 27 / 0.06);
+
+  --vp-c-yellow-1: #7a5300;
+  --vp-c-yellow-2: #8a6206;
+  --vp-c-yellow-3: #9a7010;
+  --vp-c-yellow-soft: rgb(234 179 8 / 0.13);
+
+  --vp-home-hero-name-color: var(--vp-c-text-1);
+}
+
+.dark {
+  --zc-shadow: 0 0 0 1px rgb(255 255 255 / 0.05), 0 2px 4px rgb(0 0 0 / 0.3),
+    0 12px 24px rgb(0 0 0 / 0.28);
+
+  --vp-c-brand-1: #ff8a5c;
+  --vp-c-brand-2: #ffa07a;
+  --vp-c-brand-3: var(--zc-accent);
+  --vp-c-brand-soft: rgb(255 107 53 / 0.16);
+
+  --vp-c-bg: #0d1117;
+  --vp-c-bg-alt: #161b22;
+  --vp-c-bg-soft: #161b22;
+  --vp-c-bg-elv: #161b22;
+
+  --vp-c-text-1: #e6edf3;
+  --vp-c-text-2: #9aa4af;
+  --vp-c-text-3: #6e7781;
+
+  --vp-c-divider: #21262d;
+  --vp-c-border: #30363d;
+  --vp-c-gutter: #21262d;
+
+  --vp-button-brand-text: #0d1117;
+  --vp-button-brand-hover-text: #0d1117;
+  --vp-button-brand-active-text: #0d1117;
+
+  --vp-code-bg: rgb(230 237 243 / 0.08);
+  --vp-custom-block-tip-code-bg: rgb(230 237 243 / 0.08);
+
+  --vp-c-yellow-1: #f5c451;
+  --vp-c-yellow-2: #d9a323;
+  --vp-c-yellow-3: #a87d15;
+}
+
+/* --- Browser surfaces -------------------------------------------------------
+   The parts nobody draws: selection, caret, focus ring, scrollbar. Left at their
+   defaults they belong to no design system. */
+
+::selection {
+  background: var(--vp-c-brand-soft);
+}
+
+:root {
+  caret-color: var(--zc-accent);
+  scrollbar-color: var(--vp-c-border) transparent;
+}
+
+:where(a, button, input, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--zc-accent);
+  outline-offset: 2px;
+  border-radius: var(--zc-radius-sm);
+}
+
+.vp-doc a {
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+/* --- Reading surface -------------------------------------------------------- */
+
+.vp-doc table {
+  /* Ids, sequence numbers and HTTP statuses fill these tables; they should line up. */
+  font-variant-numeric: tabular-nums;
+}
+
+.vp-doc th {
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+.vp-doc :is(h2, h3) {
+  letter-spacing: -0.01em;
+}
+
+.vp-doc h2 {
+  /* More air above a heading than below it. */
+  margin-top: 56px;
+  padding-top: 24px;
+}
+
+.vp-doc div[class*='language-'],
+.vp-doc .custom-block {
+  border-radius: var(--zc-radius);
+}
+
+/* A code block and a callout both default to `--vp-c-bg-alt`, so a block inside a callout -
+   the install line inside the quickstart's tip, for one - dissolved into it. Put the code on
+   the page surface instead and give it its own hairline. */
+.vp-doc .custom-block div[class*='language-'] {
+  background-color: var(--vp-c-bg);
+  border: 1px solid var(--vp-c-divider);
+}
+
+.vp-doc .custom-block div[class*='language-'] pre {
+  background-color: transparent;
+}
+
 /* Code-group tabs read as a language switcher, so give them a little more presence
    than the default: a clearer active state and a touch more breathing room. */
 .vp-code-group .tabs {
@@ -11,4 +191,212 @@
 
 .vp-code-group .tabs input:checked + label {
   color: var(--vp-c-brand-1);
+}
+
+/* --- Home ------------------------------------------------------------------
+   The default home layout reserves the right half of the viewport for a hero image
+   this site does not have, which leaves a wide column of nothing on a desktop. Centre
+   the hero instead and hold the tagline to a readable measure. */
+
+.VPHome .VPHero .container {
+  flex-direction: column;
+  text-align: center;
+  max-width: 940px;
+}
+
+/* The stock hero reserves nav + 80px above and 64px below for a two-line headline and two
+   buttons, which pushed everything else off a 1280x860 screen. Half that, so the first
+   viewport ends inside the feature row instead of on empty space. */
+@media (min-width: 960px) {
+  .VPHome .VPHero {
+    padding-top: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + 44px);
+    padding-bottom: 44px;
+  }
+}
+
+/* The stock hero gives `.main` two thirds of the row and the remaining third to an image.
+   With no image that third is dead space, and it was the real reason the headline wrapped
+   at 626px inside a 940px container. */
+.VPHome .VPHero .main {
+  width: 100%;
+  max-width: none;
+  order: 1;
+}
+
+/* The hero has no `name`, so `text` is the headline and carries the ink. */
+.VPHome .VPHero .text {
+  letter-spacing: -0.03em;
+  max-width: none;
+  text-wrap: balance;
+}
+
+/* Balancing is an English nicety and a Chinese hazard: Chinese wraps between any two Han
+   characters, so balancing the zh headline split 基础|设施 down the middle of a word. Left
+   to wrap on its own it fits one line at the widths where the display size applies. */
+:lang(zh) .VPHome .VPHero .text {
+  text-wrap: initial;
+}
+
+.VPHome .VPHero .tagline {
+  margin: 24px auto 0;
+  max-width: 62ch;
+  text-wrap: balance;
+}
+
+.VPHome .VPHero .actions {
+  justify-content: center;
+}
+
+.VPHome .VPHero .action .VPButton {
+  border-radius: var(--zc-radius);
+}
+
+/* Four claims about the API are content, not cards. Drop the box and set them as columns
+   under a hairline, which is also what makes them read at a glance. At every width: gating
+   this to desktop left the phone showing grey boxes, so the same four items arrived in two
+   different visual languages depending on the screen. */
+.VPHome .VPFeature {
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--vp-c-divider);
+  background: transparent;
+  padding-top: 20px;
+}
+
+.VPHome .VPFeature .box {
+  padding: 0;
+}
+
+.VPHome .VPFeature .title {
+  font-size: 15px;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.VPHome .VPFeature .details {
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* The home body inherits the 1152px content container, so its prose ran the full width of
+   the feature grid - about 140 characters a line, twice the measure of every other page on
+   the site. Hold the whole block to one column so the section rules and the callout end
+   where the sentences end.
+
+   Centred, not flush left. The page already has two centred axes above it - the hero and
+   its actions - and a left-hugging column under them read as a layout bug with a hole cut
+   out of the right side, which is exactly what it looked like. Three widths, one axis:
+   the 1152px feature band, the 940px hero, the reading column inside both. */
+.VPHome .vp-doc > div {
+  max-width: 74ch;
+  margin-top: 40px;
+  margin-inline: auto;
+}
+
+/* "Where to start" is the whole job of an index: three routes out of it. Set the list as
+   navigation rows rather than a numbered paragraph - the reading order still lives in the
+   markup, so the decimal markers were only decoration. */
+.VPHome .vp-doc ol {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 4px;
+}
+
+.VPHome .vp-doc ol > li {
+  border-top: 1px solid var(--vp-c-divider);
+  padding: 14px 0;
+  margin: 0;
+  color: var(--vp-c-text-2);
+}
+
+/* No closing rule on the last row: the next section's `h2` already draws one, and the two
+   sat 30px apart as a double line. */
+
+.VPHome .vp-doc ol > li > a:first-child {
+  display: inline-block;
+  margin-right: 2px;
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.VPHome .vp-doc ol > li:hover > a:first-child {
+  color: var(--vp-c-brand-1);
+}
+
+/* --- Tables on narrow screens ----------------------------------------------
+   The capability matrix is three columns of prose and the page a reader is told to
+   consult before committing to an architecture. Horizontally scrolling it on a phone
+   makes it the least readable page on the site, so below the sidebar breakpoint each
+   row becomes a small stacked record. The `data-th` labels come from the markdown-it
+   plugin in config.mts — without them a stacked cell loses its column. */
+
+@media (max-width: 767px) {
+  .vp-doc table[data-stackable] {
+    display: block;
+    border-collapse: separate;
+    overflow: visible;
+  }
+
+  .vp-doc table[data-stackable] thead {
+    /* Visually hidden, still read aloud in the accessibility tree. */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .vp-doc table[data-stackable] tbody,
+  .vp-doc table[data-stackable] tr,
+  .vp-doc table[data-stackable] td {
+    display: block;
+    width: auto;
+  }
+
+  .vp-doc table[data-stackable] tr {
+    border: 1px solid var(--vp-c-divider);
+    border-radius: var(--zc-radius);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: var(--vp-c-bg);
+  }
+
+  .vp-doc table[data-stackable] tr:nth-child(2n) {
+    background: var(--vp-c-bg);
+  }
+
+  .vp-doc table[data-stackable] td {
+    border: none;
+    padding: 0;
+  }
+
+  .vp-doc table[data-stackable] td + td {
+    margin-top: 8px;
+  }
+
+  .vp-doc table[data-stackable] td[data-th]::before {
+    content: attr(data-th);
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--vp-c-text-3);
+    margin-bottom: 2px;
+  }
+
+  /* The first cell is the row's subject — the capability, the method, the event type.
+     It carries the record, so it leads without a label. */
+  .vp-doc table[data-stackable] td:first-child {
+    font-weight: 600;
+    color: var(--vp-c-text-1);
+  }
+
+  .vp-doc table[data-stackable] td:first-child::before {
+    display: none;
+  }
 }

@@ -56,7 +56,7 @@ for streaming must return a `Response` with a readable `body`.
 ## `createZooclawClient(config)`
 
 ```ts
-function createZooclawClient(cfg: ZooclawConfig): ZooclawClient
+function createZooclawClient(cfg?: ZooclawConfig): ZooclawClient
 ```
 
 Returns a `ZooclawClient`. It is a plain object of closures: no connections are opened, no
@@ -75,16 +75,21 @@ Clients are cheap and stateless. Create one per process and share it.
 
 ```ts
 interface ZooclawConfig {
-  baseUrl: string
-  auth: ZooclawAuth
+  apiKey?: string
+  baseUrl?: string
+  auth?: ZooclawAuth
   fetch?: (input: string, init?: RequestInit) => Promise<Response>
 }
 ```
 
+Every field is optional, and with `ZOOCLAW_API_KEY` exported so is the whole object:
+`createZooclawClient()` is a valid call.
+
 | Field | Type | Required | Notes |
 |---|---|---|---|
+| `apiKey` | `string` | no | Your `zct_...` key. Resolution order: this option, then `ZOOCLAW_API_KEY`. This is the field to use. |
 | `baseUrl` | `string` | no | The API base **including the version prefix**. Resolution order: this option, then `ZOOCLAW_BASE_URL`, then the exported `DEFAULT_BASE_URL` (the public gateway). Set it only to target a different deployment. Trailing slashes are stripped; paths such as `/models` and `/agents/{id}/sessions` are appended directly. |
-| `auth` | `ZooclawAuth` | no | `{ apiKey }`. See below. |
+| `auth` | `ZooclawAuth` | no | Advanced. `{ apiKey }` here is equivalent to the top-level `apiKey`, and beats it if you pass both. See below. |
 | `fetch` | function | no | Defaults to `globalThis.fetch`. |
 
 ### `ZooclawAuth`
