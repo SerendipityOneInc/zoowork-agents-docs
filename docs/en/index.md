@@ -2,7 +2,8 @@
 title: ZooClaw Managed Agents
 layout: home
 hero:
-  name: ZooClaw Managed Agents
+  # No `name`: the product name is already in the nav and the page title, and repeating it at
+  # display size directly above the claim made the two read as one run-on heading.
   text: Agents that run on our infrastructure
   tagline: Create an agent, start it, open a session, and stream durable events back. One API key, one TypeScript SDK.
   actions:

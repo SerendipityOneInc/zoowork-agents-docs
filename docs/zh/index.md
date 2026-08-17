@@ -3,7 +3,7 @@ layout: home
 source: /en/
 source_hash: pending
 hero:
-  name: ZooClaw Managed Agents
+  # 不设 `name`：产品名已经在导航和标题里，再用展示级字号重复一遍，会和下面这句连成一句跑不断的标题。
   text: 跑在我们基础设施上的 Agent
   tagline: 建 agent、启动、开会话、把持久化的事件流回来。一个 API key，一个 TypeScript SDK。
   actions:
