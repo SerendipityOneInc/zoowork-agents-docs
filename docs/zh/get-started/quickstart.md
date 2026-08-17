@@ -112,7 +112,6 @@ const created = await zc.createAgent({
     name: 'quickstart-agent',
     model: { primary: models[0]?.model ?? 'litellm/claude-sonnet-5' },
   },
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 
 const agentId = created.agent_id
@@ -126,14 +125,13 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents" \
     "resource": {
       "name": "quickstart-agent",
       "model": { "primary": "litellm/claude-sonnet-5" }
-    },
-    "ownership": { "owner_uid": "placeholder", "org_id": "placeholder" }
+    }
   }'
 ```
 
 :::
 
-请求 schema 要求必须带 `ownership`，但网关会用绑定在你 API key 上的租户锚点把这两个字段都覆盖掉。传占位符就行，不要去翻自己的 uid 和 org id。
+`ownership` 不用传——网关会用绑定在你 API key 上的租户锚点自动填上，真实值出现在响应的 `ownership` 里。
 
 响应是一个扁平的**创建回执** ：
 
@@ -155,7 +153,7 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents" \
 如果你想要一个可以安全重试的创建，把幂等 key 作为第二个参数传进去：
 
 ```ts
-const created = await zc.createAgent({ resource, ownership }, 'quickstart-run-01')
+const created = await zc.createAgent({ resource }, 'quickstart-run-01')
 ```
 
 唯一性作用域是 `(agent.create, key)`。同一个 key 配不同的 body 返回 `409 idempotency_conflict`。
@@ -405,13 +403,12 @@ const models = await zc.listModels()
 const model = models[0]?.model ?? 'litellm/claude-sonnet-5'
 console.log(`${models.length} models available, using ${model}`)
 
-// 1. Create the agent. The gateway overwrites ownership with your key's tenant.
+// 1. Create the agent. The gateway derives ownership from your key's tenant.
 const created = await zc.createAgent({
   resource: {
     name: `quickstart-${Date.now()}`,
     model: { primary: model },
   },
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 const agentId = created.agent_id
 console.log(`created agent ${agentId}`)
@@ -498,7 +495,7 @@ cleaned up agent agt_example
 | 就绪轮询循环永远不返回 | 在轮询 `status.actual_state` | 改成轮询 `status.desired_state`，或者直接交给 `zc.waitUntilRunning()` |
 | 流永远不结束 | 在等连接自己关闭 | 在 `isRunFinished(ev)` 处跳出 |
 | 手上的 agent id 却返回 `404 not_found` | 这个 id 属于另一个组织 | 跨租户的 id 是被隐藏，而不是用 403 拒绝 |
-| `409 idempotency_conflict` | 同一个 `Idempotency-Key`，body 不同 | 换一个新 key，或者发送逐字节一致的 `{ resource, ownership }` |
+| `409 idempotency_conflict` | 同一个 `Idempotency-Key`，body 不同 | 换一个新 key，或者发送逐字节一致的请求体 |
 
 ## 下一步
 

@@ -105,7 +105,7 @@ The `{ serviceToken }` variant is internal-only and not usable with an API key; 
 
 ## Methods
 
-`ZooclawClient` exposes 51 methods, grouped below the way the client groups them. Everything
+`ZooclawClient` exposes 49 methods, grouped below the way the client groups them. Everything
 the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
 `agentId` first. The skill registry and Environments are top-level resources and take none.
 
@@ -124,8 +124,6 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 | `getAgent(agentId)` | `Promise<AgentRecord>` | Reads an agent. Returns the **projection**: config under `declared`, version at `status.config_version`. |
 | `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUTs the named declared sections, merging per section. Bumps `config_version` on every call. |
 | `deleteAgent(agentId)` | `Promise<void>` | Soft-deletes the agent. Does not stop it. |
-| `putCredential(agentId, app, body)` | `Promise<void>` | Writes an agent credential. **`@deprecated`: returns 404 through the public gateway.** |
-| `listCredentials(agentId)` | `Promise<{ app: string; ref: string }[]>` | Lists agent credential slots. **`@deprecated`: returns 404 through the public gateway.** |
 | `startAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `running`. Required before any session call. |
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `stopped`. |
 | `waitUntilRunning(agentId, opts?)` | `Promise<AgentRecord>` | Polls `status.desired_state` until it reads `running`, then hands back that projection. Defaults: 30s budget, 500ms between polls. Throws `408`/`timeout`. |
@@ -264,7 +262,7 @@ provider model name behind the alias.
 
 ```ts
 createAgent(
-  input: { resource: AgentResource; ownership: Ownership },
+  input: { resource: AgentResource; ownership?: Ownership },
   idempotencyKey?: string,
 ): Promise<AgentRecord>
 ```
@@ -272,7 +270,7 @@ createAgent(
 | Parameter | Type | Notes |
 |---|---|---|
 | `input.resource` | `AgentResource` | The configuration. `name` is required. |
-| `input.ownership` | `Ownership` | Required by the wire contract. The gateway overwrites both fields with the anchors bound to your key, so placeholders are fine. |
+| `input.ownership` | `Ownership` | Optional; normally omitted. The gateway derives the tenant anchors from your API key. |
 | `idempotencyKey` | `string` | Sent as the `Idempotency-Key` header. Omitted entirely when you do not pass it. |
 
 Returns the **create receipt**: a flat object with `agent_id`, a top-level `config_version`,
@@ -284,9 +282,7 @@ const created = await zc.createAgent(
     resource: {
       name: 'research-agent',
       model: { primary: 'litellm/claude-sonnet-5' },
-      onboarding: false,
     },
-    ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
   },
   'provision-research-agent-1',
 )
@@ -360,7 +356,7 @@ what is stored.** There is no no-op detection, so "the version did not change" i
 signal you can read, and the version is not a receipt for your own write. See
 [Errors and retries](/en/reference/errors).
 
-`skills`, `warm`, `credentials`, and unknown fields in the PUT body return `400`.
+`skills`, `credentials`, and unknown fields in the PUT body return `400`.
 
 ---
 
@@ -380,33 +376,6 @@ sandbox. Stop first, then delete:
 await zc.stopAgent(agentId)
 await zc.deleteAgent(agentId)
 ```
-
----
-
-### `putCredential(agentId, app, body)`
-
-```ts
-putCredential(agentId: string, app: string, body: Record<string, unknown>): Promise<void>
-```
-
-::: danger Not supported through the public gateway
-The credential routes return **404** with an API key. The gateway seeds the agent's model
-credentials itself and does not expose credential writes; there is no supported way to store
-your own or your end users' secrets. Internal-only — do not build against it. Keep secrets in
-your own service; see [Authentication](/en/get-started/authentication).
-:::
-
----
-
-### `listCredentials(agentId)`
-
-```ts
-listCredentials(agentId: string): Promise<{ app: string; ref: string }[]>
-```
-
-::: danger Not supported through the public gateway
-Returns **404** with an API key, same as `putCredential()`. Internal-only.
-:::
 
 ---
 
@@ -910,22 +879,19 @@ interface AgentResource {
   sandbox?: { scope: 'agent' | 'session' }
   environment_id?: string
   environment_version?: number
-  warm?: boolean
-  onboarding?: boolean
   [k: string]: unknown
 }
 ```
 
 The configuration you send to `createAgent()`. `name` is the only required field. `mcp`
-declares remote MCP servers, and `onboarding: false` skips the persona bootstrap turns - set
-it on every API-driven agent unless you actually want them. `system_prompt` pins a template
+declares remote MCP servers. `system_prompt` pins a template
 version (omitted on create means "the platform version active right now", pinned from then
 on; replace-on-write on PUT like `tool_policy`), and `outcome` is the agent-level default
 gate for unattended cron fires. The index signature is what keeps a field a newer server
 accepts from failing to type-check.
 
-Two fields the type allows that you should not send through the public gateway: `skills` at
-create time (use `putAgentSkill()`), and `warm` (rejected by `updateAgent()`). See
+One field the type allows that you should not send through the public gateway: `skills` at
+create time (use `putAgentSkill()` instead). See
 [Agents](/en/build/agents) for the field-by-field notes.
 
 ### `AgentSkill`
@@ -1029,9 +995,9 @@ interface Ownership {
 }
 ```
 
-A persistence anchor, not an auth claim. `createAgent()` requires it, and the gateway
-overwrites both fields with the anchors bound to your key. Send placeholders and read the
-real values back from `created.ownership`.
+A persistence anchor, not an auth claim. `createAgent()` accepts it but you normally omit
+it - the gateway derives both fields from your API key. Read the values back from
+`created.ownership`.
 
 ### `ToolCall`
 

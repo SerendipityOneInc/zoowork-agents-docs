@@ -49,7 +49,6 @@ Two read shapes for one agent, and they are not the same shape:
 ```ts
 const created = await zc.createAgent({
   resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-  ownership: { owner_uid: 'usr_example', org_id: 'org_example' },
 })
 created.agent_id       // 'agt_...'
 created.config_version // present: the create receipt is flat
@@ -66,8 +65,8 @@ configuration under `declared`, version under `status.config_version`. Read the 
 `agent.status?.config_version ?? agent.config_version` if you want one expression that works
 for both.
 
-Ownership anchors are required in the create body. On the public gateway they are overwritten
-with the anchors of your API key, so any placeholder is accepted.
+Ownership is handled for you: the gateway derives the tenant anchors from your API key, and
+the create receipt carries them under `ownership`.
 
 ### Lifecycle
 

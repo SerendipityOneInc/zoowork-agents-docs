@@ -26,7 +26,7 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_.
 
 ## 创建 agent
 
-`createAgent(input, idempotencyKey?)` 接收一个 `resource`（配置本身）和一个 `ownership` 锚点，返回一个 `AgentRecord`。
+`createAgent(input, idempotencyKey?)` 接收一个 `resource`（配置本身），返回一个 `AgentRecord`。
 
 ```ts
 import type { AgentRecord } from '@zooclaw-agents/sdk'
@@ -37,9 +37,7 @@ const created: AgentRecord = await zc.createAgent(
       name: 'research-agent',
       model: { primary: 'litellm/claude-sonnet-5' },
       labels: { app: 'my-app' },
-      onboarding: false,
     },
-    ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
   },
   'provision-research-agent-1', // Idempotency-Key
 )
@@ -47,11 +45,11 @@ const created: AgentRecord = await zc.createAgent(
 console.log(created.agent_id, created.config_version)
 ```
 
-`ownership` 是线协议契约规定的必填字段，但网关会用绑定在你 API key 上的锚点覆盖这两个字段。传占位符就行；真实值从 `created.ownership` 读回来。
+`ownership` 不用传——网关会从你的 API key 推导所属租户的锚点；真实值从 `created.ownership` 读回来。
 
-`Idempotency-Key` 的作用域是 `agent.create + key`。用同一个 key、同一份 body 重放，会收敛到第一次的响应。用同一个 key 配不同的 `resource` 或 `ownership` 重放，返回 `409`。
+`Idempotency-Key` 的作用域是 `agent.create + key`。用同一个 key、同一份 body 重放，会收敛到第一次的响应。用同一个 key 配不同的 body 重放，返回 `409`。
 
-`onboarding: false` 跳过交互式的 persona 撰写引导。只有当你希望 agent 的头几个回合花在写它自己的 persona 文档上时，才不传这个字段（默认行为）。做 API 驱动的产品，就传 `false`。
+SDK 在每次 create 时自动跳过 onboarding 面试——agent 会直接回答你的第一条消息。
 
 ### `resource` 的字段
 
@@ -65,7 +63,6 @@ console.log(created.agent_id, created.config_version)
 | `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
 | `mcp` | array | 远程 MCP server 声明。见[工具](./tools)。 |
-| `onboarding` | boolean | `false` 跳过 persona 引导的那几个回合。 |
 
 ```ts
 const agent = await zc.createAgent({
@@ -81,14 +78,12 @@ const agent = await zc.createAgent({
     tool_policy: { allow: ['read', 'web_search'] },
     sandbox: { scope: 'session' },
     labels: { tier: 'free' },
-    onboarding: false,
   },
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 ```
 
 ::: warning 尚未验证
-`name`、`model`、`labels` 和 `onboarding` 在我们生命周期 harness 的每一次运行里都被端到端跑过。`persona.docs`、`tool_policy`、`sandbox.scope` 和 `mcp` 按 API 契约会被创建路由接受，但我们没有驱动过一个回合来证明它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
+`name`、`model` 和 `labels` 在我们生命周期 harness 的每一次运行里都被端到端跑过。`persona.docs`、`tool_policy`、`sandbox.scope` 和 `mcp` 按 API 契约会被创建路由接受，但我们没有驱动过一个回合来证明它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
 :::
 
 SDK 类型允许、但你不应该通过公开网关使用的字段：创建时的 `skills`（见 [Skills](./skills)），以及 `environment_id` / `environment_version`（见 [Environments](./environments)）。
@@ -205,8 +200,7 @@ await zc.waitUntilRunning(agentId, { timeoutMs: 60_000, intervalMs: 1_000, signa
 
 ```ts
 const created = await zc.createAgent({
-  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' }, onboarding: false },
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
+  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' } },
 })
 
 await zc.startAgent(created.agent_id)      // warnings are informational
@@ -288,7 +282,7 @@ const second = configVersion(await zc.getAgent(agentId))          // 6 - bumped 
 
 ### PUT 会拒绝什么
 
-PUT body 里的 `skills`、`warm`、`credentials`，以及任何未知字段，都返回 `400`。skill 走它自己的路由管理 —— 见 [Skills](./skills)。
+PUT body 里的 `skills`，以及任何未知字段，都返回 `400`。skill 走它自己的路由管理 —— 见 [Skills](./skills)。
 
 ## 停止与删除
 

@@ -171,7 +171,7 @@ Smaller gaps, same rule: they do not exist, so do not plan on them.
 | `agent_with_overrides` on session create | `createSession` takes `initial_events` and `metadata`. |
 | Per-session tool or MCP overrides | `PATCH` on a session is `405` through the gateway - the catch-all registers GET, POST, PUT, and DELETE only, so PATCH is not proxied at all. There is no override path and no `patchSession`. |
 | `session.status_*`, `span.*`, `stop_reason` events | Not in the vocabulary. Use `run.finished` and its `payload.status`. |
-| `putCredential()` / `listCredentials()` | On the SDK interface, `404` through the gateway. |
+| A credential API | The platform seeds model credentials itself when the agent is created; keep your own secrets in your own service. |
 | Installing a skill from the global catalog | `404`. Global skills are already attached at agent creation. |
 | cargo, gem, or go packages in an environment | apt, npm, and pip only. |
 | Environment secrets, runtime environment variables, sandbox start hooks | Not accepted in an environment config. This is a limit on what you can add: the sandbox does carry runtime credentials the platform injects for its own built-in skills, but that surface is internal and not extensible. Your secrets stay in your own service. |

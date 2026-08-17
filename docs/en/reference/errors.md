@@ -119,8 +119,8 @@ Observed on the public gateway against a live deployment, unless a row says othe
 | `agent_not_running` | 409 | `createSession()` or `postEvents()` on an agent whose `status.desired_state` is not `running`. A newly created agent is stopped, and so is one you stopped yourself. | Call `startAgent()`, poll `status.desired_state` until it reads `running`, then retry. Never poll `actual_state`. |
 | `not_found` / `service_api.not_found` | 404 | Unknown agent or session id, a soft-deleted one, **or one that belongs to another organization**. Both spellings exist: the agents family answers `service_api.not_found`, the sessions, schedules, and environments family answers a bare `not_found`. | Match on both spellings, or prefer `status === 404`. Do not read this as "deleted". See [Authentication](/en/get-started/authentication) - cross-tenant reads are hidden as 404, never rejected as 403. Keep your own record of the ids you create. |
 | `service_token.invalid` | 401 | The key is missing, malformed, revoked, or its bound user left the organization. Emitted by the gateway, in the gateway's envelope. | Fix the credential. Do not retry - it will fail identically. Verify with `listModels()`. |
-| `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** `{ resource, ownership }` body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
-| `invalid_request` | 400 | A malformed or rejected request body: a missing `ownership` on create, a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
+| `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
+| `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
 
 ::: warning Not yet verified
 `idempotency_conflict` is documented by the API and we have exercised the success path of
@@ -130,9 +130,9 @@ provoked the conflict. Handle it; do not assume the exact wording of the message
 
 ### More 400s
 
-`updateAgent()` answers **400** when the body names `skills`, `warm`, `credentials`, or any
-unknown field. Skills go through `putAgentSkill()`; `warm` is create-only; credentials are not
-writable through the public gateway at all.
+`updateAgent()` answers **400** when the body names `skills`, `credentials`, or any
+unknown field. Skills go through `putAgentSkill()`; credentials are not writable - the
+platform seeds model credentials itself when the agent is created.
 
 Two create-time rejections carry their own narrower type rather than `invalid_request`:
 `invalid_persona_doc_name` for a `persona.docs` entry named `MEMORY.md` or anything under the
@@ -197,7 +197,7 @@ Retry safety is per operation, not per error. Nothing in the SDK retries for you
 | `deleteAgent` | **Yes** | Soft delete. Repeated calls succeed. |
 | `streamEvents` | **Yes** | Reconnect with `{ after: lastSeq }`. Resume is server-side, so nothing between windows is lost. |
 | `createAgent`, `createSession`, `createSchedule`, `createEnvironment`, `createEnvironmentVersion`, `uploadSkill`, `uploadSkillVersion` | **Only with an `Idempotency-Key`** | Without one, a retry after a timeout creates a second agent, or a second session that runs the opening turn again. |
-| `updateAgent`, `putAgentSkill`, `deleteAgentSkill`, `putCredential` | **No** | Each success bumps `config_version`, and `putCredential` also appends a secret version. After a timeout, `getAgent()` first and reconcile before you decide. |
+| `updateAgent`, `putAgentSkill`, `deleteAgentSkill` | **No** | Each success bumps `config_version`. After a timeout, `getAgent()` first and reconcile before you decide. |
 | `updateSchedule`, `deleteSchedule` | **No** | Neither carries a cross-timeout idempotency guarantee. After a timeout, reconcile by listing the agent's schedules and reading their runs rather than sending the write again. |
 | `postEvents` | **No** | There is no idempotency key on this route. A blind retry can deliver the same `user.message` twice and pollute the conversation. De-duplicate on your side. |
 
@@ -211,7 +211,7 @@ first:
 
 ```ts
 const created = await zc.createAgent(
-  { resource: { name: 'research-agent' }, ownership: { owner_uid: 'placeholder', org_id: 'placeholder' } },
+  { resource: { name: 'research-agent' } },
   'provision-research-agent-1',
 )
 

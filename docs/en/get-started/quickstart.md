@@ -116,7 +116,6 @@ const created = await zc.createAgent({
     name: 'quickstart-agent',
     model: { primary: models[0]?.model ?? 'litellm/claude-sonnet-5' },
   },
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 
 const agentId = created.agent_id
@@ -130,14 +129,13 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents" \
     "resource": {
       "name": "quickstart-agent",
       "model": { "primary": "litellm/claude-sonnet-5" }
-    },
-    "ownership": { "owner_uid": "placeholder", "org_id": "placeholder" }
+    }
   }'
 ```
 
 :::
 
-`ownership` is required by the request schema, but the gateway overwrites both fields with the tenant anchors bound to your API key. Send placeholders; do not go hunting for your uid and org id.
+Ownership is handled for you: the gateway derives the tenant anchors from your API key and returns them in the receipt's `ownership`.
 
 The response is a flat **create receipt**:
 
@@ -162,7 +160,6 @@ Pass an idempotency key as the second argument if you want a create you can safe
 const agent = await zc.createAgent(
   {
     resource: { name: 'quickstart-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-    ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
   },
   'quickstart-run-01', // your idempotency key
 )
@@ -420,13 +417,12 @@ const models = await zc.listModels()
 const model = models[0]?.model ?? 'litellm/claude-sonnet-5'
 console.log(`${models.length} models available, using ${model}`)
 
-// 1. Create the agent. The gateway overwrites ownership with your key's tenant.
+// 1. Create the agent. The gateway derives ownership from your API key.
 const created = await zc.createAgent({
   resource: {
     name: `quickstart-${Date.now()}`,
     model: { primary: model },
   },
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 const agentId = created.agent_id
 console.log(`created agent ${agentId}`)
@@ -513,7 +509,7 @@ cleaned up agent agt_example
 | Readiness loop never returns | Polling `status.actual_state` | Poll `status.desired_state` instead, or let `zc.waitUntilRunning()` do it |
 | Stream never ends | Waiting for the connection to close | Break on `isRunFinished(ev)` |
 | `404 not_found` on an agent id you have | The id belongs to another organization | Ids are hidden across tenants rather than rejected with 403 |
-| `409 idempotency_conflict` | Same `Idempotency-Key`, different body | Use a new key, or send a byte-identical `{ resource, ownership }` |
+| `409 idempotency_conflict` | Same `Idempotency-Key`, different body | Use a new key, or send a byte-identical body |
 
 ## Next steps
 

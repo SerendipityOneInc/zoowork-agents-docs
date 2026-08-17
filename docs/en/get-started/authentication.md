@@ -59,15 +59,12 @@ Keep it on a server you control:
 Your requests go through a gateway that authenticates the key and scopes every request to
 your organization. Three of its behaviours change the code you write.
 
-**It sets ownership for you.** `createAgent()` requires an `ownership` object in its input,
-but the gateway overwrites whatever you send with the tenant anchors that belong to your key.
-Passing accurate values is not possible and not necessary; passing placeholders is fine.
+**It sets ownership for you.** The gateway derives the tenant anchors from your API key, so
+`createAgent()` takes only the `resource` - there is nothing to look up and nothing to send.
 
 ```ts
 const created = await zc.createAgent({
   resource: { name: 'my-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-  // Overwritten by the gateway with your key's own anchors.
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 ```
 
@@ -82,10 +79,9 @@ you were handed at create time as still current.
 `409 agent_not_running`. Call `startAgent()` yourself. See
 [Quickstart](/en/get-started/quickstart) for the full create-then-start sequence.
 
-Because credentials are seeded for you, the credential endpoints are deliberately not exposed
-through this gateway. The SDK still carries `putCredential()` and `listCredentials()` - both
-return 404 here. There is no supported way to store your own or your end users' third-party
-credentials.
+There is no credential API on the client: the gateway seeds model credentials itself at
+create, so there is nothing for an API-key caller to store. Keep your own and your end users'
+secrets in your own service.
 
 ## Tenancy: 404, not 403
 
@@ -154,7 +150,6 @@ A missing or invalid key returns **401**. Match on `ZooclawError.status` and
 | Uploading a skill (`uploadSkill()` / `uploadSkillVersion()`) | The multipart route takes `org` and `personal` scope only; `global` and `pack` are 403. See [Skills](/en/build/skills) for what has been driven |
 | Schedules under your own agents | Agent-scoped routes, all seven on the client. See the [capability matrix](/en/reference/capabilities) for what has been driven |
 | Environments in your organization | Scoped to your org. The platform default Environment - the one a fresh agent is pinned to - is not fetchable by any key, because the gateway forces an org selector and the default belongs to no org. See [Environments](/en/build/environments) |
-| `putCredential()` / `listCredentials()` | No - 404 by design; the gateway seeds model credentials itself |
 | Any agent id in another organization | No - returns 404, not 403 |
 | Listing agents created by a different key in your organization | No - the list selector is exact; fetch by id still works |
 | Per-user or read-only scoping of the key itself | No such variant exists |

@@ -105,7 +105,7 @@ if (e instanceof ZooclawError) {
 | `not_found` / `service_api.not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。两种拼写都存在：agent 这一族返回 `service_api.not_found`，session、定时任务、environment 这一族返回不带点的 `not_found`。 | 两种拼写都匹配，或者干脆按 `status === 404` 分支。不要把它读成「已删除」。见[鉴权](/zh/get-started/authentication)——跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
 | `service_token.invalid` | 401 | key 缺失、格式不对、已吊销，或者它绑定的用户离开了组织。由网关发出，用网关的信封。 | 修凭证。不要重试——重试会一模一样地失败。用 `listModels()` 验证。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** `{ resource, ownership }` body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
-| `invalid_request` | 400 | 格式错误或被拒绝的请求体：创建时缺 `ownership`、读取时缺选择器、skill 版本固定到一个还没 ready 的版本。 | 改请求。原样重试会一模一样地失败。 |
+| `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本。 | 改请求。原样重试会一模一样地失败。 |
 
 ::: warning 尚未验证
 `idempotency_conflict` 是 API 文档里写的，我们也跑过 `createAgent()` 和 `createSession()` 上 `Idempotency-Key` 的成功路径，但没有刻意去制造冲突。请处理它；不要假设报错文本的具体措辞。
@@ -113,7 +113,7 @@ if (e instanceof ZooclawError) {
 
 ### 更多 400
 
-`updateAgent()` 在 body 里出现 `skills`、`warm`、`credentials` 或任何未知字段时返回 **400** 。skill 走 `putAgentSkill()`；`warm` 只在创建时可用；凭证在公开网关上根本不可写。
+`updateAgent()` 在 body 里出现 `skills` 或任何未知字段时返回 **400** 。skill 走 `putAgentSkill()`。
 
 有两种创建期的拒绝带的是自己更窄的 type，而不是 `invalid_request`：`persona.docs` 条目取名 `MEMORY.md` 或落在保留的 `memory/` 命名空间下时是 `invalid_persona_doc_name`，body 里带 `sandbox.template` 字段时是 `sandbox_template_deprecated`。操作上它们和任何别的 400 一样：改 body，不要重试。
 
@@ -164,7 +164,7 @@ if (e instanceof ZooclawError) {
 | `deleteAgent` | **能** | 软删除。重复调用都会成功。 |
 | `streamEvents` | **能** | 用 `{ after: lastSeq }` 重连。续传发生在服务端，两个窗口之间什么都不会丢。 |
 | `createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion` | **只在带 `Idempotency-Key` 时能** | 不带的话，超时之后的一次重试会创建出第二个 agent，或者第二个 session，并把开场那一回合再跑一遍。 |
-| `updateAgent`、`putAgentSkill`、`deleteAgentSkill`、`putCredential` | **不能** | 每次成功都会 bump `config_version`，`putCredential` 还会追加一个 secret 版本。超时之后先 `getAgent()` 对账，再决定怎么办。 |
+| `updateAgent`、`putAgentSkill`、`deleteAgentSkill` | **不能** | 每次成功都会 bump `config_version`。超时之后先 `getAgent()` 对账，再决定怎么办。 |
 | `updateSchedule`、`deleteSchedule` | **不能** | 这两条都不提供跨超时的幂等保证。超时之后请列出这个 agent 的定时任务、读它们的运行记录来对账，不要把这次写入再发一遍。 |
 | `postEvents` | **不能** | 这条路由上没有幂等 key。盲目重试可能把同一条 `user.message` 投递两次，污染对话。请在你这边做去重。 |
 
@@ -174,7 +174,7 @@ if (e instanceof ZooclawError) {
 
 ```ts
 const created = await zc.createAgent(
-  { resource: { name: 'research-agent' }, ownership: { owner_uid: 'placeholder', org_id: 'placeholder' } },
+  { resource: { name: 'research-agent' } },
   'provision-research-agent-1',
 )
 

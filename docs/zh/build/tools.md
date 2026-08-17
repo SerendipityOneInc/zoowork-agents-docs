@@ -117,7 +117,6 @@ await zc.createAgent({
     model: { primary: 'litellm/claude-sonnet-5' },
     tool_policy: { allow: ['read', 'web_search'] },
   },
-  ownership: { owner_uid: 'usr_example', org_id: 'org_example' },
 })
 ```
 

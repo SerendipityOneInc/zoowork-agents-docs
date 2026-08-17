@@ -27,7 +27,7 @@ source_hash: f145dd196d4048839f6c8ee34b3576c9d5beb0a840d4d08401f659523eaad7c6
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | `listModels()` | 已实测 | 返回你的组织能选的模型别名目录。检查一个 key 是否可用最便宜的方式：它不碰任何 agent，也不创建任何东西。提交别名（`litellm/...`），永远不要提交厂商的模型名。 |
-| `createAgent()` | 已实测 | 返回一份**扁平的创建回执** ，`config_version` 在顶层。网关会用你 key 自己的锚点覆盖你传的 `ownership`，所以传占位符就行。 |
+| `createAgent()` | 已实测 | 返回一份**扁平的创建回执** ，`config_version` 在顶层。`ownership` 可以省略——网关会从你的 API key 推导租户锚点。 |
 | 创建时的 `Idempotency-Key` | 可用，未实测 | 这个 header 会被接受。我们从没用同一个 key 重放过一次创建来观察去重，所以别假设重试是免费的。 |
 | `getAgent()` | 已实测 | 返回的**结构和创建时不一样** ：配置在 `declared` 下，版本在 `status.config_version`，顶层既没有 `config_version` 也没有 `name`。读版本请写 `agent.status?.config_version ?? agent.config_version`。 |
 | `startAgent()` | 已实测 | 必须调。新 agent 是 `stopped`。`desired_state` 会在远不到一秒内翻成 `running`。返回里的 `channel_routes_reload_failed` 警告在纯 API 的 agent 上是正常噪声，不是失败。 |
@@ -46,10 +46,9 @@ source_hash: f145dd196d4048839f6c8ee34b3576c9d5beb0a840d4d08401f659523eaad7c6
 | key 无效或缺失 | 已实测 | `401`，`error.type` 是 `service_token.invalid`。匹配 `ZooclawError.status` 和 `.type`，永远不要匹配报错文本。 |
 | `persona.docs[]` | 可用，未实测 | 只有带内联 `content` 的条目会被存下来。`MEMORY.md` 和任何 `memory/` 名字会被 `400 invalid_persona_doc_name` 拒绝。规范名字集合之外的文档会被保存，但不会被组装进提示词。 |
 | 固定 `environment_id` / `environment_version` | 可用，未实测 | 创建时接受写在 `resource` 顶层，PUT body 里也接受。只给版本是 `400`。 |
-| 创建时的 `warm: true` | 勿用——已实证缺陷（2026-08-16） | 预热会与创建时的凭证注入赛跑：沙箱可能在内置平台服务技能的凭证就位之前出生，且环境快照永不刷新——这些技能在该沙箱里永久失效。创建时不要带 `warm`；恢复手段是重建 agent。 |
 | `heartbeat` 小节 | 可用，未实测 | 见[自动化](#automation)。 |
 | Agent 版本历史、固定、回滚 | 不存在 | 没有任何路由能列出或取到过去的 `config_version`，也没有任何东西能把一个 session 固定到某个版本上。 |
-| `putCredential()` / `listCredentials()` | 不存在 | SDK 接口上有，通过网关一律 `404`，这是设计如此。平台自己代种模型凭证。 |
+| 凭证 API | 不存在 | 客户端没有凭证 API——平台在创建 agent 时自动注入模型凭证；你自己的密钥应留在你自己的服务里。 |
 
 ## Sessions
 
