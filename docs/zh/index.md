@@ -28,6 +28,12 @@ features:
 本 API 处于 Developer Preview 阶段，正式可用前仍可能变更。
 :::
 
+## 从哪开始
+
+1. [快速开始](/zh/get-started/quickstart) —— 五分钟跑通一轮完整对话
+2. [事件与流式](/zh/build/events) —— 整套文档里最该读透的一页
+3. [能力矩阵](/zh/reference/capabilities) —— 哪些实测跑通、哪些只是路由存在、哪些没有
+
 ## 你会拿到什么
 
 **Agent** —— 持久化、带版本的配置对象。建一次，之后一直用 `agent_id` 引用。
@@ -39,9 +45,3 @@ features:
 ## 这里没有什么
 
 **客户端执行的自定义工具不存在** ——没有 `{type: "custom"}` 工具定义，没有 `user.custom_tool_result`，agent 不会回调你的进程。如果你的产品形态是「agent 调用我的函数、我查我的数据库再把结果还回去」，请先读[不支持的能力](/zh/reference/not-supported)，那里列了完整清单和每一条的替代路径（有些是「没有替代」）。
-
-## 从哪开始
-
-1. [快速开始](/zh/get-started/quickstart) —— 五分钟跑通一轮完整对话
-2. [事件与流式](/zh/build/events) —— 整套文档里最该读透的一页
-3. [能力矩阵](/zh/reference/capabilities) —— 哪些实测跑通、哪些只是路由存在、哪些没有

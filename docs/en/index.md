@@ -24,9 +24,19 @@ features:
     details: REST answers in snake_case and SSE in camelCase for the same event, and neither carries a top-level type field. The SDK normalizes both into a single SessionEvent.
 ---
 
-**Developer Preview.** The API may change before general availability. Pages here carry a
-badge when a route exists but we have not exercised it; anything without a badge was
-verified against a live deployment.
+::: warning Developer Preview
+The API may change before general availability. Pages here carry a badge when a route exists
+but we have not exercised it; anything without a badge was verified against a live deployment.
+:::
+
+## Where to start
+
+1. [Quickstart](/en/get-started/quickstart) - key to first streamed reply, including the
+   `startAgent()` step that has no counterpart elsewhere.
+2. [Events and streaming](/en/build/events) - the event vocabulary, resuming with `after`, and
+   why `listEvents` truncates long sessions unless you page.
+3. [Capability matrix](/en/reference/capabilities) - what is verified, what is untested, and
+   what is missing, in one table.
 
 ## What you get
 
@@ -55,12 +65,3 @@ Several things developers reach for on agent platforms do not exist here. The la
 queries my database, I hand the result back" has no direct equivalent. Session-level outcome
 definitions, vaults, session `resources[]` mounts, and platform webhooks are also absent.
 Read [Not supported](/en/reference/not-supported) before you design around any of them.
-
-## Where to start
-
-1. [Quickstart](/en/get-started/quickstart) - key to first streamed reply, including the
-   `startAgent()` step that has no counterpart elsewhere.
-2. [Events and streaming](/en/build/events) - the event vocabulary, resuming with `after`, and
-   why `listEvents` truncates long sessions unless you page.
-3. [Capability matrix](/en/reference/capabilities) - what is verified, what is untested, and
-   what is missing, in one table.
