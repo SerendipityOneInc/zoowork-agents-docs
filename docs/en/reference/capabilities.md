@@ -49,7 +49,7 @@ did.
 | Invalid or missing key | Verified | `401` with `error.type` of `service_token.invalid`. Match on `ZooclawError.status` and `.type`, never on message text. |
 | `persona.docs[]` | Available, not verified | Only entries with inline `content` are stored. `MEMORY.md` and any `memory/` name are rejected with `400 invalid_persona_doc_name`. Documents outside the canonical name set are saved but are not assembled into the prompt. |
 | `environment_id` / `environment_version` pin | Available, not verified | Accepted at the top level of `resource` on create and in the PUT body. Supplying only a version is a `400`. |
-| `warm: true` on create | Available, not verified | Signals sandbox pre-warm at create time. Where the backing wiring is absent, creation still succeeds and the warm-up is a silent no-op. |
+| `warm: true` on create | Do not use — verified defect (2026-08-16) | The pre-warm races the credential injection that happens at create: the sandbox can be born before the credentials for built-in platform-service skills land, and its env snapshot never refreshes — those skills come out permanently broken. Create without `warm`; recovery is recreating the agent. |
 | `heartbeat` section | Available, not verified | See [Automation](#automation). |
 | Agent version history, pinning, rollback | Not available | No route lists or fetches a previous `config_version`, and nothing pins a session to one. |
 | `putCredential()` / `listCredentials()` | Not available | Present on the SDK interface, `404` through the gateway by design. The platform seeds the model credential itself. |

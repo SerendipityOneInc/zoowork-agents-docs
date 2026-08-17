@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: bee7988ecf2ac33498fa54be4b1bbbcfccb26825ca1bf075c0bc10e61d0da9f9
+source_hash: f145dd196d4048839f6c8ee34b3576c9d5beb0a840d4d08401f659523eaad7c6
 ---
 
 # 能力矩阵
@@ -46,7 +46,7 @@ source_hash: bee7988ecf2ac33498fa54be4b1bbbcfccb26825ca1bf075c0bc10e61d0da9f9
 | key 无效或缺失 | 已实测 | `401`，`error.type` 是 `service_token.invalid`。匹配 `ZooclawError.status` 和 `.type`，永远不要匹配报错文本。 |
 | `persona.docs[]` | 可用，未实测 | 只有带内联 `content` 的条目会被存下来。`MEMORY.md` 和任何 `memory/` 名字会被 `400 invalid_persona_doc_name` 拒绝。规范名字集合之外的文档会被保存，但不会被组装进提示词。 |
 | 固定 `environment_id` / `environment_version` | 可用，未实测 | 创建时接受写在 `resource` 顶层，PUT body 里也接受。只给版本是 `400`。 |
-| 创建时的 `warm: true` | 可用，未实测 | 表示在创建时预热沙箱。后端接线缺失的地方，创建照样成功，预热静默变成空操作。 |
+| 创建时的 `warm: true` | 勿用——已实证缺陷（2026-08-16） | 预热会与创建时的凭证注入赛跑：沙箱可能在内置平台服务技能的凭证就位之前出生，且环境快照永不刷新——这些技能在该沙箱里永久失效。创建时不要带 `warm`；恢复手段是重建 agent。 |
 | `heartbeat` 小节 | 可用，未实测 | 见[自动化](#automation)。 |
 | Agent 版本历史、固定、回滚 | 不存在 | 没有任何路由能列出或取到过去的 `config_version`，也没有任何东西能把一个 session 固定到某个版本上。 |
 | `putCredential()` / `listCredentials()` | 不存在 | SDK 接口上有，通过网关一律 `404`，这是设计如此。平台自己代种模型凭证。 |
