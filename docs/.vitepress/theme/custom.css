@@ -281,11 +281,17 @@
 
 /* The home body inherits the 1152px content container, so its prose ran the full width of
    the feature grid - about 140 characters a line, twice the measure of every other page on
-   the site. Hold the whole block to one column, aligned with the grid's left edge: the
-   section rules and the callout then end where the sentences end. */
+   the site. Hold the whole block to one column so the section rules and the callout end
+   where the sentences end.
+
+   Centred, not flush left. The page already has two centred axes above it - the hero and
+   its actions - and a left-hugging column under them read as a layout bug with a hole cut
+   out of the right side, which is exactly what it looked like. Three widths, one axis:
+   the 1152px feature band, the 940px hero, the reading column inside both. */
 .VPHome .vp-doc > div {
   max-width: 74ch;
   margin-top: 40px;
+  margin-inline: auto;
 }
 
 /* "Where to start" is the whole job of an index: three routes out of it. Set the list as
