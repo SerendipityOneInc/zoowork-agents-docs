@@ -49,7 +49,6 @@ agent 是一个配置对象，它比任何一段对话活得更久。你创建�
 ```ts
 const created = await zc.createAgent({
   resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-  ownership: { owner_uid: 'usr_example', org_id: 'org_example' },
 })
 created.agent_id       // 'agt_...'
 created.config_version // present: the create receipt is flat
@@ -63,7 +62,7 @@ agent.name                   // undefined - the name is under `declared`
 
 `POST /agents` 返回一份扁平的创建回执。`GET` 和 `PUT` 返回的是一份投影：配置在 `declared` 下，版本在 `status.config_version` 下。如果你想要一个两边都能用的表达式，就按 `agent.status?.config_version ?? agent.config_version` 读版本号。
 
-创建请求体里必须带 ownership 锚点。在公开网关上它们会被你 API key 的锚点覆盖，所以传任何占位符都会被接受。
+创建请求体里不用带 ownership 锚点——公开网关会用你 API key 的锚点自动填上。
 
 ### 生命周期
 

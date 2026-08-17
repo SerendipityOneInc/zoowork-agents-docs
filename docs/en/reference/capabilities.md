@@ -30,7 +30,7 @@ did.
 | Capability | Status | Note |
 |---|---|---|
 | `listModels()` | Verified | Returns the model alias catalog your organization can select. Cheapest liveness check for a key: it touches no agent and creates nothing. Submit the alias (`litellm/...`), never a provider model name. |
-| `createAgent()` | Verified | Returns a **flat create receipt** with a top-level `config_version`. The gateway overwrites the `ownership` you send with your key's own anchors, so placeholders are fine. |
+| `createAgent()` | Verified | Returns a **flat create receipt** with a top-level `config_version`. Ownership is derived from your API key by the gateway; read it back from the receipt's `ownership`. |
 | `Idempotency-Key` on create | Available, not verified | The header is accepted. We have never replayed a create with the same key to observe the dedupe, so do not assume a retry is free. |
 | `getAgent()` | Verified | Returns a **different shape** from create: configuration under `declared`, version at `status.config_version`, and no top-level `config_version` or `name`. Read the version as `agent.status?.config_version ?? agent.config_version`. |
 | `startAgent()` | Verified | Required. A new agent is `stopped`. `desired_state` flips to `running` in well under a second. The returned `channel_routes_reload_failed` warning is normal noise for an API-only agent, not a failure. |
@@ -49,10 +49,9 @@ did.
 | Invalid or missing key | Verified | `401` with `error.type` of `service_token.invalid`. Match on `ZooclawError.status` and `.type`, never on message text. |
 | `persona.docs[]` | Available, not verified | Only entries with inline `content` are stored. `MEMORY.md` and any `memory/` name are rejected with `400 invalid_persona_doc_name`. Documents outside the canonical name set are saved but are not assembled into the prompt. |
 | `environment_id` / `environment_version` pin | Available, not verified | Accepted at the top level of `resource` on create and in the PUT body. Supplying only a version is a `400`. |
-| `warm: true` on create | Available, not verified | Signals sandbox pre-warm at create time. Where the backing wiring is absent, creation still succeeds and the warm-up is a silent no-op. |
 | `heartbeat` section | Available, not verified | See [Automation](#automation). |
 | Agent version history, pinning, rollback | Not available | No route lists or fetches a previous `config_version`, and nothing pins a session to one. |
-| `putCredential()` / `listCredentials()` | Not available | Present on the SDK interface, `404` through the gateway by design. The platform seeds the model credential itself. |
+| A credential API | Not available | The platform seeds model credentials itself when the agent is created; keep your own secrets in your own service. |
 
 ## Sessions
 

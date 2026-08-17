@@ -108,7 +108,7 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 
 ## 方法
 
-`ZooclawClient` 暴露 51 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
+`ZooclawClient` 暴露 49 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
 东西——session、事件、审批、定时任务、`wake`、`exec`——第一个参数都是 `agentId`。skill registry
 和 Environment 是顶层资源，一个都不带。
 
@@ -127,8 +127,6 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 | `getAgent(agentId)` | `Promise<AgentRecord>` | 读取一个 agent。返回的是**投影** ：配置在 `declared` 下，版本号在 `status.config_version`。 |
 | `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUT 你点名的 declared section，按 section 合并。每次调用都会 bump `config_version`。 |
 | `deleteAgent(agentId)` | `Promise<void>` | 软删除该 agent。不会停止它。 |
-| `putCredential(agentId, app, body)` | `Promise<void>` | 写入一个 agent 凭证。**`@deprecated`：经公开网关返回 404。** |
-| `listCredentials(agentId)` | `Promise<{ app: string; ref: string }[]>` | 列出 agent 的凭证槽位。**`@deprecated`：经公开网关返回 404。** |
 | `startAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `running`。任何 session 调用之前都必须先做这一步。 |
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `stopped`。 |
 | `waitUntilRunning(agentId, opts?)` | `Promise<AgentRecord>` | 轮询 `status.desired_state`，直到它读到 `running`，然后把那份投影交给你。默认：30 秒预算，两次轮询间隔 500 毫秒。超时抛 `408`/`timeout`。 |
@@ -263,7 +261,7 @@ console.log(models.length, models[0]?.model)
 
 ```ts
 createAgent(
-  input: { resource: AgentResource; ownership: Ownership },
+  input: { resource: AgentResource; ownership?: Ownership },
   idempotencyKey?: string,
 ): Promise<AgentRecord>
 ```
@@ -271,7 +269,7 @@ createAgent(
 | 参数 | 类型 | 说明 |
 |---|---|---|
 | `input.resource` | `AgentResource` | 配置。`name` 必填。 |
-| `input.ownership` | `Ownership` | 线上契约要求必填。网关会用绑定到你 key 的锚点覆盖这两个字段，所以传占位符就行。 |
+| `input.ownership` | `Ownership` | 可省略，一般不传——网关会从你的 API key 推导租户锚点。 |
 | `idempotencyKey` | `string` | 作为 `Idempotency-Key` 头发送。你不传它时，这个头完全不会出现。 |
 
 返回**创建回执** ：一个扁平对象，带 `agent_id`、顶层的 `config_version`、`ownership` 和
@@ -283,9 +281,7 @@ const created = await zc.createAgent(
     resource: {
       name: 'research-agent',
       model: { primary: 'litellm/claude-sonnet-5' },
-      onboarding: false,
     },
-    ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
   },
   'provision-research-agent-1',
 )
@@ -356,7 +352,7 @@ console.log(updated.declared?.labels) // { tier: 'paid' } - replaced, not merged
 没有 no-op 检测，所以「版本号没变」不是一个你能读出来的信号，版本号也不是你这次写入的回执。见
 [错误处理](/zh/reference/errors)。
 
-PUT 请求体里出现 `skills`、`warm`、`credentials` 以及未知字段，都返回 `400`。
+PUT 请求体里出现 `skills` 以及未知字段，都返回 `400`。
 
 ---
 
@@ -374,32 +370,6 @@ deleteAgent(agentId: string): Promise<void>
 await zc.stopAgent(agentId)
 await zc.deleteAgent(agentId)
 ```
-
----
-
-### `putCredential(agentId, app, body)`
-
-```ts
-putCredential(agentId: string, app: string, body: Record<string, unknown>): Promise<void>
-```
-
-::: danger 公开网关不支持
-用 API key 调凭证相关的路由，一律返回 **404** 。网关自己会给 agent 代种模型凭证，不开放凭证写入；
-没有任何受支持的方式来托管你自己的、或你终端用户的密钥。仅供内部使用——不要基于它开发。
-你的密钥留在你自己的服务里；见[鉴权](/zh/get-started/authentication)。
-:::
-
----
-
-### `listCredentials(agentId)`
-
-```ts
-listCredentials(agentId: string): Promise<{ app: string; ref: string }[]>
-```
-
-::: danger 公开网关不支持
-用 API key 调用返回 **404** ，和 `putCredential()` 一样。仅供内部使用。
-:::
 
 ---
 
@@ -881,20 +851,18 @@ interface AgentResource {
   sandbox?: { scope: 'agent' | 'session' }
   environment_id?: string
   environment_version?: number
-  warm?: boolean
-  onboarding?: boolean
   [k: string]: unknown
 }
 ```
 
-你发给 `createAgent()` 的配置。`name` 是唯一必填的字段。`mcp` 声明远程 MCP server，
-`onboarding: false` 跳过 persona 引导的那几个回合——除非你真想要它们，否则每一个由 API 驱动的
-agent 都该设它。`system_prompt` pin 一个模板版本（创建时省略等于「当前 active 的平台版本」，
+你发给 `createAgent()` 的配置。`name` 是唯一必填的字段。`mcp` 声明远程 MCP server。
+SDK 在每次 create 时自动跳过 onboarding 面试——agent 会直接回答你的第一条消息。
+`system_prompt` pin 一个模板版本（创建时省略等于「当前 active 的平台版本」，
 从此定住；PUT 时和 `tool_policy` 一样整体替换），`outcome` 是无人值守 cron 触发的 agent 级
 默认门。索引签名的作用，是让更新的服务端所接受的新字段照样能通过类型检查。
 
-有两个字段类型上允许、但你不该通过公开网关发送：创建时的 `skills`（改用 `putAgentSkill()`），
-以及 `warm`（`updateAgent()` 会拒绝）。逐字段的说明见 [Agents](/zh/build/agents)。
+有一个字段类型上允许、但你不该通过公开网关发送：创建时的 `skills`（改用 `putAgentSkill()`）。
+逐字段的说明见 [Agents](/zh/build/agents)。
 
 ### `AgentSkill`
 
@@ -992,8 +960,8 @@ interface Ownership {
 }
 ```
 
-一个持久化锚点，不是鉴权声明。`createAgent()` 要求它，而网关会用绑定到你 key 的锚点覆盖这两个字段。
-传占位符，然后从 `created.ownership` 把真实值读回来。
+一个持久化锚点，不是鉴权声明。`createAgent()` 里可以省略，一般不传——网关会从绑定到你 key 的
+锚点推导这两个字段，真实值从 `created.ownership` 读回来。
 
 ### `ToolCall`
 

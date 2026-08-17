@@ -104,7 +104,7 @@ source_hash: 6c79e72570559ce12397db7f10073767ce9695a37207f8a746b9b3dfc38c734e
 | session 创建时的 `agent_with_overrides` | `createSession` 只收 `initial_events` 和 `metadata`。 |
 | 按 session 覆盖工具或 MCP | session 上的 PATCH 通过网关返回 `405`——网关的兜底路由只注册了 GET、POST、PUT、DELETE，PATCH 压根没被代理。所以既没有覆盖的通路，也没有 `patchSession`。 |
 | `session.status_*`、`span.*`、`stop_reason` 事件 | 不在词表里。用 `run.finished` 和它的 `payload.status`。 |
-| `putCredential()` / `listCredentials()` | 在 SDK 接口上，通过网关是 `404`。 |
+| 凭证 API | 客户端没有凭证 API——平台在创建 agent 时自动注入模型凭证；你自己的密钥留在你自己的服务里。 |
 | 从全局目录安装 skill | `404`。全局 skill 在 agent 创建时就已经挂上了。 |
 | environment 里的 cargo、gem 或 go 包 | 只有 apt、npm 和 pip。 |
 | Environment secret、运行时环境变量、沙箱启动钩子 | environment 配置里不收这些。这限制的是你能**加**什么：沙箱里确实有平台为自己的内置技能注入的运行时凭证，但那一层是内部实现，不可扩展。你自己的密钥留在你自己的服务里。 |

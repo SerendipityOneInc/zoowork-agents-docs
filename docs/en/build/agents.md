@@ -29,8 +29,8 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_.
 
 ## Create an agent
 
-`createAgent(input, idempotencyKey?)` takes a `resource` (the configuration) and an
-`ownership` anchor, and returns an `AgentRecord`.
+`createAgent(input, idempotencyKey?)` takes a `resource` (the configuration) and returns an
+`AgentRecord`.
 
 ```ts
 import type { AgentRecord } from '@zooclaw-agents/sdk'
@@ -41,9 +41,7 @@ const created: AgentRecord = await zc.createAgent(
       name: 'research-agent',
       model: { primary: 'litellm/claude-sonnet-5' },
       labels: { app: 'my-app' },
-      onboarding: false,
     },
-    ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
   },
   'provision-research-agent-1', // Idempotency-Key
 )
@@ -51,17 +49,14 @@ const created: AgentRecord = await zc.createAgent(
 console.log(created.agent_id, created.config_version)
 ```
 
-`ownership` is required by the wire contract, but the gateway overwrites both fields with the
-anchors bound to your API key. Send placeholders; read the real values back from
-`created.ownership`.
+Ownership is handled for you: the gateway derives the tenant anchors from your API key. Read
+the values back from `created.ownership`.
 
 The `Idempotency-Key` is scoped to `agent.create + key`. Replaying the same key with the same
-body converges on the first response. Replaying it with a different `resource` or `ownership`
-returns `409`.
+body converges on the first response. Replaying it with a different body returns `409`.
 
-`onboarding: false` skips the interactive persona-writing bootstrap. Leave it off (the
-default) only if you want the agent's first turns spent writing its own persona documents.
-For an API-driven product, pass `false`.
+The onboarding interview is always skipped: the SDK sends `onboarding: false` on every
+create, so the agent answers your first message directly.
 
 ### The `resource` fields
 
@@ -75,7 +70,6 @@ For an API-driven product, pass `false`.
 | `tool_policy` | object | `{}` means the full tool manifest. A non-empty object is an allow/deny policy, e.g. `{ allow: ['read', 'web_search'] }`. See [Tools](./tools). |
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
 | `mcp` | array | Remote MCP server declarations. See [Tools](./tools). |
-| `onboarding` | boolean | `false` skips the persona bootstrap turns. |
 
 ```ts
 const agent = await zc.createAgent({
@@ -91,14 +85,12 @@ const agent = await zc.createAgent({
     tool_policy: { allow: ['read', 'web_search'] },
     sandbox: { scope: 'session' },
     labels: { tier: 'free' },
-    onboarding: false,
   },
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 ```
 
 ::: warning Not yet verified
-`name`, `model`, `labels` and `onboarding` are exercised end to end on every run of our
+`name`, `model` and `labels` are exercised end to end on every run of our
 lifecycle harness. `persona.docs`, `tool_policy`, `sandbox.scope` and `mcp` are accepted by
 the create route per the API contract, but we have not driven a turn that proves each one
 changed the agent's behaviour. Verify the effect you depend on before you build on it.
@@ -244,8 +236,7 @@ Full provisioning path:
 
 ```ts
 const created = await zc.createAgent({
-  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' }, onboarding: false },
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
+  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' } },
 })
 
 await zc.startAgent(created.agent_id)      // warnings are informational
@@ -334,7 +325,7 @@ turns already in flight keep the old one.
 
 ### What a PUT rejects
 
-`skills`, `warm`, `credentials`, and any unknown field in the PUT body return `400`. Skills
+`skills`, `credentials`, and any unknown field in the PUT body return `400`. Skills
 are managed through their own routes - see [Skills](./skills).
 
 ## Stop and delete

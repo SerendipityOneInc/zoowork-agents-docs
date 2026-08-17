@@ -83,7 +83,6 @@ const agent = await zc.createAgent({
     environment_id: 'env_example',
     environment_version: 3,
   },
-  ownership: { owner_uid: 'usr_example', org_id: 'org_example' },
 })
 ```
 

@@ -55,13 +55,11 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
 
 你的请求会经过一个网关，它认证这个 key 并把每个请求限定在你的组织范围内。其中三条行为会直接影响你写的代码。
 
-**它替你设定 ownership。** `createAgent()` 的入参里要求一个 `ownership` 对象，但网关会用你 key 所属的租户锚点**覆盖你传的任何值** 。传准确的值既不可能也没必要，传占位符就行。
+**它替你设定 ownership。** `createAgent()` 不需要你传 `ownership`——网关会从你 key 所属的租户推导锚点，真实值出现在返回的 `created.ownership` 里。
 
 ```ts
 const created = await zc.createAgent({
   resource: { name: 'my-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-  // 会被网关用你 key 自己的锚点覆盖。
-  ownership: { owner_uid: 'placeholder', org_id: 'placeholder' },
 })
 ```
 
@@ -69,7 +67,7 @@ const created = await zc.createAgent({
 
 **它不会启动 agent。** 新建的 agent 返回时 `status.desired_state === 'stopped'`，而对一个停止状态的 agent 调 `createSession()` 会失败并返回 `409 agent_not_running`。**你必须自己调 `startAgent()`。** 完整的「创建后启动」流程见[快速开始](/zh/get-started/quickstart)。
 
-正因为凭证由网关注入，凭证相关的端点在这个网关上**刻意不开放** 。SDK 里仍然带着 `putCredential()` 和 `listCredentials()`——**它们在这里一律返回 404** 。目前没有任何受支持的方式来托管你自己的、或你终端用户的第三方凭证。
+客户端没有凭证 API——平台在创建 agent 时自动注入模型凭证；你自己的、或你终端用户的密钥应留在你自己的服务里。
 
 ## 租户隔离：返回 404，不是 403
 
@@ -126,7 +124,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 | 上传 skill（`uploadSkill()` / `uploadSkillVersion()`） | 这条 multipart 路由只收 `org` 和 `personal` scope；`global` 和 `pack` 是 403。实测到哪一步见 [Skills](/zh/build/skills) |
 | 你自己 agent 下的定时任务 | 挂在 agent 下的路由，七个方法都在客户端上。实测到哪一步见[能力矩阵](/zh/reference/capabilities) |
 | 你组织内的 environment | 限于你的组织。平台默认的那个 environment——新建 agent 被钉上的那个——任何 key 都读不到，因为网关强制加了组织选择器，而默认 environment 不属于任何组织。见 [Environments](/zh/build/environments) |
-| `putCredential()` / `listCredentials()` | **不能——设计如此的 404** ；网关自己注入模型凭证 |
+| 托管你自己的凭证 | **没有凭证 API** ；网关在创建 agent 时自动注入模型凭证 |
 | 其他组织的任何 agent id | **不能——返回 404，不是 403** |
 | 列出同组织内由另一个 key 创建的 agent | 不能——列表选择器是精确匹配；按 id 读取仍然可行 |
 | 把 key 本身按用户细分或降为只读 | 不存在这样的变体 |
