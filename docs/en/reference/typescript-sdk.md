@@ -29,8 +29,6 @@ The SDK has **zero runtime dependencies**. It uses the platform `fetch`, Web Str
 | Cloudflare Workers, Deno, Bun, other edge runtimes | Supported by construction. The SSE parser is written against Web Streams, not Node streams. |
 | Browsers | Technically works, but your API key authenticates your whole organization. Do not ship it to a client. See [Authentication](/en/get-started/authentication). |
 
-The only options are `apiKey`, `baseUrl`, `auth`, and an injectable `fetch`.
-
 ### Injecting `fetch`
 
 `ZooclawConfig.fetch` replaces `globalThis.fetch` for every request the client makes,
@@ -59,8 +57,8 @@ for streaming must return a `Response` with a readable `body`.
 function createZooclawClient(cfg?: ZooclawConfig): ZooclawClient
 ```
 
-Returns a `ZooclawClient`. It is a plain object of closures: no connections are opened, no
-requests are made, and a missing API key throws at construction; everything else is validated on first use. Constructing a client
+Returns a `ZooclawClient`. No connections are opened, no requests are made, and a missing API
+key throws at construction; everything else is validated on first use. Constructing a client
 with a bad key succeeds; the first call fails with `401`.
 
 ```ts
@@ -69,7 +67,7 @@ import { createZooclawClient } from '@zooclaw-agents/sdk'
 const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
 ```
 
-Clients are cheap and stateless. Create one per process and share it.
+Clients are cheap. Create one per process and share it.
 
 ### `ZooclawConfig`
 
@@ -163,28 +161,29 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 
 | Method | Returns | What it does |
 |---|---|---|
-| `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | Tool calls parked on a human decision. `opts.status` may only be omitted or `'pending'`, so resolved ones cannot be listed. This is the platform's separate approvals resource, not the `user.tool_confirmation` event loop; without a Temporal signaler the route answers `501 not_configured`. |
-| `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | Resolves one approval with `allow-once`, `allow-always`, or `deny`; anything else is a 400. Same route family, same `501` without a signaler. |
+| `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | Tool calls parked on a human decision. `opts.status` may only be omitted or `'pending'`, so resolved ones cannot be listed. This is the platform's separate approvals resource, not the `user.tool_confirmation` event loop; where its backend is not wired the route answers `501 not_configured`. |
+| `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | Resolves one approval with `decision` of `allow-once`, `allow-always`, or `deny`; anything else is a 400. An optional `resolvedBy` records who decided. Same route family, same `501`. |
 
 **System prompt**
 
 | Method | Returns | What it does |
 |---|---|---|
 | `getSystemPrompt(agentId)` | `Promise<SystemPromptInfo>` | The system-prompt pin as declared and the rendered template in effect. A fresh agent is born pinned to the active platform version; `declaration: null` marks a pre-templates agent still on virtual legacy behaviour. |
-| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | Assembles the exact prompt for runtime facts you supply, without touching any session - deterministic, `transcript` always `[]`, one hash per template slot in `slot_hashes`. `input.config_version` must be the agent's current one, else `409 config_version_changed`. |
-| `upgradeSystemPrompt(agentId, input)` | `Promise<SystemPromptUpgrade>` | The one write that moves the pin. `expected_config_version` is a required CAS (stale is `409 config_version_changed` - read fresh, then upgrade); omit `template_version` for the currently active platform version. The 200 receipt carries the new `config_version`. Needs a gateway with fix #3387 (2026-08-14) - older deployments answer a gateway 404 on this route's `{id}:verb` grammar. |
+| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | Assembles the exact prompt for runtime facts you supply, without touching any session - deterministic, `transcript` always `[]`, one hash per template slot in `slot_hashes`. Six input fields are required, and omitting any one is a 400 naming it: `config_version` (must be the agent's current one, else `409 config_version_changed`), `now_ms`, `session_id`, `model_display`, `workspace_dir`, and `tool_names`. `channel`, `chat_type`, `session_key`, and `subagent` are optional. |
+| `upgradeSystemPrompt(agentId, input)` | `Promise<SystemPromptUpgrade>` | The one write that moves the pin. `expected_config_version` is a required CAS (stale is `409 config_version_changed` - read fresh, then upgrade); omit `template_version` for the currently active platform version. The 200 receipt carries the new `config_version`. Needs a gateway from 2026-08-14 or later - older deployments answer a gateway 404 on this route's `{id}:verb` grammar. |
 
 **Artifacts**
 
 Artifacts are published by the agent's own in-loop `artifact_publish` tool; these methods
-manage what it produced. Every artifact route demands `owner_uid`+`org_id` selectors that the
-gateway does not inject - the SDK derives both from the agent's own projection and caches
-them per agent, so the first artifact call on an agent costs one extra GET.
+manage what it produced. The first artifact call on an agent costs one extra `getAgent()`,
+cached per agent afterwards. An agent whose projection carries no ownership fails that
+derivation with a `ZooclawError` of `status: 500` and `type: 'ownership_unavailable'` -
+synthesized locally, so no server response explains it.
 
 | Method | Returns | What it does |
 |---|---|---|
 | `listArtifacts(agentId, opts?)` | `Promise<ArtifactPage>` | One page (`{artifacts, page, has_more}`) - and unlike `listEvents`, `has_more` tells you when it truncated. `limit` defaults to 50, capped at 100; filter with `sessionId`, `sourcePath`, `createdBefore`. |
-| `getArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | One artifact row. Foreign and unknown ids are both 404. |
+| `getArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | One artifact row. Its `status` is `pending`, `ready`, `failed`, or `deleted`, and only a `ready` row carries a resolvable `url`. Foreign and unknown ids are both 404. |
 | `downloadArtifact(agentId, artifactId)` | `Promise<{ artifact_id?: string; url?: string }>` | Mints a fresh access URL for a `ready` artifact. The URL is a revocable bearer capability - treat it as a secret. A row that never finalized answers `409 artifact_not_ready`. |
 | `deleteArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | Deletes one artifact and returns the row as the engine leaves it. |
 
@@ -192,20 +191,56 @@ them per agent, so the first artifact call on an agent costs one extra GET.
 
 | Method | Returns | What it does |
 |---|---|---|
-| `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | The agent's schedules. The list answers the raw Temporal describe with the camelCase projection merged on top - read defensively. |
+| `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | The agent's schedules. The list answers the scheduler's own describe shape with the camelCase projection merged on top - read defensively. |
 | `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | Creates a schedule. `201` with a receipt carrying only `schedule_name`, not the definition. Schedules outlive `stopAgent()` and `deleteAgent()`; delete them yourself. |
 | `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | Reads one schedule, in the camelCase read vocabulary. Nothing comes back under the name you sent it in. |
 | `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | Replaces the definition. To change the cadence send `schedule`, never the `scheduleSpec` a read hands you - that one answers `200` and is silently ignored. The SDK strips all six refused fields, so a read-tweak-write round trip works from JavaScript too. |
 | `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | Deletes a schedule. Like `updateSchedule`, it carries no cross-timeout idempotency guarantee - reconcile by listing rather than blind-retrying. |
 | `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | Fires it once, now, out of band. Does not disturb the cadence. |
 | `listScheduleRuns(agentId, scheduleId, opts?)` | `Promise<ScheduleRun[]>` | Past fires, newest first. `limit` defaults to 20 and is capped at 100. Rows mix two shapes - switch on `source`. |
-| `wake(agentId, input)` | `Promise<WakeResult>` | Pushes a reminder into the agent's heartbeat queue. `next-heartbeat` (the default) only writes the pending row; `now` also kicks the heartbeat schedule and is `409` when no heartbeat is enabled. |
+| `wake(agentId, input)` | `Promise<WakeResult>` | Pushes a reminder into the agent's heartbeat queue. `next-heartbeat` (the default) only writes the pending row; `now` also kicks the heartbeat schedule and is `409` when no heartbeat is enabled. A third option, `deliverToUser: false`, keeps the reminder internal to the agent's own reasoning. `WakeResult` is `{ mode, queued, triggered }`; `triggered` is meaningful only in `now` mode, and reports whether the heartbeat was actually kicked. |
+
+`ScheduleInput` requires three fields. `schedule_id` is yours to choose, matching
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` - re-creating the same id with a *different* definition is
+a `409`. `schedule` is the cadence. `payload.kind` must be `'agentTurn'`; it is the only kind
+the management plane accepts.
+
+```ts
+await zc.createSchedule(agentId, {
+  schedule_id: 'daily-digest',
+  schedule: { kind: 'cron', expr: '0 9 * * *', tz: 'Asia/Shanghai' },
+  payload: { kind: 'agentTurn', message: 'Summarise yesterday.' },
+  sessionTarget: 'isolated',
+})
+```
+
+The optional fields are `sessionTarget`, `delivery`, `enabled`, `deleteAfterRun`, and
+`jobKind`. `sessionTarget` decides where the turn runs: omit it or pass `'isolated'` for a
+fresh session per fire, or `session:<id>` to target an existing session of this agent. It is
+**immutable** after create.
+
+Then read it back and none of those names survive. Your `schedule_id` comes back as `name` -
+that is the one you pass to `getSchedule`, `updateSchedule`, and `deleteSchedule`. The
+`scheduleId` field is the fully-qualified `cron/{computer_id}/{agent_id}/{schedule_id}`, not
+the id you chose. The cadence is `scheduleSpec.cronExpressions[0]`, the only place a read
+carries it, and `sessionTarget` reads back as `execution.kind`.
+
+`updateSchedule` refuses six fields, as compile errors and again by stripping them at runtime.
+Two are the read shapes just described, `scheduleSpec` and `sessionTarget`. The other four -
+`execution`, `originMetadata`, `contextSnapshot`, and `creatorPrincipalRef` - are server-derived
+and answer `400 execution, originMetadata, creatorPrincipalRef, and contextSnapshot are
+server-derived`. Every one of them is something `getSchedule()` hands you, which is why a
+hand-written round trip needs the list and an SDK round trip does not.
 
 **Exec**
 
 | Method | Returns | What it does |
 |---|---|---|
-| `exec(agentId, args)` | `Promise<ExecResult>` | Runs argv - not a shell string - in the agent's sandbox, cwd fixed to `/workspace`. **A non-zero exit is still HTTP 200**: this promise resolves, so check `exit_code`. Requires an agent-scope sandbox and a rendered config. |
+| `exec(agentId, args)` | `Promise<ExecResult>` | Runs argv - not a shell string - in the agent's sandbox, cwd fixed to `/workspace`. **A non-zero exit is still HTTP 200**: this promise resolves, so check `exit_code`. Requires an agent-scope sandbox and a rendered config: a session-scope agent is `409 exec_requires_agent_scope`, an unrendered one is `409 exec_config_not_ready`. |
+
+The command times out after 300 seconds, and `stdout` and `stderr` are each truncated at
+200,000 characters. Neither limit is reported to you as an error, so a long-running or chatty
+command comes back looking like a short one.
 
 **Environments**
 
@@ -214,11 +249,11 @@ them per agent, so the first artifact call on an agent costs one extra GET.
 | `listEnvironments(opts?)` | `Promise<EnvironmentRecord[]>` | The Environments visible to your org, `page` 1-based. The platform default an untouched agent is pinned to is not among them. |
 | `getEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Reads one Environment. `404` for anything outside your org, the platform default included - a selector mismatch, not a permission problem. |
 | `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | Creates an Environment and its first version. `resource.config` takes exactly `packages`, `files`, `build`, and `networking`; anything else is `400 invalid_environment_config`. |
-| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Archives it. The SDK percent-encodes the colon in `{id}:archive` for you - a raw `:` makes the engine miss the route and answer 404, which is the whole reason this method exists. |
+| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Archives it. The SDK percent-encodes the colon in `{id}:archive` for you - a raw `:` makes the engine miss the route and answer 404. |
 | `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | Adds an immutable version to an existing Environment. The SDK wraps your `config` as `{ resource: { config } }`, mirroring create. |
 | `getEnvironmentVersion(environmentId, version)` | `Promise<EnvironmentVersionRecord>` | Reads one version. Poll **this**, on `status`, to decide whether a version is usable; there is no `state` field here, and a loop written against one never terminates. |
 
-The sections below cover the methods whose behaviour needs spelling out at length; the rest are
+Only the methods with a section below carry behaviour beyond their signature; the rest are
 one call each. A method being on the client is not a claim that its route has been exercised -
 the [capability matrix](/en/reference/capabilities) is where that is recorded, family by
 family.
@@ -275,7 +310,7 @@ createAgent(
 | Parameter | Type | Notes |
 |---|---|---|
 | `input.resource` | `AgentResource` | The configuration. `name` is required. |
-| `input.ownership` | `Ownership` | Optional; normally omitted. The gateway derives the tenant anchors from your API key. |
+| `input.ownership` | `Ownership` | Omit it here. It is **required** on `createEnvironment`, where you take it from an agent record's `ownership`. |
 | `idempotencyKey` | `string` | Sent as the `Idempotency-Key` header. Omitted entirely when you do not pass it. |
 
 Returns the **create receipt**: a flat object with `agent_id`, a top-level `config_version`,
@@ -295,12 +330,11 @@ const created = await zc.createAgent(
 console.log(created.agent_id, created.config_version) // "agt_...", 1
 ```
 
-The new agent is **stopped**. Call `startAgent()` before you open a session, or
-`createSession()` fails with `409 agent_not_running`.
+The new agent is **stopped**: `createSession()` before `startAgent()` is
+`409 agent_not_running`. See [Quickstart](/en/get-started/quickstart).
 
-The `config_version` on this receipt goes stale immediately: the gateway seeds the agent's
-model credentials right after creation, and each write bumps the version, so a receipt saying
-`1` is commonly followed by a `getAgent()` saying `3`.
+The `config_version` on this receipt goes stale immediately - a receipt saying `1` is commonly
+followed by a `getAgent()` saying `3`. See [Errors and retries](/en/reference/errors).
 
 ---
 
@@ -353,13 +387,11 @@ console.log(updated.declared?.name)   // unchanged - `name` was not in the body
 console.log(updated.declared?.labels) // { tier: 'paid' } - replaced, not merged key-by-key
 ```
 
-`tool_policy` is the exception even to that: every PUT naming it replaces the whole object,
-and `{}` clears the policy back to the full tool manifest.
+`tool_policy` and `system_prompt` are the exceptions even to that: every PUT naming one
+replaces it wholesale. See [Tools](/en/build/tools).
 
 **Every successful PUT bumps `config_version`, including one whose body is byte-identical to
-what is stored.** There is no no-op detection, so "the version did not change" is not a
-signal you can read, and the version is not a receipt for your own write. See
-[Errors and retries](/en/reference/errors).
+what is stored.** See [Errors and retries](/en/reference/errors).
 
 `skills`, `credentials`, and unknown fields in the PUT body return `400`.
 
@@ -375,12 +407,7 @@ Soft-deletes the agent and resolves with nothing. Repeated calls succeed. After 
 `getAgent()` returns `404 not_found`.
 
 It does **not** stop the agent, cancel running workflows, delete schedules, or release the
-sandbox. Stop first, then delete:
-
-```ts
-await zc.stopAgent(agentId)
-await zc.deleteAgent(agentId)
-```
+sandbox - stop first, then delete. See [Agents](/en/build/agents).
 
 ---
 
@@ -399,9 +426,9 @@ console.log(warnings)
 // [ 'channel_routes_reload_failed: routes reload returned 404' ]
 ```
 
-**`warnings` is informational, not a failure.** An API-only agent has no chat-channel routes
-to reload, so it reports `channel_routes_reload_failed` on every start and every stop. Log it
-and continue. Do not retry on it.
+**`warnings` is informational, not a failure.** An API-only agent reports
+`channel_routes_reload_failed` on every start and every stop; do not retry on it. See
+[Agents](/en/build/agents).
 
 Then wait for `status.desired_state === 'running'`, and never for `status.actual_state`. That
 wait is a method - do not write the loop yourself:
@@ -428,12 +455,6 @@ It polls `getAgent()` and resolves with the first projection that reads `running
 it throws a `ZooclawError` with `status: 408` and `type: 'timeout'`; on abort, `status: 0` and
 `type: 'aborted'`. **Both are synthesized locally** - the server never sends either, and the
 abort does not leak a `DOMException`.
-
-Both bounds cover an **in-flight request**, not just the gap between polls: every poll carries
-its own signal that fires on your `signal` or on whatever is left of the budget. `fetch`
-imposes no timeout of its own anywhere the SDK runs, so a gateway that accepts the connection
-and then never answers would park a hand-rolled loop forever - an `attempts` counter or a
-`Date.now() >= deadline` check between polls never gets to run.
 
 ---
 
@@ -551,14 +572,14 @@ const session = await zc.createSession(
 )
 
 console.log(session.session_id)  // "ses_example"
-console.log(session.session_key) // "api:example"
+console.log(session.session_key) // "api:ses_example"
 ```
 
 The agent must be running. Against a stopped agent this throws
 `ZooclawError` with `status: 409` and `type: 'agent_not_running'`.
 
-Derive the idempotency key from something stable in your own system, not from a value
-generated at call time - its whole purpose is to survive the retry after a timeout.
+Derive the idempotency key from something stable in your own system, never from a value
+generated at call time. See [Errors and retries](/en/reference/errors).
 
 ---
 
@@ -590,11 +611,6 @@ for (const row of s.history ?? []) {
   console.log(row.seq, messageText(row.entry.message))
 }
 ```
-
-::: danger `status` is always `null`
-`SessionRecord.status` comes back `null` on every read. It is not a state machine. The live
-field is `run_status`. Code branching on `session.status` takes the same branch forever.
-:::
 
 ---
 
@@ -634,14 +650,8 @@ console.log(r.events[0]?.accepted)
 With no run in flight, `user.interrupt` answers `accepted: false`. **That is a no-op, not an
 error** - nothing throws, and there is nothing to handle.
 
-**`system.message` reaches the model on the following turn.** It is an out-of-band injection
-channel:
-
-```ts
-await zc.postEvents(agentId, sessionId, [
-  { type: 'system.message', text: "Operator note: the user's display name is Ada." },
-])
-```
+**`system.message` reaches the model on the following turn**, out of band, and carries its
+body in `text` rather than `content`. See [Events](/en/build/events).
 
 There is no idempotency key on this route. A `postEvents` retried after a timeout can deliver
 the same message twice; de-duplicate on your side.
@@ -748,26 +758,33 @@ console.log(outcome, text)
 
 Four behaviours worth knowing:
 
-- **The stream is session-scoped and does not close when a turn ends.** `run.finished` is the
-  end of a turn, not of the stream. Break out yourself with `isRunFinished`, and always abort
-  the controller when you leave the loop.
+- **The stream is session-scoped and does not close when a turn ends.** Break out yourself
+  with `isRunFinished`, and always abort the controller when you leave the loop.
 - **The server closes the stream on idle.** Reconnect with
   `streamEvents(agentId, sessionId, { after: lastSeq })`. Resume is server-side, so nothing
   between the two windows is lost. The SDK does not reconnect for you.
 - **`chat.delta` preview frames are skipped.** They arrive as SSE `event_delta` frames on a
   separate non-durable lane with snapshot-replace semantics, and the SDK drops them. You only
   ever see durable events.
-- **Boundary events are de-duplicated.** Each frame's durable `seq` comes from the SSE `id:`
-  line, and the generator discards any event whose `seq` is not greater than the last one it
-  yielded, so a replayed boundary event on reconnect does not reach you twice.
+- **Boundary events are de-duplicated.** Each frame's durable `seq` comes from the JSON body,
+  falling back to the SSE `id:` line, and the generator discards any event that carries a
+  non-negative `seq` no greater than the last one it yielded, so a replayed boundary event on
+  reconnect does not reach you twice. A frame that normalizes to `seq: -1` carries no usable
+  cursor and is passed through rather than dropped.
 
 A non-2xx response throws a `ZooclawError`. That particular error is built from the status
 line alone, so **`type` is always `undefined` on a stream failure** - branch on `status`.
 
 ## Types
 
-Every response type ends with `[k: string]: unknown`. The API is Developer Preview and may
-add fields within a version: ignore what you do not recognize rather than failing on it.
+Most response types end with `[k: string]: unknown`. The API is Developer Preview and may add
+fields within a version: ignore what you do not recognize rather than failing on it.
+
+The ones that do not are closed on purpose - `SessionEvent`, `SessionHistoryEntry`,
+`ToolCall`, `ExecResult`, `WakeResult`, `Ownership`, `EnvironmentConfig`, `AgentResource`,
+`OutcomeConfig`, `OutcomeEvaluator`, `SystemPromptDeclaration`, `SSEMessage`, `ZooclawConfig`,
+and `ZooclawAuth` take no extra keys, and an extra key on them is a compile error rather than a
+field that survives to the wire.
 
 The sections here cover the types you handle on the paths this page walks. The skill-registry,
 approval, schedule, wake, exec, and Environment types are all in the
@@ -797,16 +814,10 @@ interface SessionEvent {
 | `turn` | Turn number within the session. |
 | `createdAt` | ISO timestamp. |
 
-The wire presents the same event in two spellings, and **neither has a top-level `type`
-field**:
-
-```
-REST  GET .../events         { seq, run_id, turn, event_type, payload, created_at }
-SSE   GET .../events/stream  { seq, runId, turn, eventType, payload, createdAt, ... }
-```
-
-`normalizeEvent()` absorbs both, which is why every SDK read hands you one shape. Anyone
-calling the HTTP API directly has to handle both spellings.
+`SessionEvent` is camelCase while `SessionRecord` and `AgentRecord` next to it are
+snake_case - that is the wire, not a typo, so do not "fix" `eventType` into `event_type`.
+REST spells the same event in snake_case and SSE in camelCase; `normalizeEvent()` absorbs
+both, which is why every SDK read hands you one shape. See [Events](/en/build/events).
 
 ### `AgentRecord`
 
@@ -817,11 +828,29 @@ interface AgentRecord {
   config_version?: number
   declared?: Record<string, unknown>
   resolved_skills?: { skill_id: string; name?: string; version?: number | string; eligible?: boolean }[]
+  resolved_environment?: {
+    environment_id?: string
+    version?: number
+    provider?: string
+    template_ref?: string
+    build_id?: string
+    networking?: { type?: 'unrestricted' | 'limited' | string; allowed_hosts?: string[] }
+    [k: string]: unknown
+  }
+  environment_locked?: boolean
+  environment_locked_at?: string | null
   status?: AgentStatus
   ownership?: Ownership
   [k: string]: unknown
 }
 ```
+
+`environment_locked` is the one pre-flight check on this record worth reading. It flips to
+`true` the first time a sandbox is created, and from then on every attempt to change the
+agent's Environment is `409 environment_locked` - stopping the agent does not clear it.
+`environment_locked_at` is when it flipped. `resolved_environment` is the Environment version
+the agent is actually pinned to; its `networking` defaults to `{ type: 'unrestricted' }` when
+the Environment declares none.
 
 One interface, two response shapes:
 
@@ -851,19 +880,12 @@ interface AgentStatus {
 ```
 
 ::: danger Never gate on `actual_state`
-Two fields that sound interchangeable and are not.
+`desired_state` is the one that gates the API: `running` is the precondition for
+`createSession()` and `postEvents()`, and anything else is `409 agent_not_running`.
 
-`desired_state` is the one that gates the API. `running` is the precondition for
-`createSession()` and `postEvents()`; anything else is `409 agent_not_running`. It flips to
-`running` in well under a second after `startAgent()`.
-
-`actual_state` is **chat-channel health** - Mattermost and Feishu route connectivity - not
-API readiness. An API-only agent has no channels to connect (`channels.expected === 0`), so
-it sits at `activating` forever and `active` is unreachable. `running` is not even a member
-of the `actual_state` enum, so a loop polling for it never returns. We have driven full
-turns to `succeeded` on an agent whose `actual_state` never left `activating`.
-
-Poll `status.desired_state`. Never poll `status.actual_state`.
+`actual_state` is chat-channel health, not API readiness. `running` is not even a member of
+its enum, so a loop polling for it never returns. Poll `status.desired_state`. See
+[Agents](/en/build/agents).
 :::
 
 `config_version` here is the authoritative version on the read path.
@@ -884,7 +906,6 @@ interface AgentResource {
   sandbox?: { scope: 'agent' | 'session' }
   environment_id?: string
   environment_version?: number
-  [k: string]: unknown
 }
 ```
 
@@ -892,8 +913,12 @@ The configuration you send to `createAgent()`. `name` is the only required field
 declares remote MCP servers. `system_prompt` pins a template
 version (omitted on create means "the platform version active right now", pinned from then
 on; replace-on-write on PUT like `tool_policy`), and `outcome` is the agent-level default
-gate for unattended cron fires. The index signature is what keeps a field a newer server
-accepts from failing to type-check.
+gate for unattended cron fires.
+
+**`AgentResource` is closed.** It carries no index signature, so one extra key is a
+TypeScript error rather than a field that reaches the server. A field a newer server accepts
+has to reach it through `updateAgent(agentId, sections)`, which is typed
+`Record<string, unknown>` and checks nothing.
 
 One field the type allows that you should not send through the public gateway: `skills` at
 create time (use `putAgentSkill()` instead). See
@@ -937,7 +962,8 @@ interface SessionRecord {
 `limit` rows, in ascending `seq` order.
 
 `status` is always `null` in practice - `run_status` is the live field, and `listSessions` is
-the surface that carries it. `session_key` is channel-qualified: sessions you create through
+the surface that carries it. **Code branching on `session.status` takes the same branch
+forever.** `session_key` is channel-qualified: sessions you create through
 the API are `api:<session_id>`. `channel` is `api` for sessions you create and `cron` for ones
 a schedule fired.
 
@@ -1000,9 +1026,9 @@ interface Ownership {
 }
 ```
 
-A persistence anchor, not an auth claim. `createAgent()` accepts it but you normally omit
-it - the gateway derives both fields from your API key. Read the values back from
-`created.ownership`.
+A persistence anchor, not an auth claim. Omit it on `createAgent()`, and read the two values
+back from `created.ownership`. `createEnvironment()` is the call that **requires** it: pass
+the pair you read off an agent record.
 
 ### `ToolCall`
 
@@ -1019,15 +1045,12 @@ interface ToolCall {
 
 The decoded form of an `agent.tool` event, returned by `toolCall()`.
 
-- One tool call produces **two events sharing a `toolCallId`**: `phase: 'start'` carries
-  `args`; `phase: 'end'` carries `isError` and `resultPreview`. Pair them by `toolCallId` -
-  they are **not adjacent** in the stream when calls run concurrently.
-- `phase: 'blocked'` is a third state: the call is waiting on an approval and has **not**
-  run. Treat it as pending, not as an end. The matching `agent.approval` event carries the
-  request, and an `end` still follows once it resolves.
-- **A tool failing does not fail the run.** An `agent.tool` event with `isError: true` is
-  still followed by `run.finished` with `succeeded`. Do not infer turn success from the
-  absence of tool errors.
+One tool call produces a sequence of events sharing a `toolCallId`, one per phase: `start`
+carries `args`, `end` carries `isError` and `resultPreview`, and `blocked` means the call is
+parked on an approval and has **not** run. Pair them by `toolCallId` - they are **not
+adjacent** in the stream when calls run concurrently. A tool failing does not fail the run:
+`isError: true` is still followed by `run.finished` with `succeeded`. See
+[Events](/en/build/events).
 
 ### Config types
 
@@ -1068,28 +1091,7 @@ Pure functions over a `SessionEvent`. None of them touch the network.
 | `normalizeEvent` | `(raw: unknown, sseId?: string) => SessionEvent` | Absorbs either wire shape into a `SessionEvent`. |
 
 Because the text helpers return `''` for non-matching types, you can accumulate
-unconditionally:
-
-```ts
-import { assistantText, thinkingText, toolCall, isRunFinished, runOutcome } from '@zooclaw-agents/sdk'
-
-let text = ''
-
-for await (const ev of zc.streamEvents(agentId, sessionId)) {
-  text += assistantText(ev)
-
-  const think = thinkingText(ev)
-  if (think) console.log(`thinking: ${think.slice(0, 60)}`)
-
-  const call = toolCall(ev)
-  if (call) console.log(`tool ${call.toolName} ${call.phase}${call.isError ? ' (error)' : ''}`)
-
-  if (isRunFinished(ev)) {
-    console.log('run', runOutcome(ev))
-    break
-  }
-}
-```
+unconditionally. See [Events](/en/build/events).
 
 ### `messageText(message)`
 
@@ -1279,9 +1281,8 @@ public gateway base that `ZOOCLAW_BASE_URL` and the `baseUrl` option override; i
 so you can compare against it or build a URL by hand.
 
 That is the entire public surface. Anything not on this list does not exist - in particular
-there is no `patchSession`. `PATCH /agents/{id}/sessions/{sid}` answers `405` through the
-gateway, whose catch-all registers GET, POST, PUT, and DELETE only, so PATCH is not proxied at
-all and a session's `metadata` is write-once at `createSession()`. See
+there is no `patchSession`: `PATCH /agents/{id}/sessions/{sid}` answers `405`, and a session's
+`metadata` is write-once at `createSession()`. See
 [Not supported](/en/reference/not-supported).
 
 ## Next

@@ -1,7 +1,7 @@
 ---
 title: Skills
 source: /en/build/skills
-source_hash: 099e8d3222445e707f3ed1252cc83a981aba86a9c339d272bf28b7922c41052c
+source_hash: 50d01b7e1e88247ffee3fc08165280122e1f82a4720d73276353bf8127118291
 ---
 
 # Skills
@@ -57,8 +57,8 @@ interface AgentSkill {
 | `scope` | 来自哪里 | 能不能用 API key 安装或移除？ |
 |---|---|---|
 | `global` | 平台目录。默认挂在每一个 agent 上。 | 不能。见下面的坑。 |
-| `org` | 你自己组织上传的。 | 原则上可以。 |
-| `personal` | 挂在某一个用户名下上传的。 | 原则上可以。 |
+| `org` | 你自己组织上传的。 | 可以——已验证。 |
+| `personal` | 挂在某一个用户名下上传的。 | 可以，未验证。 |
 | `pack` | 由组装好的 pack 注入。 | 不能通过这套 API。 |
 
 `eligible` 报告解析出来的 skill 对这个 agent 是不是真的可用。一个条目可以已经挂上，却仍然不 eligible。
@@ -129,7 +129,7 @@ deleteAgentSkill(agentId: string, skillId: string): Promise<void>
 
 移除一条 `global` 条目并不会把它摘下来。按平台文档描述的行为，对一个 global skill 发 DELETE，删掉的是你的覆盖、恢复的是默认值；只有 `org` 和 `personal` skill 会被真正卸载。
 
-安装一个 `org` skill **已经验证**：实测返回 `{ config_version: 4, warnings: [] }`，该 skill 出现在 `listAgentSkills` 里且 `eligible: true`，并在下一个回合按它自己的内容作答。`deleteAgentSkill` **没有**对真实部署跑过；请用 `listAgentSkills` 检查结果，不要相信返回的 `config_version`。
+安装一个 `org` skill 是**端到端已验证**的：该 skill 从 `listAgentSkills` 回来时 `eligible: true`，并在下一个回合按它自己的内容作答。`deleteAgentSkill` 是**可用但未验证**；请用 `listAgentSkills` 检查结果，不要相信返回的 `config_version`。
 
 ## 找到 skill id
 
@@ -141,7 +141,7 @@ const mine = await zc.listSkills({ scope: 'org' })
 const found = await zc.listSkills({ q: 'market', page: 1 })
 ```
 
-**没有 ownership 选择器可传。** 网关从你的 key 推导租户，所以选项只有 `scope`、`q`、`page`；`page` 从 1 开始，页大小固定 100。
+选项只有 `scope`、`q`、`page`。`q` 按 name 匹配；`page` 从 1 开始，页大小固定 100。
 
 一行是一个 `SkillRecord`——`skill_id`、`scope`、`name`、`description`、`latest_version`、`status`、`ownership`。有两个形状要有心理准备：`org` scope 的 skill，`ownership.owner_uid` 回来是 **null**（它属于组织，不属于某个人）；`latest_version` 从 multipart 创建那条路回来是**字符串** `"1"`，而别的地方写成数字——请松散比较，或者 `Number()` 一下。
 
@@ -159,7 +159,7 @@ description: 用户询问办公室咖啡菜单、咖啡价格，或者想点一�
   espresso、美式的时候。
 ```
 
-这是这套 API 里**唯一一个每一步都返回成功**的失败。我们踩过：skill 上传成功、安装成功、`listAgentSkills` 回来 `eligible: true` 带真实 `basePath`——然后一次都没触发，因为触发词写在正文里，而 description 只写了这东西是什么。只改 description、其他一个字没动，下一个回合就触发了。
+这是这套 API 里**唯一一个每一步都返回成功**的失败。一个 skill 可以上传成功、安装成功、在列表里 `eligible: true`，然后一次都没触发，因为触发词写在正文里，而 description 只写了这东西是什么。只改 description、其他一个字没动，下一个回合就触发了。
 
 当一个 skill「什么也没做」时，先查 description，再查别的。
 :::
@@ -168,10 +168,10 @@ description: 用户询问办公室咖啡菜单、咖啡价格，或者想点一�
 
 ## 上传你自己的 skill
 
-一个 skill 是一个 zip，里面含单个顶层目录（或者根目录直接放着 `SKILL.md`）。`SKILL.md` 必须是非空的 UTF-8，frontmatter 里带 `name` 和 `description`。`name` 必须匹配 `^[a-z0-9-]{1,64}$`。解压后总大小上限 50 MiB，路径里不能出现 `..`、绝对路径或反斜杠，加密的 zip 会被拒绝。服务端在接收时把归档解开。
+一个 skill 是一个 zip，里面含单个顶层目录（或者根目录直接放着 `SKILL.md`）。`SKILL.md` 必须是非空的 UTF-8，frontmatter 里带 `name` 和 `description`。`name` 必须匹配 `^[a-z0-9-]{1,64}$`。解压后总大小上限 50 MB，路径里不能出现 `..`、绝对路径或反斜杠，加密的 zip 会被拒绝。服务端在接收时把归档解开。
 
 ::: warning zip 的顶层目录名必须等于 frontmatter 里的 `name`
-`coffee-order/SKILL.md` 声明 `name: coffee-order`。不一致会被拒绝，报错里把两个名字都打出来，所以这是摩擦不是陷阱——但它是你手工打包 skill 时第一个会失败的地方。
+`coffee-order/SKILL.md` 声明 `name: coffee-order`。不一致会以 400 拒绝，报错里把两个名字都打出来，所以这是摩擦不是陷阱——但它是你手工打包 skill 时第一个会失败的地方。两者比较时不区分大小写、也不区分下划线，所以目录 `Coffee_Order/` 仍然匹配 `name: coffee-order`。这份宽松只针对目录名：frontmatter 里的 `name` 本身仍然必须匹配 `^[a-z0-9-]{1,64}$`。
 
 条目可以是 **stored（不压缩）**，也可以是 deflate，所以一个最小的 zip 写入器就够了；发布一个小 skill 不需要压缩库。
 :::

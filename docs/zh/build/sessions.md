@@ -1,7 +1,7 @@
 ---
 title: Sessions
 source: /en/build/sessions
-source_hash: 653c822a2407c62d4a3b62296a79630ce2daeb616162b92cb05233db5211b0ed
+source_hash: d0082d507eb6a714704c68e6170e73606c7a1ce2a866648e6dac501c0eadaae2
 ---
 
 # Sessions
@@ -33,7 +33,6 @@ listEvents(agentId, sessionId, opts?)
 ```ts
 import {
   createZooclawClient,
-  ZooclawError,
   assistantText,
   isRunFinished,
   runOutcome,
@@ -63,25 +62,6 @@ if (agent.status?.desired_state !== 'running') {
 }
 ```
 
-`startAgent` 远远用不到一秒。它返回一个 `warnings` 数组；纯 API 的 agent 每次启动都会报 `channel_routes_reload_failed`，因为它没有聊天渠道路由可以重载。这是预期内的噪音，不是失败。
-
-匹配 `error.type`，永远不要匹配报错文本：
-
-```ts
-try {
-  await zc.createSession(agentId, {
-    initial_events: [{ type: 'user.message', content: 'Hello.' }],
-  })
-} catch (e) {
-  if (e instanceof ZooclawError && e.type === 'agent_not_running') {
-    await zc.startAgent(agentId)
-    // retry
-  } else {
-    throw e
-  }
-}
-```
-
 ## 创建 session
 
 ```ts
@@ -91,7 +71,7 @@ const session = await zc.createSession(agentId, {
 })
 
 console.log(session.session_id)   // "ses_example"
-console.log(session.session_key)  // "api:example"
+console.log(session.session_key)  // "api:ses_example"
 ```
 
 带 `initial_events` 创建会立刻启动第一个回合 —— 开场消息没有单独的「发送」步骤。
@@ -102,17 +82,7 @@ console.log(session.session_key)  // "api:example"
 
 ### Idempotency-Key
 
-`createSession` 接收一个可选的第三个参数，作为 `Idempotency-Key` 请求头发出：
-
-```ts
-const session = await zc.createSession(
-  agentId,
-  { initial_events: [{ type: 'user.message', content: userInput }] },
-  `chat-${incomingMessageId}`,
-)
-```
-
-它防的是超时或断连之后的那次重试：如果你没看到响应、但服务端确实创建了 session，用同一个 key 重放会返回已存在的那个 session，而不是再建一个、把开场回合跑两遍。key 要从你自己系统里稳定的东西推导出来，不要用调用时生成的随机值。用同一个 key 配不同的请求 body，是冲突，不是重放。
+`createSession` 接收一个可选的第三个参数，作为 `Idempotency-Key` 请求头发出。用同一个 key 重放会返回已存在的那个 session，而不是再建一个、把开场回合跑两遍。怎么选 key、怎么复用 key，见[错误处理](/zh/reference/errors)。
 
 事件写入路径没有幂等键。超时后重试 `postEvents` 可能把同一条消息投递两次；重试之前请在你这边先去重。
 
@@ -151,7 +121,7 @@ const second = await runTurn(session.session_id, first.lastSeq)
 console.log(second.text)                 // mentions "Ada"
 ```
 
-`postEvents` 返回 `202`，每个事件对应一条记录：`{ id?, type?, accepted? }`。被接受意味着事件已入队，不代表回合已经结束。一个回合在你看到 `run.finished` 时结束，它的 `payload.status` 是 `succeeded`、`failed` 或 `aborted`。事件流的作用域是 session，不会在回合之间关闭 —— 见[事件与流式](/zh/build/events)。
+`postEvents` 返回 `202`，以及一个把每个事件的结果包起来的对象：`{ events: [{ id?, type?, accepted? }] }` —— 数组在 `events` 下面，不是响应本身。被接受意味着事件已入队，不代表回合已经结束。一个回合在你看到 `run.finished` 时结束，它的 `payload.status` 是 `succeeded`、`failed` 或 `aborted` —— 见[事件与流式](/zh/build/events)。
 
 写入路径接受四种事件类型：`user.message`、`user.interrupt`、`system.message` 和 `user.tool_confirmation`。
 
@@ -166,7 +136,7 @@ const s = await zc.getSession(agentId, session.session_id)
 ```json
 {
   "session_id": "ses_example",
-  "session_key": "api:example",
+  "session_key": "api:ses_example",
   "channel": "api",
   "run_status": "succeeded",
   "updated_at": "2026-01-01T00:00:00.000Z",
@@ -186,7 +156,7 @@ const s = await zc.getSession(agentId, session.session_id)
 | `updated_at` | 最后一次变更的 ISO 时间戳。 |
 | `metadata` | 你传给 `createSession` 的东西，原样返回。 |
 | `archived` | 布尔值。 |
-| `pending_approvals` | 正在等待审批的工具调用数量。 |
+| `pending_approvals` | 正在等待审批的工具调用数量。预期为 `0` —— 审批闭环未验证。 |
 | `status` | 永远是 `null`。见下面。 |
 
 ::: danger `status` 是 null —— 请读 `run_status`
@@ -224,6 +194,7 @@ for (const row of s.history ?? []) {
     "message": {
       "role": "assistant",
       "model": "litellm/claude-sonnet-5",
+      "responseModel": "qwen35-122B",
       "usage": {
         "input": 15212,
         "output": 40,
@@ -247,7 +218,7 @@ for (const row of s.history ?? []) {
 有两样东西只有它能给你：
 
 - **Token 用量。** `entry.message.usage` 是一个回合的 token 计数唯一暴露的地方。`usage.cost` 在 staging 上是 `0` —— 不要拿它做花费展示。
-- **真正回答的那个模型。** `model` 是 agent 被配置成的模型；`responseModel` 是实际服务这次请求的模型。在 staging 上两者不一致，因为 staging 把一部分模型映射到了替代模型。以 `responseModel` 为准。
+- **真正回答的那个模型。** `model` 是 agent 被配置成的模型；`responseModel` 是实际服务这次请求的模型。部署方可以把你配的别名映射到一个替代模型，上面的样例里两者就不一致。当这个答复要进计费、评测或合规记录时，以 `responseModel` 为准。
 
 这是对话记录，不是事件日志。它装的是对话消息，不是 `run.started` / `agent.tool` / `run.finished`。用它来找回那些你漏掉了事件的答复；想要事件流就用 `listEvents`。还存在其他 `entry_type` 取值（session 锚点、压缩标记、模型变更）；筛出 `message`，其余跳过。
 
@@ -271,18 +242,18 @@ const events = await zc.listEvents(agentId, session.session_id, {
 const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 ```
 
-它存在正是因为上面那种截断，而且它在两个地方比顺手写出来的循环更严格：`seq` 不大于游标的事件会被丢掉，所以页边界不会重复吐出同一个事件；如果某一页里最大的 `seq` 没能把游标推进，这次遍历就直接停下来，所以一个忽略了 `after` 的服务端只会让你拿到一页重复数据，而不是让循环空转到底。`pageSize` 是每次请求的 `limit`（默认值和上限都是 500）；`after` 和 `types` 的含义与 `listEvents` 上一致。
+它存在正是因为上面那种截断，而且它比顺手写出来的循环更严格：它在页边界上去重，游标推不动时它停下来而不是空转。`pageSize` 是每次请求的 `limit`（默认值和上限都是 500）；`after` 和 `types` 的含义与 `listEvents` 上一致。
 
 `seq` 是每个 session 内持久且单调的序号，所以同一个游标也能用来续传 SSE 流（`streamEvents({ after })`）。`types` 在服务端过滤，接收一个事件类型列表；它可以和 `after`、`limit` 组合使用。
 
 ## SDK 里没有的
 
 ::: danger 不支持
-`ZooclawClient` 没有 `patchSession`。对一个 session 发 `PATCH`，经过网关返回的是 `405` —— 网关的 catch-all 只注册了 GET/POST/PUT/DELETE，PATCH 根本没有被代理 —— 这就使得 session 的 `metadata` 只能在 `createSession` 时写一次。
+`ZooclawClient` 没有 `patchSession`，对一个 session 发 `PATCH` 返回的是 `405`，这就使得 session 的 `metadata` 只能在 `createSession` 时写一次。
 
 自己记录你创建过的那些 `session_id` —— 把它们和你应用里所属的东西存在一起 —— 并且在创建时就把之后需要检索的一切放进 `metadata`，因为后面加不进去。
 :::
 
 也没有顶层的 session 资源，所以无法跨 agent 列出 session。完整边界见[不支持的能力](/zh/reference/not-supported)。
 
-按 agent 的列举和生命周期操作确实有方法 —— `listSessions(agentId, { page })`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)` —— 但它们不改变上面这两段：跨 agent 还是得你自己扇出去合并，`metadata` 还是只能写一次。这三个各自被驱动到什么程度，记在[能力矩阵](/zh/reference/capabilities)里。
+按 agent 的列举和生命周期操作确实有方法 —— `listSessions(agentId, { page })`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)` —— 但它们不改变上面这两段：跨 agent 还是得你自己扇出去合并，`metadata` 还是只能写一次。

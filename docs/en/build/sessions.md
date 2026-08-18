@@ -32,7 +32,6 @@ All examples on this page use one client:
 ```ts
 import {
   createZooclawClient,
-  ZooclawError,
   assistantText,
   isRunFinished,
   runOutcome,
@@ -65,27 +64,6 @@ if (agent.status?.desired_state !== 'running') {
 }
 ```
 
-`startAgent` takes well under a second. It returns a `warnings` array; an API-only agent
-reports `channel_routes_reload_failed` on every start because it has no chat-channel routes
-to reload. That is expected noise, not a failure.
-
-Match on `error.type`, never on the message text:
-
-```ts
-try {
-  await zc.createSession(agentId, {
-    initial_events: [{ type: 'user.message', content: 'Hello.' }],
-  })
-} catch (e) {
-  if (e instanceof ZooclawError && e.type === 'agent_not_running') {
-    await zc.startAgent(agentId)
-    // retry
-  } else {
-    throw e
-  }
-}
-```
-
 ## Create a session
 
 ```ts
@@ -95,7 +73,7 @@ const session = await zc.createSession(agentId, {
 })
 
 console.log(session.session_id)   // "ses_example"
-console.log(session.session_key)  // "api:example"
+console.log(session.session_key)  // "api:ses_example"
 ```
 
 Creating with `initial_events` starts the first turn immediately - there is no separate
@@ -111,21 +89,10 @@ the surface the conversation came from. Nothing in the platform interprets it.
 
 ### Idempotency-Key
 
-`createSession` takes an optional third argument, sent as the `Idempotency-Key` header:
-
-```ts
-const session = await zc.createSession(
-  agentId,
-  { initial_events: [{ type: 'user.message', content: userInput }] },
-  `chat-${incomingMessageId}`,
-)
-```
-
-This protects against the retry that follows a timeout or a dropped connection: if you never
-saw the response but the server did create the session, replaying the same key returns the
-existing session instead of creating a second one and running the opening turn twice. Derive
-the key from something stable in your own system, not from a random value generated at call
-time. Reusing a key with a different request body is a conflict, not a replay.
+`createSession` takes an optional third argument, sent as the `Idempotency-Key` header.
+Replaying the same key returns the existing session instead of creating a second one and
+running the opening turn twice. [Errors and retries](/en/reference/errors) has the rules for
+choosing and reusing a key.
 
 The event write path has no idempotency key. `postEvents` retried after a timeout can deliver
 the same message twice; de-duplicate on your side before you retry.
@@ -166,11 +133,11 @@ const second = await runTurn(session.session_id, first.lastSeq)
 console.log(second.text)                 // mentions "Ada"
 ```
 
-`postEvents` returns `202` with one entry per event: `{ id?, type?, accepted? }`. Acceptance
-means the event was queued, not that the turn has finished. A turn ends when you see
-`run.finished`, whose `payload.status` is `succeeded`, `failed`, or `aborted`. The event
-stream is session-scoped and does not close between turns - see
-[Events and streaming](/en/build/events).
+`postEvents` returns `202` and an object wrapping the per-event results:
+`{ events: [{ id?, type?, accepted? }] }` - the array is under `events`, not the response
+itself. Acceptance means the event was queued, not that the turn has finished. A turn ends
+when you see `run.finished`, whose `payload.status` is `succeeded`, `failed`, or `aborted` -
+see [Events and streaming](/en/build/events).
 
 The write path accepts four event types: `user.message`, `user.interrupt`, `system.message`,
 and `user.tool_confirmation`.
@@ -186,7 +153,7 @@ Observed response:
 ```json
 {
   "session_id": "ses_example",
-  "session_key": "api:example",
+  "session_key": "api:ses_example",
   "channel": "api",
   "run_status": "succeeded",
   "updated_at": "2026-01-01T00:00:00.000Z",
@@ -206,7 +173,7 @@ Observed response:
 | `updated_at` | ISO timestamp of the last change. |
 | `metadata` | Exactly what you passed to `createSession`. |
 | `archived` | Boolean. |
-| `pending_approvals` | Count of tool calls waiting on an approval. |
+| `pending_approvals` | Count of tool calls waiting on an approval. Expect `0` - the approval loop is not verified. |
 | `status` | Always `null`. See below. |
 
 ::: danger `status` is null - read `run_status`
@@ -253,6 +220,7 @@ An observed assistant row:
     "message": {
       "role": "assistant",
       "model": "litellm/claude-sonnet-5",
+      "responseModel": "qwen35-122B",
       "usage": {
         "input": 15212,
         "output": 40,
@@ -278,8 +246,9 @@ Two things this buys you that nothing else does:
 - **Token usage.** `entry.message.usage` is the only place a turn's token counts are exposed.
   Note that `usage.cost` is `0` on staging - do not build a spend display on it.
 - **The model that actually answered.** `model` is what the agent is configured with;
-  `responseModel` is what served the request. On staging these differ, because staging maps
-  some models to a substitute. Trust `responseModel`.
+  `responseModel` is what served the request. A deployment can map a configured alias onto a
+  substitute, so the two differ in the sample above. Trust `responseModel` when the answer
+  feeds billing, evaluation, or a compliance record.
 
 This is the transcript, not the event log. It holds conversational messages, not
 `run.started` / `agent.tool` / `run.finished`. Use it to recover an answer whose events you
@@ -310,12 +279,10 @@ it received - until a page comes back shorter than the limit it asked for:
 const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 ```
 
-It exists because of the truncation above, and it is stricter than the obvious loop in two
-places: events at or below the cursor are dropped, so a page boundary cannot duplicate an
-event, and the walk stops if the highest `seq` in a page fails to advance the cursor, so a
-server that ignored `after` returns a duplicate page instead of spinning forever. `pageSize`
-is the per-request `limit` (default and maximum 500); `after` and `types` mean what they mean
-on `listEvents`.
+It exists because of the truncation above, and it is stricter than the obvious loop: it
+de-duplicates across page boundaries, and it stops rather than spinning if the cursor fails to
+advance. `pageSize` is the per-request `limit` (default and maximum 500); `after` and `types`
+mean what they mean on `listEvents`.
 
 `seq` is a durable, monotonic per-session sequence, so the same cursor also resumes an SSE
 stream (`streamEvents({ after })`). `types` filters server-side and takes a list of event
@@ -324,9 +291,8 @@ types; it composes with `after` and `limit`.
 ## Not in the SDK
 
 ::: danger Not supported
-`ZooclawClient` has no `patchSession`. `PATCH` on a session answers `405` through the gateway -
-its catch-all registers GET/POST/PUT/DELETE only, so PATCH is not proxied at all - which makes
-a session's `metadata` write-once, at `createSession`.
+`ZooclawClient` has no `patchSession`, and `PATCH` on a session answers `405`, which makes a
+session's `metadata` write-once, at `createSession`.
 
 Keep your own record of the `session_id` values you create - store them alongside whatever
 they belong to in your application - and put anything you need to search on into `metadata`
@@ -339,5 +305,4 @@ agents. See [Not supported](/en/reference/not-supported) for the full boundary.
 Per-agent listing and lifecycle do have methods - `listSessions(agentId, { page })`,
 `archiveSession(agentId, sessionId)`, `deleteSession(agentId, sessionId)` - and none of them
 changes the two paragraphs above: you still fan out across agents yourself, and `metadata` is
-still write-once. The [capability matrix](/en/reference/capabilities) records how far each of
-the three has been driven.
+still write-once.

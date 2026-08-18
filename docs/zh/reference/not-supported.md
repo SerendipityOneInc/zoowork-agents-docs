@@ -1,7 +1,7 @@
 ---
 title: 不支持的能力
 source: /en/reference/not-supported
-source_hash: 6c79e72570559ce12397db7f10073767ce9695a37207f8a746b9b3dfc38c734e
+source_hash: 3d8043dadc326129ddae47cf54ffdcb2025c9e9184263630ad5c923d609e6365
 ---
 
 # 不支持的能力
@@ -20,7 +20,7 @@ source_hash: 6c79e72570559ce12397db7f10073767ce9695a37207f8a746b9b3dfc38c734e
 
 **实际发生的：** 没有可以在 agent 上声明的自定义工具类型，也没有 `user.custom_tool_result` 事件可以用来回答。写入侧只接受四种事件类型：`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`。
 
-**替代：** 两个选项。把你的服务包成一个**远程 HTTP MCP server** 并声明在 agent 上——这是唯一能把你的代码放到一个 agent 工具背后的形态，已经端到端实测过，但有一条硬限制：只有**无鉴权**的 server 能用，因为声明里那个 bearer slug 背后的凭证存储返回 404。或者把决策留在你自己的进程里：等 `run.finished`，把活干完，下一个回合再把答案作为 `user.message` 发回去。第二条路慢一个回合。
+**替代：** 把决策留在你自己的进程里：等 `run.finished`，把活干完，下一个回合再把答案作为 `user.message` 发回去。这条路慢一个回合。唯一另一种能把你的代码放到一个 agent 工具背后的形态是在 agent 上声明**远程 HTTP MCP server**——见[工具](/zh/build/tools)。
 
 ## 保险库式的终端用户凭证托管 {#vault-style-end-user-credential-storage}
 
@@ -50,7 +50,7 @@ source_hash: 6c79e72570559ce12397db7f10073767ce9695a37207f8a746b9b3dfc38c734e
 
 **你想建的：** agent 提议一个危险动作，你的 UI 弹出一张同意或拒绝的卡片，run 根据这一次点击继续或停止。
 
-**实际发生的：** 零件是分开存在的，闭环从没被看到合上过。`agent.approval` 在事件词表里，`agent.tool` 有一个 `blocked` 阶段，`user.tool_confirmation` 是被接受的写入类型，但我们从没造出过一个真实的待处理审批，所以这个往返没有任何一环被证明过。一个在等审批的 agent，会把这一回合耗在等待上。`listApprovals` 和 `resolveApproval` 在 client 上是有的，但它们调的是平台上另一个独立的审批 REST 资源，不是这个事件闭环；而且没有 Temporal signaler 时这条路由返回 `501 not_configured`——有这两个方法，并不改变「什么都没被证明过」这件事。
+**实际发生的：** 零件是分开存在的——`agent.approval` 在事件词表里，`agent.tool` 有一个 `blocked` 阶段，`user.tool_confirmation` 是被接受的写入类型——但从没造出过一个真实的待处理审批，所以这个往返没有任何一环被证明过，而一个在等审批的 agent 会把这一回合耗在等待上。见[能力矩阵](/zh/reference/capabilities#tools)。
 
 **替代：** 在你这边做门控。把危险能力从 agent 的 `tool_policy` 里拿掉，让 agent 用文字描述它想做什么，在你自己的 UI 里做决定，再把结果作为 `user.message` 发回去。
 
@@ -66,7 +66,7 @@ source_hash: 6c79e72570559ce12397db7f10073767ce9695a37207f8a746b9b3dfc38c734e
 
 **你想建的：** 一个几个 agent 共享的知识库，或者一份你能做版本、能审计、能回滚的记忆。
 
-**实际发生的：** 没有记忆资源，没有挂载，没有版本，也没有任何跨 agent 共享的东西。模型可能有仅属于单个 agent 的记忆工具，但它们可以在部署层面被关掉，而且在 API 上不可见。在 `persona.docs` 里声明 `MEMORY.md` 或一个 `memory/` 路径，返回 `400 invalid_persona_doc_name`。
+**实际发生的：** 没有记忆资源，没有挂载，没有版本，没有后台的记忆整合进程，也没有任何跨 agent 共享的东西。模型可能有仅属于单个 agent 的记忆工具，但它们可以在部署层面被关掉，而且在 API 上不可见。在 `persona.docs` 里声明 `MEMORY.md` 或一个 `memory/` 路径，返回 `400 invalid_persona_doc_name`。
 
 **替代：** 状态放你自己的数据库，在一个回合开始时用 `system.message` 把要紧的注入进去。模型在下一个回合读到它，而审计记录和回滚都留在你手里。
 
@@ -76,13 +76,13 @@ source_hash: 6c79e72570559ce12397db7f10073767ce9695a37207f8a746b9b3dfc38c734e
 
 **实际发生的：** 没有 webhook 资源，没有签名密钥，也没有投递配置。定时任务的 `delivery` 字段只接受 `none` 和一种带类型的 `announce`；webhook 投递会被拒。
 
-**替代：** 挂住 SSE 流，或者用 `after` 轮询 `listEvents`。因为每一帧都带一个持久的 `seq`，服务端会从它开始重放，掉一次连接不花你任何代价，也不需要去重——这一点比大多数 webhook 的重试机制强。
+**替代：** 挂住 SSE 流，或者用 `after` 轮询 `listEvents`——每一帧都带一个持久的 `seq`，服务端会从它开始重放，掉一次连接不花你任何代价。
 
 ## Agent 版本固定与回滚 {#agent-version-pinning-and-rollback}
 
 **你想建的：** 把百分之十的流量切到配置 v3 的灰度，或者一次调用回滚到上一个版本。
 
-**实际发生的：** `config_version` 是可见的，每次 PUT 都会 bump，但没有任何路由能列出版本、取回旧版本，或者把一个 session 固定到某个版本上。这个数字只告诉你有东西变了，别的什么都不说。
+**实际发生的：** `config_version` 每次 PUT 都会涨（见[错误](/zh/reference/errors)），但没有任何路由能列出版本、取回旧版本，或者把一个 session 固定到某个版本上。
 
 **替代：** 你 PUT 过的每一份配置自己留一份，这样回滚就是把上一份 body 再 PUT 一次。要做灰度，就跑两个配置不同的 agent，在你自己的代码里分流。
 
@@ -101,16 +101,12 @@ source_hash: 6c79e72570559ce12397db7f10073767ce9695a37207f8a746b9b3dfc38c734e
 | 缺什么 | 要知道的 |
 |---|---|
 | 命令行工具 | 只有 TypeScript SDK。 |
-| session 创建时的 `agent_with_overrides` | `createSession` 只收 `initial_events` 和 `metadata`。 |
-| 按 session 覆盖工具或 MCP | session 上的 PATCH 通过网关返回 `405`——网关的兜底路由只注册了 GET、POST、PUT、DELETE，PATCH 压根没被代理。所以既没有覆盖的通路，也没有 `patchSession`。 |
+| 按 session 覆盖工具或 MCP、session 创建时的 `agent_with_overrides` | `createSession` 只收 `initial_events` 和 `metadata`，没别的。session 上的 PATCH 通过网关返回 `405`。所以既没有覆盖的通路，也没有 `patchSession`。 |
 | `session.status_*`、`span.*`、`stop_reason` 事件 | 不在词表里。用 `run.finished` 和它的 `payload.status`。 |
-| 凭证 API | 客户端没有凭证 API——平台在创建 agent 时自动注入模型凭证；你自己的密钥留在你自己的服务里。 |
 | 从全局目录安装 skill | `404`。全局 skill 在 agent 创建时就已经挂上了。 |
 | environment 里的 cargo、gem 或 go 包 | 只有 apt、npm 和 pip。 |
-| Environment secret、运行时环境变量、沙箱启动钩子 | environment 配置里不收这些。这限制的是你能**加**什么：沙箱里确实有平台为自己的内置技能注入的运行时凭证，但那一层是内部实现，不可扩展。你自己的密钥留在你自己的服务里。 |
-| 定时任务的暂停与恢复、归档、跨定时任务的运行历史 | 没有。删掉重建，运行记录一次读一个定时任务。 |
-| 删除 agent 时自动清理定时任务 | 定时任务在停止和删除之后都还活着。你得先自己删掉。 |
-| 把记忆整合当成一个后台进程 | 没有对应物。 |
+| 凭证 API；Environment secret、运行时环境变量、沙箱启动钩子 | 平台为它自己的内置技能注入凭据，那条通道不对你开放；environment 配置也不收 secret、环境变量和启动钩子。你自己的密钥留在你自己的服务里。 |
+| 定时任务的暂停与恢复、归档、跨定时任务的运行历史、删除 agent 时自动清理定时任务 | 没有——删掉重建，运行记录一次读一个定时任务。定时任务在停止和删除之后都还活着，你得先自己删掉。 |
 | 文件的 SDK 方法 | 文件路由在线协议上存在，但后端没有接线；`ZooclawClient` 对它什么都没暴露，所以你得用自己的 `fetch` 调。artifact 从 0.0.6 起进了 client（`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`）；审批、定时任务、environment、session 的归档与删除从 0.0.5 起就在——见[能力矩阵](/zh/reference/capabilities)。 |
-| 从你自己的代码轮换或吊销 key | 没有 API——但也不再需要找人：ZooClaw App 的 **设置 → API Keys** 可以立即轮换或吊销一把 key（新密钥只显示一次）。key 泄露就当场去那里 Rotate。 |
+| 从你自己的代码轮换或吊销 key | 没有 API。ZooClaw App 的 **设置 → API Keys** 可以立即轮换或吊销一把 key，新密钥只显示一次。 |
 | 按 scope、按用户或只读的 API key | 只有一个组织级的 key，对组织内每一个 agent 都有完整的读写权限。 |

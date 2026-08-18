@@ -1,7 +1,7 @@
 ---
 title: 快速开始
 source: /en/get-started/quickstart
-source_hash: 7dbbd30f56247b2464808c026ff1fc245ac70cb7d22768ffb011d5028711c694
+source_hash: 7d10acabe456942eda7b039c26ac07b1fd638ca8c6252afb844085caad655b39
 ---
 
 # 快速开始
@@ -27,8 +27,6 @@ npx skills add SerendipityOneInc/zoowork-sdk-skills
 ```bash
 export ZOOCLAW_API_KEY='zct_...'
 ```
-
-你要配置的只有这一项。SDK 已经知道端点在哪；除非你要指向另一套部署，否则不需要设置 base URL。
 
 下面每一步都同时给出 TypeScript 和 `curl` 两种写法。`curl` 这一栏的存在是为了让你用任何语言都能跟着走：它发出的 HTTP 和 SDK 发的是同一份。它需要把端点显式写出来，所以跑这些示例还要额外 export：
 
@@ -98,7 +96,7 @@ curl "$ZOOCLAW_BASE_URL/models" \
 ]
 ```
 
-无效的 key 返回 `401`。SDK 抛出的 `ZooclawError` 带 `.status` 和 `.type`——请匹配 `.type`，绝不要匹配报错文本。
+无效的 key 返回 `401`。SDK 抛出的 `ZooclawError` 带 `.status` 和 `.type`——绝不要匹配报错文本。在你清楚是哪个家族回的错时匹配 `.type`；`401` 请按 `.status` 分支，因为网关和核心 API 对这个 type 的拼法不一样。
 
 ## 1. 创建 agent
 
@@ -131,8 +129,6 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents" \
 
 :::
 
-`ownership` 不用传——网关会用绑定在你 API key 上的租户锚点自动填上，真实值出现在响应的 `ownership` 里。
-
 响应是一个扁平的**创建回执** ：
 
 ```json
@@ -140,23 +136,25 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents" \
   "agent_id": "agt_example",
   "computer_id": "cmp_example",
   "config_version": 1,
-  "resolved_skills": [],
-  "ownership": { "owner_uid": "usr_example", "org_id": "org_example" }
+  "resolved_skills": []
 }
 ```
 
 关于这个结构，有两点要知道：
 
 - 回执和读取返回的不是同一个结构。`getAgent()` 返回的是一个投影：配置在 `declared` 下面，版本号在 `status.config_version`——读取路径上没有顶层的 `config_version` 和 `name`。要这样读：`agent.status?.config_version ?? agent.config_version`。
-- 回执里的 `config_version`，等你读到它的时候就已经过期了。创建完成后网关会立刻替你写入平台凭证，每一次写入都会 bump 一次版本号，所以一秒后再 `getAgent()` 通常报的是 `3`。不要把版本号当幂等回执用。
+- 回执里的 `config_version`，等你读到它的时候就已经过期了：创建之后的每一次写入都会 bump 一次版本号，所以一秒后再 `getAgent()` 通常报的是 `3`。不要把版本号当幂等回执用。
 
 如果你想要一个可以安全重试的创建，把幂等 key 作为第二个参数传进去：
 
 ```ts
-const created = await zc.createAgent({ resource }, 'quickstart-run-01')
+const agent = await zc.createAgent(
+  {
+    resource: { name: 'quickstart-agent', model: { primary: 'litellm/claude-sonnet-5' } },
+  },
+  'quickstart-run-01', // 你的幂等 key
+)
 ```
-
-唯一性作用域是 `(agent.create, key)`。同一个 key 配不同的 body 返回 `409 idempotency_conflict`。
 
 ## 2. 启动 agent
 
@@ -196,7 +194,7 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/start" \
 { "warnings": ["channel_routes_reload_failed: routes reload returned 404"] }
 ```
 
-这条警告是预期内的，无害。`startAgent` 同时还会重载聊天渠道的路由；纯 API 的 agent 没有渠道可重载，所以它每次启动和停止都会报一次失败。这不是启动失败——请改看 `desired_state`。
+这条警告是提示性的，纯 API 的 agent 每次启动和停止都会报一次。不要在它上面重试——请改看 `desired_state`。
 
 ### 等待就绪
 
@@ -212,7 +210,7 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/start" \
 const agent = await zc.waitUntilRunning(agentId)
 ```
 
-它按 30 秒的总预算、每 500 毫秒轮询一次 `status.desired_state`，返回的就是 `getAgent()` 会给你的那份投影。每一次轮询都用剩余预算设了上限，所以网关接了连接又不回话时，这次等待会按时结束，而不是把 promise 挂死。如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooclawError`。
+它按 30 秒的总预算、每 500 毫秒轮询一次 `status.desired_state`，返回的就是 `getAgent()` 会给你的那份投影。如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooclawError`。
 
 启动之后立刻 `getAgent()` 读一次，长这样（省略了其他字段）：
 
@@ -225,8 +223,7 @@ const agent = await zc.waitUntilRunning(agentId)
     "actual_state": "activating",
     "config_version": 3,
     "channels": { "expected": 0, "connected": 0 }
-  },
-  "ownership": { "owner_uid": "usr_example", "org_id": "org_example" }
+  }
 }
 ```
 
@@ -264,10 +261,12 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/sessions" \
 ```json
 {
   "session_id": "ses_example",
-  "session_key": "api:example",
-  "status": "running"
+  "session_key": "api:ses_example",
+  "status": null
 }
 ```
+
+`status` 恒为 `null`——请改读 `run_status`。
 
 `initial_events` 会在这次创建调用里就把第一个回合起起来，所以你不需要再单独发一次。用 `user.message`，content 传字符串。同一个 session 里后续的回合，调 `postEvents(agentId, sessionId, events)`。
 
@@ -345,7 +344,7 @@ curl -N "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" 
 
 有四件事最容易把人绊住：
 
-- **`run.finished` 结束的是回合，不是流。** 流的作用域是整个 session，会一直开着；服务端会在空闲一段时间后把它关掉。`isRunFinished(ev)` 为真时请自己跳出循环，否则你会一直阻塞到空闲超时。
+- **`run.finished` 结束的是回合，不是流。** `isRunFinished(ev)` 为真时请自己跳出循环，否则你会一直阻塞到服务端的空闲超时。
 - **`runOutcome(ev)` 的取值是 `succeeded | failed | aborted`。** 即使个别工具调用出了错，这次 run 依然可能以 `succeeded` 结束——`toolCall(ev).isError === true` 不会让 run 失败。不要用「没有工具报错」来推断成功。
 - **对每一个不是 `agent.assistant` 的事件，`assistantText(ev)` 都返回 `''`** ，所以在整个循环里一路拼接是安全的，拼出来就是完整回复。
 - **用 `after` 续传。** 每一帧都带一个持久的 `seq`。连接断了，就用 `{ after: lastSeq }` 重新起这个 generator，服务端从那里开始重放。不丢，也不重。
@@ -354,7 +353,7 @@ curl -N "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" 
 for await (const ev of zc.streamEvents(agentId, sessionId, { after: lastSeq })) { /* ... */ }
 ```
 
-如果你更想用轮询，`listEvents(agentId, sessionId)` 走 REST 读的是同一批事件。它只返回一页——服务端默认 100 条，最多 500 条——所以在长 session 上请用 `after` 翻页，不要默认你一次就拿全了。
+如果你更想用轮询，`listEvents(agentId, sessionId)` 走 REST 读的是同一批事件。它只返回一页——服务端默认 100 条，最多 500 条——而且整页会被静默截断：没有 `has_more`，没有总数，也没有游标。用 `listAllEvents(agentId, sessionId)` 一次把所有页走完，不要自己写这个循环。
 
 ## 5. 清理
 
@@ -375,7 +374,7 @@ curl -X DELETE "$ZOOCLAW_BASE_URL/agents/$AGENT_ID" \
 
 :::
 
-先停。`deleteAgent()` 只是对控制面记录做一次软删除：它不会停掉 agent，不会取消调度，也不会释放沙箱。删掉但没停的 agent 会继续跑着。
+先停。`deleteAgent()` 只是一次软删除：它不会停掉 agent，不会取消调度，也不会释放沙箱，所以删掉但没停的 agent 会继续跑着。详见 [Agents](../build/agents.md)。
 
 `stopAgent()` 返回和启动时一样的 `channel_routes_reload_failed` 提示性警告。停掉之后，对这个 agent 调 `createSession()` 会重新返回 `409 agent_not_running`。
 
@@ -403,7 +402,7 @@ const models = await zc.listModels()
 const model = models[0]?.model ?? 'litellm/claude-sonnet-5'
 console.log(`${models.length} models available, using ${model}`)
 
-// 1. Create the agent. The gateway derives ownership from your key's tenant.
+// 1. Create the agent.
 const created = await zc.createAgent({
   resource: {
     name: `quickstart-${Date.now()}`,

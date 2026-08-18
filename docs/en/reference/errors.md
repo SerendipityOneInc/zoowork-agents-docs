@@ -70,15 +70,6 @@ own envelope.**
 it runs before it ever forwards your request. A rejected key answers `401` with the type
 `service_token.invalid`, which is a gateway code, not an API one.
 
-The SDK unpacks both envelopes, so whichever one comes back reaches you as a `ZooclawError`
-carrying a type:
-
-```ts
-const j = JSON.parse(text)
-msg  = j?.error?.message || j?.message || j?.detail || msg
-type = j?.error?.type ?? j?.code
-```
-
 The API side is itself two families, not one. Sessions, schedules, and environments answer
 `{ error: { type, message } }` with a bare code (`agent_not_running`, `session_archived`); the
 agents family answers `{ code, detail }` with a dotted one (`service_api.not_found`). Both land
@@ -121,18 +112,20 @@ Observed on the public gateway against a live deployment, unless a row says othe
 | `service_token.invalid` | 401 | The key is missing, malformed, revoked, or its bound user left the organization. Emitted by the gateway, in the gateway's envelope. | Fix the credential. Do not retry - it will fail identically. Verify with `listModels()`. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
 | `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
+| *(none captured)* | 404 | `putAgentSkill()` with a global-catalog skill id. Only skills your own tenant uploaded are installable here, and the global catalog is already attached to every new agent, so there is nothing to install. | Branch on `status === 404`. The check runs in the gateway and we captured no type on it, so a handler keyed on `e.type` never fires. See [Skills](/en/build/skills). |
 
 ::: warning Not yet verified
-`idempotency_conflict` is documented by the API and we have exercised the success path of
-`Idempotency-Key` on `createAgent()` and `createSession()`, but we have not deliberately
-provoked the conflict. Handle it; do not assume the exact wording of the message.
+`idempotency_conflict` is documented by the API. The header is accepted on `createAgent()`
+and a replay on `createSession()` is honoured, but we have never replayed a `createAgent()`
+key to watch it dedupe, and we have not deliberately provoked the conflict on either. Handle
+it; do not assume the exact wording of the message.
 :::
 
 ### More 400s
 
 `updateAgent()` answers **400** when the body names `skills`, `credentials`, or any
-unknown field. Skills go through `putAgentSkill()`; credentials are not writable - the
-platform seeds model credentials itself when the agent is created.
+unknown field. Skills go through `putAgentSkill()`; there is no credentials API at all - see
+[Not supported](/en/reference/not-supported).
 
 Two create-time rejections carry their own narrower type rather than `invalid_request`:
 `invalid_persona_doc_name` for a `persona.docs` entry named `MEMORY.md` or anything under the
@@ -144,30 +137,10 @@ Those two type strings come from the API's own reference; we have not provoked e
 is safe to rely on is the status.
 :::
 
-### Installing a global skill
-
-`putAgentSkill()` with a global-catalog skill id answers **404** on the public gateway - we
-have observed that status directly. Only skills your own tenant uploaded are installable here,
-and the global catalog is already attached to every new agent, so there is nothing to install.
-
-::: warning Not yet verified
-We did not capture the `error.type` on that 404, and the check runs in the gateway rather
-than the API, so branch on `status === 404` for skill installs.
-:::
-
-### Rejected event bodies
-
-The event write path validates each event's shape and rejects anything outside the four
-accepted types - `user.message`, `user.interrupt`, `system.message`,
-`user.tool_confirmation` - with **`400`**. `user.tool_confirmation` in particular is parsed
-strictly and any other shape is refused outright.
-
-::: warning Not yet verified
-We have not captured the exact `error.type` on a rejected event body, so this page does not
-name one. **Branch on `status === 400` for `postEvents()` failures**, and treat them as
-programming errors rather than transient ones - a 400 here means your event shape is wrong
-and a retry will not change that.
-:::
+`postEvents()` answers **400** for any event outside the four accepted types - see
+[Events](/en/build/events). We captured no `error.type` on it, so branch on `status === 400`
+for `postEvents()` failures, and treat them as programming errors rather than transient ones:
+your event shape is wrong and a retry will not change that.
 
 ### Other types the API documents
 

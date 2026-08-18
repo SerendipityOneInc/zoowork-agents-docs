@@ -71,7 +71,6 @@ The same event comes back in two different shapes depending on where you read it
 | turn | `turn` | `turn` |
 | body | `payload` | `payload` |
 | timestamp | `created_at` | `createdAt` |
-| extra | | `version`, `engine`, `sessionId` |
 
 REST is snake_case. SSE is camelCase. **Neither carries a top-level `type`.**
 
@@ -80,15 +79,10 @@ The SDK absorbs this in `normalizeEvent`, so `listEvents` and `streamEvents` ret
 write both mappings.
 :::
 
-A raw SSE frame looks like this:
-
-```
-id: 42
-data: {"version":1,"engine":"zooclaw","sessionId":"ses_...","seq":42,"runId":"run_...","turn":0,"eventType":"agent.assistant","payload":{"message":{"role":"assistant","content":[{"type":"text","text":"Hi."}]},"segment":1},"createdAt":"2026-08-06T09:12:44.001Z"}
-```
-
-The server also writes `: ping` comment lines every 20 seconds as a keepalive. A conforming SSE
-parser ignores them; the SDK's does.
+The server writes a `: ping` comment line every 20 seconds as a keepalive, so any socket read
+timeout or proxy idle timeout below that kills a healthy stream, and a hand-written parser that
+does not skip comment lines hits `JSON.parse('')` and throws - `parseSSE` is exported if you
+would rather not write one.
 
 `normalizeEvent` is exported, so you can reuse it if you have your own transport:
 
@@ -226,10 +220,9 @@ Note the mixed casing: the body is snake_case (`approval_id`) while the event pa
 it from is camelCase (`approvalId`). Any other shape is `400 invalid_event`.
 
 ::: warning Not yet verified
-We have not driven an approval end to end. The accepted body above is read from the request
-parser, but no live pending approval has been created and resolved through this route, and a
-turn that blocks on an approval nobody answers will time out. Do not build a demo around
-human-in-the-loop approval.
+The accepted body above is read from the request parser; no live pending approval has been
+created and resolved through this route. The [capability matrix](/en/reference/capabilities)
+records the state of the approval loop.
 :::
 
 ### `system.message`
@@ -329,13 +322,11 @@ Notes on the mechanics:
   throwing, so you do not need a `catch` for your own cancellation.
 - The generator drops any event whose `seq` is at or below the highest it has already yielded,
   so a boundary event replayed on reconnect is not delivered twice.
-- `streamEvents` never requests the delta preview lane, so everything it yields is durable.
+- Everything `streamEvents` yields is durable.
 - For a multi-turn session, open a new stream per turn with `after: lastSeq`, or keep one
   stream open and keep counting `run.finished` events. The first is easier to reason about.
 
 ## Resuming
-
-This is the part of the API that is stronger than the alternative you may be used to.
 
 Every durable frame carries its `seq` in the SSE `id:` line. Pass `{ after: lastSeq }` and the
 server replays the log from `lastSeq + 1` before continuing live. This is **server-side
@@ -347,10 +338,6 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { after: 128 })) {
   // first event delivered is seq 129, even if the turn finished minutes ago
 }
 ```
-
-On a platform without server-side resume, the only recovery after a dropped connection is to
-re-list history and de-duplicate by event id yourself; here the server replays from your
-cursor and the reconnect costs nothing.
 
 If you call the HTTP endpoint directly, either `?after=<seq>` or the standard `Last-Event-ID`
 request header works; the server resumes from whichever is higher. Browser `EventSource` sends
@@ -419,27 +406,20 @@ listEvents(
 ```
 
 `limit` defaults to **100** server-side and is capped at **500**, and the call returns **one
-page**. A long session truncates with no error and no flag, so page it yourself:
+page**. A long session truncates with no error and no flag: there is no `has_more`, no total,
+no next cursor, so a session with 600 events answers 500 of them and looks complete. Unless you
+are paging by hand, read the log with `listAllEvents`, which walks the cursor for you and
+de-duplicates across page boundaries:
 
 ```ts
-async function listAllEvents(zc: ZooclawClient, agentId: string, sessionId: string) {
-  const all: SessionEvent[] = []
-  let after = 0
-  for (;;) {
-    const page = await zc.listEvents(agentId, sessionId, { after, limit: 500 })
-    all.push(...page)
-    if (page.length < 500) break
-    after = page[page.length - 1]!.seq
-  }
-  return all
-}
+const all = await zc.listAllEvents(agentId, sessionId)
 ```
 
-`types` filters server-side and must contain only vocabulary members; an unknown one is
-`400 invalid_request`.
+`types` filters server-side on both calls and must contain only vocabulary members; an unknown
+one is `400 invalid_request`.
 
 ```ts
-const replies = await zc.listEvents(agentId, sessionId, { types: ['agent.assistant'] })
+const replies = await zc.listAllEvents(agentId, sessionId, { types: ['agent.assistant'] })
 ```
 
 The text assembled from the REST replay is byte-identical to the text assembled from the
@@ -583,32 +563,18 @@ The stream endpoint accepts `?deltas=agent.message`, which interleaves increment
 frames among the durable ones. The SDK does not expose it and `streamEvents` never requests it,
 so this section only concerns direct HTTP callers.
 
-Two things make it different from what you may expect:
-
-- Preview frames carry **no `id:` line**. They are not part of the durable cursor and never
-  replay. A reconnect re-derives them from the next `run.started`.
-- The frame body is `{ "type": "event_delta", "runId", "turn", "deltaText", "replace": true }`.
-  **`replace: true` means snapshot-replace, not prefix-append.** Each frame carries the current
-  full text, not the newly added fragment.
-
-So the concatenation you would write for a prefix-append delta stream produces duplicated text
-here. Assign, do not append:
-
-```js
-// correct for this API
-if (frame.type === 'event_delta') previewText = frame.deltaText
-
-// wrong: duplicates on every frame
-if (frame.type === 'event_delta') previewText += frame.deltaText
-```
+Two things make it different from what you may expect. Preview frames carry **no `id:` line**:
+they are not part of the durable cursor and never replay. And their `replace: true` means
+**snapshot-replace, not prefix-append** - each frame carries the current full text, so the `+=`
+you would write for a prefix-append delta stream duplicates everything already shown. Assign,
+do not append.
 
 Requesting `deltas` on a deployment without the preview backend configured returns
 `501 not_configured` before the stream opens, so you get a normal JSON error rather than a
 stream that stays silent.
 
 ::: warning Not yet verified
-The frame shape and the snapshot-replace semantics above are read from the server
-implementation. We have not exercised `?deltas=` against a live deployment, and we do not know
-whether it is enabled on the deployment you are using. For finished text, use `agent.assistant`
-events, which are durable, resumable, and verified.
+The semantics above are read from the server implementation; `?deltas=` has not been exercised
+against a live deployment. For finished text, use `agent.assistant` events, which are durable,
+resumable, and verified.
 :::

@@ -5,9 +5,6 @@ model. You do not register tools, and you do not implement them. You choose how 
 built-in set the agent may reach, and you observe what it actually called by reading
 `agent.tool` events off the session stream.
 
-Read this page before you design your product, because the most important thing on it is a
-gap.
-
 ## Client-executed custom tools do not exist
 
 ::: danger Not supported
@@ -67,7 +64,7 @@ cover the case where the model decides mid-turn that it wants something from you
 the only path is a remote MCP server.
 
 **Expose your capability as a remote MCP server.** See [Remote MCP servers](#remote-mcp-servers)
-below, and read the honesty note there before you build on it.
+below. It works, and it is unauthenticated-only.
 
 ## The built-in tool set
 
@@ -102,23 +99,13 @@ as the type guard.
 To audit a session after the fact, filter the REST read instead:
 
 ```ts
-const toolEvents = await zc.listEvents(agentId, sessionId, { types: ['agent.tool'] })
+const toolEvents = await zc.listAllEvents(agentId, sessionId, { types: ['agent.tool'] })
 ```
 
-::: warning listEvents returns one page
-The server default is 100 events and the maximum is 500, and `listEvents` returns a single
-page. A long session truncates silently, with no error. Page with the `after` cursor:
-
-```ts
-const all = []
-let after = 0
-for (;;) {
-  const page = await zc.listEvents(agentId, sessionId, { after, limit: 500 })
-  if (page.length === 0) break
-  all.push(...page)
-  after = page[page.length - 1]!.seq
-}
-```
+::: warning `listEvents` returns one page
+`listEvents` answers a single page - 100 events by default, 500 at most - and a long session
+truncates silently: there is no error, no `has_more`, and no total. `listAllEvents` walks the
+cursor for you. See [Events and streaming](/en/build/events).
 :::
 
 ## Narrowing the tool set with `tool_policy`
@@ -147,8 +134,8 @@ PUT replaces it wholesale. To restore the full manifest, send `{}`:
 await zc.updateAgent(agentId, { tool_policy: {} })
 ```
 
-**Every PUT bumps `config_version`**, including one that changes nothing. Do not use the
-version as an idempotency receipt, and do not re-PUT the policy on every turn.
+**Every PUT bumps `config_version`**, including one that changes nothing, so do not re-PUT the
+policy on every turn. See [Errors and retries](/en/reference/errors).
 
 **The identifiers are platform-defined.** `read` and `web_search` above come from the
 platform's own request examples. Confirm the names your deployment uses by running a turn and
@@ -168,16 +155,10 @@ here. What is *installed* in the sandbox is governed by the
 
 ## Reading tool activity
 
-One tool call produces a sequence of `agent.tool` events that share a `toolCallId`, one per phase:
-
-| `phase` | Carries | Meaning |
-|---|---|---|
-| `start` | `args` | The call was issued. |
-| `end` | `isError`, `resultPreview` | The call finished. |
-| `blocked` | - | The call is waiting on an approval and has **not** run. |
-
-Pair `start` and `end` by `toolCallId`, not by adjacency. When the model issues several
-calls concurrently, their events interleave.
+One tool call produces a sequence of `agent.tool` events that share a `toolCallId`, one per
+phase: `start`, `end`, and `blocked`. Pair `start` and `end` by `toolCallId`, not by
+adjacency. When the model issues several calls concurrently, their events interleave. What
+each phase carries is in [Events and streaming](/en/build/events).
 
 ```ts
 const pending = new Map<string, string>()
@@ -194,97 +175,67 @@ for await (const ev of zc.streamEvents(agentId, sessionId)) {
 }
 ```
 
-A typical single turn that uses tools produces this arc, in order:
-
-```
-run.started
-agent.lifecycle
-agent.item
-agent.thinking
-agent.assistant
-agent.tool (start) / agent.tool (end)   x N
-agent.lifecycle
-run.finished  payload.status = succeeded
-```
-
-See [Events and streaming](/en/build/events) for the full event vocabulary and the resume
-cursor.
-
 ## A failing tool does not fail the run
 
 An `agent.tool` event with `isError: true` is still followed by `run.finished` with
-`payload.status === 'succeeded'`. The model sees the error and usually works around it, and
-the turn completes normally.
-
-The consequence: **you cannot infer success from the absence of tool errors, and you cannot
-infer failure from their presence.** Gate on `run.finished` for the turn outcome, and treat
+`payload.status === 'succeeded'`. Gate on `runOutcome()` for the turn outcome, and treat
 `isError` as diagnostics.
-
-```ts
-import { runOutcome } from '@zooclaw-agents/sdk'
-
-let toolFailures = 0
-for await (const ev of zc.streamEvents(agentId, sessionId)) {
-  if (toolCall(ev)?.isError) toolFailures += 1
-  if (isRunFinished(ev)) {
-    console.log(`turn ${runOutcome(ev)}, ${toolFailures} tool errors along the way`)
-    break
-  }
-}
-```
 
 ## Remote MCP servers
 
 The one way to give an agent a capability you wrote is to run a remote MCP server and declare
 it on the agent. The declaration goes in `resource.mcp` on `createAgent`, and in the same
-position on `updateAgent`. `AgentResource` accepts unknown keys, so the field passes through
-the SDK unchanged.
+position on `updateAgent`. It is a typed field, `mcp?: McpServerDeclaration[]`, so the entry
+shape is checked at compile time.
 
-What we can state:
+```ts
+await zc.updateAgent(agentId, {
+  mcp: [
+    {
+      name: 'pricing',              // appears in every tool name; no underscores
+      url: 'https://mcp.example.com/pricing',
+      transport: 'streamable-http', // or 'sse'; this is the default
+      toolFilter: ['quote'],        // omit to expose all of the server's tools
+    },
+  ],
+})
+```
 
 - Only **remote HTTP** servers are in scope. There is no stdio server inside the sandbox, and
   no OAuth flow.
+- The `url` must be absolute and publicly reachable: loopback addresses, private ranges, cloud
+  metadata addresses and redirects are refused.
 - MCP tools surface to the model, and to you, under the name `mcp__<server>__<tool>`. That
   prefix in a `toolCall(ev).toolName` is how you confirm the server was actually reached.
 - The catalog is pinned per `config_version`, so changing the declaration takes effect on the
   next turn, not the current one.
-- There is no MCP REST resource and no credential vault. Session-level MCP overrides are
-  rejected.
+- A server that fails its catalog probe does not fail the run. It pins an empty catalog and
+  emits `agent.error` with `kind: 'mcp_connection_failed'`, so the turn proceeds without those
+  tools.
+- It is declared on the agent and nowhere else: there is no MCP resource of its own, and no
+  session-level override.
 
-::: warning Not yet verified
-We have not connected a remote MCP server end to end. The declaration field is accepted by the
-API, and the platform's own documentation still describes the worker side of this path as not
-production-wired.
-
-We are deliberately not printing an example `resource.mcp[]` entry, because we have not run
-one and would be guessing at the field names. Budget time to discover the entry schema
-yourself, and do not plan a product around this path on the assumption that it is a drop-in
-replacement for client-executed tools.
+::: danger Public servers only
+`credential` names a stored bearer token, but there is nowhere to store one - the credential
+endpoint answers 404 through the gateway, by design. A server that requires authentication
+cannot be made to work today. Declare unauthenticated servers only.
 :::
+
+This path is server-hosted, unauthenticated, and pinned per `config_version`. Do not design a
+product around it as a drop-in replacement for client-executed tools.
 
 ## Human approval is not usable end to end
 
-`agent.tool` has a third phase, `blocked`: the call is waiting on an approval and has not run.
-The matching `agent.approval` event carries the request, and an `end` event still follows once
-the approval resolves. On the write side, `user.tool_confirmation` is one of the four accepted
-event types.
+`agent.tool` has a third phase, `blocked`: the call is waiting on an approval and has not run,
+and an `end` event still follows once the approval resolves.
 
 ::: warning Not yet verified
-The approval loop does not work end to end today, and you should not build a demo on it.
+A run that blocks on an approval nobody answers does not wait for you. The turn times out.
 
-- We have never produced a real pending approval, so nothing on this path has been observed
-  working.
-- The write-side event and the platform's separate approvals REST resource describe the same
-  operation with two different shapes, and they do not line up.
-- `ZooclawClient` does have `listApprovals` and `resolveApproval`, but they drive that REST
-  resource, not the `user.tool_confirmation` event loop. Without a Temporal signaler the route
-  answers `501 not_configured`, and with no real pending approval ever produced to try them
-  against, the round trip stays unproven.
-- A run that blocks on an approval nobody answers does not wait for you. The turn times out.
+`ZooclawClient` does have `listApprovals` and `resolveApproval`, but they drive the separate
+approvals REST resource, not the `user.tool_confirmation` event loop.
 
-If you see `phase: 'blocked'`, treat it as pending and expect the turn to end without the
-tool having run. See the [capability matrix](/en/reference/capabilities) for the current status
-of this surface.
+See the [capability matrix](/en/reference/capabilities) for the current status of this surface.
 :::
 
 ## Related

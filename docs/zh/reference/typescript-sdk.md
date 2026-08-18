@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: 6fe78a71b28820007ccf2ba9e9afb5ed656ce76b54e058601d6b4bde143f0141
+source_hash: 34c18495fb494a61123877fada54ab01e521f0ffe3112ed10beb9ff269683c90
 ---
 
 # TypeScript SDK 参考
@@ -35,8 +35,6 @@ npm install @zooclaw-agents/sdk
 | Cloudflare Workers、Deno、Bun 及其他边缘运行时 | 从构造上就支持。SSE 解析器是照着 Web Streams 写的，不是 Node streams。 |
 | 浏览器 | 技术上能跑，但你的 API key 认证的是整个组织。不要把它发到客户端。见[鉴权](/zh/get-started/authentication)。 |
 
-全部选项只有 `apiKey`、`baseUrl`、`auth`，以及一个可注入的 `fetch`。
-
 ### 注入 `fetch`
 
 `ZooclawConfig.fetch` 会替换掉客户端发出的每一个请求所用的 `globalThis.fetch`，SSE 流也包括在内。
@@ -63,8 +61,8 @@ URL 字符串，绝不会是 `Request` 对象。你提供的、用于流式的 f
 function createZooclawClient(cfg?: ZooclawConfig): ZooclawClient
 ```
 
-返回一个 `ZooclawClient`。它是一个由闭包组成的普通对象：不建立任何连接，不发出任何请求，缺少 API key
-会在构造时抛错；其余一切都留到第一次使用时才校验。用一个错的 key 构造客户端会成功；第一次调用才会以
+返回一个 `ZooclawClient`。不建立任何连接，不发出任何请求，缺少 API key 会在构造时抛错；
+其余一切都留到第一次使用时才校验。用一个错的 key 构造客户端会成功；第一次调用才会以
 `401` 失败。
 
 ```ts
@@ -73,7 +71,7 @@ import { createZooclawClient } from '@zooclaw-agents/sdk'
 const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
 ```
 
-客户端很轻且无状态。一个进程建一个，然后共用。
+客户端很轻。一个进程建一个，然后共用。
 
 ### `ZooclawConfig`
 
@@ -155,7 +153,7 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | 开一个 session。要求 agent 处于运行状态，否则 `409 agent_not_running`。 |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | 读取一个 session，可选带上落盘的会话记录。 |
 | `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | 一个 agent 的 session，按 `updated_at` 从新到旧，每页 50 条，`page` 从 1 开始。没有游标；`run_status` 就是在这个面上才拿得到。 |
-| `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | 盖上 `archived_at`。之后写入返回 `409 session_archived`，读取照常。先中断正在跑的回合，否则归档会和它抢。 |
+| `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | 盖上 `archived_at`。之后写入返回 `409 session_archived`，读取照常。先中断正在跑的回合。 |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | 软删除这个 session（204），会先取消正在跑的回合。会话记录和事件为审计保留。 |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string; type?: string; accepted?: boolean }[] }>` | 往 session 里写入 user 或 system 事件。 |
 | `listEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | 读取持久事件日志。**一次调用只返回一页。** |
@@ -166,27 +164,28 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | 停在人工决策上的工具调用。`opts.status` 只能不传、或者传 `'pending'`，所以已处理的那些列不出来。这是平台上另一套独立的审批资源，不是 `user.tool_confirmation` 那条事件通路；没有 Temporal signaler 时这条路由返回 `501 not_configured`。 |
-| `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | 用 `allow-once`、`allow-always` 或 `deny` 处理一条审批；其他取值一律 400。同一族路由，没有 signaler 时同样是 `501`。 |
+| `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | 停在人工决策上的工具调用。`opts.status` 只能不传、或者传 `'pending'`，所以已处理的那些列不出来。这是平台上另一套独立的审批资源，不是 `user.tool_confirmation` 那条事件通路；后端没接线的地方，这条路由返回 `501 not_configured`。 |
+| `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | 用 `decision` 处理一条审批，取值是 `allow-once`、`allow-always` 或 `deny`；其他取值一律 400。可选的 `resolvedBy` 记录是谁做的决定。同一族路由，同样是 `501`。 |
 
 **System prompt**
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `getSystemPrompt(agentId)` | `Promise<SystemPromptInfo>` | 声明的 system-prompt pin 和实际生效的渲染模板。新建的 agent 生来就 pin 在当前 active 的平台版本上；`declaration: null` 表示一个模板机制落地之前的老 agent，仍走 virtual legacy 行为。 |
-| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | 按你给的运行时事实装配出完整 prompt，不碰任何 session——确定性输出，`transcript` 恒为 `[]`，`slot_hashes` 里每个模板 slot 一个哈希。`input.config_version` 必须是 agent 当前版本，否则 `409 config_version_changed`。 |
-| `upgradeSystemPrompt(agentId, input)` | `Promise<SystemPromptUpgrade>` | 唯一能挪 pin 的写入。`expected_config_version` 是必填的 CAS（过期是 `409 config_version_changed`——先读新值再升级）；省略 `template_version` 就升到当前 active 的平台版本。200 回执带新的 `config_version`。需要带 fix #3387（2026-08-14）的网关——更老的部署在这条 `{id}:verb` 语法的路由上回网关 404。 |
+| `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | 按你给的运行时事实装配出完整 prompt，不碰任何 session——确定性输出，`transcript` 恒为 `[]`，`slot_hashes` 里每个模板 slot 一个哈希。输入有六个必填字段，少任何一个都会返回一个点名该字段的 400：`config_version`（必须是 agent 当前版本，否则 `409 config_version_changed`）、`now_ms`、`session_id`、`model_display`、`workspace_dir` 和 `tool_names`。`channel`、`chat_type`、`session_key`、`subagent` 是可选的。 |
+| `upgradeSystemPrompt(agentId, input)` | `Promise<SystemPromptUpgrade>` | 唯一能挪 pin 的写入。`expected_config_version` 是必填的 CAS（过期是 `409 config_version_changed`——先读新值再升级）；省略 `template_version` 就升到当前 active 的平台版本。200 回执带新的 `config_version`。需要 2026-08-14 或更新的网关——更老的部署在这条 `{id}:verb` 语法的路由上回网关 404。 |
 
 **Artifacts**
 
 Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些方法管理它发布出来的东西。
-每条 artifact 路由都强制要求 `owner_uid`+`org_id` 选择器且网关不注入——SDK 从 agent 自己的
-投影里推导并按 agent 缓存，所以对一个 agent 的第一次 artifact 调用多花一次 GET。
+对一个 agent 的第一次 artifact 调用会多花一次 `getAgent()`，之后按 agent 缓存。如果这个 agent
+的投影里没有 ownership，这一步会抛出 `status: 500`、`type: 'ownership_unavailable'` 的
+`ZooclawError`——它是本地合成的，没有任何服务端响应能解释它。
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `listArtifacts(agentId, opts?)` | `Promise<ArtifactPage>` | 一次一页（`{artifacts, page, has_more}`）——而且和 `listEvents` 不同，`has_more` 会告诉你截断了。`limit` 默认 50、上限 100；用 `sessionId`、`sourcePath`、`createdBefore` 过滤。 |
-| `getArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | 一行 artifact。外部 id 和未知 id 都是 404。 |
+| `getArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | 一行 artifact。它的 `status` 是 `pending`、`ready`、`failed` 或 `deleted`，只有 `ready` 的行才带得出一个可解析的 `url`。外部 id 和未知 id 都是 404。 |
 | `downloadArtifact(agentId, artifactId)` | `Promise<{ artifact_id?: string; url?: string }>` | 为 `ready` 的 artifact 换发一个新访问 URL。URL 是可撤销的 bearer capability——当密钥对待。从未 finalize 的行返回 `409 artifact_not_ready`。 |
 | `deleteArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | 删除一个 artifact，返回引擎留下的那行。 |
 
@@ -194,20 +193,52 @@ Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些�
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | 这个 agent 的定时任务。列表返回的是 Temporal 原始的 describe，上面再合并一层 camelCase 投影——防御性地读。 |
+| `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | 这个 agent 的定时任务。列表返回的是调度器自己的 describe 形状，上面再合并一层 camelCase 投影——防御性地读。 |
 | `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | 创建一个定时任务。`201`，回执里只有 `schedule_name`，没有定义本身。定时任务比 `stopAgent()` 和 `deleteAgent()` 活得久；得你自己删。 |
 | `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | 读取一个定时任务，用的是 camelCase 的读取词表。你发进去的东西，没有一样按原来的名字回来。 |
 | `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | 替换定义。要改触发节奏就发 `schedule`，绝不要把读到的 `scheduleSpec` 发回去——那个会返回 `200` 然后被静默忽略。SDK 会把六个被拒的字段全部剥掉，所以「读出来、改一改、再写回去」这套在 JavaScript 里也能成立。 |
 | `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | 删除一个定时任务。和 `updateSchedule` 一样，它不提供跨超时的幂等保证——超时之后靠列出来对账，不要盲目重试。 |
 | `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | 带外地立刻触发一次。不影响原来的节奏。 |
 | `listScheduleRuns(agentId, scheduleId, opts?)` | `Promise<ScheduleRun[]>` | 过去的触发记录，从新到旧。`limit` 默认 20，上限 100。行有两种形状——按 `source` 分支。 |
-| `wake(agentId, input)` | `Promise<WakeResult>` | 往 agent 的 heartbeat 队列里塞一条提醒。`next-heartbeat`（默认）只写入待处理记录；`now` 还会去踢 heartbeat 定时任务，没有启用 heartbeat 时返回 `409`。 |
+| `wake(agentId, input)` | `Promise<WakeResult>` | 往 agent 的 heartbeat 队列里塞一条提醒。`next-heartbeat`（默认）只写入待处理记录；`now` 还会去踢 heartbeat 定时任务，没有启用 heartbeat 时返回 `409`。还有第三个选项 `deliverToUser: false`，让这条提醒只留在 agent 自己的推理里。`WakeResult` 是 `{ mode, queued, triggered }`；`triggered` 只在 `now` 模式下有意义，表示 heartbeat 到底有没有被踢起来。 |
+
+`ScheduleInput` 有三个必填字段。`schedule_id` 由你自己取，要匹配
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`——用同一个 id 但**不同的**定义再创建一次是 `409`。
+`schedule` 是触发节奏。`payload.kind` 必须是 `'agentTurn'`，这是管理面唯一接受的 kind。
+
+```ts
+await zc.createSchedule(agentId, {
+  schedule_id: 'daily-digest',
+  schedule: { kind: 'cron', expr: '0 9 * * *', tz: 'Asia/Shanghai' },
+  payload: { kind: 'agentTurn', message: 'Summarise yesterday.' },
+  sessionTarget: 'isolated',
+})
+```
+
+可选字段是 `sessionTarget`、`delivery`、`enabled`、`deleteAfterRun` 和 `jobKind`。
+`sessionTarget` 决定这个回合在哪里跑：不填或传 `'isolated'`，每次触发都开一个新 session；
+传 `session:<id>` 则打到这个 agent 已有的某个 session 上。它在创建之后**不可变**。
+
+然后你把它读回来，上面这些名字一个都没活下来。你的 `schedule_id` 变成 `name` 回来——
+这才是你传给 `getSchedule`、`updateSchedule` 和 `deleteSchedule` 的那个。`scheduleId` 字段是
+全限定名 `cron/{computer_id}/{agent_id}/{schedule_id}`，不是你取的那个 id。触发节奏在
+`scheduleSpec.cronExpressions[0]`，这是读取结果里唯一带节奏的地方；`sessionTarget` 读回来是
+`execution.kind`。
+
+`updateSchedule` 拒收六个字段，既是编译错误，运行时也会再剥一遍。其中两个就是刚说的读取形状：
+`scheduleSpec` 和 `sessionTarget`。另外四个——`execution`、`originMetadata`、`contextSnapshot`
+和 `creatorPrincipalRef`——由服务端派生，会返回
+`400 execution, originMetadata, creatorPrincipalRef, and contextSnapshot are server-derived`。
+这六个全都是 `getSchedule()` 会交给你的东西，所以手写的读改写往返需要这份清单，走 SDK 则不需要。
 
 **Exec**
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `exec(agentId, args)` | `Promise<ExecResult>` | 在 agent 的沙箱里跑一条 argv——不是 shell 字符串——cwd 固定为 `/workspace`。**非零退出码依然是 HTTP 200** ：这个 promise 会 resolve，所以要自己看 `exit_code`。它要求 agent 级的沙箱和一份已渲染的配置。 |
+| `exec(agentId, args)` | `Promise<ExecResult>` | 在 agent 的沙箱里跑一条 argv——不是 shell 字符串——cwd 固定为 `/workspace`。**非零退出码依然是 HTTP 200** ：这个 promise 会 resolve，所以要自己看 `exit_code`。它要求 agent 级的沙箱和一份已渲染的配置：session 级的 agent 是 `409 exec_requires_agent_scope`，没渲染过的是 `409 exec_config_not_ready`。 |
+
+命令的默认超时是 300 秒，`stdout` 和 `stderr` 各自在 200,000 字符处截断。这两条限制都不会以错误的
+形式告诉你，所以一条跑得久、或者话很多的命令，回来的样子和一条短命令没有区别。
 
 **Environment**
 
@@ -216,11 +247,11 @@ Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些�
 | `listEnvironments(opts?)` | `Promise<EnvironmentRecord[]>` | 你的组织能看到的 Environment，`page` 从 1 开始。没动过的 agent 固定在上面的那个平台默认 Environment 不在里面。 |
 | `getEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 读取一个 Environment。你组织之外的一律 `404`，平台默认的那个也一样——这是选择器不匹配，不是权限问题。 |
 | `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | 创建一个 Environment 及其第一个版本。`resource.config` 只收 `packages`、`files`、`build`、`networking` 这四个键；出现别的键就是 `400 invalid_environment_config`。 |
-| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 归档它。SDK 会替你把 `{id}:archive` 里的冒号做百分号编码——裸的 `:` 会让引擎匹配不到这条路由、返回 404，这正是这个方法存在的全部理由。 |
+| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 归档它。SDK 会替你把 `{id}:archive` 里的冒号做百分号编码——裸的 `:` 会让引擎匹配不到这条路由、返回 404。 |
 | `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | 给已有的 Environment 加一个不可变版本。SDK 会把你的 `config` 包成 `{ resource: { config } }`，和创建时一致。 |
 | `getEnvironmentVersion(environmentId, version)` | `Promise<EnvironmentVersionRecord>` | 读取一个版本。要判断某个版本能不能用，轮询**这个** ，看 `status`；这里没有 `state` 字段，照着 `state` 写的循环永远不会结束。 |
 
-下面的小节只展开那些行为值得细讲的方法；其余的都是一次调用的事。一个方法在客户端上，不等于它这条
+只有下面有小节的方法才带着签名之外的行为；其余的都是一次调用的事。一个方法在客户端上，不等于它这条
 路由已经被跑过——这件事记在[能力矩阵](/zh/reference/capabilities)里，一族一族地记。
 
 下面所有代码片段都假设：
@@ -274,7 +305,7 @@ createAgent(
 | 参数 | 类型 | 说明 |
 |---|---|---|
 | `input.resource` | `AgentResource` | 配置。`name` 必填。 |
-| `input.ownership` | `Ownership` | 可省略，一般不传——网关会从你的 API key 推导租户锚点。 |
+| `input.ownership` | `Ownership` | 这里不要传。它在 `createEnvironment` 上是**必填**的，那边从一份 agent 记录的 `ownership` 里取。 |
 | `idempotencyKey` | `string` | 作为 `Idempotency-Key` 头发送。你不传它时，这个头完全不会出现。 |
 
 返回**创建回执** ：一个扁平对象，带 `agent_id`、顶层的 `config_version`、`ownership` 和
@@ -294,11 +325,11 @@ const created = await zc.createAgent(
 console.log(created.agent_id, created.config_version) // "agt_...", 1
 ```
 
-新建的 agent 是**停止** 的。开 session 之前先调 `startAgent()`，否则 `createSession()` 会以
-`409 agent_not_running` 失败。
+新建的 agent 是**停止** 的：没先调 `startAgent()` 就 `createSession()`，就是
+`409 agent_not_running`。见[快速开始](/zh/get-started/quickstart)。
 
-这份回执上的 `config_version` 立刻就会过期：网关在创建之后马上给 agent 代种模型凭证，每一次写入都会
-bump 版本号，所以回执写着 `1`，紧接着一次 `getAgent()` 常常已经是 `3` 了。
+这份回执上的 `config_version` 立刻就会过期——回执写着 `1`，紧接着一次 `getAgent()` 常常已经是
+`3` 了。见[错误处理](/zh/reference/errors)。
 
 ---
 
@@ -350,14 +381,13 @@ console.log(updated.declared?.name)   // unchanged - `name` was not in the body
 console.log(updated.declared?.labels) // { tier: 'paid' } - replaced, not merged key-by-key
 ```
 
-连这条规则都有例外，就是 `tool_policy`：任何点到它的 PUT 都会替换整个对象，而 `{}` 会把策略清回
-完整的工具清单。
+连这条规则都有例外，就是 `tool_policy` 和 `system_prompt`：任何点到它们的 PUT 都会整体替换。
+见[工具](/zh/build/tools)。
 
 **每一次成功的 PUT 都会 bump `config_version`，包括请求体和已存内容逐字节相同的那一次。**
-没有 no-op 检测，所以「版本号没变」不是一个你能读出来的信号，版本号也不是你这次写入的回执。见
-[错误处理](/zh/reference/errors)。
+见[错误处理](/zh/reference/errors)。
 
-PUT 请求体里出现 `skills` 以及未知字段，都返回 `400`。
+PUT 请求体里出现 `skills`、`credentials` 以及未知字段，都返回 `400`。
 
 ---
 
@@ -369,12 +399,8 @@ deleteAgent(agentId: string): Promise<void>
 
 软删除该 agent，resolve 时不带任何值。重复调用会成功。删除之后，`getAgent()` 返回 `404 not_found`。
 
-它**不会** 停止 agent、不会取消正在跑的 workflow、不会删除定时任务、也不会释放 sandbox。先停再删：
-
-```ts
-await zc.stopAgent(agentId)
-await zc.deleteAgent(agentId)
-```
+它**不会** 停止 agent、不会取消正在跑的 workflow、不会删除定时任务、也不会释放 sandbox——
+先停再删。见 [Agents](/zh/build/agents)。
 
 ---
 
@@ -393,8 +419,8 @@ console.log(warnings)
 // [ 'channel_routes_reload_failed: routes reload returned 404' ]
 ```
 
-**`warnings` 是提示信息，不是失败。** 纯 API 的 agent 没有聊天频道路由要重载，所以每次启动、每次停止
-它都会报 `channel_routes_reload_failed`。记一条日志然后继续。不要因为它去重试。
+**`warnings` 是提示信息，不是失败。** 纯 API 的 agent 每次启动、每次停止都会报
+`channel_routes_reload_failed`；不要因为它去重试。见 [Agents](/zh/build/agents)。
 
 然后等 `status.desired_state === 'running'`，永远不要等 `status.actual_state`。这个等待本身
 就是一个方法——不要自己写这个循环：
@@ -420,11 +446,6 @@ waitUntilRunning(
 它轮询 `getAgent()`，拿第一份读到 `running` 的投影 resolve。超时时抛出一个 `status: 408`、
 `type: 'timeout'` 的 `ZooclawError`；被 abort 时是 `status: 0`、`type: 'aborted'`。
 **这两个都是本地合成的** ——服务端从来不会发它们，而且这次 abort 不会漏出一个 `DOMException`。
-
-这两个上界管的都是**飞行中的请求** ，不只是两次轮询之间的空档：每一次轮询都带着自己的 signal，
-你的 `signal` 触发和预算耗尽，哪个先来就跟哪个。SDK 跑的每一个运行时里，`fetch` 自己都没有超时，
-所以一个接受了连接然后再也不回话的网关，会把手写的循环永远停在那儿——不管是 `attempts` 计数器，
-还是两次轮询之间的 `Date.now() >= deadline` 检查，都根本轮不到执行。
 
 ---
 
@@ -536,14 +557,13 @@ const session = await zc.createSession(
 )
 
 console.log(session.session_id)  // "ses_example"
-console.log(session.session_key) // "api:example"
+console.log(session.session_key) // "api:ses_example"
 ```
 
 agent 必须处于运行状态。对一个已停止的 agent 调用，会抛出 `ZooclawError`，`status: 409`，
 `type: 'agent_not_running'`。
 
-幂等 key 要从你自己系统里稳定的东西派生，不要用调用时现生成的值——它存在的全部意义，
-就是撑过超时之后的那次重试。
+幂等 key 要从你自己系统里稳定的东西派生，绝不要用调用时现生成的值。见[错误处理](/zh/reference/errors)。
 
 ---
 
@@ -575,11 +595,6 @@ for (const row of s.history ?? []) {
   console.log(row.seq, messageText(row.entry.message))
 }
 ```
-
-::: danger `status` 永远是 `null`
-`SessionRecord.status` 每一次读取都返回 `null`。它不是状态机。真正在用的字段是 `run_status`。
-基于 `session.status` 分支的代码，永远只会走同一个分支。
-:::
 
 ---
 
@@ -618,13 +633,8 @@ console.log(r.events[0]?.accepted)
 没有 run 在跑的时候，`user.interrupt` 返回 `accepted: false`。**这是一次 no-op，不是错误** ——
 不抛任何异常，也没有什么要你处理。
 
-**`system.message` 会在下一个回合到达模型。** 它是一条带外注入通道：
-
-```ts
-await zc.postEvents(agentId, sessionId, [
-  { type: 'system.message', text: "Operator note: the user's display name is Ada." },
-])
-```
+**`system.message` 会在下一个回合到达模型** ，走的是带外通道，而且它的正文放在 `text` 里，
+不是 `content`。见[事件](/zh/build/events)。
 
 这条路由上没有幂等 key。超时后重试的 `postEvents` 可能把同一条消息投递两次；请在你这边做去重。
 
@@ -726,23 +736,29 @@ console.log(outcome, text)
 
 四条值得知道的行为：
 
-- **这个流的作用域是 session，回合结束时它不会关闭。** `run.finished` 是一个回合的结束，不是流的结束。
-  你要自己用 `isRunFinished` 跳出来，并且在离开循环时永远记得 abort 掉 controller。
+- **这个流的作用域是 session，回合结束时它不会关闭。** 你要自己用 `isRunFinished` 跳出来，
+  并且在离开循环时永远记得 abort 掉 controller。
 - **服务端会在空闲时关闭这个流。** 用
   `streamEvents(agentId, sessionId, { after: lastSeq })` 重连。续传是服务端做的，所以两个窗口
   之间的内容不会丢。SDK 不会替你重连。
 - **`chat.delta` 预览帧会被跳过。** 它们以 SSE `event_delta` 帧的形式，走另一条非持久的通道，
   语义是快照替换，SDK 会把它们丢掉。你看到的永远只有持久事件。
-- **边界事件会去重。** 每一帧的持久 `seq` 取自 SSE 的 `id:` 行，生成器会丢弃 `seq` 不大于它上一次
-  产出值的事件，所以重连时被重放的边界事件不会两次到达你手里。
+- **边界事件会去重。** 每一帧的持久 `seq` 取自 JSON body，取不到时才回退到 SSE 的 `id:` 行；
+  生成器会丢弃那些 `seq` 非负、且不大于它上一次产出值的事件，所以重连时被重放的边界事件不会
+  两次到达你手里。归一化后 `seq` 为 `-1` 的帧不带可用游标，会被放行而不是丢弃。
 
 非 2xx 响应会抛出 `ZooclawError`。这个特定的错误只由状态行构造，所以**流失败时 `type` 永远是
 `undefined`**——请基于 `status` 分支。
 
 ## 类型
 
-每一个响应类型的末尾都有 `[k: string]: unknown`。这套 API 处于 Developer Preview 阶段，
+大多数响应类型的末尾都有 `[k: string]: unknown`。这套 API 处于 Developer Preview 阶段，
 可能在同一个版本内新增字段：对你不认识的东西选择忽略，而不是报错。
+
+没有这个索引签名的那几个是**故意封闭的** ——`SessionEvent`、`SessionHistoryEntry`、`ToolCall`、
+`ExecResult`、`WakeResult`、`Ownership`、`EnvironmentConfig`、`AgentResource`、`OutcomeConfig`、
+`OutcomeEvaluator`、`SystemPromptDeclaration`、`SSEMessage`、`ZooclawConfig` 和 `ZooclawAuth`
+不收多余的键，多写一个键是编译错误，而不是一个能活到线上的字段。
 
 这里的小节只覆盖你在本页走过的那些路径上会碰到的类型。skill registry、审批、定时任务、wake、
 exec 和 Environment 相关的类型都在[完整导出清单](#完整导出清单)里，而且每一个都把自己字段级的坑
@@ -771,15 +787,10 @@ interface SessionEvent {
 | `turn` | session 内的回合序号。 |
 | `createdAt` | ISO 时间戳。 |
 
-线上会用两种拼写呈现同一个事件，而且**两种都没有顶层的 `type` 字段** ：
-
-```
-REST  GET .../events         { seq, run_id, turn, event_type, payload, created_at }
-SSE   GET .../events/stream  { seq, runId, turn, eventType, payload, createdAt, ... }
-```
-
-`normalizeEvent()` 把两种都吸收掉，这就是 SDK 的每一次读取都只给你一种形状的原因。
-直接调 HTTP API 的人必须自己处理两种拼写。
+`SessionEvent` 是 camelCase，紧挨着它的 `SessionRecord` 和 `AgentRecord` 是 snake_case——
+这是线上的样子，不是笔误，所以不要把 `eventType` 「改正」成 `event_type`。同一个事件，
+REST 用 snake_case 拼写，SSE 用 camelCase 拼写；`normalizeEvent()` 把两种都吸收掉，
+这就是 SDK 的每一次读取都只给你一种形状的原因。见[事件](/zh/build/events)。
 
 ### `AgentRecord`
 
@@ -790,11 +801,27 @@ interface AgentRecord {
   config_version?: number
   declared?: Record<string, unknown>
   resolved_skills?: { skill_id: string; name?: string; version?: number | string; eligible?: boolean }[]
+  resolved_environment?: {
+    environment_id?: string
+    version?: number
+    provider?: string
+    template_ref?: string
+    build_id?: string
+    networking?: { type?: 'unrestricted' | 'limited' | string; allowed_hosts?: string[] }
+    [k: string]: unknown
+  }
+  environment_locked?: boolean
+  environment_locked_at?: string | null
   status?: AgentStatus
   ownership?: Ownership
   [k: string]: unknown
 }
 ```
+
+这份记录上值得先读一眼的是 `environment_locked`。第一次创建沙箱时它翻成 `true`，从那之后，
+每一次改这个 agent 的 Environment 都是 `409 environment_locked`——停掉 agent 也清不掉它。
+`environment_locked_at` 是它翻转的时刻。`resolved_environment` 是这个 agent 实际 pin 上的那个
+Environment 版本；当 Environment 没声明网络时，它的 `networking` 默认是 `{ type: 'unrestricted' }`。
 
 一个接口，两种响应形状：
 
@@ -824,18 +851,11 @@ interface AgentStatus {
 ```
 
 ::: danger 永远不要用 `actual_state` 做闸门
-两个听起来可以互换、实际上不是一回事的字段。
+`desired_state` 才是决定 API 能不能用的那个：`running` 是 `createSession()` 和 `postEvents()`
+的前置条件，不是 `running` 就是 `409 agent_not_running`。
 
-`desired_state` 才是决定 API 能不能用的那个。`running` 是 `createSession()` 和 `postEvents()`
-的前置条件；不是 `running` 就是 `409 agent_not_running`。调用 `startAgent()` 之后，它远不到一秒
-就会翻成 `running`。
-
-`actual_state` 是**聊天频道的健康度** ——Mattermost 和飞书的路由连通性——不是 API 就绪状态。
-纯 API 的 agent 没有频道要连（`channels.expected === 0`），所以它会永远停在 `activating`，
-`active` 根本到不了。`running` 甚至不在 `actual_state` 的枚举里，所以轮询它的循环永远不会返回。
-我们在一个 `actual_state` 从没离开过 `activating` 的 agent 上，跑完过完整的回合并拿到 `succeeded`。
-
-轮询 `status.desired_state`。永远不要轮询 `status.actual_state`。
+`actual_state` 是聊天频道的健康度，不是 API 就绪状态。`running` 甚至不在它的枚举里，
+所以轮询它的循环永远不会返回。轮询 `status.desired_state`。见 [Agents](/zh/build/agents)。
 :::
 
 这里的 `config_version` 是读取路径上的权威版本号。
@@ -856,15 +876,17 @@ interface AgentResource {
   sandbox?: { scope: 'agent' | 'session' }
   environment_id?: string
   environment_version?: number
-  [k: string]: unknown
 }
 ```
 
 你发给 `createAgent()` 的配置。`name` 是唯一必填的字段。`mcp` 声明远程 MCP server。
-SDK 在每次 create 时自动跳过 onboarding 面试——agent 会直接回答你的第一条消息。
 `system_prompt` pin 一个模板版本（创建时省略等于「当前 active 的平台版本」，
 从此定住；PUT 时和 `tool_policy` 一样整体替换），`outcome` 是无人值守 cron 触发的 agent 级
-默认门。索引签名的作用，是让更新的服务端所接受的新字段照样能通过类型检查。
+默认门。
+
+**`AgentResource` 是封闭的。** 它没有索引签名，所以多写一个键是 TypeScript 错误，
+而不是一个能发到服务端的字段。更新的服务端所接受的新字段，只能走
+`updateAgent(agentId, sections)`——那个参数的类型是 `Record<string, unknown>`，什么都不检查。
 
 有一个字段类型上允许、但你不该通过公开网关发送：创建时的 `skills`（改用 `putAgentSkill()`）。
 逐字段的说明见 [Agents](/zh/build/agents)。
@@ -905,6 +927,7 @@ interface SessionRecord {
 只有读取时带了 `history: true`，`history` 才会出现；它装的是最近的 `limit` 行，按 `seq` 升序排列。
 
 `status` 实际上永远是 `null`——真正在用的字段是 `run_status`，而 `listSessions` 是它拿得到的那个面。
+**基于 `session.status` 分支的代码，永远只会走同一个分支。**
 `session_key` 带频道前缀：你通过 API 创建的 session 是 `api:<session_id>`。`channel` 在你自己创建的
 session 上是 `api`，在定时任务触发出来的 session 上是 `cron`。
 
@@ -965,8 +988,8 @@ interface Ownership {
 }
 ```
 
-一个持久化锚点，不是鉴权声明。`createAgent()` 里可以省略，一般不传——网关会从绑定到你 key 的
-锚点推导这两个字段，真实值从 `created.ownership` 读回来。
+一个持久化锚点，不是鉴权声明。`createAgent()` 里不要传，真实值从 `created.ownership` 读回来。
+真正**必填**它的是 `createEnvironment()`：把你从一份 agent 记录上读到的这两个值传过去。
 
 ### `ToolCall`
 
@@ -983,13 +1006,10 @@ interface ToolCall {
 
 `agent.tool` 事件解码后的形态，由 `toolCall()` 返回。
 
-- 一次工具调用会产生**两个共享同一个 `toolCallId` 的事件** ：`phase: 'start'` 带 `args`；
-  `phase: 'end'` 带 `isError` 和 `resultPreview`。按 `toolCallId` 配对——并发调用时，
-  它们在流里**不相邻** 。
-- `phase: 'blocked'` 是第三种状态：这次调用在等审批，**还没有** 执行。把它当成 pending，
-  不要当成结束。对应的 `agent.approval` 事件带着那个请求，等它落定之后，`end` 仍然会跟上来。
-- **一个工具失败不会让 run 失败。** 带 `isError: true` 的 `agent.tool` 事件后面，照样跟着
-  `succeeded` 的 `run.finished`。不要从「没有工具错误」推断回合成功。
+一次工具调用会产生**一串共享同一个 `toolCallId` 的事件，每个 phase 一个** ：`start` 带 `args`，
+`end` 带 `isError` 和 `resultPreview`，`blocked` 表示这次调用停在审批上、**还没有** 执行。
+按 `toolCallId` 配对——并发调用时，它们在流里**不相邻** 。一个工具失败不会让 run 失败：
+带 `isError: true` 的事件后面，照样跟着 `succeeded` 的 `run.finished`。见[事件](/zh/build/events)。
 
 ### 配置类型
 
@@ -1029,28 +1049,7 @@ class ZooclawError extends Error {
 | `messageText` | `(message: unknown) => string` | 一条 `{ role, content }` 消息的文本。 |
 | `normalizeEvent` | `(raw: unknown, sseId?: string) => SessionEvent` | 把两种线格式中的任意一种吸收成 `SessionEvent`。 |
 
-因为文本类辅助函数对不匹配的类型返回 `''`，你可以无条件地累加：
-
-```ts
-import { assistantText, thinkingText, toolCall, isRunFinished, runOutcome } from '@zooclaw-agents/sdk'
-
-let text = ''
-
-for await (const ev of zc.streamEvents(agentId, sessionId)) {
-  text += assistantText(ev)
-
-  const think = thinkingText(ev)
-  if (think) console.log(`thinking: ${think.slice(0, 60)}`)
-
-  const call = toolCall(ev)
-  if (call) console.log(`tool ${call.toolName} ${call.phase}${call.isError ? ' (error)' : ''}`)
-
-  if (isRunFinished(ev)) {
-    console.log('run', runOutcome(ev))
-    break
-  }
-}
-```
+因为文本类辅助函数对不匹配的类型返回 `''`，你可以无条件地累加。见[事件](/zh/build/events)。
 
 ### `messageText(message)`
 
@@ -1231,10 +1230,9 @@ import {
 符号，它都会失败。`DEFAULT_BASE_URL` 就是那个会被 `ZOOCLAW_BASE_URL` 和 `baseUrl` 选项覆盖掉的
 公开网关 base；把它导出来，是为了让你能拿它做比较，或者自己拼 URL。
 
-这就是全部的公开接口面。不在这个清单上的东西就是不存在——特别地，没有 `patchSession`。
-`PATCH /agents/{id}/sessions/{sid}` 经网关返回 `405`：网关的兜底路由只注册了 GET、POST、PUT 和
-DELETE，PATCH 根本没被代理，所以一个 session 的 `metadata` 是在 `createSession()` 时一次写定的。
-见[不支持的能力](/zh/reference/not-supported)。
+这就是全部的公开接口面。不在这个清单上的东西就是不存在——特别地，没有 `patchSession`：
+`PATCH /agents/{id}/sessions/{sid}` 返回 `405`，所以一个 session 的 `metadata` 是在
+`createSession()` 时一次写定的。见[不支持的能力](/zh/reference/not-supported)。
 
 ## 下一步
 

@@ -22,12 +22,10 @@ or your API, and you hand the result back so the agent continues the same turn.
 `user.custom_tool_result` event to answer with. The write side accepts exactly four event
 types: `user.message`, `user.interrupt`, `user.tool_confirmation`, `system.message`.
 
-**Instead:** two options. Wrap your service as a **remote HTTP MCP server** and declare it on
-the agent - the only shape that puts your code behind an agent tool. It is verified end to
-end, with one hard limit: only an **unauthenticated** server works, because the credential
-store behind the declared bearer slug answers 404. Or keep the decision in your own process:
-wait for `run.finished`, do the work, and post the answer back as a `user.message` on the
-next turn. The second path is slower by one turn.
+**Instead:** keep the decision in your own process: wait for `run.finished`, do the work, and
+post the answer back as a `user.message` on the next turn. That path is slower by one turn.
+The only other shape that puts your code behind an agent tool is a **remote HTTP MCP server**
+declared on the agent - see [Tools](/en/build/tools).
 
 ## Vault-style end-user credential storage
 
@@ -81,14 +79,11 @@ iterate. Every step of that loop is verified.
 **You would build:** the agent proposes a dangerous action, your UI shows an approve or deny
 card, and the run continues or stops based on the click.
 
-**What happens:** the pieces exist separately and the loop has never been seen to close.
-`agent.approval` is in the event vocabulary, `agent.tool` has a `blocked` phase, and
-`user.tool_confirmation` is an accepted write type, but we have never produced a real pending
-approval, so nothing about the round trip is proven. An agent waiting on an approval spends
-the turn waiting. `listApprovals` and `resolveApproval` are on the client, but they call the
-platform's separate approvals REST resource rather than that event loop, and without a
-Temporal signaler the route answers `501 not_configured` - the methods being there changes
-nothing about what has been proven.
+**What happens:** the pieces exist separately - `agent.approval` in the event vocabulary, a
+`blocked` phase on `agent.tool`, `user.tool_confirmation` as an accepted write type - but no
+real pending approval has ever been produced, so nothing about the round trip is proven, and
+an agent waiting on one spends the turn waiting. See the
+[capability matrix](/en/reference/capabilities#tools).
 
 **Instead:** gate on your side. Keep the dangerous capability out of the agent's tool policy,
 have the agent describe what it wants to do in text, make the decision in your own UI, then
@@ -113,10 +108,11 @@ because there is no way to reconstruct it later.
 **You would build:** a knowledge base several agents share, or memory you can version, audit,
 and roll back.
 
-**What happens:** there is no memory resource, no mount, no versioning, and nothing shared
-across agents. The model may have memory tools private to a single agent, but they can be
-disabled at the deployment level and are invisible over the API. Declaring `MEMORY.md` or a
-`memory/` path in `persona.docs` returns `400 invalid_persona_doc_name`.
+**What happens:** there is no memory resource, no mount, no versioning, no background
+consolidation process, and nothing shared across agents. The model may have memory tools
+private to a single agent, but they can be disabled at the deployment level and are invisible
+over the API. Declaring `MEMORY.md` or a `memory/` path in `persona.docs` returns
+`400 invalid_persona_doc_name`.
 
 **Instead:** keep the state in your own database and inject what matters with a
 `system.message` at the start of a turn. The model reads it on the following turn, and you
@@ -131,18 +127,16 @@ signature on the delivery.
 configuration. A schedule's `delivery` field accepts `none` and a typed `announce`; webhook
 delivery is rejected.
 
-**Instead:** hold the SSE stream, or poll `listEvents` with `after`. Because every frame
-carries a durable `seq` and the server replays from it, a dropped connection costs you
-nothing and needs no de-duplication - which is a better story than most webhook retries.
+**Instead:** hold the SSE stream, or poll `listEvents` with `after` - every frame carries a
+durable `seq` and the server replays from it, so a dropped connection costs you nothing.
 
 ## Agent version pinning and rollback
 
 **You would build:** a canary that sends ten percent of traffic to configuration v3, or a
 one-call rollback to the previous version.
 
-**What happens:** `config_version` is visible and increments on every PUT, but no route lists
-versions, fetches an old one, or pins a session to one. The number tells you something
-changed and nothing more.
+**What happens:** `config_version` increments on every PUT ([Errors](/en/reference/errors)),
+but no route lists versions, fetches an old one, or pins a session to one.
 
 **Instead:** keep your own copy of every configuration you PUT, so rolling back means
 re-PUTting the previous body. For a canary, run two agents with different configurations and
@@ -168,16 +162,12 @@ Smaller gaps, same rule: they do not exist, so do not plan on them.
 | Thing | What to know |
 |---|---|
 | A command-line interface | TypeScript SDK only. |
-| `agent_with_overrides` on session create | `createSession` takes `initial_events` and `metadata`. |
-| Per-session tool or MCP overrides | `PATCH` on a session is `405` through the gateway - the catch-all registers GET, POST, PUT, and DELETE only, so PATCH is not proxied at all. There is no override path and no `patchSession`. |
+| Per-session tool or MCP overrides, `agent_with_overrides` on session create | `createSession` takes `initial_events` and `metadata`, nothing else. `PATCH` on a session is `405` through the gateway. There is no override path and no `patchSession`. |
 | `session.status_*`, `span.*`, `stop_reason` events | Not in the vocabulary. Use `run.finished` and its `payload.status`. |
-| A credential API | The platform seeds model credentials itself when the agent is created; keep your own secrets in your own service. |
 | Installing a skill from the global catalog | `404`. Global skills are already attached at agent creation. |
 | cargo, gem, or go packages in an environment | apt, npm, and pip only. |
-| Environment secrets, runtime environment variables, sandbox start hooks | Not accepted in an environment config. This is a limit on what you can add: the sandbox does carry runtime credentials the platform injects for its own built-in skills, but that surface is internal and not extensible. Your secrets stay in your own service. |
-| Schedule pause and unpause, archive, run history across schedules | Not present. Delete and recreate, and read runs one schedule at a time. |
-| Automatic schedule cleanup when an agent is deleted | Schedules survive stop and delete. Remove them yourself first. |
-| Memory consolidation as a background process | No equivalent. |
+| A credential API; environment secrets, runtime environment variables, sandbox start hooks | The platform injects credentials for its own built-in skills; that lane is not open to you, and an environment config does not accept secrets, variables, or start hooks. Your keys stay in your own service. |
+| Schedule pause and unpause, archive, run history across schedules, automatic cleanup when an agent is deleted | Not present - delete and recreate, and read runs one schedule at a time. Schedules survive stop and delete, so remove them yourself first. |
 | SDK methods for files | The files routes exist on the wire but their backend is not wired; `ZooclawClient` exposes nothing for them, so you would call them with your own `fetch`. Artifacts joined the client in 0.0.6 (`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`); approvals, schedules, environments, and session archive and delete have been on it since 0.0.5 - see the [capability matrix](/en/reference/capabilities). |
-| Key rotation or revocation from your own code | No API - but no longer a support ticket either: in the ZooClaw App, **Settings → API Keys** rotates or revokes a key immediately (the new secret is shown exactly once). Treat a leaked key as an immediate rotate there. |
+| Key rotation or revocation from your own code | No API. In the ZooClaw App, **Settings → API Keys** rotates or revokes a key immediately, and the new secret is shown exactly once. |
 | Scoped, per-user, or read-only API keys | One organization-wide key, with full read and write over every agent in the organization. |
