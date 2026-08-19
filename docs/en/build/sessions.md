@@ -94,8 +94,9 @@ Replaying the same key returns the existing session instead of creating a second
 running the opening turn twice. [Errors and retries](/en/reference/errors) has the rules for
 choosing and reusing a key.
 
-The event write path has no idempotency key. `postEvents` retried after a timeout can deliver
-the same message twice; de-duplicate on your side before you retry.
+The event write path takes a per-event key instead of a header: give each event an
+`idempotency_key` (any stable string) and a `postEvents` retried after a timeout will not
+deliver it twice.
 
 ## Multi-turn
 
@@ -103,19 +104,18 @@ To continue a conversation, post another `user.message` to the same session. Do 
 the history - the agent holds it server-side.
 
 ```ts
-async function runTurn(sessionId: string, after = 0) {
+async function runTurn(sessionId: string, cursor?: string) {
   let text = ''
-  let lastSeq = after
   let outcome: string | undefined
-  for await (const ev of zc.streamEvents(agentId, sessionId, { after })) {
-    lastSeq = ev.seq
+  for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
+    cursor = ev.cursor ?? cursor
     text += assistantText(ev)
     if (isRunFinished(ev)) {
       outcome = runOutcome(ev)
       break
     }
   }
-  return { text, lastSeq, outcome }
+  return { text, cursor, outcome }
 }
 
 // Turn 1 - opens with the session.
@@ -125,19 +125,20 @@ const session = await zc.createSession(agentId, {
 const first = await runTurn(session.session_id)
 console.log(first.outcome, first.text)   // "succeeded" ...
 
-// Turn 2 - same session, new message. Resume the stream from the last seq you saw.
+// Turn 2 - same session, new message. Resume the stream from the last cursor you saw.
 await zc.postEvents(agentId, session.session_id, [
   { type: 'user.message', content: 'What is my display name?' },
 ])
-const second = await runTurn(session.session_id, first.lastSeq)
+const second = await runTurn(session.session_id, first.cursor)
 console.log(second.text)                 // mentions "Ada"
 ```
 
-`postEvents` returns `202` and an object wrapping the per-event results:
-`{ events: [{ id?, type?, accepted? }] }` - the array is under `events`, not the response
-itself. Acceptance means the event was queued, not that the turn has finished. A turn ends
-when you see `run.finished`, whose `payload.status` is `succeeded`, `failed`, or `aborted` -
-see [Events and streaming](/en/build/events).
+`postEvents` returns `202` and an object wrapping the per-event results - the array is under
+`events`, not the response itself. An accepted event comes back as the full event object the
+history will show (with its `seq`); a `user.interrupt` with no run in flight comes back as
+`{ id, type, accepted: false }`. Acceptance means the event was queued, not that the turn has
+finished. A turn ends when you see `run.finished`, whose `payload.status` is `succeeded`,
+`failed`, or `aborted` - see [Events and streaming](/en/build/events).
 
 The write path accepts four event types: `user.message`, `user.interrupt`, `system.message`,
 and `user.tool_confirmation`.
@@ -257,36 +258,39 @@ missed; use `listEvents` when you want the event stream. Other `entry_type` valu
 
 ## `listEvents` and pagination
 
-`listEvents` returns the durable event log for a session, normalized to a single
-`SessionEvent` shape (`seq`, `eventType`, `payload`, `runId`, `turn`, `createdAt`).
+`listEvents` returns the durable event log for a session — your own inputs (`user.message`
+and friends) included, so the whole conversation reconstructs from this one surface —
+normalized to a single `SessionEvent` shape (`seq`, `eventType`, `payload`, `runId`, `turn`,
+`createdAt`, plus `id` and `processedAt` where the server sends them).
 
 ```ts
 const events = await zc.listEvents(agentId, session.session_id, {
-  types: ['agent.assistant'],
+  types: ['user.message', 'agent.assistant'],
 })
 ```
 
-::: warning One page per call - long sessions truncate silently
+::: warning One page per call
 The server returns **100 events by default and at most 500**, and `listEvents` returns one
-page. There is no `has_more` flag and no error: a session with 900 events answers with the
-first 100 and looks complete. Anything that reconstructs a whole conversation must page.
+page without the page's `has_more`/`next_cursor` fields. Anything that reconstructs a whole
+conversation should use `listAllEvents`, or page by hand with `listEventsPage`.
 :::
 
-`listAllEvents` is that paging loop. It walks the `after` cursor - the `seq` of the last event
-it received - until a page comes back shorter than the limit it asked for:
+`listAllEvents` is that paging loop. It follows the server's `next_cursor` until `has_more`
+is false (and falls back to walking `after` on servers without cursor pagination):
 
 ```ts
 const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 ```
 
-It exists because of the truncation above, and it is stricter than the obvious loop: it
-de-duplicates across page boundaries, and it stops rather than spinning if the cursor fails to
-advance. `pageSize` is the per-request `limit` (default and maximum 500); `after` and `types`
-mean what they mean on `listEvents`.
+It is stricter than the obvious loop: it de-duplicates across page boundaries, and it stops
+rather than spinning if the cursor fails to advance. `pageSize` is the per-request `limit`
+(default and maximum 500); `types` means what it means on `listEvents`.
 
-`seq` is a durable, monotonic per-session sequence, so the same cursor also resumes an SSE
-stream (`streamEvents({ after })`). `types` filters server-side and takes a list of event
-types; it composes with `after` and `limit`.
+Passing `after` — here or on `listEvents`/`streamEvents` — selects the deprecated
+engine-only lane: no user inputs, no pagination flags. Keep it for old stored cursors only.
+`seq` is durable and strictly increasing but not necessarily contiguous; to resume an SSE
+stream use each streamed event's `cursor` token (`streamEvents({ cursor })`). `types` filters
+server-side and composes with `cursor` and `limit`.
 
 ## Not in the SDK
 

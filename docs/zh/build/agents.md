@@ -1,7 +1,7 @@
 ---
 title: Agents
 source: /en/build/agents
-source_hash: 9630ef6d5519ba7677085f3e2f4c4f4715676470892eaaa98e742f88e1a9d7fe
+source_hash: 5884e1d783192c8f4030b59a2a961e60422e7d8359eb844a5becff0d00cc5988
 ---
 
 # Agents
@@ -56,6 +56,7 @@ onboarding 面试总是被跳过——agent 会直接回答你的第一条消息
 | `name` | string | 必填，不能为空。 |
 | `model.primary` | string | `provider/model-id` 形式的模型别名，例如 `litellm/claude-sonnet-5`。只写模型名会被归一成 `litellm/<model-id>`。列表从 `listModels()` 拿。 |
 | `model.input` | `string[]` | `text` 和/或 `image`。声明 `image` 表示主模型自己读图。 |
+| `model.max_tokens` | integer | 单次模型请求的输出 token 上限。不设走平台默认；非法值创建时报 400。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
 | `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools)。 |
@@ -81,7 +82,7 @@ const agent = await zc.createAgent({
 ```
 
 ::: warning 尚未验证
-`name`、`model`、`labels` 和 `mcp` 已经端到端验证过。`persona.docs`、`tool_policy` 和 `sandbox.scope` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
+`name`、`model`、`labels` 和 `mcp` 已经端到端验证过。`persona.docs`、`tool_policy`、`sandbox.scope` 和 `model.max_tokens` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
 :::
 
 创建时的 `skills` 是唯一一个 SDK 类型允许、而公开网关不认的 `resource` 字段——见 [Skills](./skills)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments)。

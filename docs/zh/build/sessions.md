@@ -1,7 +1,7 @@
 ---
 title: Sessions
 source: /en/build/sessions
-source_hash: d0082d507eb6a714704c68e6170e73606c7a1ce2a866648e6dac501c0eadaae2
+source_hash: 649c4fb5748f7efb119183dfa89564e6d04d1ae2f250ce596acd98579458eaea
 ---
 
 # Sessions
@@ -84,26 +84,25 @@ console.log(session.session_key)  // "api:ses_example"
 
 `createSession` 接收一个可选的第三个参数，作为 `Idempotency-Key` 请求头发出。用同一个 key 重放会返回已存在的那个 session，而不是再建一个、把开场回合跑两遍。怎么选 key、怎么复用 key，见[错误处理](/zh/reference/errors)。
 
-事件写入路径没有幂等键。超时后重试 `postEvents` 可能把同一条消息投递两次；重试之前请在你这边先去重。
+事件写入路径用的是事件级的键而不是 header：给每个事件带一个 `idempotency_key`（任何稳定字符串），超时后重试 `postEvents` 就不会把同一条消息投递两次。
 
 ## 多回合
 
 要继续一段对话，往同一个 session 再投一条 `user.message`。不要重发历史 —— agent 在服务端持有它。
 
 ```ts
-async function runTurn(sessionId: string, after = 0) {
+async function runTurn(sessionId: string, cursor?: string) {
   let text = ''
-  let lastSeq = after
   let outcome: string | undefined
-  for await (const ev of zc.streamEvents(agentId, sessionId, { after })) {
-    lastSeq = ev.seq
+  for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
+    cursor = ev.cursor ?? cursor
     text += assistantText(ev)
     if (isRunFinished(ev)) {
       outcome = runOutcome(ev)
       break
     }
   }
-  return { text, lastSeq, outcome }
+  return { text, cursor, outcome }
 }
 
 // Turn 1 - opens with the session.
@@ -113,15 +112,15 @@ const session = await zc.createSession(agentId, {
 const first = await runTurn(session.session_id)
 console.log(first.outcome, first.text)   // "succeeded" ...
 
-// Turn 2 - same session, new message. Resume the stream from the last seq you saw.
+// Turn 2 - same session, new message. Resume the stream from the last cursor you saw.
 await zc.postEvents(agentId, session.session_id, [
   { type: 'user.message', content: 'What is my display name?' },
 ])
-const second = await runTurn(session.session_id, first.lastSeq)
+const second = await runTurn(session.session_id, first.cursor)
 console.log(second.text)                 // mentions "Ada"
 ```
 
-`postEvents` 返回 `202`，以及一个把每个事件的结果包起来的对象：`{ events: [{ id?, type?, accepted? }] }` —— 数组在 `events` 下面，不是响应本身。被接受意味着事件已入队，不代表回合已经结束。一个回合在你看到 `run.finished` 时结束，它的 `payload.status` 是 `succeeded`、`failed` 或 `aborted` —— 见[事件与流式](/zh/build/events)。
+`postEvents` 返回 `202`，以及一个把每个事件的结果包起来的对象 —— 数组在 `events` 下面，不是响应本身。被接受的事件返回的就是历史里将出现的完整事件对象（带 `seq`）；没有进行中 run 时的 `user.interrupt` 返回 `{ id, type, accepted: false }`。被接受意味着事件已入队，不代表回合已经结束。一个回合在你看到 `run.finished` 时结束，它的 `payload.status` 是 `succeeded`、`failed` 或 `aborted` —— 见[事件与流式](/zh/build/events)。
 
 写入路径接受四种事件类型：`user.message`、`user.interrupt`、`system.message` 和 `user.tool_confirmation`。
 
@@ -224,27 +223,27 @@ for (const row of s.history ?? []) {
 
 ## `listEvents` 与分页
 
-`listEvents` 返回一个 session 的持久事件日志，已归一成单一的 `SessionEvent` 结构（`seq`、`eventType`、`payload`、`runId`、`turn`、`createdAt`）。
+`listEvents` 返回一个 session 的持久事件日志 —— 你自己发的输入（`user.message` 等）也在里面，整段对话从这一个面就能重建 —— 已归一成单一的 `SessionEvent` 结构（`seq`、`eventType`、`payload`、`runId`、`turn`、`createdAt`，服务端给的话还有 `id` 和 `processedAt`）。
 
 ```ts
 const events = await zc.listEvents(agentId, session.session_id, {
-  types: ['agent.assistant'],
+  types: ['user.message', 'agent.assistant'],
 })
 ```
 
-::: warning 一次调用只返回一页 —— 长会话会被静默截断
-服务端**默认返回 100 条事件，最多 500 条** ，而 `listEvents` 只返回一页。没有 `has_more` 标志，也没有报错：一个有 900 条事件的 session 只返回前 100 条，看上去却是完整的。任何要重建整段对话的代码都必须分页。
+::: warning 一次调用只返回一页
+服务端**默认返回 100 条事件，最多 500 条**，而 `listEvents` 只返回一页，且不带这一页的 `has_more`/`next_cursor` 字段。要重建整段对话，用 `listAllEvents`，或者用 `listEventsPage` 手动翻页。
 :::
 
-`listAllEvents` 就是这个翻页循环。它用 `after` 游标 —— 也就是它收到的最后一个事件的 `seq` —— 一直走，直到某一页返回的条数少于它请求的 limit：
+`listAllEvents` 就是这个翻页循环。它跟着服务端的 `next_cursor` 一直走到 `has_more` 为 false（对没有游标分页的服务端则回落到走 `after`）：
 
 ```ts
 const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 ```
 
-它存在正是因为上面那种截断，而且它比顺手写出来的循环更严格：它在页边界上去重，游标推不动时它停下来而不是空转。`pageSize` 是每次请求的 `limit`（默认值和上限都是 500）；`after` 和 `types` 的含义与 `listEvents` 上一致。
+它比顺手写出来的循环更严格：它在页边界上去重，游标推不动时它停下来而不是空转。`pageSize` 是每次请求的 `limit`（默认值和上限都是 500）；`types` 的含义与 `listEvents` 上一致。
 
-`seq` 是每个 session 内持久且单调的序号，所以同一个游标也能用来续传 SSE 流（`streamEvents({ after })`）。`types` 在服务端过滤，接收一个事件类型列表；它可以和 `after`、`limit` 组合使用。
+显式传 `after` —— 在这里或在 `listEvents`/`streamEvents` 上 —— 走的是废弃的 engine-only 通道：没有用户输入、没有分页标志，只留给旧存量游标用。`seq` 持久且严格递增，但不保证连续；续传 SSE 流用每个流式事件自带的 `cursor`（`streamEvents({ cursor })`）。`types` 在服务端过滤，可以和 `cursor`、`limit` 组合使用。
 
 ## SDK 里没有的
 

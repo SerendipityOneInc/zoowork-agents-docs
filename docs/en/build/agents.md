@@ -62,6 +62,7 @@ The onboarding interview is always skipped, so the agent answers your first mess
 | `name` | string | Required, non-empty. |
 | `model.primary` | string | Model alias in `provider/model-id` form, e.g. `litellm/claude-sonnet-5`. A bare name is normalized to `litellm/<model-id>`. Get the list from `listModels()`. |
 | `model.input` | `string[]` | `text` and/or `image`. Declaring `image` says the primary model reads images itself. |
+| `model.max_tokens` | integer | Output-token cap per model request. Omit to use the platform default; invalid values are rejected at create. |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | Guidance documents. Only inline `content` is stored. Only the canonical names are read when the prompt is assembled: `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`. Other names are saved but never reach the model. `MEMORY.md` and the `memory/` namespace are reserved and return `400 invalid_persona_doc_name`. |
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
 | `tool_policy` | object | `{}` means the full tool manifest. A non-empty object is an allow/deny policy, e.g. `{ allow: ['read', 'web_search'] }`. See [Tools](./tools). |
@@ -87,9 +88,10 @@ const agent = await zc.createAgent({
 ```
 
 ::: warning Not yet verified
-`name`, `model`, `labels` and `mcp` are verified end to end. `persona.docs`, `tool_policy` and
-`sandbox.scope` are accepted by the create route per the API contract, but no turn has proven
-each one changed the agent's behaviour. Verify the effect you depend on before you build on it.
+`name`, `model`, `labels` and `mcp` are verified end to end. `persona.docs`, `tool_policy`,
+`sandbox.scope` and `model.max_tokens` are accepted by the create route per the API contract,
+but no turn has proven each one changed the agent's behaviour. Verify the effect you depend on
+before you build on it.
 :::
 
 `skills` at create time is the one `resource` field the SDK types allow but the public gateway

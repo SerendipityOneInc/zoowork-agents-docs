@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: 34c18495fb494a61123877fada54ab01e521f0ffe3112ed10beb9ff269683c90
+source_hash: d4a95b2d662cc178ec6939d6e12d5e21295e5a3e9890df2c91e4a48d4a5b0a27
 ---
 
 # TypeScript SDK 参考
@@ -111,7 +111,7 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 
 ## 方法
 
-`ZooclawClient` 暴露 49 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
+`ZooclawClient` 暴露 50 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
 东西——session、事件、审批、定时任务、`wake`、`exec`——第一个参数都是 `agentId`。skill registry
 和 Environment 是顶层资源，一个都不带。
 
@@ -155,10 +155,11 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 | `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | 一个 agent 的 session，按 `updated_at` 从新到旧，每页 50 条，`page` 从 1 开始。没有游标；`run_status` 就是在这个面上才拿得到。 |
 | `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | 盖上 `archived_at`。之后写入返回 `409 session_archived`，读取照常。先中断正在跑的回合。 |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | 软删除这个 session（204），会先取消正在跑的回合。会话记录和事件为审计保留。 |
-| `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string; type?: string; accepted?: boolean }[] }>` | 往 session 里写入 user 或 system 事件。 |
-| `listEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | 读取持久事件日志。**一次调用只返回一页。** |
-| `listAllEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | 走 `after` 一直翻到某一页变短，拿到全部持久事件。要全量就用它，别自己给 `listEvents` 翻页。 |
-| `streamEvents(agentId, sessionId, opts?)` | `AsyncGenerator<SessionEvent>` | 通过 SSE 流式读取持久事件，可用 `after` 续传。 |
+| `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string \| null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>` | 往 session 里写入 user 或 system 事件；被接受的事件以完整事件对象回显。 |
+| `listEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | 读取统一事件日志，你自己的输入也在里面。**一次调用只返回一页。** |
+| `listEventsPage(agentId, sessionId, opts?)` | `Promise<SessionEventPage>` | 同一页，但带 `hasMore`/`nextCursor`——手动翻页的原语。 |
+| `listAllEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | 跟着服务端的游标拿到全部持久事件。要全量就用它，别自己给 `listEvents` 翻页。 |
+| `streamEvents(agentId, sessionId, opts?)` | `AsyncGenerator<SessionEvent>` | 通过 SSE 流式读取持久事件，可用 `cursor` 续传。 |
 
 **审批**
 
@@ -605,11 +606,12 @@ postEvents(
   agentId: string,
   sessionId: string,
   events: OutboundEvent[],
-): Promise<{ events: { id?: string; type?: string; accepted?: boolean }[] }>
+): Promise<{ events: { id?: string | null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>
 ```
 
 往一个已存在的 session 里写事件。返回 `202`，每个事件对应一条记录，已从线上的信封里拆出来；
-列表缺失时返回 `[]`。
+列表缺失时返回 `[]`。被接受的事件返回的就是历史里将出现的完整事件对象（带 `seq`）；未被接受的
+仍是 `{ id, type, accepted: false }` 回执。
 
 写入路径接受四种类型：`user.message`、`user.interrupt`、`system.message` 和
 `user.tool_confirmation`。
@@ -636,7 +638,7 @@ console.log(r.events[0]?.accepted)
 **`system.message` 会在下一个回合到达模型** ，走的是带外通道，而且它的正文放在 `text` 里，
 不是 `content`。见[事件](/zh/build/events)。
 
-这条路由上没有幂等 key。超时后重试的 `postEvents` 可能把同一条消息投递两次；请在你这边做去重。
+给每个事件带一个 `idempotency_key`（任何稳定字符串），超时后重试的 `postEvents` 就不会把同一条消息投递两次。
 
 ---
 
@@ -646,28 +648,39 @@ console.log(r.events[0]?.accepted)
 listEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; types?: string[]; limit?: number },
+  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
 ): Promise<SessionEvent[]>
 ```
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `opts.after` | `number` | seq 游标。返回 `seq` 比它大的事件。 |
+| `opts.cursor` | `string` | 页游标——上一页的 `next_cursor` 或某个流式事件的 `cursor`。 |
+| `opts.after` | `number` | 废弃的 engine-only 通道的 seq 游标（没有用户输入）。只留给旧存量游标。 |
 | `opts.types` | `string[]` | 服务端过滤，用逗号拼到 `?types=` 上。 |
 | `opts.limit` | `number` | 服务端默认 100，最大 500。 |
 
 每一条都会过一遍 `normalizeEvent()`，所以 REST 和 SSE 交给你的是完全相同的 `SessionEvent` 形状。
 
 ```ts
-const events = await zc.listEvents(agentId, sessionId, { types: ['agent.assistant'] })
+const events = await zc.listEvents(agentId, sessionId, { types: ['user.message', 'agent.assistant'] })
 ```
 
-::: warning 一次调用只返回一页——长会话会静默截断
-服务端默认返回 100 个事件、最多 500 个，而 `listEvents` 只返回一页。没有 `has_more` 标志，也不报错：
-一个有 900 个事件的 session 会返回前 100 个，看起来像是完整的。
+::: warning 一次调用只返回一页
+服务端默认返回 100 个事件、最多 500 个，而 `listEvents` 只返回一页——分页字段被丢掉了。
+`listEventsPage` 是保留分页字段的同一个调用：
+
+```ts
+listEventsPage(
+  agentId: string,
+  sessionId: string,
+  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+): Promise<{ events: SessionEvent[]; hasMore?: boolean; nextCursor?: string | null }>
+```
+
+把 `nextCursor` 作为 `cursor` 传回去就是手动翻页；不是手动翻页就用 `listAllEvents`。
 :::
 
-`listAllEvents` 存在的理由正是这个。它用 `after` 翻页，直到某一页返回的条数少于它请求的 limit：
+`listAllEvents` 跟着服务端的 `next_cursor` 一直走到 `has_more` 为 false，对没有游标分页的服务端回落到走 `after`：
 
 ```ts
 const all = await zc.listAllEvents(agentId, sessionId)
@@ -683,13 +696,13 @@ listAllEvents(
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `opts.after` | `number` | 起始游标。小于等于它的都不会返回。 |
+| `opts.after` | `number` | 强制走废弃的 engine-only 通道，并从这个 seq 开始翻。 |
 | `opts.types` | `string[]` | 和 `listEvents` 一样的服务端过滤，对每一页都生效。 |
 | `opts.pageSize` | `number` | 每次请求用的 `limit`。默认 500，也被夹到 500。 |
 
-事件按 `seq` 升序返回。有两道手写循环通常没有的保险：小于等于游标的事件会被丢掉，所以页边界上
-被重放的那条事件不会两次到你手里；而且如果某一页里最大的 `seq` 没能把游标往前推，这次遍历就停下，
-所以一个忽略了 `after` 的服务端只会让你拿到一页重复数据，而不是把你卡在死循环里。
+事件按 `seq` 升序返回。有几道手写循环通常没有的保险：两条通道在游标推不动时都会停下（且不会把重复页
+再拼进结果），所以一个行为异常的服务端只多花你一次请求，而不是把你卡在死循环里；回落通道上，小于等于
+游标的事件会被丢掉，所以页边界上被重放的那条事件不会两次到你手里。
 
 ---
 
@@ -699,13 +712,14 @@ listAllEvents(
 streamEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; signal?: AbortSignal },
+  opts?: { after?: number; cursor?: string; signal?: AbortSignal },
 ): AsyncGenerator<SessionEvent>
 ```
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `opts.after` | `number` | 续传游标。大于 0 时以 `?after=<seq>` 发送；服务端从那里开始重放。 |
+| `opts.cursor` | `string` | 续传令牌——某个之前事件的 `cursor`。服务端从它之后开始重放。 |
+| `opts.after` | `number` | 废弃的 engine-only 通道的续传游标。只留给旧存量游标。 |
 | `opts.signal` | `AbortSignal` | 中止底层请求。当 signal 已经处于 aborted 状态时，生成器会安静返回，而不是抛错。 |
 
 一个产出 `SessionEvent` 的异步生成器。用 `for await` 消费它。
@@ -739,8 +753,8 @@ console.log(outcome, text)
 - **这个流的作用域是 session，回合结束时它不会关闭。** 你要自己用 `isRunFinished` 跳出来，
   并且在离开循环时永远记得 abort 掉 controller。
 - **服务端会在空闲时关闭这个流。** 用
-  `streamEvents(agentId, sessionId, { after: lastSeq })` 重连。续传是服务端做的，所以两个窗口
-  之间的内容不会丢。SDK 不会替你重连。
+  `streamEvents(agentId, sessionId, { cursor: lastCursor })` 重连，`lastCursor` 从每个事件的
+  `cursor` 里记下来。续传是服务端做的，所以两个窗口之间的内容不会丢。SDK 不会替你重连。
 - **`chat.delta` 预览帧会被跳过。** 它们以 SSE `event_delta` 帧的形式，走另一条非持久的通道，
   语义是快照替换，SDK 会把它们丢掉。你看到的永远只有持久事件。
 - **边界事件会去重。** 每一帧的持久 `seq` 取自 JSON body，取不到时才回退到 SSE 的 `id:` 行；
@@ -865,7 +879,7 @@ interface AgentStatus {
 ```ts
 interface AgentResource {
   name: string
-  model?: { primary: string; input?: string[] }
+  model?: { primary: string; input?: string[]; max_tokens?: number }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
   skills?: { skill_id: string; version?: number | 'latest' }[]
   labels?: Record<string, string>

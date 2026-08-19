@@ -108,7 +108,7 @@ The `{ serviceToken }` variant is internal-only and not usable with an API key; 
 
 ## Methods
 
-`ZooclawClient` exposes 49 methods, grouped below the way the client groups them. Everything
+`ZooclawClient` exposes 50 methods, grouped below the way the client groups them. Everything
 the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
 `agentId` first. The skill registry and Environments are top-level resources and take none.
 
@@ -152,10 +152,11 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 | `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | One agent's sessions, newest first by `updated_at`, 50 per page, `page` 1-based. There is no cursor, and this is the surface that carries `run_status`. |
 | `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | Stamps `archived_at`. Afterwards writes are `409 session_archived` while reads keep working. Interrupt an in-flight run first. |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | Soft-deletes the session (204), cancelling an in-flight run first. Transcripts and events survive for audit. |
-| `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string; type?: string; accepted?: boolean }[] }>` | Writes user or system events into a session. |
-| `listEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | Reads the durable event log. **One page per call.** |
-| `listAllEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | Every durable event, by walking `after` until a short page comes back. Reach for this rather than paging `listEvents` by hand. |
-| `streamEvents(agentId, sessionId, opts?)` | `AsyncGenerator<SessionEvent>` | Streams durable events over SSE, resumable with `after`. |
+| `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string \| null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>` | Writes user or system events into a session; accepted events echo back as full event objects. |
+| `listEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | Reads the unified event log, your own inputs included. **One page per call.** |
+| `listEventsPage(agentId, sessionId, opts?)` | `Promise<SessionEventPage>` | The same page WITH its `hasMore`/`nextCursor` — the hand-paging primitive. |
+| `listAllEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | Every durable event, following the server's cursor. Reach for this rather than paging `listEvents` by hand. |
+| `streamEvents(agentId, sessionId, opts?)` | `AsyncGenerator<SessionEvent>` | Streams durable events over SSE, resumable with `cursor`. |
 
 **Approvals**
 
@@ -621,11 +622,13 @@ postEvents(
   agentId: string,
   sessionId: string,
   events: OutboundEvent[],
-): Promise<{ events: { id?: string; type?: string; accepted?: boolean }[] }>
+): Promise<{ events: { id?: string | null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>
 ```
 
 Writes events into an existing session. Responds `202` with one entry per event, unwrapped
-from the wire envelope; an absent list becomes `[]`.
+from the wire envelope; an absent list becomes `[]`. An accepted event comes back as the full
+event object the history will show (with its `seq`); an unaccepted one stays a
+`{ id, type, accepted: false }` receipt.
 
 The write path accepts four types: `user.message`, `user.interrupt`, `system.message`, and
 `user.tool_confirmation`.
@@ -653,8 +656,8 @@ error** - nothing throws, and there is nothing to handle.
 **`system.message` reaches the model on the following turn**, out of band, and carries its
 body in `text` rather than `content`. See [Events](/en/build/events).
 
-There is no idempotency key on this route. A `postEvents` retried after a timeout can deliver
-the same message twice; de-duplicate on your side.
+Give each event an `idempotency_key` (any stable string) and a `postEvents` retried after a
+timeout will not deliver it twice.
 
 ---
 
@@ -664,13 +667,14 @@ the same message twice; de-duplicate on your side.
 listEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; types?: string[]; limit?: number },
+  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
 ): Promise<SessionEvent[]>
 ```
 
 | Parameter | Type | Notes |
 |---|---|---|
-| `opts.after` | `number` | Seq cursor. Returns events with a higher `seq`. |
+| `opts.cursor` | `string` | Page cursor — a previous page's `next_cursor` or a streamed event's `cursor`. |
+| `opts.after` | `number` | Seq cursor for the deprecated engine-only lane (no user inputs). Old stored cursors only. |
 | `opts.types` | `string[]` | Server-side filter, joined with commas onto `?types=`. |
 | `opts.limit` | `number` | Server default 100, maximum 500. |
 
@@ -678,17 +682,27 @@ Every entry is passed through `normalizeEvent()`, so REST and SSE hand you the i
 `SessionEvent` shape.
 
 ```ts
-const events = await zc.listEvents(agentId, sessionId, { types: ['agent.assistant'] })
+const events = await zc.listEvents(agentId, sessionId, { types: ['user.message', 'agent.assistant'] })
 ```
 
-::: warning One page per call - long sessions truncate silently
+::: warning One page per call
 The server returns 100 events by default and at most 500, and `listEvents` returns exactly
-one page. There is no `has_more` flag and no error: a session with 900 events answers with
-the first 100 and looks complete.
+one page — dropping the page's pagination fields. `listEventsPage` is the same call keeping
+them:
+
+```ts
+listEventsPage(
+  agentId: string,
+  sessionId: string,
+  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+): Promise<{ events: SessionEvent[]; hasMore?: boolean; nextCursor?: string | null }>
+```
+
+Feed `nextCursor` back as `cursor` to page by hand; unless you are, use `listAllEvents`.
 :::
 
-`listAllEvents` exists for exactly that reason. It pages with `after` until a page comes back
-shorter than the limit it asked for:
+`listAllEvents` follows the server's `next_cursor` until `has_more` is false, and falls back
+to walking `after` on servers without cursor pagination:
 
 ```ts
 const all = await zc.listAllEvents(agentId, sessionId)
@@ -704,14 +718,14 @@ listAllEvents(
 
 | Parameter | Type | Notes |
 |---|---|---|
-| `opts.after` | `number` | Start cursor. Everything at or below it is left out. |
+| `opts.after` | `number` | Forces the deprecated engine-only lane and walks it from this seq. |
 | `opts.types` | `string[]` | Same server-side filter as `listEvents`, applied to every page. |
 | `opts.pageSize` | `number` | The per-request `limit`. Defaults to 500 and is clamped to it. |
 
-Events come back in ascending `seq`. Two guards a hand-rolled loop usually lacks: events at or
-below the cursor are dropped, so a boundary event replayed at a page edge does not reach you
-twice, and the walk stops if the highest `seq` in a page fails to advance the cursor, so a
-server that ignored `after` returns a duplicate page instead of spinning forever.
+Events come back in ascending `seq`. Guards a hand-rolled loop usually lacks: both lanes stop
+(without re-appending) when the cursor fails to advance, so a misbehaving server costs one
+extra request instead of a spin; and on the fallback walk, events at or below the cursor are
+dropped, so a boundary event replayed at a page edge does not reach you twice.
 
 ---
 
@@ -721,13 +735,14 @@ server that ignored `after` returns a duplicate page instead of spinning forever
 streamEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; signal?: AbortSignal },
+  opts?: { after?: number; cursor?: string; signal?: AbortSignal },
 ): AsyncGenerator<SessionEvent>
 ```
 
 | Parameter | Type | Notes |
 |---|---|---|
-| `opts.after` | `number` | Resume cursor. Sent as `?after=<seq>` when greater than 0; the server replays from there. |
+| `opts.cursor` | `string` | Resume token — a previous event's `cursor`. The server replays from right after it. |
+| `opts.after` | `number` | Resume for the deprecated engine-only lane. Old stored cursors only. |
 | `opts.signal` | `AbortSignal` | Aborts the underlying request. When the signal is already aborted the generator returns quietly instead of throwing. |
 
 An async generator of `SessionEvent`. Consume it with `for await`.
@@ -761,8 +776,9 @@ Four behaviours worth knowing:
 - **The stream is session-scoped and does not close when a turn ends.** Break out yourself
   with `isRunFinished`, and always abort the controller when you leave the loop.
 - **The server closes the stream on idle.** Reconnect with
-  `streamEvents(agentId, sessionId, { after: lastSeq })`. Resume is server-side, so nothing
-  between the two windows is lost. The SDK does not reconnect for you.
+  `streamEvents(agentId, sessionId, { cursor: lastCursor })`, tracking `lastCursor` from each
+  event's `cursor`. Resume is server-side, so nothing between the two windows is lost. The SDK
+  does not reconnect for you.
 - **`chat.delta` preview frames are skipped.** They arrive as SSE `event_delta` frames on a
   separate non-durable lane with snapshot-replace semantics, and the SDK drops them. You only
   ever see durable events.
@@ -895,7 +911,7 @@ its enum, so a loop polling for it never returns. Poll `status.desired_state`. S
 ```ts
 interface AgentResource {
   name: string
-  model?: { primary: string; input?: string[] }
+  model?: { primary: string; input?: string[]; max_tokens?: number }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
   skills?: { skill_id: string; version?: number | 'latest' }[]
   labels?: Record<string, string>
