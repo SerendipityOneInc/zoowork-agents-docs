@@ -62,8 +62,8 @@ cheapest way to confirm a skill is really on disk.
 | `scope` | Where it came from | Can you install or remove it with an API key? |
 |---|---|---|
 | `global` | The platform catalog. Attached to every agent by default. | No. See the trap below. |
-| `org` | Uploaded by your own organization. | Yes, in principle. |
-| `personal` | Uploaded under one user. | Yes, in principle. |
+| `org` | Uploaded by your own organization. | Yes — verified. |
+| `personal` | Uploaded under one user. | Yes, not verified. |
 | `pack` | Injected by an assembled pack. | Not through this API. |
 
 `eligible` reports whether the resolved skill is actually usable for this agent. An entry can
@@ -147,11 +147,10 @@ Removing a `global` entry does not detach it. Per the platform's documented beha
 DELETE against a global skill removes your override and restores the default; only `org` and
 `personal` skills are genuinely uninstalled.
 
-Installing an `org` skill is verified: a live run returned `{ config_version: 4, warnings: [] }`
-and the skill appeared in `listAgentSkills` with `eligible: true` — and answered from its own
-content on the next turn. `deleteAgentSkill` has **not** been exercised against a live
-deployment; check the result with `listAgentSkills` rather than trusting the returned
-`config_version`.
+Installing an `org` skill is **verified** end to end: the skill came back from
+`listAgentSkills` with `eligible: true`, and the next turn answered from its own content.
+`deleteAgentSkill` is **available but not verified**; check the result with `listAgentSkills`
+rather than trusting the returned `config_version`.
 
 ## Finding skill ids
 
@@ -164,8 +163,8 @@ const mine = await zc.listSkills({ scope: 'org' })
 const found = await zc.listSkills({ q: 'market', page: 1 })
 ```
 
-There is no ownership selector to pass. The gateway derives your tenant from the key, so
-`scope`, `q` and `page` are the only options; `page` is 1-based with a fixed page size of 100.
+`scope`, `q` and `page` are the only options. `q` matches on name; `page` is 1-based with a
+fixed page size of 100.
 
 A row is a `SkillRecord` - `skill_id`, `scope`, `name`, `description`, `latest_version`,
 `status`, `ownership`. Two shapes to expect: on an `org`-scope skill `ownership.owner_uid`
@@ -189,11 +188,10 @@ description: Use whenever the user asks about the office coffee menu, coffee pri
   to order a coffee - including the words latte, espresso, or americano.
 ```
 
-This is the one failure in this API that reports success at every step. We hit it: the skill
-uploaded, installed, and came back from `listAgentSkills` with `eligible: true` and a real
-`basePath` - and never fired once, because the trigger words were in the body and the
-description only named the artifact. Rewriting the description, changing nothing else, made it
-fire on the next turn.
+This is the one failure in this API that reports success at every step. A skill can upload,
+install, and list as eligible, and still never fire once, because the trigger words were in the
+body and the description only named the artifact. Rewriting the description, changing nothing
+else, made it fire on the next turn.
 
 When a skill "does nothing", check the description before you check anything else.
 :::
@@ -205,14 +203,16 @@ it. Everything the agent should know or do goes in the body.
 
 A skill is a zip containing a single top-level directory (or a root that directly holds
 `SKILL.md`). `SKILL.md` must be non-empty UTF-8 with `name` and `description` in its
-frontmatter. `name` must match `^[a-z0-9-]{1,64}$`. Total expanded size is capped at 50 MiB,
+frontmatter. `name` must match `^[a-z0-9-]{1,64}$`. Total expanded size is capped at 50 MB,
 paths must not contain `..`, absolute paths, or backslashes, and encrypted zips are rejected.
 The server expands the archive on ingestion.
 
 ::: warning The zip's top-level directory must match the frontmatter `name`
-`coffee-order/SKILL.md` declaring `name: coffee-order`. A mismatch is rejected with a message
+`coffee-order/SKILL.md` declaring `name: coffee-order`. A mismatch is rejected with a 400
 naming both, so it is friction rather than a trap - but it is the first thing that fails when
-you package a skill by hand.
+you package a skill by hand. The two are compared case- and underscore-insensitively, so a
+directory `Coffee_Order/` still matches `name: coffee-order`. That leniency is about the
+directory only: the frontmatter `name` itself still has to match `^[a-z0-9-]{1,64}$`.
 
 Entries may be **stored** (uncompressed) as well as deflated, so a minimal zip writer is
 enough; you do not need a compression library to publish a small skill.

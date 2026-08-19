@@ -1,12 +1,12 @@
 ---
 title: 鉴权
 source: /en/get-started/authentication
-source_hash: 973fe1c2ae232ff00081a05472626ae7f8d2ef08182b53154cff8564deb83bb7
+source_hash: b754e76f1be5ad39b1123a7e61ee11adc59502c30595805bb985236fd835d042
 ---
 
 # 鉴权
 
-调用 ZooClaw API 只需要一个凭证：一个组织级 service token，本文档统称为你的 **API key** 。
+调用 ZooClaw API 只需要一个凭证：一个组织级 service token，也就是你的 **API key** 。
 
 - 它是一个以 `zct_` 开头的字符串。
 - 以 `Authorization: Bearer zct_...` 发送。
@@ -29,7 +29,8 @@ key 在 ZooClaw App 里创建，位置是 **设置 → API Keys**：
    组织管理员要一把。
 
 之后的管理也在同一页：**Rotate** 立即作废旧密钥并把新密钥显示一次；**Revoke** 直接吊销。
-两者都没有 API——key 管理刻意只在 App 里。
+两者都没有 API——key 管理刻意只在 App 里，**所以不要在你自己的代码里写轮换流程**。key 一旦
+泄露，立刻去 App 里 **Rotate**。
 
 ## 配置客户端
 
@@ -51,23 +52,7 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
 - 不要提交进代码仓，不要打进日志或错误信息。
 - **在你的用户和 ZooClaw API 之间放你自己的后端。** 你的后端持有这个 key，按你自己的方式认证用户，并决定每个用户能碰哪个 agent、哪个会话。
 
-## 网关替你做的事
-
-你的请求会经过一个网关，它认证这个 key 并把每个请求限定在你的组织范围内。其中三条行为会直接影响你写的代码。
-
-**它替你设定 ownership。** `createAgent()` 不需要你传 `ownership`——网关会从你 key 所属的租户推导锚点，真实值出现在返回的 `created.ownership` 里。
-
-```ts
-const created = await zc.createAgent({
-  resource: { name: 'my-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-})
-```
-
-**它替你注入 agent 调用模型所需的平台凭证。** 你不需要创建、提供或轮换模型凭证。这件事发生在创建之后，而且是真实写入：**它会把 agent 的 `config_version` 连续 bump 两次** ，所以创建回执上的 `config_version: 1`，等你下一次 `getAgent()` 返回时已经是 `3` 了。不要把创建时拿到的版本号当作仍然有效。
-
-**它不会启动 agent。** 新建的 agent 返回时 `status.desired_state === 'stopped'`，而对一个停止状态的 agent 调 `createSession()` 会失败并返回 `409 agent_not_running`。**你必须自己调 `startAgent()`。** 完整的「创建后启动」流程见[快速开始](/zh/get-started/quickstart)。
-
-客户端没有凭证 API——平台在创建 agent 时自动注入模型凭证；你自己的、或你终端用户的密钥应留在你自己的服务里。
+**这个 key 是 API 接受的唯一凭据。** 没有给你自己、或你终端用户的密钥用的保险库——把它们留在你自己的服务里。见[不支持的能力](/zh/reference/not-supported)。
 
 ## 租户隔离：返回 404，不是 403
 
@@ -124,13 +109,6 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 | 上传 skill（`uploadSkill()` / `uploadSkillVersion()`） | 这条 multipart 路由只收 `org` 和 `personal` scope；`global` 和 `pack` 是 403。实测到哪一步见 [Skills](/zh/build/skills) |
 | 你自己 agent 下的定时任务 | 挂在 agent 下的路由，七个方法都在客户端上。实测到哪一步见[能力矩阵](/zh/reference/capabilities) |
 | 你组织内的 environment | 限于你的组织。平台默认的那个 environment——新建 agent 被钉上的那个——任何 key 都读不到，因为网关强制加了组织选择器，而默认 environment 不属于任何组织。见 [Environments](/zh/build/environments) |
-| 托管你自己的凭证 | **没有凭证 API** ；网关在创建 agent 时自动注入模型凭证 |
 | 其他组织的任何 agent id | **不能——返回 404，不是 403** |
 | 列出同组织内由另一个 key 创建的 agent | 不能——列表选择器是精确匹配；按 id 读取仍然可行 |
 | 把 key 本身按用户细分或降为只读 | 不存在这样的变体 |
-
-::: warning 轮换只在 App 里，而且我们没实测过
-轮换与吊销存在于 ZooClaw App（**设置 → API Keys**），不是 API 调用——**不要构建从你自己的
-代码里轮换 key 的流程**。这两个按钮和它们的一次性密钥展示，我们自己没有实际跑过，是照产品
-写的，不是照一次真实操作写的。key 一旦泄露，立刻去 App 里 **Rotate**。
-:::

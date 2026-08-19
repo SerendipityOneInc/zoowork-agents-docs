@@ -1,7 +1,7 @@
 # Authentication
 
 Every request to the ZooClaw API is authenticated with one credential: an organization
-service token, which this documentation calls your API key.
+service token - your API key.
 
 - It is a string starting with `zct_`.
 - You send it as `Authorization: Bearer zct_...`.
@@ -26,7 +26,8 @@ Keys are created in the ZooClaw App, under **Settings → API Keys**:
 
 The same page manages the key afterwards: **Rotate** invalidates the old secret immediately
 and shows a new one once; **Revoke** kills the key outright. Neither has an API - key
-management is App-only, deliberately.
+management is App-only, deliberately, so do not build a rotation flow into your own code.
+Treat a leaked key as an immediate **Rotate** in the App.
 
 ## Configure the client
 
@@ -54,34 +55,9 @@ Keep it on a server you control:
   authenticates your users your way, and decides which agent and which session each user may
   touch.
 
-## What the gateway does for you
-
-Your requests go through a gateway that authenticates the key and scopes every request to
-your organization. Three of its behaviours change the code you write.
-
-**It sets ownership for you.** The gateway derives the tenant anchors from your API key, so
-`createAgent()` takes only the `resource` - there is nothing to look up and nothing to send.
-
-```ts
-const created = await zc.createAgent({
-  resource: { name: 'my-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-})
-```
-
-**It seeds the platform credentials the agent needs to talk to a model.** You do not create,
-supply, or rotate model credentials. This happens right after creation and is a real write:
-it bumps the agent's `config_version` twice, so the `config_version: 1` on the create receipt
-is already `3` by the time your next `getAgent()` returns. Do not treat the version number
-you were handed at create time as still current.
-
-**It does not start the agent.** A new agent comes back with
-`status.desired_state === 'stopped'`, and `createSession()` against a stopped agent fails with
-`409 agent_not_running`. Call `startAgent()` yourself. See
-[Quickstart](/en/get-started/quickstart) for the full create-then-start sequence.
-
-There is no credential API on the client: the gateway seeds model credentials itself at
-create, so there is nothing for an API-key caller to store. Keep your own and your end users'
-secrets in your own service.
+This key is the only credential the API accepts. There is no vault for your own or your end
+users' secrets - keep those in your own service. See
+[Not supported](/en/reference/not-supported).
 
 ## Tenancy: 404, not 403
 
@@ -153,10 +129,3 @@ A missing or invalid key returns **401**. Match on `ZooclawError.status` and
 | Any agent id in another organization | No - returns 404, not 403 |
 | Listing agents created by a different key in your organization | No - the list selector is exact; fetch by id still works |
 | Per-user or read-only scoping of the key itself | No such variant exists |
-
-::: warning Rotation is App-only, and we have not driven it
-Rotation and revocation exist in the ZooClaw App (**Settings → API Keys**), not as API calls -
-do not build a flow that rotates a key from your own code. We have not exercised either
-ourselves; the buttons and their one-time secret reveal are documented from the product, not
-from a live run. Treat a leaked key as an immediate **Rotate** in the App.
-:::

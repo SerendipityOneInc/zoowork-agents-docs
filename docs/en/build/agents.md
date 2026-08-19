@@ -49,14 +49,11 @@ const created: AgentRecord = await zc.createAgent(
 console.log(created.agent_id, created.config_version)
 ```
 
-Ownership is handled for you: the gateway derives the tenant anchors from your API key. Read
-the values back from `created.ownership`.
+The `Idempotency-Key` is scoped to `agent.create + key`: same key and same body converges on
+the first response, same key and a different body returns `409`. See
+[Errors](../reference/errors).
 
-The `Idempotency-Key` is scoped to `agent.create + key`. Replaying the same key with the same
-body converges on the first response. Replaying it with a different body returns `409`.
-
-The onboarding interview is always skipped: the SDK sends `onboarding: false` on every
-create, so the agent answers your first message directly.
+The onboarding interview is always skipped, so the agent answers your first message directly.
 
 ### The `resource` fields
 
@@ -65,6 +62,7 @@ create, so the agent answers your first message directly.
 | `name` | string | Required, non-empty. |
 | `model.primary` | string | Model alias in `provider/model-id` form, e.g. `litellm/claude-sonnet-5`. A bare name is normalized to `litellm/<model-id>`. Get the list from `listModels()`. |
 | `model.input` | `string[]` | `text` and/or `image`. Declaring `image` says the primary model reads images itself. |
+| `model.max_tokens` | integer | Output-token cap per model request. Omit to use the platform default; invalid values are rejected at create. |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | Guidance documents. Only inline `content` is stored. Only the canonical names are read when the prompt is assembled: `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`. Other names are saved but never reach the model. `MEMORY.md` and the `memory/` namespace are reserved and return `400 invalid_persona_doc_name`. |
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
 | `tool_policy` | object | `{}` means the full tool manifest. A non-empty object is an allow/deny policy, e.g. `{ allow: ['read', 'web_search'] }`. See [Tools](./tools). |
@@ -90,15 +88,15 @@ const agent = await zc.createAgent({
 ```
 
 ::: warning Not yet verified
-`name`, `model` and `labels` are exercised end to end on every run of our
-lifecycle harness. `persona.docs`, `tool_policy`, `sandbox.scope` and `mcp` are accepted by
-the create route per the API contract, but we have not driven a turn that proves each one
-changed the agent's behaviour. Verify the effect you depend on before you build on it.
+`name`, `model`, `labels` and `mcp` are verified end to end. `persona.docs`, `tool_policy`,
+`sandbox.scope` and `model.max_tokens` are accepted by the create route per the API contract,
+but no turn has proven each one changed the agent's behaviour. Verify the effect you depend on
+before you build on it.
 :::
 
-Fields the SDK types allow but that you should not use through the public gateway:
-`skills` at create time (see [Skills](./skills)), and `environment_id` /
-`environment_version` (see [Environments](./environments)).
+`skills` at create time is the one `resource` field the SDK types allow but the public gateway
+does not honour - see [Skills](./skills). `environment_id` and `environment_version` do work
+here; [Environments](./environments) has the resolution rules.
 
 ## Read an agent, and the two response shapes
 
@@ -123,7 +121,6 @@ object.
 {
   agent_id: 'agt_...',
   computer_id: 'cmp_...',
-  ownership: { owner_uid: '...', org_id: '...' },
   declared: {                   // <- the configuration lives here
     name: 'research-agent',
     model: { primary: 'litellm/claude-sonnet-5', input: ['text', 'image'] },
@@ -132,7 +129,6 @@ object.
   },
   labels: { app: 'my-app' },
   resolved_skills: [ /* ... */ ],
-  bootstrap_state: 'skipped',
   status: {
     desired_state: 'stopped',
     actual_state: 'stopped',
@@ -158,10 +154,10 @@ const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
 ```
 
-The number also jumps between the two reads. The gateway injects platform credentials right
-after creation, and each injection bumps the version: a create receipt saying `1` is commonly
-followed by a first `getAgent()` saying `3`. Treat `config_version` as an opaque monotonic
-counter, never as a receipt for your own write.
+The number also jumps between the two reads: the first version you read back is commonly
+higher than the one on the create receipt, before you have written anything. Treat
+`config_version` as an opaque monotonic counter, never as a receipt for your own write.
+[Errors](../reference/errors) has the full rules.
 
 ```ts
 const agent = await zc.getAgent(created.agent_id)
@@ -185,7 +181,7 @@ console.log(warnings)
 ### The start/stop warning you will always see
 
 Both `startAgent()` and `stopAgent()` return `{ warnings: string[] }`. An API-only agent -
-one with no Mattermost or Feishu chat channel attached - reports
+one with no chat channel attached - reports
 `channel_routes_reload_failed` on **every** start and **every** stop, because there are no
 channel routes to reload. This is expected noise. Do not treat a non-empty `warnings` array as
 a failure, and do not retry on it. Log it and move on.
@@ -202,8 +198,8 @@ a failure, and do not retry on it. Log it and move on.
 An API-only agent has zero channels (`status.channels.expected === 0`), so nothing ever
 connects, so `actual_state` sits at `activating` indefinitely and `active` is unreachable.
 `running` is not even a member of the `actual_state` enum, so polling for it never returns.
-Sessions work perfectly while `actual_state` is `activating` - we drive full turns in that
-state on every harness run.
+Sessions work perfectly while `actual_state` is `activating` - full turns in that state are
+verified.
 
 Poll `desired_state`, with a timeout. `waitUntilRunning()` is that loop, already written:
 
@@ -287,24 +283,20 @@ console.log(updated.declared?.model)  // { primary: 'litellm/claude-sonnet-5', .
 console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - replaced wholesale
 ```
 
+`declared` is wider than what you sent. `imageModel`, `imageGenerationModel` and `pdfModel` are
+server-side defaults that appear there on every read; they are not members of `AgentResource`,
+and sending them is a type error.
+
 `name`, `model` and `persona` are untouched because they were not in the body. Note that
 `labels` itself was replaced, not merged key-by-key: the merge is per section, not recursive.
 
-### `tool_policy` is replaced wholesale
+### `tool_policy` and `system_prompt` are replaced wholesale
 
-`tool_policy` is the exception to the merge. Every PUT that names it replaces the whole
-object. Sending `{}` clears the policy back to the full tool manifest.
+Two sections are exceptions to the merge: every PUT that names `tool_policy` or
+`system_prompt` replaces the whole object. See [Tools](./tools).
 
-```ts
-await zc.updateAgent(agentId, { tool_policy: { allow: ['read'] } })
-await zc.updateAgent(agentId, { tool_policy: { allow: ['web_search'] } })
-// The policy is now { allow: ['web_search'] }. `read` is gone.
-
-await zc.updateAgent(agentId, { tool_policy: {} })
-// Policy cleared: the agent gets the full manifest again.
-```
-
-To add to a policy, read the current one out of `declared` and send the union yourself.
+So there is no partial write for either. To add to a policy, read the current one out of
+`declared` and send the union yourself.
 
 ### Every PUT bumps the version
 
@@ -359,9 +351,9 @@ await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true }) // attach one 
 await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
 ```
 
-A freshly created agent already has the entire global skill catalog attached - call
-`listAgentSkills()` before you try to install anything. `putAgentSkill()` returns `404` for
-global-scope skills; it only works for skills your own tenant uploaded.
+A freshly created agent already has the entire global skill catalog attached, so
+`putAgentSkill()` on a global-scope skill returns `404` - do not retry it. See
+[Skills](./skills).
 
 ## List your agents
 
@@ -372,10 +364,10 @@ const mine = await zc.listAgents()
 const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example' } })
 ```
 
-The scope is `owner_uid` **and** `org_id`, both injected by the gateway from your key. An agent
-a colleague created in the same org is readable by `getAgent()` if you know its id, but it
-never appears in your listing - so for anything that spans keys, keep your own record of the
-ids. Page size is fixed at 100 by the engine, so `page` is the only way past the first hundred.
+The listing is scoped to your key, not to your organization. An agent a colleague created in
+the same org is readable by `getAgent()` if you know its id, but it never appears in your
+listing - so for anything that spans keys, keep your own record of the ids. Page size is fixed
+at 100, so `page` is the only way past the first hundred.
 
 `labels` filters on the labels you declared at create time, one `label.<key>` selector per
 entry. `{ labels: { workspace_id: '...' } }` is the one worth remembering: it turns the

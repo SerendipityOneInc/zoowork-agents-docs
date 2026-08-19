@@ -27,9 +27,6 @@ Keep the key server-side. It authenticates as your whole organization, not as on
 export ZOOCLAW_API_KEY='zct_...'
 ```
 
-That is the only thing you configure. The SDK already knows the endpoint; you never set
-a base URL unless you are targeting a different deployment.
-
 Every step below is shown in both TypeScript and `curl`. The `curl` tab exists so you can
 follow along from any language: it is the same HTTP the SDK makes. It needs the endpoint
 spelled out, so for those examples also export:
@@ -102,7 +99,7 @@ curl "$ZOOCLAW_BASE_URL/models" \
 ]
 ```
 
-A bad key returns `401`. The SDK throws `ZooclawError` with `.status` and `.type` - match on `.type`, never on the message text.
+A bad key returns `401`. The SDK throws `ZooclawError` with `.status` and `.type` - never match on the message text. Match on `.type` when you know which family answered; for `401` branch on `.status`, because the gateway and the core API spell that type differently.
 
 ## 1. Create an agent
 
@@ -135,8 +132,6 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents" \
 
 :::
 
-Ownership is handled for you: the gateway derives the tenant anchors from your API key and returns them in the receipt's `ownership`.
-
 The response is a flat **create receipt**:
 
 ```json
@@ -144,15 +139,14 @@ The response is a flat **create receipt**:
   "agent_id": "agt_example",
   "computer_id": "cmp_example",
   "config_version": 1,
-  "resolved_skills": [],
-  "ownership": { "owner_uid": "usr_example", "org_id": "org_example" }
+  "resolved_skills": []
 }
 ```
 
 Two things to know about this shape:
 
 - The receipt is not the same shape as a read. `getAgent()` returns a projection where the configuration lives under `declared` and the version lives at `status.config_version` - there is no top-level `config_version` or `name` on the read path. Read it as `agent.status?.config_version ?? agent.config_version`.
-- `config_version` in the receipt is already stale by the time you read it back. The gateway writes platform credentials for you immediately after create, and each write bumps the version, so a `getAgent()` one second later typically reports `3`. Do not use the version as an idempotency receipt.
+- `config_version` in the receipt is already stale by the time you read it back: every write after create bumps it, so a `getAgent()` one second later typically reports `3`. Do not use the version as an idempotency receipt.
 
 Pass an idempotency key as the second argument if you want a create you can safely retry:
 
@@ -164,8 +158,6 @@ const agent = await zc.createAgent(
   'quickstart-run-01', // your idempotency key
 )
 ```
-
-The uniqueness domain is `(agent.create, key)`. The same key with a different body returns `409 idempotency_conflict`.
 
 ## 2. Start the agent
 
@@ -206,7 +198,7 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/start" \
 { "warnings": ["channel_routes_reload_failed: routes reload returned 404"] }
 ```
 
-That warning is expected and harmless. `startAgent` also reloads chat-channel routes; an API-only agent has no channels to reload, so it reports a failure on every start and stop. It is not a startup failure - check `desired_state` instead.
+That warning is informational and shows up on every start and stop of an API-only agent. Do not retry on it - check `desired_state` instead.
 
 ### Wait for readiness
 
@@ -223,10 +215,8 @@ const agent = await zc.waitUntilRunning(agentId)
 ```
 
 It polls `status.desired_state` on a 30-second budget, 500 ms apart, and hands back the same
-projection `getAgent()` would. Each poll is bounded by whatever is left of the budget, so a
-gateway that accepts the connection and then stalls ends the wait on schedule instead of
-hanging it. An agent that never gets there throws a `ZooclawError` with `status === 408` and
-`type === 'timeout'`.
+projection `getAgent()` would. An agent that never gets there throws a `ZooclawError` with
+`status === 408` and `type === 'timeout'`.
 
 A `getAgent()` read right after start looks like this (other fields omitted):
 
@@ -239,8 +229,7 @@ A `getAgent()` read right after start looks like this (other fields omitted):
     "actual_state": "activating",
     "config_version": 3,
     "channels": { "expected": 0, "connected": 0 }
-  },
-  "ownership": { "owner_uid": "usr_example", "org_id": "org_example" }
+  }
 }
 ```
 
@@ -278,10 +267,12 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/sessions" \
 ```json
 {
   "session_id": "ses_example",
-  "session_key": "api:example",
-  "status": "running"
+  "session_key": "api:ses_example",
+  "status": null
 }
 ```
+
+`status` is always `null` - read `run_status` instead.
 
 `initial_events` starts the first turn as part of the create call, so you do not need a separate send. Use `user.message` with string content. For later turns in the same session, call `postEvents(agentId, sessionId, events)`.
 
@@ -359,7 +350,7 @@ A single turn produces an arc like `run.started` -> `agent.lifecycle` -> `agent.
 
 Four things that trip people up:
 
-- **`run.finished` ends the turn, not the stream.** The stream is session-scoped and stays open; the server closes it after an idle period. Break out of the loop yourself when `isRunFinished(ev)` is true, or you will block until the idle timeout.
+- **`run.finished` ends the turn, not the stream.** Break out of the loop yourself when `isRunFinished(ev)` is true, or you will block until the server's idle timeout.
 - **`runOutcome(ev)` is `succeeded | failed | aborted`.** A run can finish `succeeded` even when individual tool calls errored - `toolCall(ev).isError === true` does not fail the run. Do not infer success from the absence of tool errors.
 - **`assistantText(ev)` returns `''` for every event that is not `agent.assistant`**, so concatenating it over the whole loop is safe and gives you the full reply.
 - **Resume with `after`.** Every frame carries a durable `seq`. If the connection drops, restart the generator with `{ after: lastSeq }` and the server replays from there. Nothing is lost and nothing is duplicated.
@@ -368,7 +359,7 @@ Four things that trip people up:
 for await (const ev of zc.streamEvents(agentId, sessionId, { after: lastSeq })) { /* ... */ }
 ```
 
-`listEvents(agentId, sessionId)` reads the same events over REST if you prefer polling. It returns one page - server default 100, maximum 500 - so page with `after` on long sessions rather than assuming you got everything.
+`listEvents(agentId, sessionId)` reads the same events over REST if you prefer polling. It returns one page - server default 100, maximum 500 - and a full page is truncated silently: no `has_more`, no total, no next cursor. Use `listAllEvents(agentId, sessionId)` to walk every page in one call rather than writing the loop yourself.
 
 ## 5. Clean up
 
@@ -389,7 +380,7 @@ curl -X DELETE "$ZOOCLAW_BASE_URL/agents/$AGENT_ID" \
 
 :::
 
-Stop first. `deleteAgent()` is a soft delete of the control-plane record: it does not stop the agent, cancel schedules, or release the sandbox. An agent you delete without stopping stays running.
+Stop first. `deleteAgent()` is a soft delete: it does not stop the agent, cancel schedules, or release the sandbox, so an agent you delete without stopping stays running. See [Agents](../build/agents.md).
 
 `stopAgent()` returns the same informational `channel_routes_reload_failed` warning as start. After a stop, `createSession()` on that agent returns `409 agent_not_running` again.
 
@@ -417,7 +408,7 @@ const models = await zc.listModels()
 const model = models[0]?.model ?? 'litellm/claude-sonnet-5'
 console.log(`${models.length} models available, using ${model}`)
 
-// 1. Create the agent. The gateway derives ownership from your API key.
+// 1. Create the agent.
 const created = await zc.createAgent({
   resource: {
     name: `quickstart-${Date.now()}`,

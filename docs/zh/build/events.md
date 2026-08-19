@@ -1,14 +1,14 @@
 ---
 title: 事件与流式
 source: /en/build/events
-source_hash: a255cdc6aa062885795550de92fba4ead117004d51bdb444b2c110fc19c2a39e
+source_hash: 9ac9ad62f1e5c3807910bb2731f55ed5080aaad303a386e2844deb03332dd7b2
 ---
 
 # 事件与流式
 
-Agent 在一个 session 里做的每一件事都是一个 event。你通过 post 少数几种入站 event 来驱动 session，通过读取出站事件日志来观察它——可以读持久化的列表，也可以读实时的 SSE 流。
+Session 里发生的每一件事都是一个 event。你通过 post 少数几种入站 event 来驱动 session，然后从同一份事件日志把整段对话读回来——你自己的输入也在里面，和 engine 的输出并排回显——可以读持久化的列表，也可以读实时的 SSE 流。
 
-事件日志按 session 划分。每个 event 带一个 `seq`，它在该 session 内单调递增且永不复用。`seq` 是你唯一需要的游标：历史分页靠它，流式续传也靠它。
+事件日志按 session 划分。每个 event 带一个 `seq`，它在该 session 内严格递增且永不复用（有洞是正常的）。分页和流式续传都走游标：列表页的 `next_cursor`，或每个流式事件自带的 `cursor`。
 
 ```ts
 import {
@@ -35,24 +35,30 @@ SDK 会把每一个 event、无论来自哪种 transport，都归一成同一个
 
 ```ts
 interface SessionEvent {
-  /** Durable per-session sequence. Use as the `after` cursor when resuming. */
+  /** Durable per-session sequence: strictly increasing, not necessarily contiguous. */
   seq: number
-  eventType: SessionEventType | string
+  eventType: SessionEventType | PublicInputEventType | string
   payload: Record<string, unknown>
   runId?: string
   turn?: number
   createdAt?: string
+  id?: string
+  processedAt?: string | null
+  cursor?: string
 }
 ```
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `seq` | `number` | 在 session 内单调递增，由服务端分配。如果这一帧完全没带 sequence 就是 `-1`，而这在持久流上不应该发生。 |
-| `eventType` | `string` | 下表中的某个值。故意标注成 `SessionEventType \| string`：未知类型会原样透传而不是抛错，因为这个 API 处于 Developer Preview，可能在一个版本内新增类型。 |
+| `seq` | `number` | 在 session 内严格递增，由服务端分配，有洞是正常的。如果这一帧完全没带 sequence 就是 `-1`，而这在持久流上不应该发生。 |
+| `eventType` | `string` | 下面几张表中的某个值。故意标注得很松：未知类型会原样透传而不是抛错，因为这个 API 处于 Developer Preview，可能在一个版本内新增类型。 |
 | `payload` | `Record<string, unknown>` | 与类型相关的 body，永远是一个对象。缺省时是 `{}` 而不是 `undefined`。它的 key 是 camelCase。 |
-| `runId` | `string \| undefined` | 这个回合的 run。同一回合的所有 event 共享它。 |
+| `runId` | `string \| undefined` | 这个回合的 run。同一回合的所有 event 共享它。输入事件没有。 |
 | `turn` | `number \| undefined` | 该 session 内的回合序号。 |
 | `createdAt` | `string \| undefined` | ISO 8601 时间戳。 |
+| `id` | `string \| undefined` | 事件 id，服务端给的话就有。 |
+| `processedAt` | `string \| null \| undefined` | 仅输入事件：排队中是 `null`，agent 消费后变成时间戳。 |
+| `cursor` | `string \| undefined` | 续传令牌，流式事件上有——传给 `streamEvents({ cursor })`。 |
 
 没有顶层 `type` 字段，没有 `stop_reason`，也没有 `session.status_*` 事件。如果你在移植一份 switch `event.type` 的代码，改成 switch `event.eventType`。
 
@@ -60,32 +66,13 @@ interface SessionEvent {
 
 ## 底层的线格式
 
-::: warning 两种 transport 的拼写不一致
-同一个 event，你在哪里读它，它回来的形状就不一样。
+::: warning 线格式的拼写不一致
+统一通道上两种 transport 发的是同一个 snake_case 对象（`event_type`、`run_id`、`processed_at`、`created_at`），SSE 的 `id:` 行承载续传令牌。废弃的 `after` 通道上，REST 仍是 snake_case，但 SSE 帧是 camelCase（`eventType`、`runId`、`createdAt`）。**任何形状都不带顶层 `type`。**
 
-| | REST `GET .../events` | SSE `GET .../events/stream` |
-|---|---|---|
-| 序号 | `seq` | `seq`，同时还有 SSE 的 `id:` 行 |
-| 事件类型 | `event_type` | `eventType` |
-| run | `run_id` | `runId` |
-| 回合 | `turn` | `turn` |
-| 事件体 | `payload` | `payload` |
-| 时间戳 | `created_at` | `createdAt` |
-| 额外字段 | | `version`、`engine`、`sessionId` |
-
-REST 是 snake_case，SSE 是 camelCase。**两者都不带顶层 `type`。**
-
-SDK 在 `normalizeEvent` 里吸收了这个差异，所以 `listEvents` 和 `streamEvents` 返回同一个 `SessionEvent`，你根本看不到区别。如果你直接调 HTTP API，这两套映射都得自己写。
+SDK 在 `normalizeEvent` 里吸收了这一切，所以 `listEvents` 和 `streamEvents` 返回同一个 `SessionEvent`，你根本看不到区别。如果你直接调 HTTP API，这些映射都得自己处理。
 :::
 
-一个原始 SSE 帧长这样：
-
-```
-id: 42
-data: {"version":1,"engine":"zooclaw","sessionId":"ses_...","seq":42,"runId":"run_...","turn":0,"eventType":"agent.assistant","payload":{"message":{"role":"assistant","content":[{"type":"text","text":"Hi."}]},"segment":1},"createdAt":"2026-08-06T09:12:44.001Z"}
-```
-
-服务端还会每 20 秒写一行 `: ping` 注释作为 keepalive。符合规范的 SSE 解析器会忽略它们，SDK 的解析器就是这样。
+服务端每 20 秒写一行 `: ping` 注释作为 keepalive，所以任何低于这个值的 socket 读超时或代理空闲超时都会杀掉一条健康的流；而一个不跳过注释行的手写解析器会撞上 `JSON.parse('')` 并抛异常——不想自己写的话，`parseSSE` 是导出的。
 
 `normalizeEvent` 是导出的，所以如果你有自己的 transport，可以复用它：
 
@@ -97,7 +84,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 
 ## 事件词表
 
-以下是全部出站事件类型，也就是 `SESSION_EVENT_TYPES` 的完整内容。这是一个固定的 19 项列表；历史查询上的 `types=` 过滤器会用 `400 invalid_request` 拒绝其中之外的任何值。
+以下是全部出站事件类型，也就是 `SESSION_EVENT_TYPES` 的完整内容（固定 19 项），外加[你自己的输入，回显](#你自己的输入回显)那四种输入类型。历史查询上的 `types=` 过滤器接受这两组，其余任何值都以 `400 invalid_request` 拒绝。
 
 ### `run.*` —— 回合记账
 
@@ -129,6 +116,10 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 | `attachment.created` | 某个工具产出了一个文件或附件。 | `source`、`toolName`、`toolCallId`、`index`，以及存储引用相关的字段。 |
 | `message.outbound` | Agent 主动发出了一条消息（message 工具、schedule announce 或 heartbeat），而不是在 session 内回复。 | `source`、`sourceRef`、`delivery`、`text`、`action`、`index`、`computerId`、`agentId`，可选的 `card`、`artifacts`。 |
 
+### 你自己的输入，回显
+
+你自己发的输入会以 `user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message` 出现在同一份日志里（导出为 `PUBLIC_INPUT_EVENT_TYPES`）。`user.message` 的 payload 是 `{ content: [...] }` —— 文本 block 加 `{ type: 'attachment', mime, name, size }` 存根 —— 它的 `processedAt` 在 agent 消费后从 `null` 变成时间戳。这四种的写入侧规则见[入站事件](#入站事件)。
+
 ### `chat.*` —— 不在持久日志上
 
 `chat.delta`、`chat.final`、`chat.aborted` 和 `chat.error` 也是词表成员，但**不会写进持久事件日志** 。它们活在一条独立的、按 run 划分的预览通道上，唯一能看到其中内容的办法是本页末尾讲的 `?deltas=` 查询参数。不要拿它们构建回合逻辑；一个回合的边界是 `run.started` 和 `run.finished`。
@@ -136,7 +127,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 ::: warning 尚未验证
 我们在真实 session 上反复观察到的序列是 `run.started`、`agent.lifecycle`、`agent.item`、`agent.thinking`、`agent.assistant`、`agent.tool`（start/end）、`agent.lifecycle`、`run.finished`。
 
-`agent.approval`、`agent.command_output`、`agent.patch`、`agent.compaction`、`attachment.created` 和 `message.outbound` 在词表里，引擎也会发出它们，但我们没有通过这个 API 端到端跑通过其中任何一个。把它们的 payload 字段当作参考，不是契约，代码要写得防御一些。
+`agent.approval`、`agent.command_output`、`agent.patch`、`agent.compaction`、`attachment.created` 和 `message.outbound` 在词表里，引擎也会发出它们，但我们没有通过这个 API 端到端跑通过其中任何一个。把它们的 payload 字段当作参考，不是契约，代码要写得防御一些。（回显的输入事件已验证：投递、回显、`processedAt`、游标续传、重试去重，2026-08-19 端到端跑通。）
 :::
 
 ## 入站事件
@@ -147,7 +138,8 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 const res = await zc.postEvents(agentId, sessionId, [
   { type: 'user.message', content: 'Summarize the last three findings.' },
 ])
-// res.events -> [{ id?: string, type?: string, accepted?: boolean }]
+// res.events -> 被接受的事件返回完整事件对象（带 seq）；
+//               没有进行中 run 的 user.interrupt 是 { id, type, accepted: false }
 ```
 
 `postEvents` 返回 `202`，每提交一个 event 对应一条记录。`accepted` 是那个真正重要的字段。
@@ -205,7 +197,7 @@ if (r.events[0]?.accepted === false) {
 注意这里大小写风格是混的：请求体是 snake_case（`approval_id`），而你读到这个值的那个事件 payload 是 camelCase（`approvalId`）。其他任何形状都是 `400 invalid_event`。
 
 ::: warning 尚未验证
-我们没有端到端跑通过一次审批。上面这个可接受的请求体是从请求解析器里读出来的，但没有任何一个真实的待处理审批通过这条路由被创建并解决过，而且一个卡在无人应答的审批上的回合会超时。不要围绕 human-in-the-loop 审批做演示。
+上面这个可接受的请求体是从请求解析器里读出来的；没有任何一个真实的待处理审批通过这条路由被创建并解决过。审批闭环的状态记在[能力矩阵](/zh/reference/capabilities)里。
 :::
 
 ### `system.message`
@@ -267,11 +259,11 @@ const budget = setTimeout(() => ctl.abort(), 120_000)
 
 let text = ''
 let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
-let lastSeq = 0
+let cursor: string | undefined
 
 try {
   for await (const ev of zc.streamEvents(agentId, session.session_id, { signal: ctl.signal })) {
-    lastSeq = ev.seq
+    cursor = ev.cursor ?? cursor
 
     const think = thinkingText(ev)
     const tool = toolCall(ev)
@@ -298,24 +290,20 @@ console.log(outcome, text.trim())
 
 - abort 掉 `signal` 会干净地结束生成器。SDK 会吞掉这个 abort 而不是抛出，所以你不需要为自己发起的取消写 `catch`。
 - 生成器会丢弃任何 `seq` 小于等于它已产出过的最高值的 event，所以重连时被重放的边界 event 不会被投递两次。
-- `streamEvents` 从不请求 delta 预览通道，所以它产出的一切都是持久的。
-- 对于多回合 session，要么每个回合开一条新流并带上 `after: lastSeq`，要么保持一条流开着并持续数 `run.finished` 事件。前者更容易推理。
+- `streamEvents` 产出的一切都是持久的。
+- 对于多回合 session，要么每个回合开一条新流并带上上次的 `cursor`，要么保持一条流开着并持续数 `run.finished` 事件。前者更容易推理。
 
 ## 续传
 
-这是本 API 比你可能习惯的那个替代方案更强的地方。
-
-每一个持久帧都在 SSE 的 `id:` 行里带着自己的 `seq`。传 `{ after: lastSeq }`，服务端会先从 `lastSeq + 1` 重放日志，再继续实时推送。这是**服务端续传** ：没有客户端缓冲，没有去重环节，重连慢一点也不会有空洞。
+每一个持久帧都在 SSE 的 `id:` 行里带着自己的续传令牌，SDK 把它以 `ev.cursor` 交还给你。传 `{ cursor }`，服务端会先从那个事件之后重放日志，再继续实时推送。这是**服务端续传** ：没有客户端缓冲，没有去重环节，重连慢一点也不会有空洞。
 
 ```ts
-for await (const ev of zc.streamEvents(agentId, sessionId, { after: 128 })) {
-  // first event delivered is seq 129, even if the turn finished minutes ago
+for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: saved })) {
+  saved = ev.cursor ?? saved
 }
 ```
 
-在没有服务端续传的平台上，连接掉了之后唯一的恢复办法是重新列一遍历史、自己按 event id 去重；在这里服务端直接从你的游标重放，重连不花任何代价。
-
-如果你直接调 HTTP 端点，用 `?after=<seq>` 或标准的 `Last-Event-ID` 请求头都可以；服务端从两者中较大的那个开始续传。浏览器的 `EventSource` 会自动发送 `Last-Event-ID`，因为服务端写了 `id:` 行。
+如果你直接调 HTTP 端点，用 `?cursor=` 或标准的 `Last-Event-ID` 请求头都可以。浏览器的 `EventSource` 会自动发送 `Last-Event-ID`，因为服务端写了 `id:` 行。`{ after: seq }` 仍能续传废弃的 engine-only 通道——只留给旧存量游标用。
 
 ### 一个扛得住断线的重连循环
 
@@ -334,24 +322,24 @@ async function runTurnWithResume(
   zc: ZooclawClient,
   agentId: string,
   sessionId: string,
-  startSeq = 0,
+  startCursor?: string,
   maxAttempts = 6,
-): Promise<{ outcome?: 'succeeded' | 'failed' | 'aborted'; text: string; lastSeq: number }> {
-  let lastSeq = startSeq
+): Promise<{ outcome?: 'succeeded' | 'failed' | 'aborted'; text: string; cursor?: string }> {
+  let cursor = startCursor
   let text = ''
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
-      for await (const ev of zc.streamEvents(agentId, sessionId, { after: lastSeq })) {
-        lastSeq = ev.seq
+      for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
+        cursor = ev.cursor ?? cursor
         text += assistantText(ev)
         if (isRunFinished(ev)) {
           const outcome = runOutcome(ev)
-          return { ...(outcome ? { outcome } : {}), text, lastSeq }
+          return { ...(outcome ? { outcome } : {}), text, ...(cursor ? { cursor } : {}) }
         }
       }
       // The generator returned without run.finished: the server closed the
-      // connection. Nothing is lost - reconnect from lastSeq.
+      // connection. Nothing is lost - reconnect from the last cursor.
     } catch (e) {
       // 4xx is a real problem (bad id, archived session, expired key). Retrying
       // will not fix it.
@@ -360,44 +348,34 @@ async function runTurnWithResume(
     await new Promise((r) => setTimeout(r, Math.min(1_000 * 2 ** attempt, 15_000)))
   }
 
-  return { text, lastSeq }
+  return { text, ...(cursor ? { cursor } : {}) }
 }
 ```
 
-把 `lastSeq` 和你的 session id 存在一起。它跨进程重启依然有效，所以一个在回合中途崩掉的 worker 能精确地从它停下的地方把这个回合接回来。
+把 cursor 和你的 session id 存在一起。它跨进程重启依然有效，所以一个在回合中途崩掉的 worker 能精确地从它停下的地方把这个回合接回来。
 
 ### 历史读取用的是同一个游标
 
-`listEvents` 通过 REST 读同一份持久日志。
+`listEvents` 通过 REST 读同一份持久日志，列表页的 `next_cursor` 和流式事件的 `cursor` 是同一种令牌。
 
 ```ts
 listEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; types?: string[]; limit?: number },
+  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
 ): Promise<SessionEvent[]>
 ```
 
-`limit` 在服务端默认是 **100** ，上限是 **500** ，而且这个调用只返回**一页** 。长 session 会被截断，不报错也不给标志位，所以要自己分页：
+`limit` 在服务端默认是 **100** ，上限是 **500** ，而且这个调用只返回**一页** ，不带这一页的 `has_more`/`next_cursor` 字段（`listEventsPage` 是保留分页字段的同一个调用，供手动翻页）。其余情况读日志请用 `listAllEvents`，它替你跟完服务端的游标：
 
 ```ts
-async function listAllEvents(zc: ZooclawClient, agentId: string, sessionId: string) {
-  const all: SessionEvent[] = []
-  let after = 0
-  for (;;) {
-    const page = await zc.listEvents(agentId, sessionId, { after, limit: 500 })
-    all.push(...page)
-    if (page.length < 500) break
-    after = page[page.length - 1]!.seq
-  }
-  return all
-}
+const all = await zc.listAllEvents(agentId, sessionId)
 ```
 
-`types` 在服务端过滤，且只能包含词表成员；出现未知值就是 `400 invalid_request`。
+`types` 在服务端过滤，两个调用都支持，且只能包含词表成员；出现未知值就是 `400 invalid_request`。
 
 ```ts
-const replies = await zc.listEvents(agentId, sessionId, { types: ['agent.assistant'] })
+const replies = await zc.listAllEvents(agentId, sessionId, { types: ['agent.assistant'] })
 ```
 
 从 REST 重放拼出来的文本，和从流拼出来的文本逐字节相同。
@@ -523,23 +501,10 @@ console.log(`${pending.size} tool calls never returned`)
 
 流式端点接受 `?deltas=agent.message`，它会把增量预览帧交错混进持久帧之间。SDK 没有暴露它，`streamEvents` 也从不请求它，所以本节只和直接调 HTTP 的调用方有关。
 
-有两点和你可能的预期不一样：
-
-- 预览帧**不带 `id:` 行** 。它们不属于持久游标，永远不会被重放。重连时它们会从下一个 `run.started` 重新推导出来。
-- 帧的 body 是 `{ "type": "event_delta", "runId", "turn", "deltaText", "replace": true }`。**`replace: true` 的意思是整体快照替换，不是前缀追加。** 每一帧带的都是当前的完整文本，不是新增的那一段。
-
-所以，你为前缀追加式 delta 流写的那种拼接，在这里会产生重复文本。要赋值，不要追加：
-
-```js
-// correct for this API
-if (frame.type === 'event_delta') previewText = frame.deltaText
-
-// wrong: duplicates on every frame
-if (frame.type === 'event_delta') previewText += frame.deltaText
-```
+有两点和你可能的预期不一样。预览帧**不带 `id:` 行** ：它们不属于持久游标，永远不会被重放。而预览帧上的 `replace: true` 意思是**整体快照替换，不是前缀追加** ——每一帧带的都是当前的完整文本，所以你为前缀追加式 delta 流写的那个 `+=` 会把已经显示过的内容全部重复一遍。要赋值，不要追加。
 
 在没有配置预览后端的部署上请求 `deltas`，会在流打开之前返回 `501 not_configured`，所以你拿到的是一个正常的 JSON 错误，而不是一条一直沉默的流。
 
 ::: warning 尚未验证
-上面的帧结构和快照替换语义是从服务端实现里读出来的。我们没有对着一个真实部署跑过 `?deltas=`，也不知道你正在用的那个部署有没有启用它。要拿最终文本，请用 `agent.assistant` 事件——它是持久的、可续传的，而且已实测。
+上面的语义是从服务端实现里读出来的；`?deltas=` 没有对着真实部署跑过。要拿最终文本，请用 `agent.assistant` 事件——它是持久的、可续传的，而且已实测。
 :::

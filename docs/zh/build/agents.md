@@ -1,7 +1,7 @@
 ---
 title: Agents
 source: /en/build/agents
-source_hash: bd3d2f1508cf387278d1abb175e273d2f9f873d9f4a7897aa6ccb05bea2a131b
+source_hash: 5884e1d783192c8f4030b59a2a961e60422e7d8359eb844a5becff0d00cc5988
 ---
 
 # Agents
@@ -45,11 +45,9 @@ const created: AgentRecord = await zc.createAgent(
 console.log(created.agent_id, created.config_version)
 ```
 
-`ownership` 不用传——网关会从你的 API key 推导所属租户的锚点；真实值从 `created.ownership` 读回来。
+`Idempotency-Key` 的作用域是 `agent.create + key`：同一个 key 配同一份 body 会收敛到第一次的响应，同一个 key 配不同的 body 返回 `409`。见[错误处理](../reference/errors)。
 
-`Idempotency-Key` 的作用域是 `agent.create + key`。用同一个 key、同一份 body 重放，会收敛到第一次的响应。用同一个 key 配不同的 body 重放，返回 `409`。
-
-SDK 在每次 create 时自动跳过 onboarding 面试——agent 会直接回答你的第一条消息。
+onboarding 面试总是被跳过——agent 会直接回答你的第一条消息。
 
 ### `resource` 的字段
 
@@ -58,6 +56,7 @@ SDK 在每次 create 时自动跳过 onboarding 面试——agent 会直接回�
 | `name` | string | 必填，不能为空。 |
 | `model.primary` | string | `provider/model-id` 形式的模型别名，例如 `litellm/claude-sonnet-5`。只写模型名会被归一成 `litellm/<model-id>`。列表从 `listModels()` 拿。 |
 | `model.input` | `string[]` | `text` 和/或 `image`。声明 `image` 表示主模型自己读图。 |
+| `model.max_tokens` | integer | 单次模型请求的输出 token 上限。不设走平台默认；非法值创建时报 400。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
 | `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools)。 |
@@ -83,10 +82,10 @@ const agent = await zc.createAgent({
 ```
 
 ::: warning 尚未验证
-`name`、`model` 和 `labels` 在我们生命周期 harness 的每一次运行里都被端到端跑过。`persona.docs`、`tool_policy`、`sandbox.scope` 和 `mcp` 按 API 契约会被创建路由接受，但我们没有驱动过一个回合来证明它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
+`name`、`model`、`labels` 和 `mcp` 已经端到端验证过。`persona.docs`、`tool_policy`、`sandbox.scope` 和 `model.max_tokens` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
 :::
 
-SDK 类型允许、但你不应该通过公开网关使用的字段：创建时的 `skills`（见 [Skills](./skills)），以及 `environment_id` / `environment_version`（见 [Environments](./environments)）。
+创建时的 `skills` 是唯一一个 SDK 类型允许、而公开网关不认的 `resource` 字段——见 [Skills](./skills)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments)。
 
 ## 读取 agent，以及两种响应结构
 
@@ -109,7 +108,6 @@ SDK 类型允许、但你不应该通过公开网关使用的字段：创建时�
 {
   agent_id: 'agt_...',
   computer_id: 'cmp_...',
-  ownership: { owner_uid: '...', org_id: '...' },
   declared: {                   // <- the configuration lives here
     name: 'research-agent',
     model: { primary: 'litellm/claude-sonnet-5', input: ['text', 'image'] },
@@ -118,7 +116,6 @@ SDK 类型允许、但你不应该通过公开网关使用的字段：创建时�
   },
   labels: { app: 'my-app' },
   resolved_skills: [ /* ... */ ],
-  bootstrap_state: 'skipped',
   status: {
     desired_state: 'stopped',
     actual_state: 'stopped',
@@ -144,7 +141,7 @@ const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
 ```
 
-这个数字在两次读取之间还会跳。网关在创建之后立刻注入平台凭证，每一次注入都会 bump 一次版本号：创建回执上写着 `1`，第一次 `getAgent()` 通常就已经是 `3` 了。把 `config_version` 当成一个不透明的单调计数器，永远不要把它当成你自己那次写入的回执。
+这个数字在两次读取之间还会跳：你还什么都没写，第一次读回来的版本号就可能已经高于创建回执上的那个。把 `config_version` 当成一个不透明的单调计数器，永远不要把它当成你自己那次写入的回执。完整规则见[错误处理](../reference/errors)。
 
 ```ts
 const agent = await zc.getAgent(created.agent_id)
@@ -165,7 +162,7 @@ console.log(warnings)
 
 ### 启停时你一定会看到的那条 warning
 
-`startAgent()` 和 `stopAgent()` 都返回 `{ warnings: string[] }`。纯 API 的 agent —— 也就是没有挂 Mattermost 或飞书聊天渠道的 agent —— 在**每一次** 启动和**每一次** 停止都会报 `channel_routes_reload_failed`，因为根本没有渠道路由可以重载。这是预期内的噪音。不要把非空的 `warnings` 数组当成失败，也不要因此重试。记一条日志然后继续。
+`startAgent()` 和 `stopAgent()` 都返回 `{ warnings: string[] }`。纯 API 的 agent —— 也就是没有挂任何聊天渠道的 agent —— 在**每一次** 启动和**每一次** 停止都会报 `channel_routes_reload_failed`，因为根本没有渠道路由可以重载。这是预期内的噪音。不要把非空的 `warnings` 数组当成失败，也不要因此重试。记一条日志然后继续。
 
 ### `desired_state` 与 `actual_state`
 
@@ -176,7 +173,7 @@ console.log(warnings)
 | `desired_state` | 生命周期意图。**API 由它把关。** | `running`、`stopped`、`deleted` |
 | `actual_state` | 聊天渠道路由的健康度。与 API 是否就绪无关。 | `activating`、`active`、`degraded`、`error`、`stopped`、`deleting` |
 
-纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 我们每一次跑 harness 都在这个状态下驱动完整的回合。
+纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 在这个状态下驱动完整的回合已经验证过。
 
 轮询 `desired_state`，并带上超时。`waitUntilRunning()` 就是这个循环，已经写好了：
 
@@ -249,22 +246,15 @@ console.log(updated.declared?.model)  // { primary: 'litellm/claude-sonnet-5', .
 console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - replaced wholesale
 ```
 
+`declared` 比你发出去的宽。`imageModel`、`imageGenerationModel` 和 `pdfModel` 是服务端默认值，每次读都会出现在里面；它们不是 `AgentResource` 的成员，发送它们是类型错误。
+
 `name`、`model` 和 `persona` 没被动，因为它们不在 body 里。但 `labels` 本身是被整个替换的，不是逐键合并：合并的粒度是小节，不是递归。
 
-### `tool_policy` 是整体替换
+### `tool_policy` 和 `system_prompt` 是整体替换
 
-`tool_policy` 是合并规则的例外。每一次点名它的 PUT 都会替换掉整个对象。传 `{}` 会把策略清空，退回完整的工具清单。
+有两个小节是合并规则的例外：每一次点名 `tool_policy` 或 `system_prompt` 的 PUT 都会替换掉整个对象。见[工具](./tools)。
 
-```ts
-await zc.updateAgent(agentId, { tool_policy: { allow: ['read'] } })
-await zc.updateAgent(agentId, { tool_policy: { allow: ['web_search'] } })
-// The policy is now { allow: ['web_search'] }. `read` is gone.
-
-await zc.updateAgent(agentId, { tool_policy: {} })
-// Policy cleared: the agent gets the full manifest again.
-```
-
-要往策略里加东西，先从 `declared` 里把当前这份读出来，自己算好并集再发。
+所以这两个都没有局部写入。要往策略里加东西，先从 `declared` 里把当前这份读出来，自己算好并集再发。
 
 ### 每一次 PUT 都会 bump 版本号
 
@@ -282,7 +272,7 @@ const second = configVersion(await zc.getAgent(agentId))          // 6 - bumped 
 
 ### PUT 会拒绝什么
 
-PUT body 里的 `skills`，以及任何未知字段，都返回 `400`。skill 走它自己的路由管理 —— 见 [Skills](./skills)。
+PUT body 里的 `skills`、`credentials`，以及任何未知字段，都返回 `400`。skill 走它自己的路由管理 —— 见 [Skills](./skills)。
 
 ## 停止与删除
 
@@ -312,7 +302,7 @@ await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true }) // attach one 
 await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
 ```
 
-刚创建出来的 agent 已经挂上了整个全局 skill 目录 —— 在你尝试安装任何东西之前，先调 `listAgentSkills()`。`putAgentSkill()` 对 global scope 的 skill 返回 `404`；它只对你自己租户上传的 skill 有效。
+刚创建出来的 agent 已经挂上了整个全局 skill 目录，所以对 global scope 的 skill 调 `putAgentSkill()` 会返回 `404` —— 不要重试。见 [Skills](./skills)。
 
 ## 列出你的 agent
 
@@ -323,7 +313,7 @@ const mine = await zc.listAgents()
 const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example' } })
 ```
 
-作用域是 `owner_uid` **和** `org_id`，两者都由网关从你的 key 上注入。同一组织内由同事创建的 agent，只要你知道它的 id 就能用 `getAgent()` 读到，但它永远不会出现在你的列表里 —— 所以凡是跨 key 的场景，还是要自己记录 id。每页的条数被引擎固定成 100，所以想拿到前一百条之外的东西，只能靠 `page`。
+列表的作用域是你这把 key，不是你所在的组织。同一组织内由同事创建的 agent，只要你知道它的 id 就能用 `getAgent()` 读到，但它永远不会出现在你的列表里 —— 所以凡是跨 key 的场景，还是要自己记录 id。每页的条数固定成 100，所以想拿到前一百条之外的东西，只能靠 `page`。
 
 `labels` 按你在创建时声明的 label 过滤，每一项对应一个 `label.<key>` 选择器。`{ labels: { workspace_id: '...' } }` 是最值得记住的一种：它能把 ZooClaw 聊天 URL 里的 workspace id —— 也就是路径的第一段 —— 换回它背后的那个 agent。
 

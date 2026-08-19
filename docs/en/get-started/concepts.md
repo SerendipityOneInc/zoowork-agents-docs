@@ -39,34 +39,15 @@ The configuration you submit is the **declared** config. It holds:
   `SOUL.md`, `IDENTITY.md`, ...)
 - `tool_policy` - which built-in tools the agent may use; `{}` means the full manifest
 - `labels` - free-form string key/values for your own bookkeeping
-- `skills` (at create time), `mcp` declarations, `heartbeat`, `sandbox.scope`,
+- `skills` (at create time), `mcp` declarations, `system_prompt`, `outcome`, `sandbox.scope`,
   `environment_id` / `environment_version`
 
 It also owns a `status` block, which is state the server maintains and you only read.
 
-Two read shapes for one agent, and they are not the same shape:
-
-```ts
-const created = await zc.createAgent({
-  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-})
-created.agent_id       // 'agt_...'
-created.config_version // present: the create receipt is flat
-
-const agent = await zc.getAgent(created.agent_id)
-agent.declared               // { name, model, persona, labels, ... }
-agent.status?.config_version // the version lives here on the read path
-agent.config_version         // undefined - there is no top-level version on GET
-agent.name                   // undefined - the name is under `declared`
-```
-
 `POST /agents` answers with a flat create receipt. `GET` and `PUT` answer with a projection:
 configuration under `declared`, version under `status.config_version`. Read the version as
-`agent.status?.config_version ?? agent.config_version` if you want one expression that works
-for both.
-
-Ownership is handled for you: the gateway derives the tenant anchors from your API key, and
-the create receipt carries them under `ownership`.
+`agent.status?.config_version ?? agent.config_version` and one expression works for both. See
+[Agents](/en/build/agents) for the two shapes side by side.
 
 ### Lifecycle
 
@@ -76,28 +57,19 @@ createAgent() --> [stopped] --startAgent()--> [running] --stopAgent()--> [stoppe
                                             deleteAgent()
 ```
 
-A newly created agent is **stopped**. Nothing about the create call starts it.
+A newly created agent is **stopped**. Nothing about the create call starts it, and until
+`startAgent()` returns, `createSession()` fails with `409 agent_not_running`. See
+[Quickstart](/en/get-started/quickstart).
 
 ```ts
 const { warnings } = await zc.startAgent(agentId)
 // warnings is informational, e.g. channel_routes_reload_failed on an API-only agent
 ```
 
-`startAgent()` is fast - under a second in practice. `stopAgent()` is the same shape. Both may
-return a `channel_routes_reload_failed` warning on an agent that has no chat channels; that is
-normal noise, not a failure.
+`stopAgent()` is the same shape. The `warnings` array is informational; do not retry on it.
 
-::: danger You must call startAgent()
-Until `startAgent()` returns, `createSession()` fails with `409 agent_not_running`. Creation
-and starting are deliberately separate steps, and skipping the start is the single most
-common way to get stuck on the first call.
-:::
-
-::: warning Not yet verified
-`DELETE` is documented as a soft delete: it does not stop the agent, cancel in-flight work,
-delete schedules, or release its sandbox. We have exercised `deleteAgent()` itself but not
-what it leaves behind. Call `stopAgent()` before `deleteAgent()`.
-:::
+`deleteAgent()` is a soft delete: it does not stop the agent, cancel in-flight work, delete
+schedules, or release its sandbox. Call `stopAgent()` first. See [Agents](/en/build/agents).
 
 ### `desired_state` vs `actual_state`
 
@@ -110,9 +82,9 @@ one of them gates the API.
 | `actual_state` | `activating` \| `active` \| `degraded` \| `error` \| `stopped` \| `deleting` | Chat-channel connectivity. Nothing to do with API readiness. |
 
 `actual_state` reports whether the agent's chat-channel routes are connected. An agent you
-drive only through the API has no channels (`status.channels.expected` is `0`), so it stays at
-`activating` forever and `active` is never reached. Note also that `running` is not a member of
-the `actual_state` enum at all - so the natural-looking loop below never returns:
+drive only through the API has no channels, so it stays at `activating` forever. And `running`
+is not a member of the `actual_state` enum at all - so the natural-looking loop below never
+returns:
 
 ```ts
 // WRONG - hangs forever on an API-only agent
@@ -128,45 +100,30 @@ the loop already:
 await zc.waitUntilRunning(agentId)
 ```
 
-`waitUntilRunning()` polls `desired_state` on a 30-second budget, 500 ms apart, and bounds
-each request with whatever is left of that budget, so a gateway that stalls mid-request ends
-the wait instead of hanging it. It throws a `ZooclawError` with `status === 408` and
-`type === 'timeout'` if the agent never gets there.
+`waitUntilRunning()` polls `desired_state` on a 30-second budget, 500 ms apart, and throws a
+`ZooclawError` with `status === 408` and `type === 'timeout'` if the agent never gets there.
+See [Agents](/en/build/agents).
 
 A full turn completes normally on an agent whose `actual_state` never leaves `activating`.
-`desired_state` is the only readiness signal that matters.
 
 ### `config_version`
 
 `config_version` is a monotonic integer describing which rendered configuration snapshot is in
 effect. A turn that is already running keeps its snapshot; the next turn picks up the new one.
 
-What it is not is a receipt.
+What it is not is a receipt. Every successful `PUT` bumps it, including a PUT whose body is
+byte-identical to the current configuration, and `updateAgent()` takes no expected-version
+parameter, so you cannot use `config_version` to deduplicate retries or to detect "did my write
+land". After a write times out, `getAgent()` and compare `declared` instead. See
+[Errors](/en/reference/errors).
 
-- Every successful `PUT` bumps it, **including a PUT whose body is byte-identical to the
-  current configuration**. Two no-op writes in a row produce two new versions.
-- Credential provisioning at create time bumps it too. A create receipt saying
-  `config_version: 1` is routinely followed by a `GET` reporting `3`.
-- There is no optimistic-concurrency parameter. You cannot submit an expected version and have
-  the write rejected on drift.
+`upgradeSystemPrompt()` is the one call that does take an expected version: it requires
+`expected_config_version` and answers `409 config_version_changed` if the agent has moved on.
 
-So do not use `config_version` to deduplicate retries or to detect "did my write land". After a
-write times out, `getAgent()` and compare `declared` instead.
-
-```ts
-await zc.updateAgent(agentId, { labels: { env: 'staging' } })
-// -> config_version 4
-await zc.updateAgent(agentId, { labels: { env: 'staging' } })
-// -> config_version 5, same content
-```
-
-`updateAgent()` merges one level deep per section: sections you omit are preserved. The PUT
-above leaves `name`, `model`, `persona`, and everything else untouched. The exception is
-`tool_policy`, which is replaced wholesale on every write; `{}` clears it back to the full tool
-manifest.
-
-**The surprise:** an agent is created stopped, and the state field that looks like readiness
-(`actual_state`) is not readiness.
+`updateAgent()` merges one level deep per section: sections you omit are preserved. Two sections
+are the exception and are replaced wholesale on every write - `tool_policy`, where `{}` clears
+it back to the full tool manifest, and `system_prompt`, where a partial write replaces the whole
+pin and drops whatever the previous declaration carried. See [Tools](/en/build/tools).
 
 ## Session
 
@@ -186,18 +143,9 @@ session.session_key // 'api:...'
 `createSession(agentId, input)`, `postEvents(agentId, sessionId, events)`,
 `listEvents(agentId, sessionId, opts)`, `streamEvents(agentId, sessionId, opts)`.
 
-::: danger Not supported
-There is no top-level `/sessions` collection and no session resource with the agent in the
-body. Code written against one will not compile here. Rewrite the call sites to pass
-`agentId` explicitly.
-:::
-
 `createSession` accepts an `Idempotency-Key` as a third argument; retrying with the same key
-converges on the first session rather than creating a second one.
-
-```ts
-await zc.createSession(agentId, { initial_events: [...] }, 'my-stable-key')
-```
+converges on the first session rather than creating a second one. See
+[Errors](/en/reference/errors).
 
 ### What it owns
 
@@ -224,26 +172,22 @@ an answer whose events you missed.
 ### Lifecycle
 
 A session is created, accumulates turns for as long as you keep posting to it, and stays
-readable afterwards. It does not expire at the end of a turn, and the SSE stream does not close
-when a turn ends.
+readable afterwards. It does not expire at the end of a turn.
 
-::: danger Not supported
-`ZooclawClient` has no `patchSession`. `PATCH` on a session is `405` through the gateway, so a
-session's `metadata` is write-once at `createSession` - put anything you will need to search on
-in there when you create it. See [Not supported](/en/reference/not-supported).
-:::
+`ZooclawClient` has no `patchSession`, so a session's `metadata` is write-once at
+`createSession` - put anything you will need to search on in there when you create it. See
+[Sessions](/en/build/sessions).
 
 Per-agent listing and lifecycle do have methods - `listSessions(agentId)`,
 `archiveSession(agentId, sessionId)`, `deleteSession(agentId, sessionId)`. There is still no
 top-level session collection, so keep your own `session_id` records for anything you need to
-reach across agents; the [capability matrix](/en/reference/capabilities) records how far each
-of the three has been driven.
+reach across agents.
 
-**The surprise:** a session you create through the API and a conversation the same agent is
-having inside the ZooClaw app are two separate conversations. API sessions carry a
-`session_key` beginning with `api:`; app conversations live on a different channel. They do not
-share history, and the model in one cannot see what was said in the other. Prototyping an
-agent's persona in the app is useful; expecting the API session to remember that chat is not.
+A session you create through the API and a conversation the same agent is having inside the
+ZooClaw app are two separate conversations. API sessions carry a `session_key` beginning with
+`api:`; app conversations live on a different channel. They do not share history, and the model
+in one cannot see what was said in the other. Prototyping an agent's persona in the app is
+useful; expecting the API session to remember that chat is not.
 
 ## Event
 
@@ -267,14 +211,11 @@ import {
 
 ### Events you write
 
-Four inbound types. Everything else is rejected.
-
-| Type | Body | Effect |
-|---|---|---|
-| `user.message` | `{ type, content: string }` | Starts a turn. |
-| `user.interrupt` | `{ type }` | Aborts the in-flight run. |
-| `system.message` | `{ type, text: string }` | Out-of-band note; the model reads it on the following turn. |
-| `user.tool_confirmation` | `{ type, approval_id, decision }` | Resolves a pending tool approval. |
+Four inbound types, and everything else is rejected: `user.message` starts a turn,
+`user.interrupt` aborts the in-flight run, `system.message` is an out-of-band note the model
+reads on the following turn (its field is `text`, not `content`), and `user.tool_confirmation`
+resolves a pending tool approval. See [Events and streaming](/en/build/events) for the body
+shapes.
 
 ```ts
 const res = await zc.postEvents(agentId, sessionId, [
@@ -283,22 +224,17 @@ const res = await zc.postEvents(agentId, sessionId, [
 res.events[0]?.accepted // true
 ```
 
-`postEvents` answers `202` with one `{ id, type, accepted }` per submitted event.
+`postEvents` answers `202` with `{ events: [...] }` - one `{ id, type, accepted }` entry per
+submitted event.
 
 `user.interrupt` against a live run is accepted (`accepted: true`) and that run ends with
 `run.finished` carrying `status: 'aborted'`. With no run in flight it returns
 `accepted: false` - a no-op, not an error, and not something to retry.
 
-`system.message` is a real out-of-band channel into the model's context. A note written this
-way is visible to the model on the next turn - state your application owns, injected without
-appearing as a user turn.
-
 ::: warning Not yet verified
-`user.tool_confirmation` takes
-`{ approval_id: string, decision: 'allow-once' | 'allow-always' | 'deny' }` and any other shape
-is rejected with `400`. We have not exercised it end to end, because doing so requires
-producing a real pending approval first. Treat human-in-the-loop approval as unavailable for
-now: an agent blocked on an approval will time the turn out.
+The approval loop has not been driven end to end. Treat human-in-the-loop approval as
+unavailable for now: an agent blocked on an approval will time the turn out. See
+[Capabilities](/en/reference/capabilities).
 :::
 
 Only `content` as a plain string has been verified for `user.message`. Rich content blocks are
@@ -330,9 +266,6 @@ and `agent.tool` in ordinary API turns. The remaining types are in the vocabular
 through the SDK unchanged, but did not appear in our runs. Unknown types are never thrown on -
 the API may add types within a version, so switch on `eventType` with a default branch.
 
-Assistant text lives at `payload.message.content[]`, in blocks with `type: 'text'`. Use
-`assistantText(e)` rather than reaching into the payload.
-
 `agent.tool` has three phases, not two:
 
 | Phase | Meaning |
@@ -341,48 +274,21 @@ Assistant text lives at `payload.message.content[]`, in blocks with `type: 'text
 | `end` | The call returned; `isError` and `resultPreview` are populated. |
 | `blocked` | The call is waiting on an approval and has **not** run. |
 
-One tool call produces a `start` and an `end` sharing a `toolCallId`. They are not adjacent in
-the stream when calls run concurrently, so pair them by id rather than by position.
-
-::: tip A failing tool does not fail the run
 An `agent.tool` event with `isError: true` is still followed by `run.finished` with
-`succeeded`. Never infer turn success from the absence of tool errors - read
-`runOutcome(e)`.
-:::
+`succeeded`. Never infer turn success from the absence of tool errors - read `runOutcome(e)`.
 
 ### Two wire shapes
 
-The same event is spelled differently depending on how you read it:
-
-| | REST `GET /events` | SSE `GET /events/stream` |
-|---|---|---|
-| type | `event_type` | `eventType` |
-| run | `run_id` | `runId` |
-| time | `created_at` | `createdAt` |
-
-Neither carries a top-level `type` field. The SDK normalizes both into one `SessionEvent`
-(`{ seq, eventType, payload, runId?, turn?, createdAt? }`), so you switch on a single field. If
-you call the HTTP API directly, you have to handle both spellings yourself; `normalizeEvent` is
-exported for that case.
+REST spells the fields in snake_case (`event_type`, `run_id`, `created_at`) and SSE in camelCase
+(`eventType`, `runId`, `createdAt`); neither carries a top-level `type` field. The SDK
+normalizes both into one `SessionEvent`, and exports `normalizeEvent` for the case where you
+call the HTTP API directly. See [Events and streaming](/en/build/events).
 
 ::: warning listEvents returns one page
 The server default is 100 events and the maximum is 500. `listEvents` returns a single page -
-a long session silently truncates with no error. Page with the `after` cursor:
-
-```ts
-let after = 0
-const all = []
-for (;;) {
-  const page = await zc.listEvents(agentId, sessionId, { after, limit: 500 })
-  if (page.length === 0) break
-  all.push(...page)
-  after = page[page.length - 1]!.seq
-}
-```
+a long session silently truncates with no error. Use `zc.listAllEvents(agentId, sessionId)`,
+which walks the pages for you.
 :::
-
-**The surprise:** the log is resumable. Reconnect with the last `seq` you saw and the server
-replays from there, so you never de-duplicate by hand.
 
 ## How a turn works
 
@@ -407,9 +313,7 @@ you                                    ZooClaw
  |  ... the stream stays open. Post the next user.message on the same session.
 ```
 
-A turn with no tool calls produces about seven events; a tool-using turn adds two `agent.tool`
-events per call, and a busy one runs to roughly seventeen. Do not hardcode the order or the
-count - `run.finished` is the only reliable terminator.
+Do not hardcode the order or the count - `run.finished` is the only reliable terminator.
 
 Driving one turn end to end:
 

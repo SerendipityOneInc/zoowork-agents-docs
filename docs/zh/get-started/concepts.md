@@ -1,7 +1,7 @@
 ---
 title: 核心概念
 source: /en/get-started/concepts
-source_hash: e4649c5f7cc20226d63a73926878363cc1062fdaeea56658d555422b8a7d2569
+source_hash: d4ffde0ba33a9d110e0938c58472da57dd197ea495afe78b425398e7e08c3986
 ---
 
 # 核心概念
@@ -40,29 +40,11 @@ agent 是一个配置对象，它比任何一段对话活得更久。你创建�
 - `persona.docs[]`——模型每个回合都会读的指令文档（`AGENTS.md`、`SOUL.md`、`IDENTITY.md` 等）
 - `tool_policy`——agent 可以使用哪些内置工具；`{}` 表示完整清单
 - `labels`——自由格式的字符串键值对，供你自己记账
-- `skills`（仅创建时）、`mcp` 声明、`heartbeat`、`sandbox.scope`、`environment_id` / `environment_version`
+- `skills`（仅创建时）、`mcp` 声明、`system_prompt`、`outcome`、`sandbox.scope`、`environment_id` / `environment_version`
 
 它还持有一个 `status` 块，那是服务端维护的状态，你只读。
 
-同一个 agent 有两种读取形态，而且这两种形态的结构不一样：
-
-```ts
-const created = await zc.createAgent({
-  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' } },
-})
-created.agent_id       // 'agt_...'
-created.config_version // present: the create receipt is flat
-
-const agent = await zc.getAgent(created.agent_id)
-agent.declared               // { name, model, persona, labels, ... }
-agent.status?.config_version // the version lives here on the read path
-agent.config_version         // undefined - there is no top-level version on GET
-agent.name                   // undefined - the name is under `declared`
-```
-
-`POST /agents` 返回一份扁平的创建回执。`GET` 和 `PUT` 返回的是一份投影：配置在 `declared` 下，版本在 `status.config_version` 下。如果你想要一个两边都能用的表达式，就按 `agent.status?.config_version ?? agent.config_version` 读版本号。
-
-创建请求体里不用带 ownership 锚点——公开网关会用你 API key 的锚点自动填上。
+`POST /agents` 返回一份扁平的创建回执。`GET` 和 `PUT` 返回的是一份投影：配置在 `declared` 下，版本在 `status.config_version` 下。按 `agent.status?.config_version ?? agent.config_version` 读版本号，一个表达式两边都能用。两种形态的并排对照见 [Agents](/zh/build/agents)。
 
 ### 生命周期
 
@@ -72,22 +54,16 @@ createAgent() --> [stopped] --startAgent()--> [running] --stopAgent()--> [stoppe
                                             deleteAgent()
 ```
 
-新创建的 agent 处于 **stopped** 。创建调用本身不会启动它。
+新创建的 agent 处于 **stopped** 。创建调用本身不会启动它，而且在 `startAgent()` 返回之前，`createSession()` 会失败并返回 `409 agent_not_running`。见[快速开始](/zh/get-started/quickstart)。
 
 ```ts
 const { warnings } = await zc.startAgent(agentId)
 // warnings is informational, e.g. channel_routes_reload_failed on an API-only agent
 ```
 
-`startAgent()` 很快——实测在一秒以内。`stopAgent()` 的形态相同。对一个没有聊天渠道的 agent，两者都可能返回 `channel_routes_reload_failed` 警告；那是正常噪声，不是失败。
+`stopAgent()` 的形态相同。`warnings` 数组是信息性的，不要在它上面重试。
 
-::: danger 你必须调用 startAgent()
-在 `startAgent()` 返回之前，`createSession()` 会失败并返回 `409 agent_not_running`。创建与启动是刻意分开的两步，而漏掉启动是第一次调用就卡住的最常见原因。
-:::
-
-::: warning 尚未验证
-`DELETE` 在文档里是软删除：它不会停掉 agent、不会取消进行中的工作、不会删除调度，也不会释放它的沙箱。我们实测过 `deleteAgent()` 本身，但没有实测它留下了什么。请在 `deleteAgent()` 之前先调 `stopAgent()`。
-:::
+`deleteAgent()` 是软删除：它不会停掉 agent、不会取消进行中的工作、不会删除调度，也不会释放它的沙箱。请先调 `stopAgent()`。见 [Agents](/zh/build/agents)。
 
 ### `desired_state` 与 `actual_state`
 
@@ -98,7 +74,7 @@ const { warnings } = await zc.startAgent(agentId)
 | `desired_state` | `running` \| `stopped` \| `deleted` | API 会不会接受 session 相关的调用。**你要等的是这一个。** |
 | `actual_state` | `activating` \| `active` \| `degraded` \| `error` \| `stopped` \| `deleting` | 聊天渠道的连通性。与 API 是否就绪无关。 |
 
-`actual_state` 报告的是 agent 的聊天渠道路由有没有连上。只通过 API 驱动的 agent 没有任何渠道（`status.channels.expected` 是 `0`），所以它永远停在 `activating`，永远到不了 `active`。另外注意，`running` 根本不在 `actual_state` 的枚举里——所以下面这个看起来很自然的循环永远不会返回：
+`actual_state` 报告的是 agent 的聊天渠道路由有没有连上。只通过 API 驱动的 agent 没有任何渠道，所以它永远停在 `activating`。而且 `running` 根本不在 `actual_state` 的枚举里——所以下面这个看起来很自然的循环永远不会返回：
 
 ```ts
 // WRONG - hangs forever on an API-only agent
@@ -113,32 +89,19 @@ while ((await zc.getAgent(agentId)).status?.actual_state !== 'running') {
 await zc.waitUntilRunning(agentId)
 ```
 
-`waitUntilRunning()` 按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`，并且用剩余预算给每个请求设上限，所以网关中途卡住时这次等待会按时结束，而不是把 promise 挂死。如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooclawError`。
+`waitUntilRunning()` 按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`；如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooclawError`。见 [Agents](/zh/build/agents)。
 
-在一个 `actual_state` 始终没离开过 `activating` 的 agent 上，一个完整的回合照样正常跑完。`desired_state` 是唯一有意义的就绪信号。
+在一个 `actual_state` 始终没离开过 `activating` 的 agent 上，一个完整的回合照样正常跑完。
 
 ### `config_version`
 
 `config_version` 是一个单调递增的整数，描述当前生效的是哪一份渲染后的配置快照。已经在跑的回合保留它自己的快照；下一个回合才会用上新的。
 
-它不是一张回执。
+它不是一张回执。每一次成功的 `PUT` 都会把它 bump 一次，包括请求体与当前配置逐字节相同的 PUT；而 `updateAgent()` 没有「期望版本号」这个参数，所以你不能用 `config_version` 给重试去重，也不能用它判断「我那次写入到底成没成」。写入超时之后，改用 `getAgent()` 并比对 `declared`。见[错误处理](/zh/reference/errors)。
 
-- 每一次成功的 `PUT` 都会把它 bump 一次，**包括请求体与当前配置逐字节相同的 PUT** 。连续两次空写会产生两个新版本。
-- 创建时的凭证注入也会 bump 它。创建回执写着 `config_version: 1`、紧接着的 `GET` 报 `3`，是常态。
-- 没有乐观并发控制参数。你无法提交一个期望版本号，让写入在版本漂移时被拒绝。
+`upgradeSystemPrompt()` 是唯一一个接受期望版本号的调用：它要求 `expected_config_version`，agent 已经往前走了就答 `409 config_version_changed`。
 
-所以不要用 `config_version` 给重试去重，也不要用它判断「我那次写入到底成没成」。写入超时之后，改用 `getAgent()` 并比对 `declared`。
-
-```ts
-await zc.updateAgent(agentId, { labels: { env: 'staging' } })
-// -> config_version 4
-await zc.updateAgent(agentId, { labels: { env: 'staging' } })
-// -> config_version 5, same content
-```
-
-`updateAgent()` 按段做一层深度的合并：你省略的段会被保留。上面那次 PUT 不会动 `name`、`model`、`persona` 以及其他任何东西。例外是 `tool_policy`，它每次写入都被整体替换；`{}` 会把它清回完整的工具清单。
-
-**反直觉的地方：** agent 创建出来是停止的，而那个看起来像就绪信号的状态字段（`actual_state`）并不是就绪信号。
+`updateAgent()` 按段做一层深度的合并：你省略的段会被保留。有两个段是例外，每次写入都被整体替换而不是合并——`tool_policy`（`{}` 会把它清回完整的工具清单），以及 `system_prompt`（部分写入会替换掉整个 pin，把上一份声明带着的东西一并丢掉）。见[工具](/zh/build/tools)。
 
 ## Session
 
@@ -155,15 +118,7 @@ session.session_key // 'api:...'
 
 `POST /agents/{agent_id}/sessions`。每一个 session 调用的第一个参数都是 agent id：`createSession(agentId, input)`、`postEvents(agentId, sessionId, events)`、`listEvents(agentId, sessionId, opts)`、`streamEvents(agentId, sessionId, opts)`。
 
-::: danger 不支持
-不存在顶层的 `/sessions` 集合，也不存在把 agent 放在请求体里的 session 资源。照那种形状写的代码在这里编译不过。请改写调用点，显式传 `agentId`。
-:::
-
-`createSession` 的第三个参数接受一个 `Idempotency-Key`；用同一个 key 重试会收敛到第一个 session，而不是再建一个。
-
-```ts
-await zc.createSession(agentId, { initial_events: [...] }, 'my-stable-key')
-```
+`createSession` 的第三个参数接受一个 `Idempotency-Key`；用同一个 key 重试会收敛到第一个 session，而不是再建一个。见[错误处理](/zh/reference/errors)。
 
 ### 它持有什么
 
@@ -186,15 +141,13 @@ s.history?.forEach((row) => {
 
 ### 生命周期
 
-session 被创建出来，只要你一直往里 post 就一直累积回合，之后仍然可读。它不会在一个回合结束时过期，SSE 流也不会在回合结束时关闭。
+session 被创建出来，只要你一直往里 post 就一直累积回合，之后仍然可读。它不会在一个回合结束时过期。
 
-::: danger 不支持
-`ZooclawClient` 没有 `patchSession`。对一个 session 发 `PATCH`，经过网关返回的是 `405`，所以 session 的 `metadata` 只能在 `createSession` 时写一次——之后要拿来检索的东西，创建时就放进去。见[不支持的能力](/zh/reference/not-supported)。
-:::
+`ZooclawClient` 没有 `patchSession`，所以 session 的 `metadata` 只能在 `createSession` 时写一次——之后要拿来检索的东西，创建时就放进去。见 [Sessions](/zh/build/sessions)。
 
-按 agent 的列举和生命周期操作确实有方法——`listSessions(agentId)`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)`。但仍然没有顶层的 session 集合，所以要跨 agent 找回一段会话，还是得自己记录 `session_id`；这三个各自被驱动到什么程度，记在[能力矩阵](/zh/reference/capabilities)里。
+按 agent 的列举和生命周期操作确实有方法——`listSessions(agentId)`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)`。但仍然没有顶层的 session 集合，所以要跨 agent 找回一段会话，还是得自己记录 `session_id`。
 
-**反直觉的地方：** 你通过 API 创建的 session，和同一个 agent 在 ZooClaw App 里进行的对话，是两段互不相干的对话。API session 带一个以 `api:` 开头的 `session_key`；App 里的对话跑在另一个渠道上。它们不共享历史，其中一边的模型看不到另一边说了什么。在 App 里给 agent 的 persona 打样是有用的；指望 API session 记得那段聊天则不是。
+你通过 API 创建的 session，和同一个 agent 在 ZooClaw App 里进行的对话，是两段互不相干的对话。API session 带一个以 `api:` 开头的 `session_key`；App 里的对话跑在另一个渠道上。它们不共享历史，其中一边的模型看不到另一边说了什么。在 App 里给 agent 的 persona 打样是有用的；指望 API session 记得那段聊天则不是。
 
 ## Event
 
@@ -206,7 +159,7 @@ event 是 session 内发生的一切的最小单位。这份日志只追加，�
 import {
   assistantText, // text of an agent.assistant event
   thinkingText,  // text of an agent.thinking event
-  toolCall,      // { phase, toolName, toolCallId, args, isError } of an agent.tool event
+  toolCall,      // the tool call carried by an agent.tool event
   isRunFinished, // true for run.finished
   runOutcome,    // 'succeeded' | 'failed' | 'aborted' for run.finished
 } from '@zooclaw-agents/sdk'
@@ -214,14 +167,7 @@ import {
 
 ### 你写入的事件
 
-四种入站类型。其余一律被拒绝。
-
-| 类型 | 请求体 | 作用 |
-|---|---|---|
-| `user.message` | `{ type, content: string }` | 开启一个回合。 |
-| `user.interrupt` | `{ type }` | 中止正在进行的 run。 |
-| `system.message` | `{ type, text: string }` | 带外说明；模型在下一个回合读到它。 |
-| `user.tool_confirmation` | `{ type, approval_id, decision }` | 处理一个待定的工具审批。 |
+四种入站类型，其余一律被拒绝：`user.message` 开启一个回合，`user.interrupt` 中止正在进行的 run，`system.message` 是一条带外说明、模型在下一个回合读到它（它的字段是 `text`，不是 `content`），`user.tool_confirmation` 处理一个待定的工具审批。请求体结构见[事件与流式](/zh/build/events)。
 
 ```ts
 const res = await zc.postEvents(agentId, sessionId, [
@@ -230,14 +176,12 @@ const res = await zc.postEvents(agentId, sessionId, [
 res.events[0]?.accepted // true
 ```
 
-`postEvents` 返回 `202`，每一个提交的事件对应一个 `{ id, type, accepted }`。
+`postEvents` 返回 `202`，形状是 `{ events: [...] }`——每一个提交的事件对应一条 `{ id, type, accepted }`。
 
 对一个正在跑的 run 发 `user.interrupt` 会被接受（`accepted: true`），该 run 以带 `status: 'aborted'` 的 `run.finished` 结束。没有正在进行的 run 时它返回 `accepted: false`——这是空操作，不是错误，也不需要重试。
 
-`system.message` 是一条真正通往模型上下文的带外通道。这样写进去的说明，模型在下一个回合就能看到——它是你自己应用掌握的状态，不以用户发言的形式注入。
-
 ::: warning 尚未验证
-`user.tool_confirmation` 接受 `{ approval_id: string, decision: 'allow-once' | 'allow-always' | 'deny' }`，其他任何结构都会被 `400` 拒绝。我们没有端到端实测过它，因为那要求先造出一个真实的待定审批。目前请把「人在环中」的审批当作不可用：一个卡在审批上的 agent 会把这个回合耗到超时。
+审批闭环没有端到端跑通过。目前请把「人在环中」的审批当作不可用：一个卡在审批上的 agent 会把这个回合耗到超时。见[能力矩阵](/zh/reference/capabilities)。
 :::
 
 `user.message` 只实测过 `content` 为纯字符串的形式。富内容块未经测试。
@@ -259,13 +203,11 @@ res.events[0]?.accepted // true
 | `agent.error` | run 内部的一个错误。 |
 | `chat.delta` | 非持久通道上的预览帧。SDK 的流会跳过它们。 |
 | `chat.final`、`chat.aborted`、`chat.error` | 聊天渠道的终止帧。 |
-| `agent.plan`、`agent.command_output`、`agent.patch`、`agent.compaction` | 循环发出的更细节的信息。 |
+| `agent.plan`、`agent.command_output`、`agent.patch`、`agent.compaction` | 关于 agent 在这个 run 里做了什么的更多细节。 |
 | `attachment.created` | 产生了一个附件。 |
 | `message.outbound` | 一条消息被投递到了聊天渠道。 |
 
 在普通的 API 回合里，我们观察到过 `run.*`、`agent.lifecycle`、`agent.item`、`agent.thinking`、`agent.assistant` 和 `agent.tool`。其余类型在这份类型表里，也会原样穿过 SDK，但没有在我们的运行中出现过。未知类型永远不会抛错——API 可能在一个版本内新增类型，所以用 `eventType` 做 switch 时要带 default 分支。
-
-assistant 文本在 `payload.message.content[]` 里，装在 `type: 'text'` 的块中。请用 `assistantText(e)`，不要自己去读 payload。
 
 `agent.tool` 有三个 phase，不是两个：
 
@@ -275,40 +217,15 @@ assistant 文本在 `payload.message.content[]` 里，装在 `type: 'text'` 的�
 | `end` | 调用返回了；`isError` 和 `resultPreview` 已填充。 |
 | `blocked` | 调用正在等待审批，**没有** 执行。 |
 
-一次工具调用产生一个 `start` 和一个 `end`，两者共享同一个 `toolCallId`。调用并发时它们在流里并不相邻，所以要按 id 配对，不要按位置配对。
-
-::: tip 工具失败不会让 run 失败
 一个带 `isError: true` 的 `agent.tool` 事件之后，照样跟着一个 `succeeded` 的 `run.finished`。永远不要从「没有工具错误」推断回合成功——读 `runOutcome(e)`。
-:::
 
 ### 两种线格式
 
-同一个事件，取决于你怎么读它，拼写不一样：
-
-| | REST `GET /events` | SSE `GET /events/stream` |
-|---|---|---|
-| 类型 | `event_type` | `eventType` |
-| run | `run_id` | `runId` |
-| 时间 | `created_at` | `createdAt` |
-
-两者都没有顶层的 `type` 字段。SDK 把两者归一成同一个 `SessionEvent`（`{ seq, eventType, payload, runId?, turn?, createdAt? }`），所以你只对一个字段做 switch。如果你直接调 HTTP API，就得自己处理两套拼写；SDK 为此导出了 `normalizeEvent`。
+REST 把字段拼成 snake_case（`event_type`、`run_id`、`created_at`），SSE 拼成 camelCase（`eventType`、`runId`、`createdAt`）；两者都没有顶层的 `type` 字段。SDK 把两者归一成同一个 `SessionEvent`，并为直接调 HTTP API 的情况导出了 `normalizeEvent`。见[事件与流式](/zh/build/events)。
 
 ::: warning listEvents 只返回一页
-服务端默认 100 条事件，最大 500 条。`listEvents` 只返回一页——长会话会静默截断，不报任何错。请用 `after` 游标翻页：
-
-```ts
-let after = 0
-const all = []
-for (;;) {
-  const page = await zc.listEvents(agentId, sessionId, { after, limit: 500 })
-  if (page.length === 0) break
-  all.push(...page)
-  after = page[page.length - 1]!.seq
-}
-```
+服务端默认 100 条事件，最大 500 条。`listEvents` 只返回一页——长会话会静默截断，不报任何错。请用 `zc.listAllEvents(agentId, sessionId)`，它替你把页翻完。
 :::
-
-**反直觉的地方：** 这份日志可以续传。带上你见到的最后一个 `seq` 重连，服务端就从那里重放，所以你永远不需要手工去重。
 
 ## 一个回合是怎么跑的
 
@@ -332,7 +249,7 @@ you                                    ZooClaw
  |  ... the stream stays open. Post the next user.message on the same session.
 ```
 
-不带工具调用的回合大约产生七个事件；用工具的回合每次调用多出两个 `agent.tool` 事件，忙一点的能跑到十七个左右。不要把顺序或数量写死——`run.finished` 是唯一可靠的终止标志。
+不要把顺序或数量写死——`run.finished` 是唯一可靠的终止标志。
 
 端到端跑完一个回合：
 
