@@ -1,7 +1,7 @@
 ---
 title: Agents
 source: /en/build/agents
-source_hash: 5884e1d783192c8f4030b59a2a961e60422e7d8359eb844a5becff0d00cc5988
+source_hash: 3d7321dbd8868f77011493e9e6bb8b728c32a36b95ab6d232c81cc7dfde4d7a3
 ---
 
 # Agents
@@ -82,7 +82,7 @@ const agent = await zc.createAgent({
 ```
 
 ::: warning 尚未验证
-`name`、`model`、`labels` 和 `mcp` 已经端到端验证过。`persona.docs`、`tool_policy`、`sandbox.scope` 和 `model.max_tokens` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
+`name`、`model`（含 `max_tokens`，实测会把回复截断在上限处）、`labels` 和 `mcp` 已经端到端验证过。`persona.docs`、`tool_policy` 和 `sandbox.scope` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
 :::
 
 创建时的 `skills` 是唯一一个 SDK 类型允许、而公开网关不认的 `resource` 字段——见 [Skills](./skills)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments)。

@@ -88,10 +88,10 @@ const agent = await zc.createAgent({
 ```
 
 ::: warning Not yet verified
-`name`, `model`, `labels` and `mcp` are verified end to end. `persona.docs`, `tool_policy`,
-`sandbox.scope` and `model.max_tokens` are accepted by the create route per the API contract,
-but no turn has proven each one changed the agent's behaviour. Verify the effect you depend on
-before you build on it.
+`name`, `model` (including `max_tokens`, which visibly caps a reply), `labels` and `mcp` are
+verified end to end. `persona.docs`, `tool_policy` and `sandbox.scope` are accepted by the
+create route per the API contract, but no turn has proven each one changed the agent's
+behaviour. Verify the effect you depend on before you build on it.
 :::
 
 `skills` at create time is the one `resource` field the SDK types allow but the public gateway
