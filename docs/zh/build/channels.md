@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: 1ac6a95d8d8d0eb928174f3c4ffcfe05f42beac1b63f55db2f7e0ef9a1f60b36
+source_hash: db6c2bd3e3382c345210d1328a6f9cf677dbac265213e152ff885a3e36a9caf6
 ---
 
 # 渠道
@@ -16,21 +16,24 @@ source_hash: 1ac6a95d8d8d0eb928174f3c4ffcfe05f42beac1b63f55db2f7e0ef9a1f60b36
 
 ## 能绑哪些平台
 
-下面每一行都在 2026-08-25 对一套真实部署实测过。表外的平台名一律返回 `400 channel.invalid_request`。
+2026-08-25 对一套真实部署实测。表外的平台名一律返回 `400 channel.invalid_request`。
 
-| 平台 | `addChannel` | QR 设置流 | 在 `listChannels` 里可见 |
+| 平台 | `addChannel` | 服务端扫码流 | 你要提供什么 |
 |---|---|---|---|
-| `feishu` | ✅ | ✅ —— 唯一有的 | ✅ |
-| `slack` | ✅ | ❌ | ✅ |
-| `wecom` | ✅ | ❌ | ✅ |
-| `weixin` / `wechat` | ❌ | ❌ | — |
+| `feishu` | ✅ | ✅ —— 这套 API 上唯一有的 | 什么都不用，或应用凭证 |
+| `slack` | ✅ | ❌ 永远不会有 | bot token + app token |
+| `wecom` | ✅ | ❌ 这套 API 上还没有 | bot id + secret |
+| `weixin` / `wechat` | ❌ | ❌ 这套 API 上还没有 | —— 在这里绑不了 |
 
-所以实际上是三种情况。**飞书**两条路都有：QR 设备流和显式配置。**Slack 和企业微信**只有显式配置——凭证由你提供。**微信通过这套 API 根本绑不了**：它返回 `400 channel.weixin_setup_required`，报错文案是「Connect WeChat via the QR setup flow」，而那条流程在这里并不存在（`/channels/weixin/setup` 是 404）。不要照着这句报错去找路，把微信当成不可用。
+「服务端扫码流」这一列的两个 ❌ 含义完全不同，这个区别决定了你该不该等它。
 
+**Slack 不会有。** 服务端驱动的扫码流，前提是聊天平台愿意把凭证交回给发起请求的服务端。Slack 没有这种东西：Slack 应用只能由人在 `api.slack.com/apps` 上创建，它的 `xoxb-` / `xapp-` token 只会出现在那个人的浏览器里。所以 Slack 永远是「`addChannel` + 把两个 token 放进 `config`」。如果你在 ZooClaw App 里见过 Slack 的引导式配置，那个引导做的正是这件事：帮人把应用建出来，然后让他粘贴那两个 token——和你在这里传的是同两个。
+
+**企业微信和微信可能会有。** 它们的扫码流在产品里是存在的，只是还没有开放到这套 API 上。今天企业微信走 `addChannel`，凭证由你自己准备；而**微信在这里完全绑不了**——它会用 `400 channel.weixin_setup_required` 拒绝 `addChannel`，让你去走一条这套 API 还没有的扫码流。把微信当成暂不可用，不要照着那句报错去找路。
 
 ## 飞书 QR 设备流
 
-这是交互路径，也只有飞书有：你拿到一个验证 URL，展示给飞书工作区的所有者（通常渲染成二维码），然后轮询直到对方批准。你的代码全程不接触平台凭证。
+这是交互路径，在这套 API 上也只有飞书有：你拿到一个验证 URL，展示给飞书工作区的所有者（通常渲染成二维码），然后轮询直到对方批准。你的代码全程不接触平台凭证。
 
 ```ts
 import { createZooclawClient } from '@zooclaw-agents/sdk'
@@ -81,15 +84,26 @@ pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: fa
 
 ## 显式配置 —— Slack 和企业微信走这条
 
-`addChannel` 是非交互路径，也是 Slack 和企业微信唯一的路径。你已经持有平台应用的凭证，放进 `config` 传入。
+`addChannel` 是非交互路径，也是 Slack 和企业微信唯一的路径。凭证由你提供，放进 `config` 传入。
+
+**`config` 的字段是平台相关的，而且是 camelCase。** 下面这些是渠道服务真正读取的字段；`config` 里的其他键会被存下来但不生效。
+
+| 平台 | `config` |
+|---|---|
+| `slack` | `{ botToken: 'xoxb-…', appToken: 'xapp-…' }` —— 两个都必需 |
+| `wecom` | `{ botId: '…', secret: '…' }` —— 两个都必需 |
+| `feishu` | `{ appId: '…', appSecret: '…', domain: '…' }` —— 只在你跳过扫码流时才需要 |
 
 ```ts
-await zc.addChannel(agentId, { platform: 'slack',  config: { /* Slack 应用凭证   */ } })
-await zc.addChannel(agentId, { platform: 'wecom',  config: { /* 企业微信应用凭证 */ } })
-await zc.addChannel(agentId, { platform: 'feishu', config: { /* 飞书应用凭证     */ } })
+await zc.addChannel(agentId, {
+  platform: 'slack',
+  config: { botToken: process.env.SLACK_BOT_TOKEN, appToken: process.env.SLACK_APP_TOKEN },
+})
 ```
 
-`config` 的字段是平台相关的——它装的是你要绑定的平台应用的凭证，原样透传给渠道服务。`account` 给这次绑定命名（默认 `'default'`），所以一个 agent 可以在同一平台上持有多个账号。
+Slack 跑在 socket mode 下，所以除了 bot token 还需要那个 app 级的 `xapp-` token。两个都在 Slack 应用自己的设置页里拿。
+
+`account` 给这次绑定命名（默认 `'default'`），所以一个 agent 可以在同一平台上持有多个账号。
 
 同一个 `platform` + `account` 绑第二次**不会**报错，也不会产生第二个渠道：第二次调用返回 `201` 并覆盖第一次。把 `addChannel` 当成 upsert，不是 create。
 

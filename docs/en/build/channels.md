@@ -17,27 +17,36 @@ exist". Requires `@zooclaw-agents/sdk` ≥ 0.3.1.
 
 ## Which platforms you can bind
 
-Every row below was probed against a live deployment on 2026-08-25. A platform outside this
-table answers `400 channel.invalid_request`.
+Probed against a live deployment on 2026-08-25. A platform outside this table answers
+`400 channel.invalid_request`.
 
-| Platform | `addChannel` | QR setup flow | Appears in `listChannels` |
+| Platform | `addChannel` | Server-driven QR flow | You supply |
 |---|---|---|---|
-| `feishu` | ✅ | ✅ — the only one | ✅ |
-| `slack` | ✅ | ❌ | ✅ |
-| `wecom` | ✅ | ❌ | ✅ |
-| `weixin` / `wechat` | ❌ | ❌ | — |
+| `feishu` | ✅ | ✅ — the only one here | nothing, or app credentials |
+| `slack` | ✅ | ❌ never | bot token + app token |
+| `wecom` | ✅ | ❌ not on this API yet | bot id + secret |
+| `weixin` / `wechat` | ❌ | ❌ not on this API yet | — cannot bind here |
 
-So there are really three cases. **Feishu** has both paths: the QR device flow and explicit
-config. **Slack and WeCom** have explicit config only — you bring the platform app's own
-credentials. **WeChat cannot be bound through this API at all**: it answers
-`400 channel.weixin_setup_required` with the message "Connect WeChat via the QR setup flow",
-and that flow does not exist here (`/channels/weixin/setup` is a 404). Do not build on the
-error message; treat WeChat as unavailable.
+The "no" in that column means two different things, and the difference decides whether you
+should wait for it.
 
+**Slack will not get one.** A server-driven flow needs the chat platform to hand credentials
+back to a server that asked for them. Slack has no such thing: a Slack app is created by a
+person on `api.slack.com/apps`, and its `xoxb-` / `xapp-` tokens only ever appear in that
+person's browser. So Slack is `addChannel` with the tokens in `config`, permanently. If you
+have seen the guided Slack setup in the ZooClaw app, that guidance is exactly this: it helps
+someone create the app and then has them paste the two tokens — the same two tokens you pass
+here.
+
+**WeCom and WeChat may.** Their QR flows exist in the product; they are simply not exposed on
+this API yet. Today WeCom binds through `addChannel` with credentials you already hold, and
+**WeChat cannot be bound here at all** — it rejects `addChannel` with
+`400 channel.weixin_setup_required`, directing you to a QR flow this API does not have. Treat
+WeChat as unavailable rather than following that error message.
 
 ## The Feishu QR device flow
 
-This is the interactive path, and Feishu is the only platform that has one: you get a
+This is the interactive path, and on this API only Feishu has one: you get a
 verification URL, show it to the person who owns the Feishu workspace (usually as a QR code),
 and poll until they approve. Your code never touches platform credentials.
 
@@ -101,18 +110,30 @@ disappears into the same 404 has not been observed. Handle both.
 
 ## Explicit config — the path for Slack and WeCom
 
-`addChannel` is the non-interactive path, and the only path for Slack and WeCom. You already
-hold the platform app's credentials and pass them in `config`.
+`addChannel` is the non-interactive path, and the only path for Slack and WeCom. You bring the
+platform app's credentials and pass them in `config`.
+
+**`config` keys are platform-specific, and they are camelCase.** These are the keys the
+channel service reads; anything else you put in `config` is stored and ignored.
+
+| Platform | `config` |
+|---|---|
+| `slack` | `{ botToken: 'xoxb-…', appToken: 'xapp-…' }` — both required |
+| `wecom` | `{ botId: '…', secret: '…' }` — both required |
+| `feishu` | `{ appId: '…', appSecret: '…', domain: '…' }` — only when you skip the QR flow |
 
 ```ts
-await zc.addChannel(agentId, { platform: 'slack',  config: { /* Slack app credentials  */ } })
-await zc.addChannel(agentId, { platform: 'wecom',  config: { /* WeCom app credentials  */ } })
-await zc.addChannel(agentId, { platform: 'feishu', config: { /* Feishu app credentials */ } })
+await zc.addChannel(agentId, {
+  platform: 'slack',
+  config: { botToken: process.env.SLACK_BOT_TOKEN, appToken: process.env.SLACK_APP_TOKEN },
+})
 ```
 
-The `config` keys are platform-specific — they are the credentials of the platform app you
-are binding, passed through to the channel service. `account` names the binding (default
-`'default'`) so one agent can hold several accounts on one platform.
+Slack runs in socket mode, which is why it needs the app-level `xapp-` token as well as the
+bot token. Both come from the Slack app's own settings pages.
+
+`account` names the binding (default `'default'`) so one agent can hold several accounts on
+one platform.
 
 Binding the same `platform` + `account` twice is **not** an error and does not create a second
 channel: the second call answers `201` and overwrites the first. Treat `addChannel` as an
