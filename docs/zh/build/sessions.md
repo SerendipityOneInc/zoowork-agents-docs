@@ -1,7 +1,7 @@
 ---
 title: Sessions
 source: /en/build/sessions
-source_hash: 6613ee62d97306eb9df3b615af4ce1c482560fff87074263f32a66f5ff467fd5
+source_hash: aedee97509d2138e485521d2f3089ea2a702b23c2e61c843a54ae7f0f5b02f81
 ---
 
 # Sessions
@@ -32,15 +32,15 @@ listEvents(agentId, sessionId, opts?)
 
 ```ts
 import {
-  createZooclawClient,
+  createZooworkClient,
   assistantText,
   isRunFinished,
   runOutcome,
   messageText,
   type SessionEvent,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const agentId = process.env.AGENT_ID!
 ```
@@ -248,7 +248,7 @@ const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 ## SDK 里没有的
 
 ::: danger 不支持
-`ZooclawClient` 没有 `patchSession`，对一个 session 发 `PATCH` 返回的是 `405`，这就使得 session 的 `metadata` 只能在 `createSession` 时写一次。
+`ZooworkClient` 没有 `patchSession`，对一个 session 发 `PATCH` 返回的是 `405`，这就使得 session 的 `metadata` 只能在 `createSession` 时写一次。
 
 自己记录你创建过的那些 `session_id` —— 把它们和你应用里所属的东西存在一起 —— 并且在创建时就把之后需要检索的一切放进 `metadata`，因为后面加不进去。
 :::

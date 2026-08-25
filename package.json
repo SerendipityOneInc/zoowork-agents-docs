@@ -2,7 +2,7 @@
   "name": "zooclaw-docs",
   "version": "0.0.1",
   "private": true,
-  "description": "Public developer documentation for ZooClaw Managed Agents",
+  "description": "Public developer documentation for ZooWork Managed Agents",
   "type": "module",
   "packageManager": "pnpm@10.12.4",
   "scripts": {

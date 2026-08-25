@@ -12,7 +12,7 @@ Verified end to end on 2026-08-25. This family arrives with a gateway release th
 rolling out, and a deployment without it answers **404 with a different error envelope** —
 `{"error":{"type":"not_found"}}` instead of this family's `{"code": …, "detail": …}`. That
 difference is how you tell "this deployment has no channels yet" from "that thing does not
-exist". Requires `@zooclaw-agents/sdk` ≥ 0.3.1.
+exist".
 :::
 
 ## Which platforms you can bind
@@ -34,7 +34,7 @@ should wait for it.
 back to a server that asked for them. Slack has no such thing: a Slack app is created by a
 person on `api.slack.com/apps`, and its `xoxb-` / `xapp-` tokens only ever appear in that
 person's browser. So Slack is `addChannel` with the tokens in `config`, permanently. If you
-have seen the guided Slack setup in the ZooClaw app, that guidance is exactly this: it helps
+have seen the guided Slack setup in the ZooWork app, that guidance is exactly this: it helps
 someone create the app and then has them paste the two tokens — the same two tokens you pass
 here.
 
@@ -51,9 +51,9 @@ verification URL, show it to the person who owns the Feishu workspace (usually a
 and poll until they approve. Your code never touches platform credentials.
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 // 1. Start a setup session.
 const setup = await zc.startFeishuSetup(agentId)
@@ -99,7 +99,7 @@ poll_interval: 5 }`. Observed defaults on a fresh session: `expires_in: 600`,
 `cancelFeishuSetup(agentId, sessionId)` abandons a session — and afterwards polling it answers
 `404 channel.feishu_session_not_found` rather than a terminal `status`. So a hand-rolled loop
 must treat that 404 as an ending, not as a transport error to retry. `waitForFeishuSetup`
-surfaces it as a thrown `ZooclawError` carrying that `type`.
+surfaces it as a thrown `ZooworkError` carrying that `type`.
 
 Whether a session that simply runs past `expires_in` reports `status: 'expired'` in a 200 or
 disappears into the same 404 has not been observed. Handle both.

@@ -40,7 +40,7 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 | `deleteAgent()` | Verified | A soft delete. It does not stop the agent, does not remove its schedules, and does not release its sandbox. Call `stopAgent()` first, and remove schedules yourself. |
 | Listing agents | Available, not verified | `listAgents(opts?)` calls it. The wire route takes `owner_uid` plus `org_id` as an exact AND selector, so an agent created by a different key in your organization can be fetched by id but never appears in your list; keep your own record of those ids. `labels` filters on declared labels and `page` is 1-based, with the page size fixed at 100. `{ labels: { workspace_id: '...' } }` resolves a chat-URL workspace id to its agent. |
 | Agent id from another organization | Verified | Returns **404**, not 403. Existence is hidden, so 404 does not mean "deleted". |
-| Invalid or missing key | Verified | `401` with `error.type` of `service_token.invalid`. Match on `ZooclawError.status` and `.type`, never on message text. |
+| Invalid or missing key | Verified | `401` with `error.type` of `service_token.invalid`. Match on `ZooworkError.status` and `.type`, never on message text. |
 | `persona.docs[]` | Available, not verified | Only entries with inline `content` are stored. `MEMORY.md` and any `memory/` name are rejected with `400 invalid_persona_doc_name`. Documents outside the canonical name set are saved but are not assembled into the prompt. |
 | `environment_id` / `environment_version` pin | Available, not verified | Accepted at the top level of `resource` on create and in the PUT body. Supplying only a version is a `400`. |
 | Agent version history, pinning, rollback | Not available | No route lists or fetches a previous `config_version`, and nothing pins a session to one. |
@@ -91,8 +91,8 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 
 Verified 2026-08-25, on a deployment carrying the channels release. The family is still
 rolling out; a deployment without it answers 404 in the engine-passthrough envelope
-(`{"error":{"type":"not_found"}}`), which is how you tell that case apart. Requires SDK
->= 0.3.1. See [Channels](/en/build/channels).
+(`{"error":{"type":"not_found"}}`), which is how you tell that case apart.
+See [Channels](/en/build/channels).
 
 | Surface | Status | Notes |
 |---|---|---|
@@ -169,7 +169,7 @@ packages, controlled files, a build script, and a network policy.
 
 | Capability | Status | Note |
 |---|---|---|
-| Write, read, or download a workspace file | Not available | The routes exist on the wire, but **no `ZooclawClient` method covers files** and the backend behind them is not wired. Keep files in your own store. |
+| Write, read, or download a workspace file | Not available | The routes exist on the wire, but **no `ZooworkClient` method covers files** and the backend behind them is not wired. Keep files in your own store. |
 | Durable storage for user files | Not available | The backend is not wired to a shared persistent workspace. Do not make this your store of record. |
 | Attaching a file to a session | Not available | See [Not supported](/en/reference/not-supported#session-file-attachment-and-repository-mounting). |
 | Publishing an artifact from your own code | Not available | Publishing stays in-loop: the model's `artifact_publish` tool turns a workspace file into an immutable snapshot behind a revocable capability URL. Your process cannot create one. |

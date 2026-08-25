@@ -190,8 +190,8 @@ function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
 }
 
 export default defineConfig({
-  title: 'ZooClaw Managed Agents',
-  description: 'Build agent products on ZooClaw. TypeScript SDK, sessions, and streaming events.',
+  title: 'ZooWork Managed Agents',
+  description: 'Build agent products on ZooWork. TypeScript SDK, sessions, and streaming events.',
   // The site does not own a host of its own: it is served from a path on the main
   // domain, at zooclaw.ai/docs, next to /blog and /industry. `base` puts that prefix
   // on every generated URL; `outDir` mirrors the prefix in the build output so the
@@ -218,7 +218,7 @@ export default defineConfig({
       label: '简体中文',
       lang: 'zh-CN',
       link: '/zh/',
-      description: '在 ZooClaw 上构建你自己的 agent 产品。TypeScript SDK、会话与流式事件。',
+      description: '在 ZooWork 上构建你自己的 agent 产品。TypeScript SDK、会话与流式事件。',
       themeConfig: {
         nav: nav(ZH, '/zh'),
         sidebar: sidebar(ZH, '/zh'),

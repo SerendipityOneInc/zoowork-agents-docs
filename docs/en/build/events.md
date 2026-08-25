@@ -11,13 +11,13 @@ cursors: `next_cursor` from a list page, or each streamed event's `cursor` token
 
 ```ts
 import {
-  createZooclawClient,
+  createZooworkClient,
   assistantText,
   isRunFinished,
   runOutcome,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_...
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 
 for await (const ev of zc.streamEvents(agentId, sessionId)) {
   process.stdout.write(assistantText(ev))
@@ -86,7 +86,7 @@ would rather not write one.
 `normalizeEvent` is exported, so you can reuse it if you have your own transport:
 
 ```ts
-import { normalizeEvent } from '@zooclaw-agents/sdk'
+import { normalizeEvent } from '@zoowork-ai/sdk'
 
 const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the seq fallback
 ```
@@ -280,15 +280,15 @@ A complete single turn, with a wall-clock budget so a stuck run cannot hang your
 
 ```ts
 import {
-  createZooclawClient,
+  createZooworkClient,
   assistantText,
   thinkingText,
   toolCall,
   isRunFinished,
   runOutcome,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const session = await zc.createSession(agentId, {
   metadata: { source: 'docs-example' },
@@ -361,15 +361,15 @@ The SDK does not reconnect for you. Sixteen lines does it:
 
 ```ts
 import {
-  ZooclawError,
+  ZooworkError,
   assistantText,
   isRunFinished,
   runOutcome,
-  type ZooclawClient,
-} from '@zooclaw-agents/sdk'
+  type ZooworkClient,
+} from '@zoowork-ai/sdk'
 
 async function runTurnWithResume(
-  zc: ZooclawClient,
+  zc: ZooworkClient,
   agentId: string,
   sessionId: string,
   startCursor?: string,
@@ -393,7 +393,7 @@ async function runTurnWithResume(
     } catch (e) {
       // 4xx is a real problem (bad id, archived session, expired key). Retrying
       // will not fix it.
-      if (e instanceof ZooclawError && e.status >= 400 && e.status < 500) throw e
+      if (e instanceof ZooworkError && e.status >= 400 && e.status < 500) throw e
     }
     await new Promise((r) => setTimeout(r, Math.min(1_000 * 2 ** attempt, 15_000)))
   }
@@ -439,7 +439,7 @@ stream.
 
 ## Helpers
 
-All exported from `@zooclaw-agents/sdk`. Each one is a pure function over a `SessionEvent` and
+All exported from `@zoowork-ai/sdk`. Each one is a pure function over a `SessionEvent` and
 returns a harmless empty value for events of the wrong type, so you can call them
 unconditionally in one loop.
 

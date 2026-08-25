@@ -1,7 +1,7 @@
 ---
 title: 事件与流式
 source: /en/build/events
-source_hash: 9ac9ad62f1e5c3807910bb2731f55ed5080aaad303a386e2844deb03332dd7b2
+source_hash: c17b67d4d2ffdc3ea04b39789ad024a256e729a04ffe5c2558695742d674ca72
 ---
 
 # 事件与流式
@@ -12,13 +12,13 @@ Session 里发生的每一件事都是一个 event。你通过 post 少数几种
 
 ```ts
 import {
-  createZooclawClient,
+  createZooworkClient,
   assistantText,
   isRunFinished,
   runOutcome,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_...
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 
 for await (const ev of zc.streamEvents(agentId, sessionId)) {
   process.stdout.write(assistantText(ev))
@@ -77,7 +77,7 @@ SDK 在 `normalizeEvent` 里吸收了这一切，所以 `listEvents` 和 `stream
 `normalizeEvent` 是导出的，所以如果你有自己的 transport，可以复用它：
 
 ```ts
-import { normalizeEvent } from '@zooclaw-agents/sdk'
+import { normalizeEvent } from '@zoowork-ai/sdk'
 
 const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the seq fallback
 ```
@@ -239,15 +239,15 @@ streamEvents(
 
 ```ts
 import {
-  createZooclawClient,
+  createZooworkClient,
   assistantText,
   thinkingText,
   toolCall,
   isRunFinished,
   runOutcome,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const session = await zc.createSession(agentId, {
   metadata: { source: 'docs-example' },
@@ -311,15 +311,15 @@ SDK 不会替你重连。十六行代码就够了：
 
 ```ts
 import {
-  ZooclawError,
+  ZooworkError,
   assistantText,
   isRunFinished,
   runOutcome,
-  type ZooclawClient,
-} from '@zooclaw-agents/sdk'
+  type ZooworkClient,
+} from '@zoowork-ai/sdk'
 
 async function runTurnWithResume(
-  zc: ZooclawClient,
+  zc: ZooworkClient,
   agentId: string,
   sessionId: string,
   startCursor?: string,
@@ -343,7 +343,7 @@ async function runTurnWithResume(
     } catch (e) {
       // 4xx is a real problem (bad id, archived session, expired key). Retrying
       // will not fix it.
-      if (e instanceof ZooclawError && e.status >= 400 && e.status < 500) throw e
+      if (e instanceof ZooworkError && e.status >= 400 && e.status < 500) throw e
     }
     await new Promise((r) => setTimeout(r, Math.min(1_000 * 2 ** attempt, 15_000)))
   }
@@ -382,7 +382,7 @@ const replies = await zc.listAllEvents(agentId, sessionId, { types: ['agent.assi
 
 ## 辅助函数
 
-全部从 `@zooclaw-agents/sdk` 导出。每一个都是作用在 `SessionEvent` 上的纯函数，对类型不匹配的 event 返回一个无害的空值，所以你可以在一个循环里无条件地调用它们。
+全部从 `@zoowork-ai/sdk` 导出。每一个都是作用在 `SessionEvent` 上的纯函数，对类型不匹配的 event 返回一个无害的空值，所以你可以在一个循环里无条件地调用它们。
 
 **`assistantText(e)`** —— 对 `agent.assistant` 事件返回 assistant 文本，其他一律返回 `''`。
 

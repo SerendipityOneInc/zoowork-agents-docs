@@ -31,15 +31,15 @@ All examples on this page use one client:
 
 ```ts
 import {
-  createZooclawClient,
+  createZooworkClient,
   assistantText,
   isRunFinished,
   runOutcome,
   messageText,
   type SessionEvent,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const agentId = process.env.AGENT_ID!
 ```
@@ -295,7 +295,7 @@ server-side and composes with `cursor` and `limit`.
 ## Not in the SDK
 
 ::: danger Not supported
-`ZooclawClient` has no `patchSession`, and `PATCH` on a session answers `405`, which makes a
+`ZooworkClient` has no `patchSession`, and `PATCH` on a session answers `405`, which makes a
 session's `metadata` write-once, at `createSession`.
 
 Keep your own record of the `session_id` values you create - store them alongside whatever

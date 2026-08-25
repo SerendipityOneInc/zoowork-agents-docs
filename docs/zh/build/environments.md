@@ -1,7 +1,7 @@
 ---
 title: Environments
 source: /en/build/environments
-source_hash: 26d3b00a3820dcc61e0e43343f563fdd574bff9c44a5294c537ebd44fef74898
+source_hash: 11fb0e99b5f0acd1b36f59c3d0ac17efa7e3cc9406b1d65dd63ef411c3581882
 ---
 
 # Environments
@@ -70,9 +70,9 @@ config 对象只接受这四个 key。任何其他 key 都返回 `400 invalid_en
 `AgentResource` 在顶层接受这两个字段：
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const agent = await zc.createAgent({
   resource: {
@@ -110,7 +110,7 @@ await zc.updateAgent(agentId, { environment_id: 'env_example', environment_versi
 
 ## 调用 Environments API
 
-`ZooclawClient` 用六个有类型的方法覆盖了这个资源，它们的失败都被归一成 `ZooclawError`：
+`ZooworkClient` 用六个有类型的方法覆盖了这个资源，它们的失败都被归一成 `ZooworkError`：
 
 | 方法 | 作用 |
 |---|---|

@@ -1,7 +1,7 @@
 ---
 title: Skills
 source: /en/build/skills
-source_hash: 50d01b7e1e88247ffee3fc08165280122e1f82a4720d73276353bf8127118291
+source_hash: 5276b8014fb159a247bde744725e3fe0808f4740c5d8109db316bfd369787cab
 ---
 
 # Skills
@@ -15,9 +15,9 @@ skill 挂在 **agent** 这一层。没有 session 级的 skill 列表，也没�
 上手不需要安装任何东西。一个刚创建出来的 agent 返回时，整个 global 目录已经挂上了。
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const skills = await zc.listAgentSkills(agentId)
 console.log(skills.length)
@@ -70,7 +70,7 @@ interface AgentSkill {
 try {
   await zc.putAgentSkill(agentId, 'skl_some_global_skill')
 } catch (e) {
-  // ZooclawError, status 404
+  // ZooworkError, status 404
 }
 ```
 
@@ -82,12 +82,12 @@ try {
 匹配状态码，不要匹配报错文本：
 
 ```ts
-import { ZooclawError } from '@zooclaw-agents/sdk'
+import { ZooworkError } from '@zoowork-ai/sdk'
 
 try {
   await zc.putAgentSkill(agentId, skillId)
 } catch (e) {
-  if (e instanceof ZooclawError && e.status === 404) {
+  if (e instanceof ZooworkError && e.status === 404) {
     // Either the skill is global, or it belongs to another tenant.
     // Cross-tenant ids are hidden as 404 rather than 403.
   }

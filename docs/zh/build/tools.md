@@ -1,7 +1,7 @@
 ---
 title: 工具
 source: /en/build/tools
-source_hash: 7a85b8160894ddd58289ed57ca97618bd7972e3c418ec48d454fc00fddf9ccc3
+source_hash: 7efb2ab13ffb229a5824bd8eb816ccf54a5e7496a72badc52602a6a6bb74d39d
 ---
 
 # 工具
@@ -29,9 +29,9 @@ session 的写入侧只接受四种事件类型：`user.message`、`user.interru
 **把数据放进 prompt 里。** 每一个回合都由你控制，所以你可以先从自己的系统取数，再把结果作为文本发过去。两条写入路径都可以：
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const rows = await myDatabase.lookup(customerId) // your code, your process
 
@@ -64,9 +64,9 @@ await zc.postEvents(agentId, sessionId, [
 改为去观察真实的集合。跑一个需要用到工具的回合，从事件流里读工具名：
 
 ```ts
-import { createZooclawClient, toolCall, isRunFinished } from '@zooclaw-agents/sdk'
+import { createZooworkClient, toolCall, isRunFinished } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const session = await zc.createSession(agentId, {
   initial_events: [{ type: 'user.message', content: 'Search the web for the current time in Tokyo.' }],
@@ -185,7 +185,7 @@ await zc.updateAgent(agentId, {
 ::: warning 尚未验证
 一次 run 卡在没人回应的审批上，它不会等你。这个回合会超时。
 
-`ZooclawClient` 上确实有 `listApprovals` 和 `resolveApproval`，但它们调的是另外那套 approvals REST 资源，不是 `user.tool_confirmation` 事件闭环。
+`ZooworkClient` 上确实有 `listApprovals` 和 `resolveApproval`，但它们调的是另外那套 approvals REST 资源，不是 `user.tool_confirmation` 事件闭环。
 
 这个面当前的状态见[能力矩阵](/zh/reference/capabilities)。
 :::

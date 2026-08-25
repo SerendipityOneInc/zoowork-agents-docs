@@ -33,9 +33,9 @@ client-executed tools has nothing to compile against here.
 systems first and send the result as text. Both write paths work:
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const rows = await myDatabase.lookup(customerId) // your code, your process
 
@@ -76,9 +76,9 @@ Observe the real set instead. Run a turn that needs tools and read the tool name
 event stream:
 
 ```ts
-import { createZooclawClient, toolCall, isRunFinished } from '@zooclaw-agents/sdk'
+import { createZooworkClient, toolCall, isRunFinished } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const session = await zc.createSession(agentId, {
   initial_events: [{ type: 'user.message', content: 'Search the web for the current time in Tokyo.' }],
@@ -232,7 +232,7 @@ and an `end` event still follows once the approval resolves.
 ::: warning Not yet verified
 A run that blocks on an approval nobody answers does not wait for you. The turn times out.
 
-`ZooclawClient` does have `listApprovals` and `resolveApproval`, but they drive the separate
+`ZooworkClient` does have `listApprovals` and `resolveApproval`, but they drive the separate
 approvals REST resource, not the `user.tool_confirmation` event loop.
 
 See the [capability matrix](/en/reference/capabilities) for the current status of this surface.
