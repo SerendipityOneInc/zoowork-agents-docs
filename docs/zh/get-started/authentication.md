@@ -1,7 +1,7 @@
 ---
 title: 鉴权
 source: /en/get-started/authentication
-source_hash: b754e76f1be5ad39b1123a7e61ee11adc59502c30595805bb985236fd835d042
+source_hash: 56ad2d495f26123a7f93371b125e09fa56125a11aad0c4f65f9639545b10f726
 ---
 
 # 鉴权
@@ -15,7 +15,7 @@ source_hash: b754e76f1be5ad39b1123a7e61ee11adc59502c30595805bb985236fd835d042
 带版本前缀的 base URL 是：
 
 ```
-https://claw-interface.ecap.yesy.live/service/v1
+https://clawapi.ecap.gsmo.ai/service/v1
 ```
 
 ## 获取 key
@@ -89,7 +89,7 @@ try {
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' \
   -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
-  https://claw-interface.ecap.yesy.live/service/v1/models
+  https://clawapi.ecap.gsmo.ai/service/v1/models
 ```
 
 缺失或无效的 key 返回 **401** 。请匹配 `ZooclawError.status` 和 `ZooclawError.type`，**不要** 去解析报错文本。

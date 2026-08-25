@@ -1,7 +1,7 @@
 ---
 title: 快速开始
 source: /en/get-started/quickstart
-source_hash: 7d10acabe456942eda7b039c26ac07b1fd638ca8c6252afb844085caad655b39
+source_hash: 7a3ec250b494f32f2c44769035f6ddd54d13d33f9603fef679bc10ce7e26809e
 ---
 
 # 快速开始
@@ -31,7 +31,7 @@ export ZOOCLAW_API_KEY='zct_...'
 下面每一步都同时给出 TypeScript 和 `curl` 两种写法。`curl` 这一栏的存在是为了让你用任何语言都能跟着走：它发出的 HTTP 和 SDK 发的是同一份。它需要把端点显式写出来，所以跑这些示例还要额外 export：
 
 ```bash
-export ZOOCLAW_BASE_URL='https://claw-interface.ecap.yesy.live/service/v1'
+export ZOOCLAW_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
 ```
 
 选一次栏目，本页所有代码块都会跟着切。
