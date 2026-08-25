@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: 120a113b8d2c1b1349e9f97a367cfedd33d8233ed09948fb4ca9affd153b4002
+source_hash: 386bfbc796f2898e8eabaa779e16fa51e09a4424759f8e0d641b066f31e0097b
 ---
 
 # 渠道
@@ -10,8 +10,8 @@ source_hash: 120a113b8d2c1b1349e9f97a367cfedd33d8233ed09948fb4ca9affd153b4002
 
 渠道绑在 **agent** 级别，用的就是你手上的 `agent_id`。没绑渠道的 agent 是纯 API agent——这是默认状态，本页的一切对纯 API 使用都不是必需的。
 
-::: warning 新面
-这一族路由随 2026 年 8 月下旬的网关版本发布。没带上这个版本的部署，下面每一条路由都答 **404**——看到 404 就说明你打的部署还没有渠道能力。需要 `@zooclaw-agents/sdk` ≥ 0.3.0。
+::: warning 新面，正在灰度
+2026-08-25 端到端实测过。这一族随一个仍在灰度的网关版本发布，没带上它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。需要 `@zooclaw-agents/sdk` ≥ 0.3.1。
 :::
 
 ## 绑飞书的两条路
@@ -59,9 +59,15 @@ if (done.status === 'success') {
 | `denied` | 对方拒绝了。 |
 | `error` | 其他错误；细节在 `message` 里。 |
 
-不想要的 setup session 用 `cancelFeishuSetup(agentId, sessionId)` 放弃。
+pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: false, message: null, poll_interval: 5 }`。新建 session 的实测默认值：`expires_in: 600`、`poll_interval: 5`。
 
-要面向国际版工作区，给 `startFeishuSetup` 传 `{ brand: 'lark' }`。
+::: warning session 会「不存在」，那时轮询返回 404
+`cancelFeishuSetup(agentId, sessionId)` 放弃一个 session——之后再轮询它，返回的是 `404 channel.feishu_session_not_found`，而**不是**某个终态 `status`。所以你自己写的轮询循环必须把这个 404 当成一种结束，而不是当成可重试的传输错误。`waitForFeishuSetup` 会把它抛成一个带这个 `type` 的 `ZooclawError`。
+
+至于一个 session 单纯活过了 `expires_in` 之后，是返回 200 带 `status: 'expired'`，还是同样变成这个 404——**我们没有观察到**。两种都要处理。
+:::
+
+`brand` 决定真实的域名：`'feishu'`（默认）给的是 `open.feishu.cn` 的 URI，`'lark'` 给的是 `open.larksuite.com`。它必须和对方将要批准它的那个工作区对上。
 
 ## 显式配置
 
@@ -75,6 +81,12 @@ const channel = await zc.addChannel(agentId, {
 `config` 的字段是平台相关的——它装的是你要绑定的平台应用的凭证，原样透传给渠道服务。`account` 给这次绑定命名（默认 `'default'`），所以一个 agent 可以在同一平台上持有多个账号。
 
 `allow_from` **只在创建时**接受，之后不能再编辑。
+
+::: danger 201 的含义是「存下了」，不是「能用」
+绑定时**不校验凭证**。我们用一组故意编造的凭证去绑，拿回来的是 `201`，带着 `health: 'unknown'`、`status: 'configured'`——和一个正常绑定返回的形状一模一样。几秒之后，同一个渠道在列表里的状态变成了 `health: 'unhealthy'`、`status: 'error'`。
+
+所以 201 只告诉你绑定被存下来了，不代表它能工作。真正的判定要从后续 `listChannels` 的 `health` / `status` 里读，不要只凭创建调用的成功就向用户报告绑定成功。
+:::
 
 ## 列表、更新、解绑
 
@@ -90,6 +102,20 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 ```
 
 `dm_policy` 和 `group_policy` 是可达性策略——谁能在私聊、谁能在群里找到这个 agent。服务端对两者的默认值都是 `'open'`。
+
+`updateChannel` 直接把渠道的**新**状态交回来，你不需要再读一次。注意 `enabled: false` 不只是翻一个标志位：实测它会把 `status` 变成 `'disabled'`，并把 `health` 重置为 `'unknown'`。
+
+### 三种 404，各自说明什么
+
+渠道这一族在三种不同情况下都返回 `404`，靠 `code` 区分。请匹配 `code`，不要只看状态码：
+
+| `code` | 发生了什么 | 该怎么办 |
+|---|---|---|
+| `channel.feishu_session_not_found` | QR session 没了——被取消了，也可能是过期了。 | 重新开一个 setup session。 |
+| `channel.not_found` | agent 在，但它在那个平台上没有绑定。 | 没有东西可更新或解绑；先去绑。 |
+| `service_api.not_found` | agent 不存在、你没权限访问、或者路径里的 action 不认识。 | 检查 agent id 和路由。 |
+
+还有第四种情况根本不属于这一族：如果整个响应信封是 `{"error":{"type":"not_found"}}` 而不是 `{"code": …, "detail": …}`，说明这个部署还没有渠道路由。
 
 ## 绑定渠道之后，什么变了
 

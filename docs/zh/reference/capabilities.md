@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: ed92db73b6d0afebf0a279f361e1070fc070e3393bca05667d308f0fad4f4b25
+source_hash: 3c5ab0ba9018a06d65a421558c184b99985349675043b52bf1e90fc3320d2e6c
 ---
 
 # 能力矩阵
@@ -90,13 +90,18 @@ source_hash: ed92db73b6d0afebf0a279f361e1070fc070e3393bca05667d308f0fad4f4b25
 
 ## 渠道 {#channels}
 
-这一族整体随 2026 年 8 月下旬的网关版本发布；没带上这个版本的部署，每一条路由都答 404。见[渠道](/zh/build/channels)。
+2026-08-25 在一套带了渠道版本的部署上实测。这一族仍在灰度；没带上它的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。需要 SDK >= 0.3.1。见[渠道](/zh/build/channels)。
 
 | 面 | 状态 | 说明 |
 |---|---|---|
-| `listChannels()` / `addChannel()` / `updateChannel()` / `removeChannel()` | 可用，未实测 | 形状对齐网关自己的 schema。`allow_from` 只在创建时写入，更新动不了它。 |
-| 飞书 QR 设备流 —— `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` / `waitForFeishuSetup()` | 可用，未实测 | `verification_uri_complete` 由你渲染；`waitForFeishuSetup` 驱动轮询，并把每一种终态当返回值交回，不对「人为结果」抛异常。 |
-| `deleteAgent()` 的渠道清理 | 可用，未实测 | 删除成功后 best-effort 停用该 agent 的渠道；清理失败永远不会把删除变成报错。 |
+| `listChannels()` | 已实测 | 纯 API agent 返回 `{ channels: [] }`。 |
+| `addChannel()` | 已实测 | 返回 `201`——但**绑定时不校验凭证**。编造的凭证同样返回 `201`，带 `health: 'unknown'` / `status: 'configured'`，随后在列表里变成 `health: 'unhealthy'` / `status: 'error'`。判定要从后续的 list 里读，绝不能只看 201。`allow_from` 只在创建时写入。 |
+| `updateChannel()` | 已实测 | 直接返回渠道的新状态。`enabled: false` 还会把 `status` 变成 `'disabled'`、`health` 重置为 `'unknown'`。该平台没有绑定时返回 `404 channel.not_found`。 |
+| `removeChannel()` | 已实测 | `{ ok: true }`，下一次 list 里就没有了。 |
+| 飞书 QR 设备流 —— `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` | 已实测 | 实测默认值 `expires_in: 600`、`poll_interval: 5`。`brand: 'lark'` 确实会把 URI 域名换成 `open.larksuite.com`。被取消的 session 在下一次轮询时返回 `404 channel.feishu_session_not_found`。 |
+| `waitForFeishuSetup()` | 已实测 | 按服务端的间隔驱动循环，并把 body 报告的终态当返回值交回。session 不存在的情况是抛异常——见渠道页的告诫。 |
+| 真人扫码完成的绑定 | 可用，未实测 | 每条路由都跑过了，但没有任何一次运行让真人走完 QR 批准，所以 `status: 'success'` 和一个健康的渠道都没有被观察到。 |
+| `deleteAgent()` 的渠道清理 | 可用，未实测 | 删除成功后 best-effort 停用该 agent 的渠道；清理失败永远不会把删除变成报错。已确认的只有：agent 删除后，渠道路由返回 `404 service_api.not_found`。 |
 
 ## 工具 {#tools}
 
