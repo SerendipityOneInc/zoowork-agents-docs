@@ -223,8 +223,17 @@
   order: 1;
 }
 
-/* The hero has no `name`, so `text` is the headline and carries the ink. */
+/* The hero has no `name`, so `text` is the headline and carries the ink.
+
+   `width: 100%` is the load-bearing line. The stock rule is `width: fit-content`, and the
+   default theme only re-centres it under `.has-image` - so a hero without an image keeps a
+   shrink-to-content box sitting flush left, and the container's `text-align: center` centres
+   the words inside a box that is itself off the page axis. Measured at 1538px: the English
+   headline sat 27px left of centre, the Chinese one 119px, the gap being the difference in
+   string width, not a language rule. Filling the line puts the headline back on the single
+   axis this section is built around. */
 .VPHome .VPHero .text {
+  width: 100%;
   letter-spacing: -0.03em;
   max-width: none;
   text-wrap: balance;
