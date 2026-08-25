@@ -199,7 +199,9 @@ An API-only agent has zero channels (`status.channels.expected === 0`), so nothi
 connects, so `actual_state` sits at `activating` indefinitely and `active` is unreachable.
 `running` is not even a member of the `actual_state` enum, so polling for it never returns.
 Sessions work perfectly while `actual_state` is `activating` - full turns in that state are
-verified.
+verified. Binding a [channel](/en/build/channels) is the one thing that makes `actual_state`
+move: it then reports that channel's connectivity - and it is still not an API-readiness
+signal.
 
 Poll `desired_state`, with a timeout. `waitUntilRunning()` is that loop, already written:
 
