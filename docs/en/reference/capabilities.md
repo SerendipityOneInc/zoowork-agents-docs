@@ -89,14 +89,23 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 
 ## Channels
 
-The whole family ships with a gateway release rolling out in late August 2026; on
-deployments without it every route answers 404. See [Channels](/en/build/channels).
+Verified 2026-08-25, on a deployment carrying the channels release. The family is still
+rolling out; a deployment without it answers 404 in the engine-passthrough envelope
+(`{"error":{"type":"not_found"}}`), which is how you tell that case apart. Requires SDK
+>= 0.3.1. See [Channels](/en/build/channels).
 
 | Surface | Status | Notes |
 |---|---|---|
-| `listChannels()` / `addChannel()` / `updateChannel()` / `removeChannel()` | Available, not verified | Shapes mirror the gateway's own schemas. `allow_from` is write-once at create; updates cannot touch it. |
-| Feishu QR device flow — `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` / `waitForFeishuSetup()` | Available, not verified | You render `verification_uri_complete`; `waitForFeishuSetup` drives the poll loop and returns every terminal outcome instead of throwing on the human ones. |
-| Channel cleanup on `deleteAgent()` | Available, not verified | A successful delete best-effort disables the agent's channels; a cleanup failure never turns the delete into an error. |
+| Platforms you can bind | Verified | `feishu`, `slack`, `wecom` bind through `addChannel`. `weixin`/`wechat` answer `400 channel.weixin_setup_required` pointing at a QR flow this API does not have — unbindable here. Anything else answers `400 channel.invalid_request`. |
+| `dm_policy: 'pairing'` | Not available | `400 channel.pairing_unsupported` on both create and update. |
+| `listChannels()` | Verified | `{ channels: [] }` for a pure API agent. |
+| `addChannel()` | Verified | Answers `201` — but **credentials are not validated at bind time**. Bogus ones returned `201` with `health: 'unknown'` / `status: 'configured'`, then listed as `health: 'unhealthy'` / `status: 'error'`. Read the verdict from a follow-up list, never from the 201. `allow_from` is write-once at create. |
+| `updateChannel()` | Verified | Returns the channel in its new state. `enabled: false` also moves `status` to `'disabled'` and resets `health` to `'unknown'`. `404 channel.not_found` when that platform has no binding. |
+| `removeChannel()` | Verified | `{ ok: true }`, and the channel is gone from the next list. |
+| Feishu QR device flow — `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` | Verified | Observed defaults `expires_in: 600`, `poll_interval: 5`. `brand: 'lark'` really switches the URI host to `open.larksuite.com`. A cancelled session answers `404 channel.feishu_session_not_found` on the next poll. |
+| `waitForFeishuSetup()` | Verified | Drives the loop at the server's interval and returns body-reported terminal statuses. A session that stopped existing throws instead — see the caveat on the Channels page. |
+| A scanned-to-completion binding | Available, not verified | Every route was exercised, but no run has taken a real person through the QR approval, so `status: 'success'` and a healthy channel are unobserved. |
+| Channel cleanup on `deleteAgent()` | Available, not verified | A successful delete best-effort disables the agent's channels; a cleanup failure never turns the delete into an error. Confirmed only that the channels routes answer `404 service_api.not_found` once the agent is deleted. |
 
 ## Tools
 
