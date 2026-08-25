@@ -17,15 +17,14 @@ exist". Requires `@zooclaw-agents/sdk` ≥ 0.3.1.
 
 ## Which platforms you can bind
 
-Every row below was probed against a live deployment on 2026-08-25. The table is the whole
-truth: a platform outside it answers `400 channel.invalid_request`.
+Every row below was probed against a live deployment on 2026-08-25. A platform outside this
+table answers `400 channel.invalid_request`.
 
 | Platform | `addChannel` | QR setup flow | Appears in `listChannels` |
 |---|---|---|---|
 | `feishu` | ✅ | ✅ — the only one | ✅ |
 | `slack` | ✅ | ❌ | ✅ |
 | `wecom` | ✅ | ❌ | ✅ |
-| `mattermost` | ✅ | ❌ | ❌ **never** — see below |
 | `weixin` / `wechat` | ❌ | ❌ | — |
 
 So there are really three cases. **Feishu** has both paths: the QR device flow and explicit
@@ -35,16 +34,6 @@ credentials. **WeChat cannot be bound through this API at all**: it answers
 and that flow does not exist here (`/channels/weixin/setup` is a 404). Do not build on the
 error message; treat WeChat as unavailable.
 
-::: danger A Mattermost binding is invisible
-`addChannel({ platform: 'mattermost' })` answers `201` and the binding is real — you can
-update it and remove it — but **it never appears in `listChannels`**, which filters Mattermost
-out. So the list is not a complete inventory: after binding Mattermost, an empty list does not
-mean "nothing is bound".
-
-If you bind it, keep your own record that you did. Everything keyed by platform still works on
-it, so `updateChannel(agentId, 'mattermost', …)` and `removeChannel(agentId, 'mattermost')`
-both behave normally.
-:::
 
 ## The Feishu QR device flow
 

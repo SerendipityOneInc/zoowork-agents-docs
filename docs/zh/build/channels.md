@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: cf9a86d816a92541b2ef271afc28eb0a1697e2a7f2509764aa916db3c33d88c8
+source_hash: 1ac6a95d8d8d0eb928174f3c4ffcfe05f42beac1b63f55db2f7e0ef9a1f60b36
 ---
 
 # 渠道
@@ -16,23 +16,17 @@ source_hash: cf9a86d816a92541b2ef271afc28eb0a1697e2a7f2509764aa916db3c33d88c8
 
 ## 能绑哪些平台
 
-下面每一行都在 2026-08-25 对一套真实部署实测过。这张表就是全部：表外的平台名一律返回 `400 channel.invalid_request`。
+下面每一行都在 2026-08-25 对一套真实部署实测过。表外的平台名一律返回 `400 channel.invalid_request`。
 
 | 平台 | `addChannel` | QR 设置流 | 在 `listChannels` 里可见 |
 |---|---|---|---|
 | `feishu` | ✅ | ✅ —— 唯一有的 | ✅ |
 | `slack` | ✅ | ❌ | ✅ |
 | `wecom` | ✅ | ❌ | ✅ |
-| `mattermost` | ✅ | ❌ | ❌ **永远不可见** —— 见下 |
 | `weixin` / `wechat` | ❌ | ❌ | — |
 
 所以实际上是三种情况。**飞书**两条路都有：QR 设备流和显式配置。**Slack 和企业微信**只有显式配置——凭证由你提供。**微信通过这套 API 根本绑不了**：它返回 `400 channel.weixin_setup_required`，报错文案是「Connect WeChat via the QR setup flow」，而那条流程在这里并不存在（`/channels/weixin/setup` 是 404）。不要照着这句报错去找路，把微信当成不可用。
 
-::: danger 绑定 Mattermost 之后它是隐形的
-`addChannel({ platform: 'mattermost' })` 返回 `201`，绑定是真的——你能 update 它、也能 remove 它——但**它永远不会出现在 `listChannels` 里**，服务端把 mattermost 过滤掉了。所以这个列表不是一份完整清单：绑过 mattermost 之后，列表为空并不代表「什么都没绑」。
-
-如果你绑了它，就得自己记一笔。所有按平台定位的操作对它照常有效，`updateChannel(agentId, 'mattermost', …)` 和 `removeChannel(agentId, 'mattermost')` 的行为都正常。
-:::
 
 ## 飞书 QR 设备流
 

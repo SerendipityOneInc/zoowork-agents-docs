@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 01a7b866c0796d4723e8e922fbde2627b872736d42c37ed6a44d6f0df795ce6e
+source_hash: 28847251e557494b9604e12bc728b3bc8729e132810b68727be9d57baf79e0ab
 ---
 
 # 能力矩阵
@@ -94,7 +94,7 @@ source_hash: 01a7b866c0796d4723e8e922fbde2627b872736d42c37ed6a44d6f0df795ce6e
 
 | 面 | 状态 | 说明 |
 |---|---|---|
-| 能绑哪些平台 | 已实测 | `feishu`、`slack`、`wecom` 可以通过 `addChannel` 绑定。`weixin`/`wechat` 返回 `400 channel.weixin_setup_required`，指向一条这套 API 没有的 QR 流——在这里绑不了。`mattermost` 能绑也能管，但**永远不出现在 `listChannels` 里**。其他名字一律 `400 channel.invalid_request`。 |
+| 能绑哪些平台 | 已实测 | `feishu`、`slack`、`wecom` 可以通过 `addChannel` 绑定。`weixin`/`wechat` 返回 `400 channel.weixin_setup_required`，指向一条这套 API 没有的 QR 流——在这里绑不了。其他名字一律 `400 channel.invalid_request`。 |
 | `dm_policy: 'pairing'` | 不存在 | 创建和更新都返回 `400 channel.pairing_unsupported`。 |
 | `listChannels()` | 已实测 | 纯 API agent 返回 `{ channels: [] }`。 |
 | `addChannel()` | 已实测 | 返回 `201`——但**绑定时不校验凭证**。编造的凭证同样返回 `201`，带 `health: 'unknown'` / `status: 'configured'`，随后在列表里变成 `health: 'unhealthy'` / `status: 'error'`。判定要从后续的 list 里读，绝不能只看 201。`allow_from` 只在创建时写入。 |

@@ -96,7 +96,7 @@ rolling out; a deployment without it answers 404 in the engine-passthrough envel
 
 | Surface | Status | Notes |
 |---|---|---|
-| Platforms you can bind | Verified | `feishu`, `slack`, `wecom` bind through `addChannel`. `weixin`/`wechat` answer `400 channel.weixin_setup_required` pointing at a QR flow this API does not have — unbindable here. `mattermost` binds and is manageable but **never appears in `listChannels`**. Anything else answers `400 channel.invalid_request`. |
+| Platforms you can bind | Verified | `feishu`, `slack`, `wecom` bind through `addChannel`. `weixin`/`wechat` answer `400 channel.weixin_setup_required` pointing at a QR flow this API does not have — unbindable here. Anything else answers `400 channel.invalid_request`. |
 | `dm_policy: 'pairing'` | Not available | `400 channel.pairing_unsupported` on both create and update. |
 | `listChannels()` | Verified | `{ channels: [] }` for a pure API agent. |
 | `addChannel()` | Verified | Answers `201` — but **credentials are not validated at bind time**. Bogus ones returned `201` with `health: 'unknown'` / `status: 'configured'`, then listed as `health: 'unhealthy'` / `status: 'error'`. Read the verdict from a follow-up list, never from the 201. `allow_from` is write-once at create. |
