@@ -108,7 +108,7 @@ The `{ serviceToken }` variant is internal-only and not usable with an API key; 
 
 ## Methods
 
-`ZooworkClient` exposes 50 methods, grouped below the way the client groups them. Everything
+`ZooworkClient` exposes 58 methods, grouped below the way the client groups them. Everything
 the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
 `agentId` first. The skill registry and Environments are top-level resources and take none.
 
@@ -133,6 +133,24 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 | `listAgentSkills(agentId, opts?)` | `Promise<AgentSkill[]>` | Lists the skills resolved onto the agent. |
 | `putAgentSkill(agentId, skillId, opts?)` | `Promise<{ config_version?: number; warnings?: string[] }>` | Attaches a skill your own tenant owns. Global-catalog ids return 404. |
 | `deleteAgentSkill(agentId, skillId)` | `Promise<void>` | Detaches a skill. |
+
+**Channels**
+
+Bind a chat platform to an API-created agent, so the same agent also answers people in the
+chat app. Feishu/Lark is the only platform with a server-driven QR flow here; Slack and WeCom
+bind through `addChannel` with credentials you already hold, and WeChat cannot be bound on this
+API at all. See [Channels](/en/build/channels) for the platform table and the traps.
+
+| Method | Returns | What it does |
+|---|---|---|
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | The platform accounts bound to this agent, with their `health` and `status`. Empty for a pure API agent. |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from `health`/`status` on a follow-up `listChannels`. |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, or `enabled` on one binding and returns it in its new state. `allow_from` is write-once at create. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
+| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Unbinds one `platform` + `account` (`account` defaults to `'default'`). Idempotent, unlike `updateChannel` - removing a binding that is not there answers `200 { ok: true }`. |
+| `startFeishuSetup(agentId, input?)` | `Promise<FeishuSetupSession>` | Starts the Feishu/Lark QR registration and answers `{ session_id, verification_uri_complete, expires_in, poll_interval }`. You own the UI: render `verification_uri_complete`, usually as a QR code. `brand: 'lark'` switches the URI host to `open.larksuite.com` and must match the workspace the person approves it in. |
+| `pollFeishuSetup(agentId, sessionId)` | `Promise<FeishuPollResult>` | Polls that session once. A cancelled or vanished session answers `404 channel.feishu_session_not_found` rather than a terminal status, so a hand-rolled loop must treat that 404 as an end condition, not a transport error to retry. |
+| `cancelFeishuSetup(agentId, sessionId)` | `Promise<void>` | Abandons a setup session. Polling it afterwards 404s. |
+| `waitForFeishuSetup(agentId, sessionId, opts?)` | `Promise<FeishuPollResult>` | Drives the poll loop until the session leaves `pending`, then hands back that terminal poll. A rejection is an outcome, not a throw: `expired`, `denied`, and `error` come back in `status`. Defaults: 10-minute budget, server-suggested interval. |
 
 **Skill registry**
 
@@ -799,8 +817,9 @@ fields within a version: ignore what you do not recognize rather than failing on
 The ones that do not are closed on purpose - `SessionEvent`, `SessionHistoryEntry`,
 `ToolCall`, `ExecResult`, `WakeResult`, `Ownership`, `EnvironmentConfig`, `AgentResource`,
 `OutcomeConfig`, `OutcomeEvaluator`, `SystemPromptDeclaration`, `SSEMessage`, `ZooworkConfig`,
-and `ZooworkAuth` take no extra keys, and an extra key on them is a compile error rather than a
-field that survives to the wire.
+`ZooworkAuth`, `AddChannelInput`, `UpdateChannelInput`, and `FeishuSetupInput` take no extra
+keys, and an extra key on them is a compile error rather than a field that survives to the
+wire.
 
 The sections here cover the types you handle on the paths this page walks. The skill-registry,
 approval, schedule, wake, exec, and Environment types are all in the
@@ -1230,12 +1249,25 @@ import {
   type AgentRecord,
   type AgentStatus,
   type AgentSkill,
+
+  // channels
+  type AgentChannel,
+  type ChannelPlatform,
+  type AddChannelInput,
+  type UpdateChannelInput,
+  type FeishuSetupInput,
+  type FeishuSetupSession,
+  type FeishuPollResult,
+
+  // more resource types
   type McpServerDeclaration,
   type SkillRecord,
   type SessionRecord,
   type SessionHistoryEntry,
   type SessionEvent,
+  type SessionEventPage,
   type OutboundEvent,
+  type PostEventReceipt,
 
   // approvals
   type ApprovalDecision,
@@ -1276,6 +1308,8 @@ import {
   // events
   SESSION_EVENT_TYPES,
   type SessionEventType,
+  PUBLIC_INPUT_EVENT_TYPES,
+  type PublicInputEventType,
   normalizeEvent,
   isRunFinished,
   runOutcome,
@@ -1291,7 +1325,7 @@ import {
 } from '@zoowork-ai/sdk'
 ```
 
-Twelve values and forty-two types, pinned by a test that asserts the entry point's exports as
+Thirteen values and fifty-two types, pinned by a test that asserts the entry point's exports as
 a set - a missing symbol and an accidental extra one both fail it. `DEFAULT_BASE_URL` is the
 public gateway base that `ZOOWORK_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.

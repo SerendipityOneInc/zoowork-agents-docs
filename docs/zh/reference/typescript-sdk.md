@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: 405df7e6c562797340f61b5e31b41abb4870071b6b7530b88e8dc75ec9330b14
+source_hash: 485b4499d348bf5effdd4de7726cdcdc2ffdbaa5086abfd8f494524d362e7150
 ---
 
 # TypeScript SDK 参考
@@ -111,7 +111,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 
 ## 方法
 
-`ZooworkClient` 暴露 50 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
+`ZooworkClient` 暴露 58 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
 东西——session、事件、审批、定时任务、`wake`、`exec`——第一个参数都是 `agentId`。skill registry
 和 Environment 是顶层资源，一个都不带。
 
@@ -136,6 +136,23 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 | `listAgentSkills(agentId, opts?)` | `Promise<AgentSkill[]>` | 列出已解析到这个 agent 上的 skill。 |
 | `putAgentSkill(agentId, skillId, opts?)` | `Promise<{ config_version?: number; warnings?: string[] }>` | 安装一个你自己租户拥有的 skill。全局目录的 id 返回 404。 |
 | `deleteAgentSkill(agentId, skillId)` | `Promise<void>` | 卸载一个 skill。 |
+
+**渠道**
+
+把一个聊天平台绑到用 API 创建出来的 agent 上，这样同一个 agent 也能在聊天软件里回复人。
+这里只有飞书 / Lark 有服务端驱动的扫码流程；Slack 和企业微信走 `addChannel`，用你已经拿到的
+凭证绑定，而微信在这套 API 上完全绑不了。平台对照表和各种坑见 [渠道](/zh/build/channels)。
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 这个 agent 已绑定的平台账号，带各自的 `health` 和 `status`。纯 API 的 agent 返回空数组。 |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 用 `config` 里的显式凭证绑定一个平台（201）。**201 的意思是存下了，不是能用了** ——绑定时不校验凭证，结论要从随后一次 `listChannels` 的 `health`/`status` 去读。 |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 改一个绑定的 `dm_policy`、`group_policy` 或 `enabled`，并把改完之后的状态返回给你。`allow_from` 只在创建时写一次。**不**幂等：这个平台上没有绑定就是 `404 channel.not_found`。 |
+| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | 解绑一个 `platform` + `account`（`account` 默认 `'default'`）。和 `updateChannel` 不同，它是幂等的——删一个本来就不存在的绑定返回 `200 { ok: true }`。 |
+| `startFeishuSetup(agentId, input?)` | `Promise<FeishuSetupSession>` | 发起飞书 / Lark 扫码注册，返回 `{ session_id, verification_uri_complete, expires_in, poll_interval }`。UI 归你自己做：把 `verification_uri_complete` 渲染出来，通常是渲染成二维码。`brand: 'lark'` 会把 URI 的 host 换成 `open.larksuite.com`，而且必须和扫码那个人所在的 workspace 对得上。 |
+| `pollFeishuSetup(agentId, sessionId)` | `Promise<FeishuPollResult>` | 轮询这个 session 一次。被取消或已经消失的 session 返回的是 `404 channel.feishu_session_not_found`，不是某个终态，所以自己写的轮询循环要把这个 404 当成结束条件，而不是一个该重试的传输错误。 |
+| `cancelFeishuSetup(agentId, sessionId)` | `Promise<void>` | 放弃一个 setup session。之后再轮询它就是 404。 |
+| `waitForFeishuSetup(agentId, sessionId, opts?)` | `Promise<FeishuPollResult>` | 替你把轮询循环跑完，直到这个 session 离开 `pending`，然后把那次终态的轮询结果交给你。被拒绝是一种结果，不是异常：`expired`、`denied`、`error` 都从 `status` 里回来。默认值：10 分钟预算，间隔听服务端的。 |
 
 **Skill registry**
 
@@ -771,8 +788,9 @@ console.log(outcome, text)
 
 没有这个索引签名的那几个是**故意封闭的** ——`SessionEvent`、`SessionHistoryEntry`、`ToolCall`、
 `ExecResult`、`WakeResult`、`Ownership`、`EnvironmentConfig`、`AgentResource`、`OutcomeConfig`、
-`OutcomeEvaluator`、`SystemPromptDeclaration`、`SSEMessage`、`ZooworkConfig` 和 `ZooworkAuth`
-不收多余的键，多写一个键是编译错误，而不是一个能活到线上的字段。
+`OutcomeEvaluator`、`SystemPromptDeclaration`、`SSEMessage`、`ZooworkConfig`、`ZooworkAuth`、
+`AddChannelInput`、`UpdateChannelInput` 和 `FeishuSetupInput` 不收多余的键，多写一个键是编译
+错误，而不是一个能活到线上的字段。
 
 这里的小节只覆盖你在本页走过的那些路径上会碰到的类型。skill registry、审批、定时任务、wake、
 exec 和 Environment 相关的类型都在[完整导出清单](#完整导出清单)里，而且每一个都把自己字段级的坑
@@ -1179,12 +1197,25 @@ import {
   type AgentRecord,
   type AgentStatus,
   type AgentSkill,
+
+  // channels
+  type AgentChannel,
+  type ChannelPlatform,
+  type AddChannelInput,
+  type UpdateChannelInput,
+  type FeishuSetupInput,
+  type FeishuSetupSession,
+  type FeishuPollResult,
+
+  // more resource types
   type McpServerDeclaration,
   type SkillRecord,
   type SessionRecord,
   type SessionHistoryEntry,
   type SessionEvent,
+  type SessionEventPage,
   type OutboundEvent,
+  type PostEventReceipt,
 
   // approvals
   type ApprovalDecision,
@@ -1225,6 +1256,8 @@ import {
   // events
   SESSION_EVENT_TYPES,
   type SessionEventType,
+  PUBLIC_INPUT_EVENT_TYPES,
+  type PublicInputEventType,
   normalizeEvent,
   isRunFinished,
   runOutcome,
@@ -1240,7 +1273,7 @@ import {
 } from '@zoowork-ai/sdk'
 ```
 
-12 个值和 42 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
+13 个值和 52 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
 符号，它都会失败。`DEFAULT_BASE_URL` 就是那个会被 `ZOOWORK_BASE_URL` 和 `baseUrl` 选项覆盖掉的
 公开网关 base；把它导出来，是为了让你能拿它做比较，或者自己拼 URL。
 

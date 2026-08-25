@@ -108,6 +108,13 @@ disappears into the same 404 has not been observed. Handle both.
 `brand` picks the real host: `'feishu'` (default) gives an `open.feishu.cn` URI, `'lark'` gives
 `open.larksuite.com`. It has to match the workspace the person will approve it in.
 
+**Pick `account` before you show the QR.** `startFeishuSetup` takes one too, and the name
+follows the same rules as the explicit path — see [Naming the binding](#naming-the-binding-account).
+It matters more here: approving the scan registers a **new app** in that Feishu workspace, and
+only then is the binding written, so a name clash surfaces as `409 channel.conflict` *after*
+someone has already scanned, leaving that fresh app behind in their workspace. Retrying under
+the same name does both again.
+
 ## Explicit config — the path for Slack and WeCom
 
 `addChannel` is the non-interactive path, and the only path for Slack and WeCom. You bring the
@@ -132,13 +139,6 @@ await zc.addChannel(agentId, {
 Slack runs in socket mode, which is why it needs the app-level `xapp-` token as well as the
 bot token. Both come from the Slack app's own settings pages.
 
-`account` names the binding (default `'default'`) so one agent can hold several accounts on
-one platform.
-
-Binding the same `platform` + `account` twice is **not** an error and does not create a second
-channel: the second call answers `201` and overwrites the first. Treat `addChannel` as an
-upsert, not a create.
-
 `allow_from` is accepted **only at create** and cannot be edited later.
 
 ::: danger 201 means stored, not working
@@ -150,6 +150,38 @@ same shape a good binding returns. Moments later the same channel listed as
 So the 201 tells you the binding was stored, not that it works. Read the verdict from
 `health` / `status` on a follow-up `listChannels`, and do not report success to your user on
 the strength of the create call alone.
+:::
+
+### Naming the binding: `account`
+
+`account` names the binding (default `'default'`) so one agent can hold several accounts on
+one platform. It is part of the record's identity rather than a setting: `updateChannel` and
+`removeChannel` find a binding by `platform` + `account`, and nothing renames one — you remove
+it and bind again.
+
+Four things to know before you pick a value:
+
+- **The name is unique per user, across every agent.** There is one active binding per
+  (owner, platform, account), so taking `feishu` / `default` on one agent takes it away from
+  all your other agents.
+- **`'default'` is very likely taken already** if the same login ever bound this platform in
+  the app. That binding was not made through this API, so the server declines to adopt it and
+  answers `409 channel.conflict`.
+- **The format is `^[a-z0-9][a-z0-9_-]{0,63}$`**, plus three reserved words (`__proto__`,
+  `prototype`, `constructor`). Anything else is a `400`, and nothing is normalized for you — a
+  display name with capitals, spaces, or non-ASCII characters is rejected, not cleaned up.
+- **The SDK cannot pre-check a name for you.** `listChannels` is scoped to one agent while the
+  constraint spans your whole account, so a name another one of your agents holds is invisible
+  here. Keep your own list.
+
+::: warning Rotating credentials means remove, then add
+Re-posting the **same** `platform` + `account` with an identical body answers `201` again and
+replays the binding you already have — it does not create a second channel, and it does not
+overwrite anything. Re-posting that same pair with a **different** `config` answers
+`409 channel.conflict`.
+
+So `addChannel` is not an upsert. To move a binding onto new credentials, call `removeChannel`
+first and then `addChannel`; a plain re-add fails.
 :::
 
 ## List, update, unbind
