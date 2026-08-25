@@ -1,6 +1,6 @@
 # Core concepts
 
-ZooClaw Managed Agents has three primitives. Everything you build sits on top of them.
+ZooWork Managed Agents has three primitives. Everything you build sits on top of them.
 
 | Primitive | What it is | Addressed as |
 |---|---|---|
@@ -18,9 +18,9 @@ runtime. See [Environments](/en/build/environments).
 All examples on this page use the TypeScript SDK:
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_...
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 ```
 
 See [Authentication](/en/get-started/authentication) for where the key comes from.
@@ -101,7 +101,7 @@ await zc.waitUntilRunning(agentId)
 ```
 
 `waitUntilRunning()` polls `desired_state` on a 30-second budget, 500 ms apart, and throws a
-`ZooclawError` with `status === 408` and `type === 'timeout'` if the agent never gets there.
+`ZooworkError` with `status === 408` and `type === 'timeout'` if the agent never gets there.
 See [Agents](/en/build/agents).
 
 A full turn completes normally on an agent whose `actual_state` never leaves `activating`.
@@ -174,7 +174,7 @@ an answer whose events you missed.
 A session is created, accumulates turns for as long as you keep posting to it, and stays
 readable afterwards. It does not expire at the end of a turn.
 
-`ZooclawClient` has no `patchSession`, so a session's `metadata` is write-once at
+`ZooworkClient` has no `patchSession`, so a session's `metadata` is write-once at
 `createSession` - put anything you will need to search on in there when you create it. See
 [Sessions](/en/build/sessions).
 
@@ -184,7 +184,7 @@ top-level session collection, so keep your own `session_id` records for anything
 reach across agents.
 
 A session you create through the API and a conversation the same agent is having inside the
-ZooClaw app are two separate conversations. API sessions carry a `session_key` beginning with
+ZooWork app are two separate conversations. API sessions carry a `session_key` beginning with
 `api:`; app conversations live on a different channel. They do not share history, and the model
 in one cannot see what was said in the other. Prototyping an agent's persona in the app is
 useful; expecting the API session to remember that chat is not.
@@ -206,7 +206,7 @@ import {
   toolCall,      // the tool call carried by an agent.tool event
   isRunFinished, // true for run.finished
   runOutcome,    // 'succeeded' | 'failed' | 'aborted' for run.finished
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 ```
 
 ### Events you write
@@ -296,7 +296,7 @@ A turn is one user message and everything the agent does in response. You start 
 an event; you know it is over when you read `run.finished`.
 
 ```text
-you                                    ZooClaw
+you                                    ZooWork
  |
  |-- postEvents(user.message) --------> 202 { accepted: true }
  |                                        |
@@ -318,7 +318,7 @@ Do not hardcode the order or the count - `run.finished` is the only reliable ter
 Driving one turn end to end:
 
 ```ts
-import { assistantText, isRunFinished, runOutcome } from '@zooclaw-agents/sdk'
+import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
 
 const session = await zc.createSession(agentId, {
   initial_events: [{ type: 'user.message', content: 'Summarize today in one sentence.' }],
@@ -369,5 +369,5 @@ break out of the loop yourself - and the server closes it once the session goes 
 - [Agents](/en/build/agents) - the full configuration surface.
 - [Sessions](/en/build/sessions) - session options and reads.
 - [Events and streaming](/en/build/events) - payload shapes, resume, and filtering.
-- [Errors](/en/reference/errors) - matching on `ZooclawError.type`.
+- [Errors](/en/reference/errors) - matching on `ZooworkError.type`.
 - [Not supported](/en/reference/not-supported) - check here before designing around a capability.

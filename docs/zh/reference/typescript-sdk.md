@@ -1,12 +1,12 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: d4a95b2d662cc178ec6939d6e12d5e21295e5a3e9890df2c91e4a48d4a5b0a27
+source_hash: 405df7e6c562797340f61b5e31b41abb4870071b6b7530b88e8dc75ec9330b14
 ---
 
 # TypeScript SDK 参考
 
-`@zooclaw-agents/sdk` 导出的每一个符号，附带编译器看到的签名。
+`@zoowork-ai/sdk` 导出的每一个符号，附带编译器看到的签名。
 
 这一页是参考手册。想看按任务组织的说明，从 [Agents](/zh/build/agents)、[Sessions](/zh/build/sessions)
 或[快速开始](/zh/get-started/quickstart)开始。
@@ -14,14 +14,14 @@ source_hash: d4a95b2d662cc178ec6939d6e12d5e21295e5a3e9890df2c91e4a48d4a5b0a27
 ## 安装
 
 ```bash
-pnpm add @zooclaw-agents/sdk
+pnpm add @zoowork-ai/sdk
 ```
 
 ```bash
-npm install @zooclaw-agents/sdk
+npm install @zoowork-ai/sdk
 ```
 
-包名是 `@zooclaw-agents/sdk`。它**只发 ESM** ，编译目标是 ES2022，所以要在你的 `package.json` 里设
+包名是 `@zoowork-ai/sdk`。它**只发 ESM** ，编译目标是 ES2022，所以要在你的 `package.json` 里设
 `"type": "module"`。
 
 ### 运行时
@@ -37,12 +37,12 @@ npm install @zooclaw-agents/sdk
 
 ### 注入 `fetch`
 
-`ZooclawConfig.fetch` 会替换掉客户端发出的每一个请求所用的 `globalThis.fetch`，SSE 流也包括在内。
+`ZooworkConfig.fetch` 会替换掉客户端发出的每一个请求所用的 `globalThis.fetch`，SSE 流也包括在内。
 用它来绑定某个运行时特有的 fetch、加埋点，或者在测试里返回预置响应。
 
 ```ts
-const zc = createZooclawClient({
-  apiKey: process.env.ZOOCLAW_API_KEY,
+const zc = createZooworkClient({
+  apiKey: process.env.ZOOWORK_API_KEY,
   fetch: async (input, init) => {
     const started = Date.now()
     const res = await fetch(input, init)
@@ -55,63 +55,63 @@ const zc = createZooclawClient({
 签名是 `(input: string, init?: RequestInit) => Promise<Response>`。第一个参数永远是一个完整解析好的
 URL 字符串，绝不会是 `Request` 对象。你提供的、用于流式的 fetch 必须返回一个带可读 `body` 的 `Response`。
 
-## `createZooclawClient(config)`
+## `createZooworkClient(config)`
 
 ```ts
-function createZooclawClient(cfg?: ZooclawConfig): ZooclawClient
+function createZooworkClient(cfg?: ZooworkConfig): ZooworkClient
 ```
 
-返回一个 `ZooclawClient`。不建立任何连接，不发出任何请求，缺少 API key 会在构造时抛错；
+返回一个 `ZooworkClient`。不建立任何连接，不发出任何请求，缺少 API key 会在构造时抛错；
 其余一切都留到第一次使用时才校验。用一个错的 key 构造客户端会成功；第一次调用才会以
 `401` 失败。
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 客户端很轻。一个进程建一个，然后共用。
 
-### `ZooclawConfig`
+### `ZooworkConfig`
 
 ```ts
-interface ZooclawConfig {
+interface ZooworkConfig {
   apiKey?: string
   baseUrl?: string
-  auth?: ZooclawAuth
+  auth?: ZooworkAuth
   fetch?: (input: string, init?: RequestInit) => Promise<Response>
 }
 ```
 
-每个字段都是可选的；只要导出了 `ZOOCLAW_API_KEY`，整个对象也可以省掉——
-`createZooclawClient()` 是合法调用。
+每个字段都是可选的；只要导出了 `ZOOWORK_API_KEY`，整个对象也可以省掉——
+`createZooworkClient()` 是合法调用。
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `apiKey` | `string` | 否 | 你那个 `zct_...` key。取值顺序：这个选项，然后 `ZOOCLAW_API_KEY`。日常就用这个字段。 |
-| `baseUrl` | `string` | 否 | API 的 base，**要带版本前缀** 。取值顺序：这个选项，然后 `ZOOCLAW_BASE_URL`，然后导出的 `DEFAULT_BASE_URL`（公开网关）。只有当你要指向另一套部署时才设置它。末尾的斜杠会被去掉；`/models`、`/agents/{id}/sessions` 这类路径会直接拼在后面。 |
-| `auth` | `ZooclawAuth` | 否 | 进阶用法。这里传 `{ apiKey }` 等价于顶层的 `apiKey`；两个都传时以 `auth` 为准。见下。 |
+| `apiKey` | `string` | 否 | 你那个 `zct_...` key。取值顺序：这个选项，然后 `ZOOWORK_API_KEY`。日常就用这个字段。 |
+| `baseUrl` | `string` | 否 | API 的 base，**要带版本前缀** 。取值顺序：这个选项，然后 `ZOOWORK_BASE_URL`，然后导出的 `DEFAULT_BASE_URL`（公开网关）。只有当你要指向另一套部署时才设置它。末尾的斜杠会被去掉；`/models`、`/agents/{id}/sessions` 这类路径会直接拼在后面。 |
+| `auth` | `ZooworkAuth` | 否 | 进阶用法。这里传 `{ apiKey }` 等价于顶层的 `apiKey`；两个都传时以 `auth` 为准。见下。 |
 | `fetch` | function | 否 | 默认是 `globalThis.fetch`。 |
 
-### `ZooclawAuth`
+### `ZooworkAuth`
 
 ```ts
-type ZooclawAuth = { serviceToken: string } | { apiKey: string }
+type ZooworkAuth = { serviceToken: string } | { apiKey: string }
 ```
 
 **用 `{ apiKey }`。** 它就是你那个 `zct_...` 组织 service token，会以 `Authorization: Bearer zct_...`
 发在每一个请求上，SSE 流也不例外。
 
 ```ts
-auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
+auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 ```
 
 `{ serviceToken }` 变体仅供内部使用，不能和 API key 一起用；持 `zct_` key 一律传 `{ apiKey }`。
 
 ## 方法
 
-`ZooclawClient` 暴露 50 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
+`ZooworkClient` 暴露 50 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
 东西——session、事件、审批、定时任务、`wake`、`exec`——第一个参数都是 `agentId`。skill registry
 和 Environment 是顶层资源，一个都不带。
 
@@ -181,7 +181,7 @@ auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
 Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些方法管理它发布出来的东西。
 对一个 agent 的第一次 artifact 调用会多花一次 `getAgent()`，之后按 agent 缓存。如果这个 agent
 的投影里没有 ownership，这一步会抛出 `status: 500`、`type: 'ownership_unavailable'` 的
-`ZooclawError`——它是本地合成的，没有任何服务端响应能解释它。
+`ZooworkError`——它是本地合成的，没有任何服务端响应能解释它。
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
@@ -258,9 +258,9 @@ await zc.createSchedule(agentId, {
 下面所有代码片段都假设：
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 ---
@@ -354,7 +354,7 @@ console.log(agent.status?.config_version)    // 3
 写一个同时覆盖两种形状的访问器，然后到处用它：
 
 ```ts
-import type { AgentRecord } from '@zooclaw-agents/sdk'
+import type { AgentRecord } from '@zoowork-ai/sdk'
 
 const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
@@ -445,7 +445,7 @@ waitUntilRunning(
 | `opts.signal` | `AbortSignal` | 无 | 取消这次等待，正在飞的那个请求也一起取消。 |
 
 它轮询 `getAgent()`，拿第一份读到 `running` 的投影 resolve。超时时抛出一个 `status: 408`、
-`type: 'timeout'` 的 `ZooclawError`；被 abort 时是 `status: 0`、`type: 'aborted'`。
+`type: 'timeout'` 的 `ZooworkError`；被 abort 时是 `status: 0`、`type: 'aborted'`。
 **这两个都是本地合成的** ——服务端从来不会发它们，而且这次 abort 不会漏出一个 `DOMException`。
 
 ---
@@ -561,7 +561,7 @@ console.log(session.session_id)  // "ses_example"
 console.log(session.session_key) // "api:ses_example"
 ```
 
-agent 必须处于运行状态。对一个已停止的 agent 调用，会抛出 `ZooclawError`，`status: 409`，
+agent 必须处于运行状态。对一个已停止的 agent 调用，会抛出 `ZooworkError`，`status: 409`，
 `type: 'agent_not_running'`。
 
 幂等 key 要从你自己系统里稳定的东西派生，绝不要用调用时现生成的值。见[错误处理](/zh/reference/errors)。
@@ -584,7 +584,7 @@ getSession(
 | `opts.limit` | `number` | 取最近多少行会话记录。服务端默认 100，最大 500。只在 `history: true` 时有意义。 |
 
 ```ts
-import { messageText } from '@zooclaw-agents/sdk'
+import { messageText } from '@zoowork-ai/sdk'
 
 const s = await zc.getSession(agentId, sessionId, { history: true, limit: 20 })
 
@@ -725,7 +725,7 @@ streamEvents(
 一个产出 `SessionEvent` 的异步生成器。用 `for await` 消费它。
 
 ```ts
-import { assistantText, isRunFinished, runOutcome } from '@zooclaw-agents/sdk'
+import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
 
 const ctl = new AbortController()
 const budget = setTimeout(() => ctl.abort(), 120_000)
@@ -761,7 +761,7 @@ console.log(outcome, text)
   生成器会丢弃那些 `seq` 非负、且不大于它上一次产出值的事件，所以重连时被重放的边界事件不会
   两次到达你手里。归一化后 `seq` 为 `-1` 的帧不带可用游标，会被放行而不是丢弃。
 
-非 2xx 响应会抛出 `ZooclawError`。这个特定的错误只由状态行构造，所以**流失败时 `type` 永远是
+非 2xx 响应会抛出 `ZooworkError`。这个特定的错误只由状态行构造，所以**流失败时 `type` 永远是
 `undefined`**——请基于 `status` 分支。
 
 ## 类型
@@ -771,7 +771,7 @@ console.log(outcome, text)
 
 没有这个索引签名的那几个是**故意封闭的** ——`SessionEvent`、`SessionHistoryEntry`、`ToolCall`、
 `ExecResult`、`WakeResult`、`Ownership`、`EnvironmentConfig`、`AgentResource`、`OutcomeConfig`、
-`OutcomeEvaluator`、`SystemPromptDeclaration`、`SSEMessage`、`ZooclawConfig` 和 `ZooclawAuth`
+`OutcomeEvaluator`、`SystemPromptDeclaration`、`SSEMessage`、`ZooworkConfig` 和 `ZooworkAuth`
 不收多余的键，多写一个键是编译错误，而不是一个能活到线上的字段。
 
 这里的小节只覆盖你在本页走过的那些路径上会碰到的类型。skill registry、审批、定时任务、wake、
@@ -1027,20 +1027,20 @@ interface ToolCall {
 
 ### 配置类型
 
-`ZooclawConfig`、`ZooclawAuth` 和 `ZooclawClient` 在
-[`createZooclawClient`](#createzooclawclientconfig) 一节里讲过。`ZooclawClient` 以类型的形式导出，
+`ZooworkConfig`、`ZooworkAuth` 和 `ZooworkClient` 在
+[`createZooworkClient`](#createzooworkclient-config) 一节里讲过。`ZooworkClient` 以类型的形式导出，
 这样你可以把客户端传进自己的辅助函数：
 
 ```ts
-import type { ZooclawClient } from '@zooclaw-agents/sdk'
+import type { ZooworkClient } from '@zoowork-ai/sdk'
 
-async function reply(zc: ZooclawClient, agentId: string, text: string) { /* ... */ }
+async function reply(zc: ZooworkClient, agentId: string, text: string) { /* ... */ }
 ```
 
-### `ZooclawError`
+### `ZooworkError`
 
 ```ts
-class ZooclawError extends Error {
+class ZooworkError extends Error {
   status: number
   type?: string
 }
@@ -1075,7 +1075,7 @@ content 回来时就是这种形态。
 `messageText` 两种都能处理，所以它既适合处理事件，也适合处理会话记录的行：
 
 ```ts
-import { messageText } from '@zooclaw-agents/sdk'
+import { messageText } from '@zoowork-ai/sdk'
 
 const s = await zc.getSession(agentId, sessionId, { history: true })
 for (const row of s.history ?? []) {
@@ -1117,7 +1117,7 @@ type SessionEventType = (typeof SESSION_EVENT_TYPES)[number]
 用这个数组做校验，或者用来构造过滤条件：
 
 ```ts
-import { SESSION_EVENT_TYPES, type SessionEventType } from '@zooclaw-agents/sdk'
+import { SESSION_EVENT_TYPES, type SessionEventType } from '@zoowork-ai/sdk'
 
 const known = new Set<string>(SESSION_EVENT_TYPES)
 if (!known.has(ev.eventType)) console.warn('unknown event type', ev.eventType)
@@ -1146,7 +1146,7 @@ interface SSEMessage {
 当你自己调用流式端点时才用它，比如想看到 `streamEvents()` 刻意跳过的 `event_delta` 预览帧：
 
 ```ts
-import { parseSSE, normalizeEvent } from '@zooclaw-agents/sdk'
+import { parseSSE, normalizeEvent } from '@zoowork-ai/sdk'
 
 const res = await fetch(url, {
   headers: { Authorization: `Bearer ${apiKey}`, Accept: 'text/event-stream' },
@@ -1165,12 +1165,12 @@ for await (const msg of parseSSE(res.body!)) {
 ```ts
 import {
   // client
-  createZooclawClient,
+  createZooworkClient,
   DEFAULT_BASE_URL,
-  ZooclawError,
-  type ZooclawClient,
-  type ZooclawConfig,
-  type ZooclawAuth,
+  ZooworkError,
+  type ZooworkClient,
+  type ZooworkConfig,
+  type ZooworkAuth,
 
   // resource types
   type Ownership,
@@ -1237,11 +1237,11 @@ import {
   // sse
   parseSSE,
   type SSEMessage,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 ```
 
 12 个值和 42 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
-符号，它都会失败。`DEFAULT_BASE_URL` 就是那个会被 `ZOOCLAW_BASE_URL` 和 `baseUrl` 选项覆盖掉的
+符号，它都会失败。`DEFAULT_BASE_URL` 就是那个会被 `ZOOWORK_BASE_URL` 和 `baseUrl` 选项覆盖掉的
 公开网关 base；把它导出来，是为了让你能拿它做比较，或者自己拼 URL。
 
 这就是全部的公开接口面。不在这个清单上的东西就是不存在——特别地，没有 `patchSession`：
@@ -1250,6 +1250,6 @@ import {
 
 ## 下一步
 
-- [错误处理](/zh/reference/errors) —— 值得拿来分支的 `ZooclawError.type` 取值。
+- [错误处理](/zh/reference/errors) —— 值得拿来分支的 `ZooworkError.type` 取值。
 - [Agents](/zh/build/agents) —— 创建、启动、修改，以及两种响应形状。
 - [Sessions](/zh/build/sessions) —— 驱动一个回合、给事件日志翻页、读取会话记录。

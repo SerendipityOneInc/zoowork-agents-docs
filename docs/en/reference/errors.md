@@ -1,13 +1,13 @@
 # Errors and retries
 
-Every SDK method throws a `ZooclawError` when the API answers with a non-2xx status. This
+Every SDK method throws a `ZooworkError` when the API answers with a non-2xx status. This
 page is what to catch, what to branch on, and what is safe to send twice.
 
-## `ZooclawError`
+## `ZooworkError`
 
 ```ts
-class ZooclawError extends Error {
-  name: 'ZooclawError'
+class ZooworkError extends Error {
+  name: 'ZooworkError'
   status: number
   message: string
   type?: string
@@ -21,22 +21,22 @@ class ZooclawError extends Error {
 | `type` | `string \| undefined` | The machine-readable code from the error envelope. **This is the field to branch on** - when it is there. |
 
 ```ts
-import { ZooclawError } from '@zooclaw-agents/sdk'
+import { ZooworkError } from '@zoowork-ai/sdk'
 
 try {
   await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
 } catch (e) {
-  if (e instanceof ZooclawError) {
+  if (e instanceof ZooworkError) {
     console.error(e.status, e.type, e.message)
   }
 }
 ```
 
-`ZooclawError` is a real class, so `instanceof` works. Narrow with it before you read
+`ZooworkError` is a real class, so `instanceof` works. Narrow with it before you read
 `.status` or `.type` - a network failure, a DNS error, or an aborted request surfaces as the
-runtime's own `TypeError` or `AbortError`, not as a `ZooclawError`. The one exception is
+runtime's own `TypeError` or `AbortError`, not as a `ZooworkError`. The one exception is
 `waitUntilRunning()`, which synthesizes its own locally: a budget that runs out is
-`ZooclawError` `408` / `'timeout'`, and an aborted wait is `0` / `'aborted'`. The server sends
+`ZooworkError` `408` / `'timeout'`, and an aborted wait is `0` / `'aborted'`. The server sends
 neither, and neither leaks a `DOMException` from the abort underneath.
 
 ## Match on `error.type`, never parse messages
@@ -49,7 +49,7 @@ differs between the API and the gateway, and it can change without notice.
 if (e.message.includes('not running')) await zc.startAgent(agentId)
 
 // Right.
-if (e instanceof ZooclawError && e.type === 'agent_not_running') await zc.startAgent(agentId)
+if (e instanceof ZooworkError && e.type === 'agent_not_running') await zc.startAgent(agentId)
 ```
 
 The one qualification, which the next section is about: `type` is not always present.
@@ -73,7 +73,7 @@ it runs before it ever forwards your request. A rejected key answers `401` with 
 The API side is itself two families, not one. Sessions, schedules, and environments answer
 `{ error: { type, message } }` with a bare code (`agent_not_running`, `session_archived`); the
 agents family answers `{ code, detail }` with a dotted one (`service_api.not_found`). Both land
-on `ZooclawError`, and the codes are kept verbatim - the SDK does not invent a shared
+on `ZooworkError`, and the codes are kept verbatim - the SDK does not invent a shared
 vocabulary for them - so read the `not_found` row below before you compare a type with `===`.
 
 ::: warning `type` can be `undefined`
@@ -88,7 +88,7 @@ So branch on `status` as well as `type`, and always have a `status`-only fallbac
 :::
 
 ```ts
-if (e instanceof ZooclawError) {
+if (e instanceof ZooworkError) {
   if (e.type === 'agent_not_running') { /* specific */ }
   else if (e.status === 401)          { /* auth, whichever envelope produced it */ }
   else if (e.status === 404)          { /* missing or not yours */ }
@@ -96,9 +96,9 @@ if (e instanceof ZooclawError) {
 }
 ```
 
-One more oddity worth knowing: a `ZooclawError` can carry a **2xx** status. If a successful
+One more oddity worth knowing: a `ZooworkError` can carry a **2xx** status. If a successful
 response arrives with a body that is not valid JSON, the SDK throws
-`ZooclawError(res.status, 'non-JSON response: <path>')`. Do not assume `status >= 400` inside
+`ZooworkError(res.status, 'non-JSON response: <path>')`. Do not assume `status >= 400` inside
 your catch block.
 
 ## The types you will actually hit
@@ -235,9 +235,9 @@ Provisioning that survives the two failures you will actually meet: a stopped ag
 create that may or may not have landed.
 
 ```ts
-import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
+import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 async function openSession(agentId: string, text: string, jobId: string) {
   try {
@@ -247,7 +247,7 @@ async function openSession(agentId: string, text: string, jobId: string) {
       `job-${jobId}`, // stable key: a retry converges on the first session
     )
   } catch (e) {
-    if (!(e instanceof ZooclawError)) throw e // network or abort, not an API answer
+    if (!(e instanceof ZooworkError)) throw e // network or abort, not an API answer
 
     if (e.type === 'agent_not_running') {
       await zc.startAgent(agentId)      // warnings here are informational
@@ -267,7 +267,7 @@ async function openSession(agentId: string, text: string, jobId: string) {
 
     if (e.status === 401) {
       // Gateway envelope; e.type is service_token.invalid. Retrying will not help.
-      throw new Error('API key rejected - check ZOOCLAW_API_KEY')
+      throw new Error('API key rejected - check ZOOWORK_API_KEY')
     }
 
     throw e
@@ -277,7 +277,7 @@ async function openSession(agentId: string, text: string, jobId: string) {
 
 Three things this does on purpose:
 
-- It narrows with `instanceof ZooclawError` before touching `.type`, so a transport failure
+- It narrows with `instanceof ZooworkError` before touching `.type`, so a transport failure
   propagates instead of being mistaken for an API answer.
 - It branches on `type` where a type exists and falls back to `status` where one may not.
 - It reuses the same `Idempotency-Key` on the retry. That is the whole point of the key.

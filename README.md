@@ -1,6 +1,6 @@
 # zooclaw-docs
 
-Public developer documentation for ZooClaw Managed Agents.
+Public developer documentation for ZooWork Managed Agents.
 
 ```bash
 pnpm install
@@ -38,7 +38,7 @@ pnpm build && pnpm preview:worker   # http://localhost:8787/docs/
 
 ## What belongs here
 
-This site is written for **external developers** building products on ZooClaw:
+This site is written for **external developers** building products on ZooWork:
 the TypeScript SDK, the `/service/v1` gateway, and an API key. It is not the
 internal operations manual.
 

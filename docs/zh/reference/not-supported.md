@@ -1,7 +1,7 @@
 ---
 title: 不支持的能力
 source: /en/reference/not-supported
-source_hash: 3d8043dadc326129ddae47cf54ffdcb2025c9e9184263630ad5c923d609e6365
+source_hash: 256f6365d117cfb3e0a829b01fd4ca4395c2882070a7ada4e049ed3d6fe50d41
 ---
 
 # 不支持的能力
@@ -107,6 +107,6 @@ source_hash: 3d8043dadc326129ddae47cf54ffdcb2025c9e9184263630ad5c923d609e6365
 | environment 里的 cargo、gem 或 go 包 | 只有 apt、npm 和 pip。 |
 | 凭证 API；Environment secret、运行时环境变量、沙箱启动钩子 | 平台为它自己的内置技能注入凭据，那条通道不对你开放；environment 配置也不收 secret、环境变量和启动钩子。你自己的密钥留在你自己的服务里。 |
 | 定时任务的暂停与恢复、归档、跨定时任务的运行历史、删除 agent 时自动清理定时任务 | 没有——删掉重建，运行记录一次读一个定时任务。定时任务在停止和删除之后都还活着，你得先自己删掉。 |
-| 文件的 SDK 方法 | 文件路由在线协议上存在，但后端没有接线；`ZooclawClient` 对它什么都没暴露，所以你得用自己的 `fetch` 调。artifact 从 0.0.6 起进了 client（`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`）；审批、定时任务、environment、session 的归档与删除从 0.0.5 起就在——见[能力矩阵](/zh/reference/capabilities)。 |
-| 从你自己的代码轮换或吊销 key | 没有 API。ZooClaw App 的 **设置 → API Keys** 可以立即轮换或吊销一把 key，新密钥只显示一次。 |
+| 文件的 SDK 方法 | 文件路由在线协议上存在，但后端没有接线；`ZooworkClient` 对它什么都没暴露，所以你得用自己的 `fetch` 调。artifact 在 client 上（`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`）；审批、定时任务、environment、session 的归档与删除也都在——见[能力矩阵](/zh/reference/capabilities)。 |
+| 从你自己的代码轮换或吊销 key | 没有 API。ZooWork App 的 **设置 → API Keys** 可以立即轮换或吊销一把 key，新密钥只显示一次。 |
 | 按 scope、按用户或只读的 API key | 只有一个组织级的 key，对组织内每一个 agent 都有完整的读写权限。 |

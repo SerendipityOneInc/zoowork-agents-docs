@@ -18,13 +18,13 @@ is the production reference with auth and persistence.
 
 ## Prerequisites
 
-- **Node 20 or later.** `@zooclaw-agents/sdk` is an ES module with no runtime dependencies; it uses the platform `fetch`.
+- **Node 20 or later.** `@zoowork-ai/sdk` is an ES module with no runtime dependencies; it uses the platform `fetch`.
 - **An API key** that looks like `zct_...`. An organization administrator issues it for your organization and hands it to you. There is no self-serve signup page.
 
 Keep the key server-side. It authenticates as your whole organization, not as one end user.
 
 ```bash
-export ZOOCLAW_API_KEY='zct_...'
+export ZOOWORK_API_KEY='zct_...'
 ```
 
 Every step below is shown in both TypeScript and `curl`. The `curl` tab exists so you can
@@ -32,7 +32,7 @@ follow along from any language: it is the same HTTP the SDK makes. It needs the 
 spelled out, so for those examples also export:
 
 ```bash
-export ZOOCLAW_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
+export ZOOWORK_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
 ```
 
 Pick a tab once and every code block on the page follows.
@@ -42,15 +42,15 @@ Pick a tab once and every code block on the page follows.
 ::: code-group
 
 ```bash [pnpm]
-pnpm add @zooclaw-agents/sdk
+pnpm add @zoowork-ai/sdk
 ```
 
 ```bash [npm]
-npm install @zooclaw-agents/sdk
+npm install @zoowork-ai/sdk
 ```
 
 ```bash [yarn]
-yarn add @zooclaw-agents/sdk
+yarn add @zoowork-ai/sdk
 ```
 
 :::
@@ -66,14 +66,14 @@ The SDK ships ESM only. Set `"type": "module"` in your `package.json` so `import
 ## Create a client
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
-With `ZOOCLAW_API_KEY` exported you can drop the argument entirely — `createZooclawClient()`
+With `ZOOWORK_API_KEY` exported you can drop the argument entirely — `createZooworkClient()`
 reads it. The only other options are `baseUrl` (defaults to the public gateway, or
-`ZOOCLAW_BASE_URL`) and an injected `fetch` for edge runtimes and tests.
+`ZOOWORK_BASE_URL`) and an injected `fetch` for edge runtimes and tests.
 
 A missing key throws at construction rather than surfacing as a 401 on your first call.
 
@@ -87,8 +87,8 @@ console.log(models.length, models[0]?.model)
 ```
 
 ```bash [curl]
-curl "$ZOOCLAW_BASE_URL/models" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY"
+curl "$ZOOWORK_BASE_URL/models" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
 ```
 
 :::
@@ -99,7 +99,7 @@ curl "$ZOOCLAW_BASE_URL/models" \
 ]
 ```
 
-A bad key returns `401`. The SDK throws `ZooclawError` with `.status` and `.type` - never match on the message text. Match on `.type` when you know which family answered; for `401` branch on `.status`, because the gateway and the core API spell that type differently.
+A bad key returns `401`. The SDK throws `ZooworkError` with `.status` and `.type` - never match on the message text. Match on `.type` when you know which family answered; for `401` branch on `.status`, because the gateway and the core API spell that type differently.
 
 ## 1. Create an agent
 
@@ -119,8 +119,8 @@ const agentId = created.agent_id
 ```
 
 ```bash [curl]
-curl -X POST "$ZOOCLAW_BASE_URL/agents" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
+curl -X POST "$ZOOWORK_BASE_URL/agents" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "resource": {
@@ -162,15 +162,15 @@ const agent = await zc.createAgent(
 ## 2. Start the agent
 
 ::: warning Do not skip this step
-A newly created agent has `status.desired_state === 'stopped'`. Every session call requires `running`. If you go straight to `createSession()`, the SDK throws a `ZooclawError` with `status === 409` and `type === 'agent_not_running'`:
+A newly created agent has `status.desired_state === 'stopped'`. Every session call requires `running`. If you go straight to `createSession()`, the SDK throws a `ZooworkError` with `status === 409` and `type === 'agent_not_running'`:
 
 ```ts
-import { ZooclawError } from '@zooclaw-agents/sdk'
+import { ZooworkError } from '@zoowork-ai/sdk'
 
 try {
   await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
 } catch (e) {
-  if (e instanceof ZooclawError && e.type === 'agent_not_running') {
+  if (e instanceof ZooworkError && e.type === 'agent_not_running') {
     // You forgot startAgent(). Match on e.type, not on e.message.
   }
 }
@@ -188,8 +188,8 @@ console.log(warnings)
 ```
 
 ```bash [curl]
-curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/start" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY"
+curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
 ```
 
 :::
@@ -215,7 +215,7 @@ const agent = await zc.waitUntilRunning(agentId)
 ```
 
 It polls `status.desired_state` on a 30-second budget, 500 ms apart, and hands back the same
-projection `getAgent()` would. An agent that never gets there throws a `ZooclawError` with
+projection `getAgent()` would. An agent that never gets there throws a `ZooworkError` with
 `status === 408` and `type === 'timeout'`.
 
 A `getAgent()` read right after start looks like this (other fields omitted):
@@ -251,8 +251,8 @@ const sessionId = session.session_id
 ```
 
 ```bash [curl]
-curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/sessions" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
+curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "metadata": { "source": "quickstart" },
@@ -291,7 +291,7 @@ const session = await zc.createSession(agentId, input, 'quickstart-session-01')
 ::: code-group
 
 ```ts [TypeScript]
-import { assistantText, isRunFinished, runOutcome, toolCall } from '@zooclaw-agents/sdk'
+import { assistantText, isRunFinished, runOutcome, toolCall } from '@zoowork-ai/sdk'
 
 const ctl = new AbortController()
 const budget = setTimeout(() => ctl.abort(), 120_000)
@@ -324,8 +324,8 @@ try {
 ```bash [curl]
 # -N disables buffering so frames arrive as they are produced.
 # Resume after a drop by appending ?after=<last seq you saw>.
-curl -N "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
+curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Accept: text/event-stream"
 ```
 
@@ -371,11 +371,11 @@ await zc.deleteAgent(agentId)
 ```
 
 ```bash [curl]
-curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/stop" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY"
+curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/stop" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
 
-curl -X DELETE "$ZOOCLAW_BASE_URL/agents/$AGENT_ID" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY"
+curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
 ```
 
 :::
@@ -386,22 +386,22 @@ Stop first. `deleteAgent()` is a soft delete: it does not stop the agent, cancel
 
 ## The complete program
 
-Save as `quickstart.ts`, then run `ZOOCLAW_API_KEY='zct_...' pnpm exec tsx quickstart.ts`.
+Save as `quickstart.ts`, then run `ZOOWORK_API_KEY='zct_...' pnpm exec tsx quickstart.ts`.
 
 ```ts
 import {
-  createZooclawClient,
-  ZooclawError,
+  createZooworkClient,
+  ZooworkError,
   assistantText,
   isRunFinished,
   runOutcome,
   toolCall,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 
-const apiKey = process.env.ZOOCLAW_API_KEY
-if (!apiKey) throw new Error('set ZOOCLAW_API_KEY')
+const apiKey = process.env.ZOOWORK_API_KEY
+if (!apiKey) throw new Error('set ZOOWORK_API_KEY')
 
-const zc = createZooclawClient({ apiKey })
+const zc = createZooworkClient({ apiKey })
 
 // 0. Confirm the key works and pick a model.
 const models = await zc.listModels()
@@ -463,8 +463,8 @@ try {
   console.log(`\n\nrun ${outcome}, ${text.trim().length} characters`)
   if (outcome !== 'succeeded') process.exitCode = 1
 } catch (e) {
-  if (e instanceof ZooclawError) {
-    console.error(`ZooClaw error ${e.status} ${e.type ?? ''}: ${e.message}`)
+  if (e instanceof ZooworkError) {
+    console.error(`ZooWork error ${e.status} ${e.type ?? ''}: ${e.message}`)
     process.exitCode = 1
   } else {
     throw e
@@ -495,7 +495,7 @@ cleaned up agent agt_example
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `401` on every call | Missing or invalid key | Check `ZOOCLAW_API_KEY` starts with `zct_` and reaches the client as `apiKey`. The gateway and the core API use different `error.type` strings for this, so branch on `e.status`, not on the type |
+| `401` on every call | Missing or invalid key | Check `ZOOWORK_API_KEY` starts with `zct_` and reaches the client as `apiKey`. The gateway and the core API use different `error.type` strings for this, so branch on `e.status`, not on the type |
 | `409 agent_not_running` on `createSession` | The agent was never started, or was stopped | Call `startAgent()` and wait for `desired_state === 'running'` |
 | Readiness loop never returns | Polling `status.actual_state` | Poll `status.desired_state` instead, or let `zc.waitUntilRunning()` do it |
 | Stream never ends | Waiting for the connection to close | Break on `isRunFinished(ev)` |

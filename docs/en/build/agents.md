@@ -5,7 +5,7 @@ and a tool policy. You create it once, start it, and then open [sessions](./sess
 it. The configuration lives on the server, so every session inherits it without you resending
 anything.
 
-Three things about ZooClaw agents surprise people who arrive from other managed-agent APIs.
+Three things about ZooWork agents surprise people who arrive from other managed-agent APIs.
 Read these before you write code.
 
 1. A newly created agent is **stopped**. You must call `startAgent()`, or `createSession()`
@@ -22,9 +22,9 @@ Read these before you write code.
 Every snippet on this page assumes this client.
 
 ```ts
-import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
+import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_...
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 ```
 
 ## Create an agent
@@ -33,7 +33,7 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_.
 `AgentRecord`.
 
 ```ts
-import type { AgentRecord } from '@zooclaw-agents/sdk'
+import type { AgentRecord } from '@zoowork-ai/sdk'
 
 const created: AgentRecord = await zc.createAgent(
   {
@@ -100,7 +100,7 @@ here; [Environments](./environments) has the resolution rules.
 
 ## Read an agent, and the two response shapes
 
-This is the single most common source of `undefined` in ZooClaw code. `POST /agents` answers
+This is the single most common source of `undefined` in ZooWork code. `POST /agents` answers
 with a flat create receipt. `GET` and `PUT` answer with a projection. They are not the same
 object.
 
@@ -219,7 +219,7 @@ const ac = new AbortController()
 await zc.waitUntilRunning(agentId, { timeoutMs: 60_000, intervalMs: 1_000, signal: ac.signal })
 ```
 
-A wait that runs out throws a `ZooclawError` with `status: 408` and `type: 'timeout'`; an
+A wait that runs out throws a `ZooworkError` with `status: 408` and `type: 'timeout'`; an
 aborted one throws `status: 0` and `type: 'aborted'`. Both are synthesized locally - the
 server never sends either, and an abort does not leak a `DOMException` at you.
 
@@ -251,7 +251,7 @@ Skip the start and the next call tells you so:
 try {
   await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
 } catch (e) {
-  if (e instanceof ZooclawError && e.type === 'agent_not_running') {
+  if (e instanceof ZooworkError && e.type === 'agent_not_running') {
     await zc.startAgent(agentId)
     await zc.waitUntilRunning(agentId)
   } else {
@@ -373,7 +373,7 @@ at 100, so `page` is the only way past the first hundred.
 
 `labels` filters on the labels you declared at create time, one `label.<key>` selector per
 entry. `{ labels: { workspace_id: '...' } }` is the one worth remembering: it turns the
-workspace id in a ZooClaw chat URL - the first path segment - back into the agent behind it.
+workspace id in a ZooWork chat URL - the first path segment - back into the agent behind it.
 
 ## Not supported
 
@@ -394,4 +394,4 @@ last-write-wins per section. Serialize your own writes if that matters.
 - [Sessions](./sessions) - open a session against a running agent and drive a turn.
 - [Events and streaming](./events) - read what the agent does, with resumable SSE.
 - [Skills](./skills) - what is attached by default and what you can change.
-- [Errors](../reference/errors) - the `ZooclawError.type` values worth branching on.
+- [Errors](../reference/errors) - the `ZooworkError.type` values worth branching on.

@@ -1,6 +1,6 @@
 # TypeScript SDK reference
 
-Every symbol `@zooclaw-agents/sdk` exports, with the signature the compiler sees.
+Every symbol `@zoowork-ai/sdk` exports, with the signature the compiler sees.
 
 This page is the reference. For task-shaped guidance start at [Agents](/en/build/agents),
 [Sessions](/en/build/sessions), or the [Quickstart](/en/get-started/quickstart).
@@ -8,14 +8,14 @@ This page is the reference. For task-shaped guidance start at [Agents](/en/build
 ## Install
 
 ```bash
-pnpm add @zooclaw-agents/sdk
+pnpm add @zoowork-ai/sdk
 ```
 
 ```bash
-npm install @zooclaw-agents/sdk
+npm install @zoowork-ai/sdk
 ```
 
-The package is `@zooclaw-agents/sdk`. It ships **ESM only** and is compiled to ES2022, so set
+The package is `@zoowork-ai/sdk`. It ships **ESM only** and is compiled to ES2022, so set
 `"type": "module"` in your `package.json`.
 
 ### Runtimes
@@ -31,13 +31,13 @@ The SDK has **zero runtime dependencies**. It uses the platform `fetch`, Web Str
 
 ### Injecting `fetch`
 
-`ZooclawConfig.fetch` replaces `globalThis.fetch` for every request the client makes,
+`ZooworkConfig.fetch` replaces `globalThis.fetch` for every request the client makes,
 including the SSE stream. Use it to bind a runtime-specific fetch, to add tracing, or to
 serve canned responses in tests.
 
 ```ts
-const zc = createZooclawClient({
-  apiKey: process.env.ZOOCLAW_API_KEY,
+const zc = createZooworkClient({
+  apiKey: process.env.ZOOWORK_API_KEY,
   fetch: async (input, init) => {
     const started = Date.now()
     const res = await fetch(input, init)
@@ -51,56 +51,56 @@ The signature is `(input: string, init?: RequestInit) => Promise<Response>`. The
 argument is always a fully resolved URL string, never a `Request` object. A fetch you supply
 for streaming must return a `Response` with a readable `body`.
 
-## `createZooclawClient(config)`
+## `createZooworkClient(config)`
 
 ```ts
-function createZooclawClient(cfg?: ZooclawConfig): ZooclawClient
+function createZooworkClient(cfg?: ZooworkConfig): ZooworkClient
 ```
 
-Returns a `ZooclawClient`. No connections are opened, no requests are made, and a missing API
+Returns a `ZooworkClient`. No connections are opened, no requests are made, and a missing API
 key throws at construction; everything else is validated on first use. Constructing a client
 with a bad key succeeds; the first call fails with `401`.
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 Clients are cheap. Create one per process and share it.
 
-### `ZooclawConfig`
+### `ZooworkConfig`
 
 ```ts
-interface ZooclawConfig {
+interface ZooworkConfig {
   apiKey?: string
   baseUrl?: string
-  auth?: ZooclawAuth
+  auth?: ZooworkAuth
   fetch?: (input: string, init?: RequestInit) => Promise<Response>
 }
 ```
 
-Every field is optional, and with `ZOOCLAW_API_KEY` exported so is the whole object:
-`createZooclawClient()` is a valid call.
+Every field is optional, and with `ZOOWORK_API_KEY` exported so is the whole object:
+`createZooworkClient()` is a valid call.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `apiKey` | `string` | no | Your `zct_...` key. Resolution order: this option, then `ZOOCLAW_API_KEY`. This is the field to use. |
-| `baseUrl` | `string` | no | The API base **including the version prefix**. Resolution order: this option, then `ZOOCLAW_BASE_URL`, then the exported `DEFAULT_BASE_URL` (the public gateway). Set it only to target a different deployment. Trailing slashes are stripped; paths such as `/models` and `/agents/{id}/sessions` are appended directly. |
-| `auth` | `ZooclawAuth` | no | Advanced. `{ apiKey }` here is equivalent to the top-level `apiKey`, and beats it if you pass both. See below. |
+| `apiKey` | `string` | no | Your `zct_...` key. Resolution order: this option, then `ZOOWORK_API_KEY`. This is the field to use. |
+| `baseUrl` | `string` | no | The API base **including the version prefix**. Resolution order: this option, then `ZOOWORK_BASE_URL`, then the exported `DEFAULT_BASE_URL` (the public gateway). Set it only to target a different deployment. Trailing slashes are stripped; paths such as `/models` and `/agents/{id}/sessions` are appended directly. |
+| `auth` | `ZooworkAuth` | no | Advanced. `{ apiKey }` here is equivalent to the top-level `apiKey`, and beats it if you pass both. See below. |
 | `fetch` | function | no | Defaults to `globalThis.fetch`. |
 
-### `ZooclawAuth`
+### `ZooworkAuth`
 
 ```ts
-type ZooclawAuth = { serviceToken: string } | { apiKey: string }
+type ZooworkAuth = { serviceToken: string } | { apiKey: string }
 ```
 
 **Use `{ apiKey }`.** It is your `zct_...` organization service token, sent as
 `Authorization: Bearer zct_...` on every request including the SSE stream.
 
 ```ts
-auth: { apiKey: process.env.ZOOCLAW_API_KEY! }
+auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 ```
 
 The `{ serviceToken }` variant is internal-only and not usable with an API key; with a
@@ -108,7 +108,7 @@ The `{ serviceToken }` variant is internal-only and not usable with an API key; 
 
 ## Methods
 
-`ZooclawClient` exposes 50 methods, grouped below the way the client groups them. Everything
+`ZooworkClient` exposes 50 methods, grouped below the way the client groups them. Everything
 the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
 `agentId` first. The skill registry and Environments are top-level resources and take none.
 
@@ -178,7 +178,7 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 Artifacts are published by the agent's own in-loop `artifact_publish` tool; these methods
 manage what it produced. The first artifact call on an agent costs one extra `getAgent()`,
 cached per agent afterwards. An agent whose projection carries no ownership fails that
-derivation with a `ZooclawError` of `status: 500` and `type: 'ownership_unavailable'` -
+derivation with a `ZooworkError` of `status: 500` and `type: 'ownership_unavailable'` -
 synthesized locally, so no server response explains it.
 
 | Method | Returns | What it does |
@@ -262,9 +262,9 @@ family.
 All snippets below assume:
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 ---
@@ -360,7 +360,7 @@ console.log(agent.status?.config_version)    // 3
 Write one accessor that covers both shapes and use it everywhere:
 
 ```ts
-import type { AgentRecord } from '@zooclaw-agents/sdk'
+import type { AgentRecord } from '@zoowork-ai/sdk'
 
 const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
@@ -453,7 +453,7 @@ waitUntilRunning(
 | `opts.signal` | `AbortSignal` | - | Cancels the wait, including the request in flight. |
 
 It polls `getAgent()` and resolves with the first projection that reads `running`. On timeout
-it throws a `ZooclawError` with `status: 408` and `type: 'timeout'`; on abort, `status: 0` and
+it throws a `ZooworkError` with `status: 408` and `type: 'timeout'`; on abort, `status: 0` and
 `type: 'aborted'`. **Both are synthesized locally** - the server never sends either, and the
 abort does not leak a `DOMException`.
 
@@ -577,7 +577,7 @@ console.log(session.session_key) // "api:ses_example"
 ```
 
 The agent must be running. Against a stopped agent this throws
-`ZooclawError` with `status: 409` and `type: 'agent_not_running'`.
+`ZooworkError` with `status: 409` and `type: 'agent_not_running'`.
 
 Derive the idempotency key from something stable in your own system, never from a value
 generated at call time. See [Errors and retries](/en/reference/errors).
@@ -600,7 +600,7 @@ getSession(
 | `opts.limit` | `number` | Number of most recent transcript rows. Server default 100, maximum 500. Only meaningful with `history: true`. |
 
 ```ts
-import { messageText } from '@zooclaw-agents/sdk'
+import { messageText } from '@zoowork-ai/sdk'
 
 const s = await zc.getSession(agentId, sessionId, { history: true, limit: 20 })
 
@@ -748,7 +748,7 @@ streamEvents(
 An async generator of `SessionEvent`. Consume it with `for await`.
 
 ```ts
-import { assistantText, isRunFinished, runOutcome } from '@zooclaw-agents/sdk'
+import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
 
 const ctl = new AbortController()
 const budget = setTimeout(() => ctl.abort(), 120_000)
@@ -788,7 +788,7 @@ Four behaviours worth knowing:
   reconnect does not reach you twice. A frame that normalizes to `seq: -1` carries no usable
   cursor and is passed through rather than dropped.
 
-A non-2xx response throws a `ZooclawError`. That particular error is built from the status
+A non-2xx response throws a `ZooworkError`. That particular error is built from the status
 line alone, so **`type` is always `undefined` on a stream failure** - branch on `status`.
 
 ## Types
@@ -798,8 +798,8 @@ fields within a version: ignore what you do not recognize rather than failing on
 
 The ones that do not are closed on purpose - `SessionEvent`, `SessionHistoryEntry`,
 `ToolCall`, `ExecResult`, `WakeResult`, `Ownership`, `EnvironmentConfig`, `AgentResource`,
-`OutcomeConfig`, `OutcomeEvaluator`, `SystemPromptDeclaration`, `SSEMessage`, `ZooclawConfig`,
-and `ZooclawAuth` take no extra keys, and an extra key on them is a compile error rather than a
+`OutcomeConfig`, `OutcomeEvaluator`, `SystemPromptDeclaration`, `SSEMessage`, `ZooworkConfig`,
+and `ZooworkAuth` take no extra keys, and an extra key on them is a compile error rather than a
 field that survives to the wire.
 
 The sections here cover the types you handle on the paths this page walks. The skill-registry,
@@ -1070,20 +1070,20 @@ adjacent** in the stream when calls run concurrently. A tool failing does not fa
 
 ### Config types
 
-`ZooclawConfig`, `ZooclawAuth`, and `ZooclawClient` are covered under
-[`createZooclawClient`](#createzooclawclientconfig). `ZooclawClient` is exported as a type so
+`ZooworkConfig`, `ZooworkAuth`, and `ZooworkClient` are covered under
+[`createZooworkClient`](#createzooworkclient-config). `ZooworkClient` is exported as a type so
 you can pass a client into your own helpers:
 
 ```ts
-import type { ZooclawClient } from '@zooclaw-agents/sdk'
+import type { ZooworkClient } from '@zoowork-ai/sdk'
 
-async function reply(zc: ZooclawClient, agentId: string, text: string) { /* ... */ }
+async function reply(zc: ZooworkClient, agentId: string, text: string) { /* ... */ }
 ```
 
-### `ZooclawError`
+### `ZooworkError`
 
 ```ts
-class ZooclawError extends Error {
+class ZooworkError extends Error {
   status: number
   type?: string
 }
@@ -1120,7 +1120,7 @@ which is how write-side `user.message` content comes back.
 events:
 
 ```ts
-import { messageText } from '@zooclaw-agents/sdk'
+import { messageText } from '@zoowork-ai/sdk'
 
 const s = await zc.getSession(agentId, sessionId, { history: true })
 for (const row of s.history ?? []) {
@@ -1165,7 +1165,7 @@ still reaches you.
 Use the array to validate or to build filters:
 
 ```ts
-import { SESSION_EVENT_TYPES, type SessionEventType } from '@zooclaw-agents/sdk'
+import { SESSION_EVENT_TYPES, type SessionEventType } from '@zoowork-ai/sdk'
 
 const known = new Set<string>(SESSION_EVENT_TYPES)
 if (!known.has(ev.eventType)) console.warn('unknown event type', ev.eventType)
@@ -1197,7 +1197,7 @@ Reach for it when you are calling the stream endpoint yourself, for instance to 
 `event_delta` preview frames that `streamEvents()` deliberately skips:
 
 ```ts
-import { parseSSE, normalizeEvent } from '@zooclaw-agents/sdk'
+import { parseSSE, normalizeEvent } from '@zoowork-ai/sdk'
 
 const res = await fetch(url, {
   headers: { Authorization: `Bearer ${apiKey}`, Accept: 'text/event-stream' },
@@ -1216,12 +1216,12 @@ Dropping the `id:` line would freeze your resume cursor, which is why the parser
 ```ts
 import {
   // client
-  createZooclawClient,
+  createZooworkClient,
   DEFAULT_BASE_URL,
-  ZooclawError,
-  type ZooclawClient,
-  type ZooclawConfig,
-  type ZooclawAuth,
+  ZooworkError,
+  type ZooworkClient,
+  type ZooworkConfig,
+  type ZooworkAuth,
 
   // resource types
   type Ownership,
@@ -1288,12 +1288,12 @@ import {
   // sse
   parseSSE,
   type SSEMessage,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 ```
 
 Twelve values and forty-two types, pinned by a test that asserts the entry point's exports as
 a set - a missing symbol and an accidental extra one both fail it. `DEFAULT_BASE_URL` is the
-public gateway base that `ZOOCLAW_BASE_URL` and the `baseUrl` option override; it is exported
+public gateway base that `ZOOWORK_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.
 
 That is the entire public surface. Anything not on this list does not exist - in particular
@@ -1303,6 +1303,6 @@ there is no `patchSession`: `PATCH /agents/{id}/sessions/{sid}` answers `405`, a
 
 ## Next
 
-- [Errors and retries](/en/reference/errors) - the `ZooclawError.type` values worth branching on.
+- [Errors and retries](/en/reference/errors) - the `ZooworkError.type` values worth branching on.
 - [Agents](/en/build/agents) - create, start, update, and the two response shapes.
 - [Sessions](/en/build/sessions) - drive a turn, page the event log, read the transcript.
