@@ -1,12 +1,12 @@
 ---
 title: 鉴权
 source: /en/get-started/authentication
-source_hash: 56ad2d495f26123a7f93371b125e09fa56125a11aad0c4f65f9639545b10f726
+source_hash: 701bb04fa9309f413a3d9b9cdb2740dffde2daa050492179e1f05ad85efc8272
 ---
 
 # 鉴权
 
-调用 ZooClaw API 只需要一个凭证：一个组织级 service token，也就是你的 **API key** 。
+调用 ZooWork API 只需要一个凭证：一个组织级 service token，也就是你的 **API key** 。
 
 - 它是一个以 `zct_` 开头的字符串。
 - 以 `Authorization: Bearer zct_...` 发送。
@@ -20,10 +20,10 @@ https://clawapi.ecap.gsmo.ai/service/v1
 
 ## 获取 key
 
-key 在 ZooClaw App 里创建，位置是 **设置 → API Keys**：
+key 在 ZooWork App 里创建，位置是 **设置 → API Keys**：
 
-1. 打开 ZooClaw App，进入**设置**，切到 **API Keys** 标签页。
-2. 点 **Create API Key**，起一个日后认得出的名字（`staging-backend`，不要叫 `test`），
+1. 打开 ZooWork App，进入**设置**，切到 **API Keys** 标签页。
+2. 点 **Create API Key**，起一个日后认得出的名字（`orders-backend`，不要叫 `test`），
    然后复制密钥。它**只显示这一次**，之后无法再取回——弄丢就只能轮换。
 3. 个人组织里任何成员都能建；企业组织里这个标签页要求 **admin** 角色——看不到就找你的
    组织管理员要一把。
@@ -35,12 +35,12 @@ key 在 ZooClaw App 里创建，位置是 **设置 → API Keys**：
 ## 配置客户端
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
-`baseUrl` 是可选的——默认指向公开 API，`ZOOCLAW_BASE_URL` 可覆盖它。`/models`、`/agents/{id}/sessions` 这类路径会直接拼在它后面。
+`baseUrl` 是可选的——默认指向公开 API，`ZOOWORK_BASE_URL` 可覆盖它。`/models`、`/agents/{id}/sessions` 这类路径会直接拼在它后面。
 
 ## 只能放在服务端
 
@@ -50,7 +50,7 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
 
 - 不要放进浏览器打包产物、移动端 App、桌面端 App，或任何在构建时会被内联进客户端的环境变量。
 - 不要提交进代码仓，不要打进日志或错误信息。
-- **在你的用户和 ZooClaw API 之间放你自己的后端。** 你的后端持有这个 key，按你自己的方式认证用户，并决定每个用户能碰哪个 agent、哪个会话。
+- **在你的用户和 ZooWork API 之间放你自己的后端。** 你的后端持有这个 key，按你自己的方式认证用户，并决定每个用户能碰哪个 agent、哪个会话。
 
 **这个 key 是 API 接受的唯一凭据。** 没有给你自己、或你终端用户的密钥用的保险库——把它们留在你自己的服务里。见[不支持的能力](/zh/reference/not-supported)。
 
@@ -68,15 +68,15 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
 最便宜的存活检查是 `listModels()`。它不涉及任何 agent，不创建任何东西，返回你的组织可选的模型列表。
 
 ```ts
-import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
+import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 try {
   const models = await zc.listModels()
   console.log(`ok: ${models.length} models, e.g. ${models[0]?.model}`)
 } catch (e) {
-  if (e instanceof ZooclawError && e.status === 401) {
+  if (e instanceof ZooworkError && e.status === 401) {
     console.error('key rejected:', e.type) // service_token.invalid
     process.exit(1)
   }
@@ -88,11 +88,11 @@ try {
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   https://clawapi.ecap.gsmo.ai/service/v1/models
 ```
 
-缺失或无效的 key 返回 **401** 。请匹配 `ZooclawError.status` 和 `ZooclawError.type`，**不要** 去解析报错文本。
+缺失或无效的 key 返回 **401** 。请匹配 `ZooworkError.status` 和 `ZooworkError.type`，**不要** 去解析报错文本。
 
 ## 一个 key 能触达什么
 

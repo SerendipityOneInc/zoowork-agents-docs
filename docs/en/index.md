@@ -1,5 +1,5 @@
 ---
-title: ZooClaw Managed Agents
+title: ZooWork Managed Agents
 layout: home
 hero:
   text: Agents that run on our infrastructure

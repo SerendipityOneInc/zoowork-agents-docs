@@ -1,6 +1,6 @@
 # Authentication
 
-Every request to the ZooClaw API is authenticated with one credential: an organization
+Every request to the ZooWork API is authenticated with one credential: an organization
 service token - your API key.
 
 - It is a string starting with `zct_`.
@@ -15,10 +15,10 @@ https://clawapi.ecap.gsmo.ai/service/v1
 
 ## Get a key
 
-Keys are created in the ZooClaw App, under **Settings → API Keys**:
+Keys are created in the ZooWork App, under **Settings → API Keys**:
 
-1. Open the ZooClaw App, go to **Settings**, and pick the **API Keys** tab.
-2. **Create API Key**, give it a name you will recognize later (`staging-backend`, not
+1. Open the ZooWork App, go to **Settings**, and pick the **API Keys** tab.
+2. **Create API Key**, give it a name you will recognize later (`orders-backend`, not
    `test`), and copy the secret. It is shown **exactly once** and cannot be retrieved again -
    losing it means rotating it.
 3. On a personal organization any member can do this. On an enterprise organization the tab
@@ -32,12 +32,12 @@ Treat a leaked key as an immediate **Rotate** in the App.
 ## Configure the client
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
-`baseUrl` is optional - it defaults to the public API, and `ZOOCLAW_BASE_URL` overrides it. The
+`baseUrl` is optional - it defaults to the public API, and `ZOOWORK_BASE_URL` overrides it. The
 client appends paths such as `/models` and `/agents/{id}/sessions` directly to it.
 
 ## Server-side only
@@ -51,7 +51,7 @@ Keep it on a server you control:
 - Do not put it in a browser bundle, a mobile app, a desktop app, or any client-side
   environment variable that gets inlined at build time.
 - Do not commit it, and do not print it in logs or error messages.
-- Put your own backend between your users and the ZooClaw API. Your backend holds the key,
+- Put your own backend between your users and the ZooWork API. Your backend holds the key,
   authenticates your users your way, and decides which agent and which session each user may
   touch.
 
@@ -84,15 +84,15 @@ The cheapest liveness check is `listModels()`. It touches no agent, creates noth
 returns the models your organization can select.
 
 ```ts
-import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
+import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 try {
   const models = await zc.listModels()
   console.log(`ok: ${models.length} models, e.g. ${models[0]?.model}`)
 } catch (e) {
-  if (e instanceof ZooclawError && e.status === 401) {
+  if (e instanceof ZooworkError && e.status === 401) {
     console.error('key rejected:', e.type) // service_token.invalid
     process.exit(1)
   }
@@ -104,12 +104,12 @@ The same check with curl:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   https://clawapi.ecap.gsmo.ai/service/v1/models
 ```
 
-A missing or invalid key returns **401**. Match on `ZooclawError.status` and
-`ZooclawError.type`, never on the message text.
+A missing or invalid key returns **401**. Match on `ZooworkError.status` and
+`ZooworkError.type`, never on the message text.
 
 ## What a key reaches
 

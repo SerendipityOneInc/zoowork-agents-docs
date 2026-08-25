@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: db6c2bd3e3382c345210d1328a6f9cf677dbac265213e152ff885a3e36a9caf6
+source_hash: 2bfee111a66f0c5655eb81121421bfc8a1f00a300fc9ca5d10d06c977c8a67ba
 ---
 
 # 渠道
@@ -11,7 +11,7 @@ source_hash: db6c2bd3e3382c345210d1328a6f9cf677dbac265213e152ff885a3e36a9caf6
 渠道绑在 **agent** 级别，用的就是你手上的 `agent_id`。没绑渠道的 agent 是纯 API agent——这是默认状态，本页的一切对纯 API 使用都不是必需的。
 
 ::: warning 新面，正在灰度
-2026-08-25 端到端实测过。这一族随一个仍在灰度的网关版本发布，没带上它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。需要 `@zooclaw-agents/sdk` ≥ 0.3.1。
+2026-08-25 端到端实测过。这一族随一个仍在灰度的网关版本发布，没带上它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。
 :::
 
 ## 能绑哪些平台
@@ -27,7 +27,7 @@ source_hash: db6c2bd3e3382c345210d1328a6f9cf677dbac265213e152ff885a3e36a9caf6
 
 「服务端扫码流」这一列的两个 ❌ 含义完全不同，这个区别决定了你该不该等它。
 
-**Slack 不会有。** 服务端驱动的扫码流，前提是聊天平台愿意把凭证交回给发起请求的服务端。Slack 没有这种东西：Slack 应用只能由人在 `api.slack.com/apps` 上创建，它的 `xoxb-` / `xapp-` token 只会出现在那个人的浏览器里。所以 Slack 永远是「`addChannel` + 把两个 token 放进 `config`」。如果你在 ZooClaw App 里见过 Slack 的引导式配置，那个引导做的正是这件事：帮人把应用建出来，然后让他粘贴那两个 token——和你在这里传的是同两个。
+**Slack 不会有。** 服务端驱动的扫码流，前提是聊天平台愿意把凭证交回给发起请求的服务端。Slack 没有这种东西：Slack 应用只能由人在 `api.slack.com/apps` 上创建，它的 `xoxb-` / `xapp-` token 只会出现在那个人的浏览器里。所以 Slack 永远是「`addChannel` + 把两个 token 放进 `config`」。如果你在 ZooWork App 里见过 Slack 的引导式配置，那个引导做的正是这件事：帮人把应用建出来，然后让他粘贴那两个 token——和你在这里传的是同两个。
 
 **企业微信和微信可能会有。** 它们的扫码流在产品里是存在的，只是还没有开放到这套 API 上。今天企业微信走 `addChannel`，凭证由你自己准备；而**微信在这里完全绑不了**——它会用 `400 channel.weixin_setup_required` 拒绝 `addChannel`，让你去走一条这套 API 还没有的扫码流。把微信当成暂不可用，不要照着那句报错去找路。
 
@@ -36,9 +36,9 @@ source_hash: db6c2bd3e3382c345210d1328a6f9cf677dbac265213e152ff885a3e36a9caf6
 这是交互路径，在这套 API 上也只有飞书有：你拿到一个验证 URL，展示给飞书工作区的所有者（通常渲染成二维码），然后轮询直到对方批准。你的代码全程不接触平台凭证。
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 // 1. 开一个 setup session。
 const setup = await zc.startFeishuSetup(agentId)
@@ -75,7 +75,7 @@ if (done.status === 'success') {
 pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: false, message: null, poll_interval: 5 }`。新建 session 的实测默认值：`expires_in: 600`、`poll_interval: 5`。
 
 ::: warning session 会「不存在」，那时轮询返回 404
-`cancelFeishuSetup(agentId, sessionId)` 放弃一个 session——之后再轮询它，返回的是 `404 channel.feishu_session_not_found`，而**不是**某个终态 `status`。所以你自己写的轮询循环必须把这个 404 当成一种结束，而不是当成可重试的传输错误。`waitForFeishuSetup` 会把它抛成一个带这个 `type` 的 `ZooclawError`。
+`cancelFeishuSetup(agentId, sessionId)` 放弃一个 session——之后再轮询它，返回的是 `404 channel.feishu_session_not_found`，而**不是**某个终态 `status`。所以你自己写的轮询循环必须把这个 404 当成一种结束，而不是当成可重试的传输错误。`waitForFeishuSetup` 会把它抛成一个带这个 `type` 的 `ZooworkError`。
 
 至于一个 session 单纯活过了 `expires_in` 之后，是返回 200 带 `status: 'expired'`，还是同样变成这个 404——**我们没有观察到**。两种都要处理。
 :::
