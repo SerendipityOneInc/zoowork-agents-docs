@@ -94,6 +94,7 @@ interface PageSet {
   agents: string
   sessions: string
   events: string
+  channels: string
   tools: string
   skills: string
   environments: string
@@ -113,6 +114,7 @@ const EN: PageSet = {
   agents: 'Agents',
   sessions: 'Sessions',
   events: 'Events and streaming',
+  channels: 'Channels',
   tools: 'Tools',
   skills: 'Skills',
   environments: 'Environments',
@@ -132,6 +134,7 @@ const ZH: PageSet = {
   agents: 'Agents',
   sessions: 'Sessions',
   events: '事件与流式',
+  channels: '渠道',
   tools: '工具',
   skills: 'Skills',
   environments: 'Environments',
@@ -159,6 +162,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
         { text: t.agents, link: `${base}/build/agents` },
         { text: t.sessions, link: `${base}/build/sessions` },
         { text: t.events, link: `${base}/build/events` },
+        { text: t.channels, link: `${base}/build/channels` },
         { text: t.tools, link: `${base}/build/tools` },
         { text: t.skills, link: `${base}/build/skills` },
         { text: t.environments, link: `${base}/build/environments` },

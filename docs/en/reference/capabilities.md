@@ -30,7 +30,7 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 | `startAgent()` | Verified | Required. A new agent is `stopped`. `desired_state` flips to `running` in well under a second. The returned `channel_routes_reload_failed` warning is normal noise for an API-only agent, not a failure. |
 | `stopAgent()` | Verified | Sub-second. Afterwards `createSession()` returns `409 agent_not_running`. |
 | Gate readiness on `status.desired_state` | Verified | The only correct readiness signal. Poll until it is `running`. |
-| Gate readiness on `status.actual_state` | Not available | `actual_state` reports chat-channel connectivity, not API readiness. An API-only agent has no channels, so it stays at `activating` forever and `active` is unreachable. `running` is not even a member of its enum, so a loop waiting for it never returns. |
+| Gate readiness on `status.actual_state` | Not available | `actual_state` reports chat-channel connectivity, not API readiness. An agent with no channels stays at `activating` forever and `active` is unreachable; once a [channel](/en/build/channels) is bound it reports that channel's health — either way, `running` is not even a member of its enum, so a loop waiting for it never returns. |
 | `updateAgent()` | Verified | Merges **per section**. Sections you omit are preserved: a PUT carrying only `labels` leaves `name`, `model`, and `persona` intact. |
 | `tool_policy` / `system_prompt` replacement | Available, not verified | The two exceptions to the merge rule: every PUT replaces each of these sections wholesale. `{}` restores the full tool manifest. We have only exercised the merge behaviour on other sections. |
 | `system_prompt` pin | Verified | A fresh create pins the platform template version active at that moment — `{source:'platform',version:1}` observed on 2026-08-14 — and the pin never follows a later platform activation on its own. `{source:'custom',base_version,template}` replaces the whole template (all 13 functional slots exactly once, 64 KiB cap). Moving the pin is one explicit call — the row below. |
@@ -86,6 +86,17 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 | Full event vocabulary | Available, not verified | A normal turn produces `run.started`, `agent.lifecycle`, `agent.item`, `agent.thinking`, `agent.assistant`, `agent.tool`, `run.finished`, all observed. The remaining members of `SESSION_EVENT_TYPES` are declared by the contract and we have not seen every one. Unknown types pass through the SDK rather than throwing. |
 | `session.status_*`, `span.*`, `stop_reason` | Not available | Not in the vocabulary. The `status_idle` plus `stop_reason.type === 'requires_action'` programming model has no counterpart here; use `run.finished`. |
 | Push delivery of events to your server | Not available | See [Not supported](/en/reference/not-supported). Hold the stream or poll with `after`. |
+
+## Channels
+
+The whole family ships with a gateway release rolling out in late August 2026; on
+deployments without it every route answers 404. See [Channels](/en/build/channels).
+
+| Surface | Status | Notes |
+|---|---|---|
+| `listChannels()` / `addChannel()` / `updateChannel()` / `removeChannel()` | Available, not verified | Shapes mirror the gateway's own schemas. `allow_from` is write-once at create; updates cannot touch it. |
+| Feishu QR device flow — `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` / `waitForFeishuSetup()` | Available, not verified | You render `verification_uri_complete`; `waitForFeishuSetup` drives the poll loop and returns every terminal outcome instead of throwing on the human ones. |
+| Channel cleanup on `deleteAgent()` | Available, not verified | A successful delete best-effort disables the agent's channels; a cleanup failure never turns the delete into an error. |
 
 ## Tools
 

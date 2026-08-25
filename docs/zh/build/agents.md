@@ -1,7 +1,7 @@
 ---
 title: Agents
 source: /en/build/agents
-source_hash: 3d7321dbd8868f77011493e9e6bb8b728c32a36b95ab6d232c81cc7dfde4d7a3
+source_hash: 92c9726112fb3b4fe228c1ba3bcca1970aa8b3a7016b5c1a0773dff41cbcbd03
 ---
 
 # Agents
@@ -173,7 +173,7 @@ console.log(warnings)
 | `desired_state` | 生命周期意图。**API 由它把关。** | `running`、`stopped`、`deleted` |
 | `actual_state` | 聊天渠道路由的健康度。与 API 是否就绪无关。 | `activating`、`active`、`degraded`、`error`、`stopped`、`deleting` |
 
-纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 在这个状态下驱动完整的回合已经验证过。
+纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 在这个状态下驱动完整的回合已经验证过。唯一能让 `actual_state` 动起来的事是绑定[渠道](/zh/build/channels)：那之后它报告的是渠道的连通性 —— 依然不是 API 就绪信号。
 
 轮询 `desired_state`，并带上超时。`waitUntilRunning()` 就是这个循环，已经写好了：
 

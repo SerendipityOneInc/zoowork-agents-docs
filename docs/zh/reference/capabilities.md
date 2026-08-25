@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: e60bdac92d80da49013b250542aa55208a1666247f3507d9ea534be98b29c3b5
+source_hash: ed92db73b6d0afebf0a279f361e1070fc070e3393bca05667d308f0fad4f4b25
 ---
 
 # 能力矩阵
@@ -31,7 +31,7 @@ source_hash: e60bdac92d80da49013b250542aa55208a1666247f3507d9ea534be98b29c3b5
 | `startAgent()` | 已实测 | 必须调。新 agent 是 `stopped`。`desired_state` 会在远不到一秒内翻成 `running`。返回里的 `channel_routes_reload_failed` 警告在纯 API 的 agent 上是正常噪声，不是失败。 |
 | `stopAgent()` | 已实测 | 亚秒级。之后 `createSession()` 返回 `409 agent_not_running`。 |
 | 用 `status.desired_state` 把关就绪 | 已实测 | 唯一正确的就绪信号。轮询到它是 `running` 为止。 |
-| 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 报的是聊天渠道的连通性，不是 API 是否就绪。纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，`active` 到不了。`running` 甚至根本不在它的枚举里，所以等它的循环永远不会返回。 |
+| 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 报的是聊天渠道的连通性，不是 API 是否就绪。没绑渠道的 agent 永远停在 `activating`，`active` 到不了；绑定[渠道](/zh/build/channels)之后它报告的是渠道健康——无论哪种情况，`running` 都根本不在它的枚举里，等它的循环永远不会返回。 |
 | `updateAgent()` | 已实测 | **按小节合并** 。你省略的小节会被保留：只带 `labels` 的一次 PUT 不会动 `name`、`model` 和 `persona`。 |
 | `tool_policy` / `system_prompt` 整体替换 | 可用，未实测 | 合并规则的两个例外：每一次 PUT 都整体替换这两个小节。`{}` 会恢复完整的工具清单。我们只在其他小节上跑过合并行为。 |
 | `system_prompt` pin | 已实测 | 新建 agent 会自动 pin 创建那一刻 active 的平台模板版本——2026-08-14 观察到 `{source:'platform',version:1}`——而且这个 pin **自己永远不跟随**之后的平台 activation。`{source:'custom',base_version,template}` 整体覆盖模板（13 个功能 slot 各出现一次，64 KiB 上限）。要挪 pin 只有一个显式调用——见下一行。 |
@@ -87,6 +87,16 @@ source_hash: e60bdac92d80da49013b250542aa55208a1666247f3507d9ea534be98b29c3b5
 | 完整事件词表 | 可用，未实测 | 一个正常回合会产生 `run.started`、`agent.lifecycle`、`agent.item`、`agent.thinking`、`agent.assistant`、`agent.tool`、`run.finished`，这些我们都观察到了。`SESSION_EVENT_TYPES` 里剩下的成员是契约声明的，我们没有每一个都见过。未知类型会原样穿过 SDK，而不是抛错。 |
 | `session.status_*`、`span.*`、`stop_reason` | 不存在 | 不在词表里。`status_idle` 加 `stop_reason.type === 'requires_action'` 那套编程模型在这里没有对应物；用 `run.finished`。 |
 | 把事件推送到你的服务器 | 不存在 | 见[不支持的能力](/zh/reference/not-supported)。要么挂住流，要么用 `after` 轮询。 |
+
+## 渠道 {#channels}
+
+这一族整体随 2026 年 8 月下旬的网关版本发布；没带上这个版本的部署，每一条路由都答 404。见[渠道](/zh/build/channels)。
+
+| 面 | 状态 | 说明 |
+|---|---|---|
+| `listChannels()` / `addChannel()` / `updateChannel()` / `removeChannel()` | 可用，未实测 | 形状对齐网关自己的 schema。`allow_from` 只在创建时写入，更新动不了它。 |
+| 飞书 QR 设备流 —— `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` / `waitForFeishuSetup()` | 可用，未实测 | `verification_uri_complete` 由你渲染；`waitForFeishuSetup` 驱动轮询，并把每一种终态当返回值交回，不对「人为结果」抛异常。 |
+| `deleteAgent()` 的渠道清理 | 可用，未实测 | 删除成功后 best-effort 停用该 agent 的渠道；清理失败永远不会把删除变成报错。 |
 
 ## 工具 {#tools}
 
