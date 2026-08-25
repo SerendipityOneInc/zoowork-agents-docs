@@ -14,9 +14,9 @@ You do not need to install anything to get started. A freshly created agent come
 the full global catalog already attached.
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const skills = await zc.listAgentSkills(agentId)
 console.log(skills.length)
@@ -76,7 +76,7 @@ be attached and still not eligible.
 try {
   await zc.putAgentSkill(agentId, 'skl_some_global_skill')
 } catch (e) {
-  // ZooclawError, status 404
+  // ZooworkError, status 404
 }
 ```
 
@@ -94,12 +94,12 @@ the 404.
 Match on the status, not the message:
 
 ```ts
-import { ZooclawError } from '@zooclaw-agents/sdk'
+import { ZooworkError } from '@zoowork-ai/sdk'
 
 try {
   await zc.putAgentSkill(agentId, skillId)
 } catch (e) {
-  if (e instanceof ZooclawError && e.status === 404) {
+  if (e instanceof ZooworkError && e.status === 404) {
     // Either the skill is global, or it belongs to another tenant.
     // Cross-tenant ids are hidden as 404 rather than 403.
   }

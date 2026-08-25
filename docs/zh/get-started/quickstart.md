@@ -1,7 +1,7 @@
 ---
 title: 快速开始
 source: /en/get-started/quickstart
-source_hash: 7a3ec250b494f32f2c44769035f6ddd54d13d33f9603fef679bc10ce7e26809e
+source_hash: 62d698839a5deb480714c88f1d84ea3d3a7bb12ca26a226c7ff61b39df10e001
 ---
 
 # 快速开始
@@ -19,19 +19,19 @@ npx skills add SerendipityOneInc/zoowork-sdk-skills
 
 ## 前置条件
 
-- **Node 20 或更高。** `@zooclaw-agents/sdk` 是一个 ES module，没有任何运行时依赖，用的是平台自带的 `fetch`。
+- **Node 20 或更高。** `@zoowork-ai/sdk` 是一个 ES module，没有任何运行时依赖，用的是平台自带的 `fetch`。
 - **一个 API key** ，形如 `zct_...`。由组织管理员为你的组织签发并交给你。没有自助注册页面。
 
 这个 key 只能放在服务端。它认证的是你的整个组织，不是某一个终端用户。
 
 ```bash
-export ZOOCLAW_API_KEY='zct_...'
+export ZOOWORK_API_KEY='zct_...'
 ```
 
 下面每一步都同时给出 TypeScript 和 `curl` 两种写法。`curl` 这一栏的存在是为了让你用任何语言都能跟着走：它发出的 HTTP 和 SDK 发的是同一份。它需要把端点显式写出来，所以跑这些示例还要额外 export：
 
 ```bash
-export ZOOCLAW_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
+export ZOOWORK_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
 ```
 
 选一次栏目，本页所有代码块都会跟着切。
@@ -41,15 +41,15 @@ export ZOOCLAW_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
 ::: code-group
 
 ```bash [pnpm]
-pnpm add @zooclaw-agents/sdk
+pnpm add @zoowork-ai/sdk
 ```
 
 ```bash [npm]
-npm install @zooclaw-agents/sdk
+npm install @zoowork-ai/sdk
 ```
 
 ```bash [yarn]
-yarn add @zooclaw-agents/sdk
+yarn add @zoowork-ai/sdk
 ```
 
 :::
@@ -65,12 +65,12 @@ SDK 只发 ESM。在 `package.json` 里设 `"type": "module"`，这样 `import` 
 ## 创建客户端
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
-只要 export 了 `ZOOCLAW_API_KEY`，这个参数可以整个省掉——`createZooclawClient()` 会自己读。剩下的选项只有两个：`baseUrl`（默认指向公开网关，也可由 `ZOOCLAW_BASE_URL` 指定），以及一个注入的 `fetch`，供边缘运行时和测试使用。
+只要 export 了 `ZOOWORK_API_KEY`，这个参数可以整个省掉——`createZooworkClient()` 会自己读。剩下的选项只有两个：`baseUrl`（默认指向公开网关，也可由 `ZOOWORK_BASE_URL` 指定），以及一个注入的 `fetch`，供边缘运行时和测试使用。
 
 key 缺失会在构造时就抛错，而不是等你第一次调用时才以 401 的形式冒出来。
 
@@ -84,8 +84,8 @@ console.log(models.length, models[0]?.model)
 ```
 
 ```bash [curl]
-curl "$ZOOCLAW_BASE_URL/models" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY"
+curl "$ZOOWORK_BASE_URL/models" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
 ```
 
 :::
@@ -96,7 +96,7 @@ curl "$ZOOCLAW_BASE_URL/models" \
 ]
 ```
 
-无效的 key 返回 `401`。SDK 抛出的 `ZooclawError` 带 `.status` 和 `.type`——绝不要匹配报错文本。在你清楚是哪个家族回的错时匹配 `.type`；`401` 请按 `.status` 分支，因为网关和核心 API 对这个 type 的拼法不一样。
+无效的 key 返回 `401`。SDK 抛出的 `ZooworkError` 带 `.status` 和 `.type`——绝不要匹配报错文本。在你清楚是哪个家族回的错时匹配 `.type`；`401` 请按 `.status` 分支，因为网关和核心 API 对这个 type 的拼法不一样。
 
 ## 1. 创建 agent
 
@@ -116,8 +116,8 @@ const agentId = created.agent_id
 ```
 
 ```bash [curl]
-curl -X POST "$ZOOCLAW_BASE_URL/agents" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
+curl -X POST "$ZOOWORK_BASE_URL/agents" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "resource": {
@@ -159,15 +159,15 @@ const agent = await zc.createAgent(
 ## 2. 启动 agent
 
 ::: warning 别跳过这一步
-新建出来的 agent 是 `status.desired_state === 'stopped'`。所有 session 调用都要求它是 `running`。如果你直接去调 `createSession()`，SDK 会抛出 `ZooclawError`，其中 `status === 409`、`type === 'agent_not_running'`：
+新建出来的 agent 是 `status.desired_state === 'stopped'`。所有 session 调用都要求它是 `running`。如果你直接去调 `createSession()`，SDK 会抛出 `ZooworkError`，其中 `status === 409`、`type === 'agent_not_running'`：
 
 ```ts
-import { ZooclawError } from '@zooclaw-agents/sdk'
+import { ZooworkError } from '@zoowork-ai/sdk'
 
 try {
   await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
 } catch (e) {
-  if (e instanceof ZooclawError && e.type === 'agent_not_running') {
+  if (e instanceof ZooworkError && e.type === 'agent_not_running') {
     // You forgot startAgent(). Match on e.type, not on e.message.
   }
 }
@@ -184,8 +184,8 @@ console.log(warnings)
 ```
 
 ```bash [curl]
-curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/start" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY"
+curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
 ```
 
 :::
@@ -210,7 +210,7 @@ curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/start" \
 const agent = await zc.waitUntilRunning(agentId)
 ```
 
-它按 30 秒的总预算、每 500 毫秒轮询一次 `status.desired_state`，返回的就是 `getAgent()` 会给你的那份投影。如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooclawError`。
+它按 30 秒的总预算、每 500 毫秒轮询一次 `status.desired_state`，返回的就是 `getAgent()` 会给你的那份投影。如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooworkError`。
 
 启动之后立刻 `getAgent()` 读一次，长这样（省略了其他字段）：
 
@@ -245,8 +245,8 @@ const sessionId = session.session_id
 ```
 
 ```bash [curl]
-curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/sessions" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
+curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "metadata": { "source": "quickstart" },
@@ -285,7 +285,7 @@ const session = await zc.createSession(agentId, input, 'quickstart-session-01')
 ::: code-group
 
 ```ts [TypeScript]
-import { assistantText, isRunFinished, runOutcome, toolCall } from '@zooclaw-agents/sdk'
+import { assistantText, isRunFinished, runOutcome, toolCall } from '@zoowork-ai/sdk'
 
 const ctl = new AbortController()
 const budget = setTimeout(() => ctl.abort(), 120_000)
@@ -318,8 +318,8 @@ try {
 ```bash [curl]
 # -N disables buffering so frames arrive as they are produced.
 # Resume after a drop by appending ?after=<last seq you saw>.
-curl -N "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
+curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Accept: text/event-stream"
 ```
 
@@ -365,11 +365,11 @@ await zc.deleteAgent(agentId)
 ```
 
 ```bash [curl]
-curl -X POST "$ZOOCLAW_BASE_URL/agents/$AGENT_ID/stop" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY"
+curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/stop" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
 
-curl -X DELETE "$ZOOCLAW_BASE_URL/agents/$AGENT_ID" \
-  -H "Authorization: Bearer $ZOOCLAW_API_KEY"
+curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
 ```
 
 :::
@@ -380,22 +380,22 @@ curl -X DELETE "$ZOOCLAW_BASE_URL/agents/$AGENT_ID" \
 
 ## 完整程序
 
-存成 `quickstart.ts`，然后运行 `ZOOCLAW_API_KEY='zct_...' pnpm exec tsx quickstart.ts`。
+存成 `quickstart.ts`，然后运行 `ZOOWORK_API_KEY='zct_...' pnpm exec tsx quickstart.ts`。
 
 ```ts
 import {
-  createZooclawClient,
-  ZooclawError,
+  createZooworkClient,
+  ZooworkError,
   assistantText,
   isRunFinished,
   runOutcome,
   toolCall,
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 
-const apiKey = process.env.ZOOCLAW_API_KEY
-if (!apiKey) throw new Error('set ZOOCLAW_API_KEY')
+const apiKey = process.env.ZOOWORK_API_KEY
+if (!apiKey) throw new Error('set ZOOWORK_API_KEY')
 
-const zc = createZooclawClient({ apiKey })
+const zc = createZooworkClient({ apiKey })
 
 // 0. Confirm the key works and pick a model.
 const models = await zc.listModels()
@@ -457,8 +457,8 @@ try {
   console.log(`\n\nrun ${outcome}, ${text.trim().length} characters`)
   if (outcome !== 'succeeded') process.exitCode = 1
 } catch (e) {
-  if (e instanceof ZooclawError) {
-    console.error(`ZooClaw error ${e.status} ${e.type ?? ''}: ${e.message}`)
+  if (e instanceof ZooworkError) {
+    console.error(`ZooWork error ${e.status} ${e.type ?? ''}: ${e.message}`)
     process.exitCode = 1
   } else {
     throw e
@@ -489,7 +489,7 @@ cleaned up agent agt_example
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| 每次调用都返回 `401` | key 缺失或无效 | 检查 `ZOOCLAW_API_KEY` 是否以 `zct_` 开头，以及是否以 `apiKey` 传入。网关和核心 API 在这件事上用的 `error.type` 字符串不一样，所以请按 `e.status` 分支，不要按 type |
+| 每次调用都返回 `401` | key 缺失或无效 | 检查 `ZOOWORK_API_KEY` 是否以 `zct_` 开头，以及是否以 `apiKey` 传入。网关和核心 API 在这件事上用的 `error.type` 字符串不一样，所以请按 `e.status` 分支，不要按 type |
 | `createSession` 返回 `409 agent_not_running` | agent 从未启动，或已被停止 | 调 `startAgent()`，并等到 `desired_state === 'running'` |
 | 就绪轮询循环永远不返回 | 在轮询 `status.actual_state` | 改成轮询 `status.desired_state`，或者直接交给 `zc.waitUntilRunning()` |
 | 流永远不结束 | 在等连接自己关闭 | 在 `isRunFinished(ev)` 处跳出 |

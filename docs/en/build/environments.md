@@ -85,9 +85,9 @@ These are properties of the platform, not defaults you can change.
 `AgentResource` accepts both fields at the top level:
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const agent = await zc.createAgent({
   resource: {
@@ -133,8 +133,8 @@ A cross-tenant `environment_id` is hidden as `404`, not `403`.
 
 ## Calling the Environments API
 
-`ZooclawClient` covers this resource with six typed methods, all normalizing failures into
-`ZooclawError`:
+`ZooworkClient` covers this resource with six typed methods, all normalizing failures into
+`ZooworkError`:
 
 | Method | What it does |
 |---|---|

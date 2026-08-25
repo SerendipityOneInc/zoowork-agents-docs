@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 28847251e557494b9604e12bc728b3bc8729e132810b68727be9d57baf79e0ab
+source_hash: 59f9ea35531197ae3f9ac1e494d3ab8f3bd09df71c185bf37b0ce5c73de607cf
 ---
 
 # 能力矩阵
@@ -41,7 +41,7 @@ source_hash: 28847251e557494b9604e12bc728b3bc8729e132810b68727be9d57baf79e0ab
 | `deleteAgent()` | 已实测 | 软删除。它不停止 agent，不删除它的定时任务，也不释放它的沙箱。先调 `stopAgent()`，定时任务自己删。 |
 | 列出 agent | 可用，未实测 | `listAgents(opts?)` 调的就是它。线协议上的路由把 `owner_uid` 加 `org_id` 当成精确 AND 选择器，所以同一组织内由另一个 key 创建的 agent，能按 id 读到，却永远不会出现在你的列表里；这类 id 自己记一份。`labels` 按声明的 label 过滤，`page` 从 1 开始，每页大小固定为 100。`{ labels: { workspace_id: '...' } }` 能把一个聊天 URL 里的 workspace id 解析成它对应的 agent。 |
 | 其他组织的 agent id | 已实测 | 返回 **404** ，不是 403。存在性被隐藏，所以 404 不代表「已删除」。 |
-| key 无效或缺失 | 已实测 | `401`，`error.type` 是 `service_token.invalid`。匹配 `ZooclawError.status` 和 `.type`，永远不要匹配报错文本。 |
+| key 无效或缺失 | 已实测 | `401`，`error.type` 是 `service_token.invalid`。匹配 `ZooworkError.status` 和 `.type`，永远不要匹配报错文本。 |
 | `persona.docs[]` | 可用，未实测 | 只有带内联 `content` 的条目会被存下来。`MEMORY.md` 和任何 `memory/` 名字会被 `400 invalid_persona_doc_name` 拒绝。规范名字集合之外的文档会被保存，但不会被组装进提示词。 |
 | 固定 `environment_id` / `environment_version` | 可用，未实测 | 创建时接受写在 `resource` 顶层，PUT body 里也接受。只给版本是 `400`。 |
 | Agent 版本历史、固定、回滚 | 不存在 | 没有任何路由能列出或取到过去的 `config_version`，也没有任何东西能把一个 session 固定到某个版本上。 |
@@ -90,7 +90,7 @@ source_hash: 28847251e557494b9604e12bc728b3bc8729e132810b68727be9d57baf79e0ab
 
 ## 渠道 {#channels}
 
-2026-08-25 在一套带了渠道版本的部署上实测。这一族仍在灰度；没带上它的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。需要 SDK >= 0.3.1。见[渠道](/zh/build/channels)。
+2026-08-25 在一套带了渠道版本的部署上实测。这一族仍在灰度；没带上它的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。见[渠道](/zh/build/channels)。
 
 | 面 | 状态 | 说明 |
 |---|---|---|
@@ -166,7 +166,7 @@ Environment 是一份可选的、不可变的沙箱镜像，你把它固定在 a
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| 写、读、下载工作区文件 | 不存在 | 线协议上确实有这些路由，但**没有任何 `ZooclawClient` 方法覆盖文件** ，它们背后的后端也没接线。文件放你自己的库。 |
+| 写、读、下载工作区文件 | 不存在 | 线协议上确实有这些路由，但**没有任何 `ZooworkClient` 方法覆盖文件** ，它们背后的后端也没接线。文件放你自己的库。 |
 | 用户文件的持久存储 | 不存在 | 后端没有接到一个共享的持久工作区上。不要把它当成你的权威存储。 |
 | 给 session 附加文件 | 不存在 | 见[不支持的能力](/zh/reference/not-supported#session-file-attachment-and-repository-mounting)。 |
 | 从你自己的代码发布 artifact | 不存在 | 发布只在循环内：模型的 `artifact_publish` 工具把工作区文件变成一份不可变快照，配一个可撤销的 capability URL。你的进程造不出一个来。 |

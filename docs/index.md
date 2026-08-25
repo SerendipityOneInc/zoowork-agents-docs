@@ -1,5 +1,5 @@
 ---
-title: ZooClaw Managed Agents
+title: ZooWork Managed Agents
 ---
 
 <script setup>
@@ -9,6 +9,6 @@ import { withBase } from 'vitepress'
 if (typeof window !== 'undefined') window.location.replace(withBase('/en/'))
 </script>
 
-# ZooClaw Managed Agents
+# ZooWork Managed Agents
 
 [English](/en/) · [简体中文](/zh/)

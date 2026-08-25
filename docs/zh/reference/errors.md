@@ -1,18 +1,18 @@
 ---
 title: 错误处理
 source: /en/reference/errors
-source_hash: adcde93ef90c56c710e9e1ca88046b55308bdc905097d7da1533f6daa5b83d43
+source_hash: 332ae182bc8ee632d214c3d6a3b071ed1e44f66d5ef48337e48dd3fa714452f8
 ---
 
 # 错误与重试
 
-只要 API 返回非 2xx 状态，每个 SDK 方法都会抛出 `ZooclawError`。这一页讲清楚三件事：catch 什么、按什么分支、什么东西可以安全地发两次。
+只要 API 返回非 2xx 状态，每个 SDK 方法都会抛出 `ZooworkError`。这一页讲清楚三件事：catch 什么、按什么分支、什么东西可以安全地发两次。
 
-## `ZooclawError`
+## `ZooworkError`
 
 ```ts
-class ZooclawError extends Error {
-  name: 'ZooclawError'
+class ZooworkError extends Error {
+  name: 'ZooworkError'
   status: number
   message: string
   type?: string
@@ -26,18 +26,18 @@ class ZooclawError extends Error {
 | `type` | `string \| undefined` | 错误信封里的机器可读代码。**这才是你该拿来做分支的字段** ——在它存在的时候。 |
 
 ```ts
-import { ZooclawError } from '@zooclaw-agents/sdk'
+import { ZooworkError } from '@zoowork-ai/sdk'
 
 try {
   await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
 } catch (e) {
-  if (e instanceof ZooclawError) {
+  if (e instanceof ZooworkError) {
     console.error(e.status, e.type, e.message)
   }
 }
 ```
 
-`ZooclawError` 是一个真正的 class，所以 `instanceof` 能用。读 `.status` 或 `.type` 之前先用它收窄类型——网络故障、DNS 错误、被 abort 的请求，冒出来的是运行时自己的 `TypeError` 或 `AbortError`，不是 `ZooclawError`。唯一的例外是 `waitUntilRunning()`：它在本地自己合成 `ZooclawError`——预算耗尽是 `408` / `'timeout'`，被 abort 是 `0` / `'aborted'`。这两个服务端一个都不发，而且底下那次 abort 的 `DOMException` 不会漏出来。
+`ZooworkError` 是一个真正的 class，所以 `instanceof` 能用。读 `.status` 或 `.type` 之前先用它收窄类型——网络故障、DNS 错误、被 abort 的请求，冒出来的是运行时自己的 `TypeError` 或 `AbortError`，不是 `ZooworkError`。唯一的例外是 `waitUntilRunning()`：它在本地自己合成 `ZooworkError`——预算耗尽是 `408` / `'timeout'`，被 abort 是 `0` / `'aborted'`。这两个服务端一个都不发，而且底下那次 abort 的 `DOMException` 不会漏出来。
 
 ## 匹配 `error.type`，永远不要解析报错文本
 
@@ -48,7 +48,7 @@ try {
 if (e.message.includes('not running')) await zc.startAgent(agentId)
 
 // Right.
-if (e instanceof ZooclawError && e.type === 'agent_not_running') await zc.startAgent(agentId)
+if (e instanceof ZooworkError && e.type === 'agent_not_running') await zc.startAgent(agentId)
 ```
 
 唯一要补的一句，也正是下一节的内容：`type` 不是永远都有。
@@ -65,7 +65,7 @@ if (e instanceof ZooclawError && e.type === 'agent_not_running') await zc.startA
 
 **网关对认证和租户相关的失败发自己的信封** ——这些检查在它转发你的请求之前就跑完了。被拒绝的 key 返回 `401`，type 是 `service_token.invalid`，那是一个网关的代码，不是 API 的。
 
-API 这一侧本身就分两族，不是一族。session、定时任务、environment 返回 `{ error: { type, message } }`，代码不带点（`agent_not_running`、`session_archived`）；agent 这一族返回 `{ code, detail }`，代码带点（`service_api.not_found`）。两种最后都落到 `ZooclawError` 上，而且代码原样保留——SDK 不会替它们发明一套统一词表——所以在用 `===` 比较 type 之前，先看下面 `not_found` 那一行。
+API 这一侧本身就分两族，不是一族。session、定时任务、environment 返回 `{ error: { type, message } }`，代码不带点（`agent_not_running`、`session_archived`）；agent 这一族返回 `{ code, detail }`，代码带点（`service_api.not_found`）。两种最后都落到 `ZooworkError` 上，而且代码原样保留——SDK 不会替它们发明一套统一词表——所以在用 `===` 比较 type 之前，先看下面 `not_found` 那一行。
 
 ::: warning `type` 可能是 `undefined`
 两种情况会让你完全拿不到 type：
@@ -77,7 +77,7 @@ API 这一侧本身就分两族，不是一族。session、定时任务、enviro
 :::
 
 ```ts
-if (e instanceof ZooclawError) {
+if (e instanceof ZooworkError) {
   if (e.type === 'agent_not_running') { /* specific */ }
   else if (e.status === 401)          { /* auth, whichever envelope produced it */ }
   else if (e.status === 404)          { /* missing or not yours */ }
@@ -85,7 +85,7 @@ if (e instanceof ZooclawError) {
 }
 ```
 
-还有一个怪点值得知道：`ZooclawError` 有可能带着 **2xx** 状态。如果一个成功的响应回来时响应体不是合法 JSON，SDK 会抛 `ZooclawError(res.status, 'non-JSON response: <path>')`。不要在 catch 块里假设 `status >= 400`。
+还有一个怪点值得知道：`ZooworkError` 有可能带着 **2xx** 状态。如果一个成功的响应回来时响应体不是合法 JSON，SDK 会抛 `ZooworkError(res.status, 'non-JSON response: <path>')`。不要在 catch 块里假设 `status >= 400`。
 
 ## 你真正会遇到的 type
 
@@ -192,9 +192,9 @@ const second = (await zc.getAgent(agentId)).status?.config_version   // 6 - bump
 这段开通流程扛得住你真正会遇到的两种失败：agent 是停止的，以及一次不知道有没有落地的创建。
 
 ```ts
-import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
+import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY })
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 async function openSession(agentId: string, text: string, jobId: string) {
   try {
@@ -204,7 +204,7 @@ async function openSession(agentId: string, text: string, jobId: string) {
       `job-${jobId}`, // stable key: a retry converges on the first session
     )
   } catch (e) {
-    if (!(e instanceof ZooclawError)) throw e // network or abort, not an API answer
+    if (!(e instanceof ZooworkError)) throw e // network or abort, not an API answer
 
     if (e.type === 'agent_not_running') {
       await zc.startAgent(agentId)      // warnings here are informational
@@ -224,7 +224,7 @@ async function openSession(agentId: string, text: string, jobId: string) {
 
     if (e.status === 401) {
       // Gateway envelope; e.type is service_token.invalid. Retrying will not help.
-      throw new Error('API key rejected - check ZOOCLAW_API_KEY')
+      throw new Error('API key rejected - check ZOOWORK_API_KEY')
     }
 
     throw e
@@ -234,7 +234,7 @@ async function openSession(agentId: string, text: string, jobId: string) {
 
 这段代码有三件事是刻意的：
 
-- 它在碰 `.type` 之前先用 `instanceof ZooclawError` 收窄类型，这样传输层的失败会往外抛，而不会被误当成 API 的回答。
+- 它在碰 `.type` 之前先用 `instanceof ZooworkError` 收窄类型，这样传输层的失败会往外抛，而不会被误当成 API 的回答。
 - 有 type 的地方按 `type` 分支，可能没有 type 的地方回落到 `status`。
 - 重试时复用同一个 `Idempotency-Key`。这就是这个 key 的全部意义。
 

@@ -1,12 +1,12 @@
 ---
 title: 核心概念
 source: /en/get-started/concepts
-source_hash: d4ffde0ba33a9d110e0938c58472da57dd197ea495afe78b425398e7e08c3986
+source_hash: bb40d14f90507f1356f130bea1f1a2ffb4057f8bd08926b9eb2379856f5b80f2
 ---
 
 # 核心概念
 
-ZooClaw Managed Agents 有三个原语。你构建的一切都建立在它们之上。
+ZooWork Managed Agents 有三个原语。你构建的一切都建立在它们之上。
 
 | 原语 | 是什么 | 如何寻址 |
 |---|---|---|
@@ -21,9 +21,9 @@ ZooClaw Managed Agents 有三个原语。你构建的一切都建立在它们之
 本页所有示例都用 TypeScript SDK：
 
 ```ts
-import { createZooclawClient } from '@zooclaw-agents/sdk'
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_...
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 ```
 
 key 从哪来见[鉴权](/zh/get-started/authentication)。
@@ -89,7 +89,7 @@ while ((await zc.getAgent(agentId)).status?.actual_state !== 'running') {
 await zc.waitUntilRunning(agentId)
 ```
 
-`waitUntilRunning()` 按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`；如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooclawError`。见 [Agents](/zh/build/agents)。
+`waitUntilRunning()` 按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`；如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooworkError`。见 [Agents](/zh/build/agents)。
 
 在一个 `actual_state` 始终没离开过 `activating` 的 agent 上，一个完整的回合照样正常跑完。
 
@@ -143,11 +143,11 @@ s.history?.forEach((row) => {
 
 session 被创建出来，只要你一直往里 post 就一直累积回合，之后仍然可读。它不会在一个回合结束时过期。
 
-`ZooclawClient` 没有 `patchSession`，所以 session 的 `metadata` 只能在 `createSession` 时写一次——之后要拿来检索的东西，创建时就放进去。见 [Sessions](/zh/build/sessions)。
+`ZooworkClient` 没有 `patchSession`，所以 session 的 `metadata` 只能在 `createSession` 时写一次——之后要拿来检索的东西，创建时就放进去。见 [Sessions](/zh/build/sessions)。
 
 按 agent 的列举和生命周期操作确实有方法——`listSessions(agentId)`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)`。但仍然没有顶层的 session 集合，所以要跨 agent 找回一段会话，还是得自己记录 `session_id`。
 
-你通过 API 创建的 session，和同一个 agent 在 ZooClaw App 里进行的对话，是两段互不相干的对话。API session 带一个以 `api:` 开头的 `session_key`；App 里的对话跑在另一个渠道上。它们不共享历史，其中一边的模型看不到另一边说了什么。在 App 里给 agent 的 persona 打样是有用的；指望 API session 记得那段聊天则不是。
+你通过 API 创建的 session，和同一个 agent 在 ZooWork App 里进行的对话，是两段互不相干的对话。API session 带一个以 `api:` 开头的 `session_key`；App 里的对话跑在另一个渠道上。它们不共享历史，其中一边的模型看不到另一边说了什么。在 App 里给 agent 的 persona 打样是有用的；指望 API session 记得那段聊天则不是。
 
 ## Event
 
@@ -162,7 +162,7 @@ import {
   toolCall,      // the tool call carried by an agent.tool event
   isRunFinished, // true for run.finished
   runOutcome,    // 'succeeded' | 'failed' | 'aborted' for run.finished
-} from '@zooclaw-agents/sdk'
+} from '@zoowork-ai/sdk'
 ```
 
 ### 你写入的事件
@@ -232,7 +232,7 @@ REST 把字段拼成 snake_case（`event_type`、`run_id`、`created_at`），SS
 一个回合就是一条用户消息，加上 agent 为此做的一切。你通过写入一个事件来开启它；你读到 `run.finished` 就知道它结束了。
 
 ```text
-you                                    ZooClaw
+you                                    ZooWork
  |
  |-- postEvents(user.message) --------> 202 { accepted: true }
  |                                        |
@@ -254,7 +254,7 @@ you                                    ZooClaw
 端到端跑完一个回合：
 
 ```ts
-import { assistantText, isRunFinished, runOutcome } from '@zooclaw-agents/sdk'
+import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
 
 const session = await zc.createSession(agentId, {
   initial_events: [{ type: 'user.message', content: 'Summarize today in one sentence.' }],
@@ -302,5 +302,5 @@ for await (const ev of zc.streamEvents(agentId, session.session_id, { after: las
 - [Agents](/zh/build/agents)——完整的配置面。
 - [Sessions](/zh/build/sessions)——session 的选项与读取。
 - [事件与流式](/zh/build/events)——payload 结构、续传与过滤。
-- [错误处理](/zh/reference/errors)——按 `ZooclawError.type` 匹配。
+- [错误处理](/zh/reference/errors)——按 `ZooworkError.type` 匹配。
 - [不支持的能力](/zh/reference/not-supported)——在围绕某个能力做设计之前，先来这里查一下。

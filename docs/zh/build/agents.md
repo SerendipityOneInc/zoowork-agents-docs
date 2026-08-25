@@ -1,14 +1,14 @@
 ---
 title: Agents
 source: /en/build/agents
-source_hash: 92c9726112fb3b4fe228c1ba3bcca1970aa8b3a7016b5c1a0773dff41cbcbd03
+source_hash: 1fcb2a7bf1443c1d39f40e790d3e8f019e534841efc3f5fcce4cc5160ec4fc47
 ---
 
 # Agents
 
 agent 是一个持久化的配置对象：一个名字、一个模型、若干 persona 文档、labels，以及一份工具策略。你创建它一次，启动它，然后在它下面开 [session](./sessions)。配置存在服务端，所以每个 session 都继承它，你不需要重复发送任何东西。
 
-从别的 managed-agent API 过来的人，会在 ZooClaw 的 agent 上被三件事绊住。写代码之前先读这三条。
+从别的 managed-agent API 过来的人，会在 ZooWork 的 agent 上被三件事绊住。写代码之前先读这三条。
 
 1. 新创建的 agent 是**停止状态** 。你必须调 `startAgent()`，否则 `createSession()` 会失败并返回 `409 agent_not_running`。
 2. 等 `status.desired_state === 'running'`。**永远不要** 等 `status.actual_state` —— 它报的是聊天渠道的连通性，而纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，你的轮询循环永远不会返回。
@@ -19,9 +19,9 @@ agent 是一个持久化的配置对象：一个名字、一个模型、若干 p
 本页每段代码都假设有这个客户端。
 
 ```ts
-import { createZooclawClient, ZooclawError } from '@zooclaw-agents/sdk'
+import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
 
-const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_...
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 ```
 
 ## 创建 agent
@@ -29,7 +29,7 @@ const zc = createZooclawClient({ apiKey: process.env.ZOOCLAW_API_KEY }) // zct_.
 `createAgent(input, idempotencyKey?)` 接收一个 `resource`（配置本身），返回一个 `AgentRecord`。
 
 ```ts
-import type { AgentRecord } from '@zooclaw-agents/sdk'
+import type { AgentRecord } from '@zoowork-ai/sdk'
 
 const created: AgentRecord = await zc.createAgent(
   {
@@ -89,7 +89,7 @@ const agent = await zc.createAgent({
 
 ## 读取 agent，以及两种响应结构
 
-这是 ZooClaw 代码里 `undefined` 最常见的单一来源。`POST /agents` 返回一份扁平的创建回执。`GET` 和 `PUT` 返回一份读取投影。它们不是同一个对象。
+这是 ZooWork 代码里 `undefined` 最常见的单一来源。`POST /agents` 返回一份扁平的创建回执。`GET` 和 `PUT` 返回一份读取投影。它们不是同一个对象。
 
 ```ts
 // createAgent() - flat receipt
@@ -189,7 +189,7 @@ const ac = new AbortController()
 await zc.waitUntilRunning(agentId, { timeoutMs: 60_000, intervalMs: 1_000, signal: ac.signal })
 ```
 
-等待耗尽预算时抛出的 `ZooclawError` 是 `status: 408`、`type: 'timeout'`；被取消时是 `status: 0`、`type: 'aborted'`。这两个都是本地合成出来的 —— 服务端从来不会发它们，而且取消不会把 `DOMException` 漏给你。
+等待耗尽预算时抛出的 `ZooworkError` 是 `status: 408`、`type: 'timeout'`；被取消时是 `status: 0`、`type: 'aborted'`。这两个都是本地合成出来的 —— 服务端从来不会发它们，而且取消不会把 `DOMException` 漏给你。
 
 这两个上限管的是**在途** 的那次请求，而不只是两次轮询之间的间隔：每一个请求都带自己的 signal，由你的 `signal` 或预算的剩余部分触发。所以网关接了连接却再也不回话时，这次等待仍然按时结束，而不是被挂住。这正是手写循环漏掉的部分 —— SDK 跑的每一种运行时里，`fetch` 都没有自己的超时，所以一个只在两次请求之间执行的 `Date.now() >= deadline` 判断根本轮不到执行。
 
@@ -214,7 +214,7 @@ const session = await zc.createSession(created.agent_id, {
 try {
   await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
 } catch (e) {
-  if (e instanceof ZooclawError && e.type === 'agent_not_running') {
+  if (e instanceof ZooworkError && e.type === 'agent_not_running') {
     await zc.startAgent(agentId)
     await zc.waitUntilRunning(agentId)
   } else {
@@ -315,7 +315,7 @@ const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example'
 
 列表的作用域是你这把 key，不是你所在的组织。同一组织内由同事创建的 agent，只要你知道它的 id 就能用 `getAgent()` 读到，但它永远不会出现在你的列表里 —— 所以凡是跨 key 的场景，还是要自己记录 id。每页的条数固定成 100，所以想拿到前一百条之外的东西，只能靠 `page`。
 
-`labels` 按你在创建时声明的 label 过滤，每一项对应一个 `label.<key>` 选择器。`{ labels: { workspace_id: '...' } }` 是最值得记住的一种：它能把 ZooClaw 聊天 URL 里的 workspace id —— 也就是路径的第一段 —— 换回它背后的那个 agent。
+`labels` 按你在创建时声明的 label 过滤，每一项对应一个 `label.<key>` 选择器。`{ labels: { workspace_id: '...' } }` 是最值得记住的一种：它能把 ZooWork 聊天 URL 里的 workspace id —— 也就是路径的第一段 —— 换回它背后的那个 agent。
 
 ## 不支持的能力
 
@@ -332,4 +332,4 @@ const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example'
 - [Sessions](./sessions) —— 在一个运行中的 agent 上开 session，驱动一个回合。
 - [事件与流式](./events) —— 用可续传的 SSE 读 agent 在做什么。
 - [Skills](./skills) —— 默认挂了什么，你能改什么。
-- [错误处理](../reference/errors) —— 值得拿来做分支判断的 `ZooclawError.type` 取值。
+- [错误处理](../reference/errors) —— 值得拿来做分支判断的 `ZooworkError.type` 取值。
