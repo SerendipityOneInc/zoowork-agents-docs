@@ -1,8 +1,7 @@
 # Channels
 
 A channel binds a chat platform account to your agent, so the same agent that answers your
-API sessions also answers people in a chat app. Feishu (and its international brand Lark) is
-the platform this page covers; it is the one with a first-class setup flow.
+API sessions also answers people in a chat app.
 
 Channels attach at the **agent** level, keyed by the same `agent_id` you already hold. An
 agent with no channels is a pure API agent — that is the default, and nothing on this page is
@@ -16,16 +15,42 @@ difference is how you tell "this deployment has no channels yet" from "that thin
 exist". Requires `@zooclaw-agents/sdk` ≥ 0.3.1.
 :::
 
-## Two ways to bind Feishu
+## Which platforms you can bind
 
-**The QR device flow** is the interactive path: you get a verification URL, show it to the
-person who owns the Feishu workspace (usually as a QR code), and poll until they approve.
-Your code never touches platform credentials.
+Every row below was probed against a live deployment on 2026-08-25. The table is the whole
+truth: a platform outside it answers `400 channel.invalid_request`.
 
-**Explicit config** (`addChannel`) is the non-interactive path: you already hold the
-platform app's credentials and pass them in `config`. Use this for scripted setups.
+| Platform | `addChannel` | QR setup flow | Appears in `listChannels` |
+|---|---|---|---|
+| `feishu` | ✅ | ✅ — the only one | ✅ |
+| `slack` | ✅ | ❌ | ✅ |
+| `wecom` | ✅ | ❌ | ✅ |
+| `mattermost` | ✅ | ❌ | ❌ **never** — see below |
+| `weixin` / `wechat` | ❌ | ❌ | — |
 
-## The QR device flow
+So there are really three cases. **Feishu** has both paths: the QR device flow and explicit
+config. **Slack and WeCom** have explicit config only — you bring the platform app's own
+credentials. **WeChat cannot be bound through this API at all**: it answers
+`400 channel.weixin_setup_required` with the message "Connect WeChat via the QR setup flow",
+and that flow does not exist here (`/channels/weixin/setup` is a 404). Do not build on the
+error message; treat WeChat as unavailable.
+
+::: danger A Mattermost binding is invisible
+`addChannel({ platform: 'mattermost' })` answers `201` and the binding is real — you can
+update it and remove it — but **it never appears in `listChannels`**, which filters Mattermost
+out. So the list is not a complete inventory: after binding Mattermost, an empty list does not
+mean "nothing is bound".
+
+If you bind it, keep your own record that you did. Everything keyed by platform still works on
+it, so `updateChannel(agentId, 'mattermost', …)` and `removeChannel(agentId, 'mattermost')`
+both behave normally.
+:::
+
+## The Feishu QR device flow
+
+This is the interactive path, and Feishu is the only platform that has one: you get a
+verification URL, show it to the person who owns the Feishu workspace (usually as a QR code),
+and poll until they approve. Your code never touches platform credentials.
 
 ```ts
 import { createZooclawClient } from '@zooclaw-agents/sdk'
@@ -85,18 +110,24 @@ disappears into the same 404 has not been observed. Handle both.
 `brand` picks the real host: `'feishu'` (default) gives an `open.feishu.cn` URI, `'lark'` gives
 `open.larksuite.com`. It has to match the workspace the person will approve it in.
 
-## Explicit config
+## Explicit config — the path for Slack and WeCom
+
+`addChannel` is the non-interactive path, and the only path for Slack and WeCom. You already
+hold the platform app's credentials and pass them in `config`.
 
 ```ts
-const channel = await zc.addChannel(agentId, {
-  platform: 'feishu',
-  config: { /* the platform app's own credential keys */ },
-})
+await zc.addChannel(agentId, { platform: 'slack',  config: { /* Slack app credentials  */ } })
+await zc.addChannel(agentId, { platform: 'wecom',  config: { /* WeCom app credentials  */ } })
+await zc.addChannel(agentId, { platform: 'feishu', config: { /* Feishu app credentials */ } })
 ```
 
 The `config` keys are platform-specific — they are the credentials of the platform app you
 are binding, passed through to the channel service. `account` names the binding (default
 `'default'`) so one agent can hold several accounts on one platform.
+
+Binding the same `platform` + `account` twice is **not** an error and does not create a second
+channel: the second call answers `201` and overwrites the first. Treat `addChannel` as an
+upsert, not a create.
 
 `allow_from` is accepted **only at create** and cannot be edited later.
 
@@ -125,7 +156,10 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 ```
 
 `dm_policy` and `group_policy` are the reachability policies — who may reach the agent in
-direct messages and in groups. `'open'` is the server default for both.
+direct messages and in groups. `'open'` is the server default for both, and an unrecognized
+value answers `400 channel.invalid_request`. One value is rejected outright here:
+`dm_policy: 'pairing'` answers `400 channel.pairing_unsupported` on both create and update —
+pairing exists in the chat product, not on API-created agents.
 
 `updateChannel` hands back the channel in its **new** state, so you do not need a follow-up
 read. Note that `enabled: false` is more than a flag: it was observed moving `status` to
@@ -141,6 +175,10 @@ tell them apart. Match on it rather than on the status alone:
 | `channel.feishu_session_not_found` | The QR session is gone — cancelled, or possibly expired. | Start a new setup session. |
 | `channel.not_found` | The agent exists, but has no binding on that platform. | Nothing to update or remove; bind first. |
 | `service_api.not_found` | Unknown agent, an agent you cannot reach, or an unknown action in the path. | Check the agent id and the route. |
+
+Note the asymmetry, because it decides whether your cleanup code needs a `try`: **`removeChannel`
+is idempotent** — removing a binding that is not there answers `200 { ok: true }`, not a 404 —
+while **`updateChannel` is not**, and answers `404 channel.not_found`.
 
 A fourth case is not this family at all: if the whole response envelope is
 `{"error":{"type":"not_found"}}` rather than `{"code": …, "detail": …}`, the deployment does

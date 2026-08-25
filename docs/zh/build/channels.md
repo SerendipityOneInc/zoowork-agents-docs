@@ -1,12 +1,12 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: 386bfbc796f2898e8eabaa779e16fa51e09a4424759f8e0d641b066f31e0097b
+source_hash: cf9a86d816a92541b2ef271afc28eb0a1697e2a7f2509764aa916db3c33d88c8
 ---
 
 # 渠道
 
-渠道（channel）把一个聊天平台的账号绑到你的 agent 上：同一个 agent，既回答你的 API session，也在聊天软件里回答真人。本页讲的平台是飞书（及其国际品牌 Lark）——它有一条一等公民的绑定流程。
+渠道（channel）把一个聊天平台的账号绑到你的 agent 上：同一个 agent，既回答你的 API session，也在聊天软件里回答真人。
 
 渠道绑在 **agent** 级别，用的就是你手上的 `agent_id`。没绑渠道的 agent 是纯 API agent——这是默认状态，本页的一切对纯 API 使用都不是必需的。
 
@@ -14,13 +14,29 @@ source_hash: 386bfbc796f2898e8eabaa779e16fa51e09a4424759f8e0d641b066f31e0097b
 2026-08-25 端到端实测过。这一族随一个仍在灰度的网关版本发布，没带上它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。需要 `@zooclaw-agents/sdk` ≥ 0.3.1。
 :::
 
-## 绑飞书的两条路
+## 能绑哪些平台
 
-**QR 设备流**是交互路径：你拿到一个验证 URL，展示给飞书工作区的所有者（通常渲染成二维码），然后轮询直到对方批准。你的代码全程不接触平台凭证。
+下面每一行都在 2026-08-25 对一套真实部署实测过。这张表就是全部：表外的平台名一律返回 `400 channel.invalid_request`。
 
-**显式配置**（`addChannel`）是非交互路径：你已经持有平台应用的凭证，放进 `config` 传入。适合脚本化的部署。
+| 平台 | `addChannel` | QR 设置流 | 在 `listChannels` 里可见 |
+|---|---|---|---|
+| `feishu` | ✅ | ✅ —— 唯一有的 | ✅ |
+| `slack` | ✅ | ❌ | ✅ |
+| `wecom` | ✅ | ❌ | ✅ |
+| `mattermost` | ✅ | ❌ | ❌ **永远不可见** —— 见下 |
+| `weixin` / `wechat` | ❌ | ❌ | — |
 
-## QR 设备流
+所以实际上是三种情况。**飞书**两条路都有：QR 设备流和显式配置。**Slack 和企业微信**只有显式配置——凭证由你提供。**微信通过这套 API 根本绑不了**：它返回 `400 channel.weixin_setup_required`，报错文案是「Connect WeChat via the QR setup flow」，而那条流程在这里并不存在（`/channels/weixin/setup` 是 404）。不要照着这句报错去找路，把微信当成不可用。
+
+::: danger 绑定 Mattermost 之后它是隐形的
+`addChannel({ platform: 'mattermost' })` 返回 `201`，绑定是真的——你能 update 它、也能 remove 它——但**它永远不会出现在 `listChannels` 里**，服务端把 mattermost 过滤掉了。所以这个列表不是一份完整清单：绑过 mattermost 之后，列表为空并不代表「什么都没绑」。
+
+如果你绑了它，就得自己记一笔。所有按平台定位的操作对它照常有效，`updateChannel(agentId, 'mattermost', …)` 和 `removeChannel(agentId, 'mattermost')` 的行为都正常。
+:::
+
+## 飞书 QR 设备流
+
+这是交互路径，也只有飞书有：你拿到一个验证 URL，展示给飞书工作区的所有者（通常渲染成二维码），然后轮询直到对方批准。你的代码全程不接触平台凭证。
 
 ```ts
 import { createZooclawClient } from '@zooclaw-agents/sdk'
@@ -69,16 +85,19 @@ pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: fa
 
 `brand` 决定真实的域名：`'feishu'`（默认）给的是 `open.feishu.cn` 的 URI，`'lark'` 给的是 `open.larksuite.com`。它必须和对方将要批准它的那个工作区对上。
 
-## 显式配置
+## 显式配置 —— Slack 和企业微信走这条
+
+`addChannel` 是非交互路径，也是 Slack 和企业微信唯一的路径。你已经持有平台应用的凭证，放进 `config` 传入。
 
 ```ts
-const channel = await zc.addChannel(agentId, {
-  platform: 'feishu',
-  config: { /* 平台应用自己的凭证字段 */ },
-})
+await zc.addChannel(agentId, { platform: 'slack',  config: { /* Slack 应用凭证   */ } })
+await zc.addChannel(agentId, { platform: 'wecom',  config: { /* 企业微信应用凭证 */ } })
+await zc.addChannel(agentId, { platform: 'feishu', config: { /* 飞书应用凭证     */ } })
 ```
 
 `config` 的字段是平台相关的——它装的是你要绑定的平台应用的凭证，原样透传给渠道服务。`account` 给这次绑定命名（默认 `'default'`），所以一个 agent 可以在同一平台上持有多个账号。
+
+同一个 `platform` + `account` 绑第二次**不会**报错，也不会产生第二个渠道：第二次调用返回 `201` 并覆盖第一次。把 `addChannel` 当成 upsert，不是 create。
 
 `allow_from` **只在创建时**接受，之后不能再编辑。
 
@@ -101,7 +120,7 @@ await zc.removeChannel(agentId, 'feishu')                        // account: 'de
 await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 ```
 
-`dm_policy` 和 `group_policy` 是可达性策略——谁能在私聊、谁能在群里找到这个 agent。服务端对两者的默认值都是 `'open'`。
+`dm_policy` 和 `group_policy` 是可达性策略——谁能在私聊、谁能在群里找到这个 agent。服务端对两者的默认值都是 `'open'`，传枚举外的值返回 `400 channel.invalid_request`。有一个值在这里被直接拒绝：`dm_policy: 'pairing'` 在创建和更新时都返回 `400 channel.pairing_unsupported`——pairing 是聊天产品侧的能力，API 创建的 agent 上没有。
 
 `updateChannel` 直接把渠道的**新**状态交回来，你不需要再读一次。注意 `enabled: false` 不只是翻一个标志位：实测它会把 `status` 变成 `'disabled'`，并把 `health` 重置为 `'unknown'`。
 
@@ -114,6 +133,8 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 | `channel.feishu_session_not_found` | QR session 没了——被取消了，也可能是过期了。 | 重新开一个 setup session。 |
 | `channel.not_found` | agent 在，但它在那个平台上没有绑定。 | 没有东西可更新或解绑；先去绑。 |
 | `service_api.not_found` | agent 不存在、你没权限访问、或者路径里的 action 不认识。 | 检查 agent id 和路由。 |
+
+注意这里有个不对称，它决定了你的清理代码要不要包 `try`：**`removeChannel` 是幂等的**——删一个不存在的绑定返回 `200 { ok: true }`，不是 404；而 **`updateChannel` 不是**，它返回 `404 channel.not_found`。
 
 还有第四种情况根本不属于这一族：如果整个响应信封是 `{"error":{"type":"not_found"}}` 而不是 `{"code": …, "detail": …}`，说明这个部署还没有渠道路由。
 
