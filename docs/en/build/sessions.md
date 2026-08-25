@@ -245,7 +245,7 @@ An observed assistant row:
 Two things this buys you that nothing else does:
 
 - **Token usage.** `entry.message.usage` is the only place a turn's token counts are exposed.
-  Note that `usage.cost` is `0` on staging - do not build a spend display on it.
+  Note that every field of `usage.cost` is currently `0` - do not build a spend display on it.
 - **The model that actually answered.** `model` is what the agent is configured with;
   `responseModel` is what served the request. A deployment can map a configured alias onto a
   substitute, so the two differ in the sample above. Trust `responseModel` when the answer

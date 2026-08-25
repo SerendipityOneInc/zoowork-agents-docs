@@ -1,7 +1,7 @@
 ---
 title: Sessions
 source: /en/build/sessions
-source_hash: 649c4fb5748f7efb119183dfa89564e6d04d1ae2f250ce596acd98579458eaea
+source_hash: 6613ee62d97306eb9df3b615af4ce1c482560fff87074263f32a66f5ff467fd5
 ---
 
 # Sessions
@@ -216,7 +216,7 @@ for (const row of s.history ?? []) {
 
 有两样东西只有它能给你：
 
-- **Token 用量。** `entry.message.usage` 是一个回合的 token 计数唯一暴露的地方。`usage.cost` 在 staging 上是 `0` —— 不要拿它做花费展示。
+- **Token 用量。** `entry.message.usage` 是一个回合的 token 计数唯一暴露的地方。`usage.cost` 目前各字段都是 `0` —— 不要拿它做花费展示。
 - **真正回答的那个模型。** `model` 是 agent 被配置成的模型；`responseModel` 是实际服务这次请求的模型。部署方可以把你配的别名映射到一个替代模型，上面的样例里两者就不一致。当这个答复要进计费、评测或合规记录时，以 `responseModel` 为准。
 
 这是对话记录，不是事件日志。它装的是对话消息，不是 `run.started` / `agent.tool` / `run.finished`。用它来找回那些你漏掉了事件的答复；想要事件流就用 `listEvents`。还存在其他 `entry_type` 取值（session 锚点、压缩标记、模型变更）；筛出 `message`，其余跳过。

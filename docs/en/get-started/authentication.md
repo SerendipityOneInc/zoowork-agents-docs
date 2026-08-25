@@ -10,7 +10,7 @@ service token - your API key.
 The base URL, including the version prefix, is:
 
 ```
-https://claw-interface.ecap.yesy.live/service/v1
+https://clawapi.ecap.gsmo.ai/service/v1
 ```
 
 ## Get a key
@@ -105,7 +105,7 @@ The same check with curl:
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' \
   -H "Authorization: Bearer $ZOOCLAW_API_KEY" \
-  https://claw-interface.ecap.yesy.live/service/v1/models
+  https://clawapi.ecap.gsmo.ai/service/v1/models
 ```
 
 A missing or invalid key returns **401**. Match on `ZooclawError.status` and

@@ -32,7 +32,7 @@ follow along from any language: it is the same HTTP the SDK makes. It needs the 
 spelled out, so for those examples also export:
 
 ```bash
-export ZOOCLAW_BASE_URL='https://claw-interface.ecap.yesy.live/service/v1'
+export ZOOCLAW_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
 ```
 
 Pick a tab once and every code block on the page follows.
