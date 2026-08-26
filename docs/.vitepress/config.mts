@@ -193,6 +193,8 @@ interface PageSet {
   sdk: string
   errors: string
   capabilities: string
+  // The nav bar says this instead of `capabilities` — see the EN entry for why.
+  capabilitiesNav: string
   notSupported: string
 }
 
@@ -214,6 +216,12 @@ const EN: PageSet = {
   sdk: 'TypeScript SDK',
   errors: 'Errors',
   capabilities: 'Capability matrix',
+  // The nav bar is a single row that has to hold the site title, the search box, every
+  // top-level label and the language menu inside the viewport, and from 768px up VitePress
+  // shows all of it at once. "Capability matrix" is the longest label here and it was what
+  // pushed that row past the edge; the sidebar has a column to itself and keeps the full
+  // wording. See the 768–959px block in theme/custom.css for the rest of that fix.
+  capabilitiesNav: 'Capabilities',
   notSupported: 'Not supported',
 }
 
@@ -235,6 +243,8 @@ const ZH: PageSet = {
   sdk: 'TypeScript SDK',
   errors: '错误处理',
   capabilities: '能力矩阵',
+  // Four Chinese characters already fit; nothing to shorten.
+  capabilitiesNav: '能力矩阵',
   notSupported: '不支持的能力',
 }
 
@@ -279,7 +289,7 @@ function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
     { text: t.getStarted, link: `${base}/get-started/quickstart` },
     { text: t.build, link: `${base}/build/agents` },
     { text: t.reference, link: `${base}/reference/typescript-sdk` },
-    { text: t.capabilities, link: `${base}/reference/capabilities` },
+    { text: t.capabilitiesNav, link: `${base}/reference/capabilities` },
   ]
 }
 

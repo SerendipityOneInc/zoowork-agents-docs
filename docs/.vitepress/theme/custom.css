@@ -201,6 +201,65 @@ html:lang(zh) :is(h1, h2, h3, h4) {
   text-wrap: initial;
 }
 
+/* --- Navigation between 768px and 959px -------------------------------------
+   VitePress swaps the hamburger for the full nav row at 768px, but it does not lay the
+   sidebar out until 960px. In between, one row has to carry the site title, the search
+   box, all four top-level links and the language/appearance flyout inside 768px — and
+   it did not fit: every English page scrolled 63px sideways. The Chinese labels are
+   short enough that the bug never showed on that side, which is why it went unnoticed.
+
+   Three things give here, cheapest first:
+
+   1. The ⌘K hint. It is a hint, not a control — the shortcut still works — and it is
+      the least useful part of the search button at this width.
+   2. The gap between nav links, 12px down to 8px. Labels keep 16px between them.
+   3. The nav label for the capability matrix, shortened in `nav()` in config.mts. The
+      sidebar has a column to itself and keeps the full wording.
+
+   Together that leaves roughly 20px spare at 768px, the narrowest point of the band.
+   The `min-width: 0` chain below is the net under that number: if a label is ever added
+   or lengthened past the room left, the search box gives up width and clips its own
+   placeholder rather than the document scrolling sideways again. Restoring the old
+   "Capability matrix" wording, for instance, now costs 15px off the search button and
+   nothing else; a label long enough to eat the button entirely leaves it as the search
+   icon alone, still with no page-level overflow. A contained regression instead of a
+   site-wide one — worth having, because nothing but the Cloudflare build gates this repo
+   and page width is not something `vitepress build` can check.
+
+   The band ends at 959px rather than at the ~850px where the overflow actually stopped:
+   960px is where the layout switches to the sidebar and the nav bar's geometry changes,
+   so it is a breakpoint that means something. 850px would just be today's label widths
+   written down as a number.
+
+   Selectors carry an extra class throughout because VitePress's own rules are scoped
+   (`.VPNavBarMenuLink[data-v-…]`) and would otherwise win on specificity. */
+
+@media (min-width: 768px) and (max-width: 959px) {
+  .VPNavBar .VPNavBarMenu .VPNavBarMenuLink {
+    padding: 0 8px;
+  }
+
+  .VPNavBarSearch .DocSearch-Button .DocSearch-Button-Keys {
+    display: none;
+  }
+
+  /* The net. Every box between the nav row and the search button defaults to
+     `min-width: auto`, and a single one of them left at that value floors the whole chain
+     at its content width and pushes the overflow back out to the document — which is what
+     the bug was. Clearing it the whole way down lets the search box be the thing that
+     yields. Nothing here changes the layout while the row still fits: the search button is
+     content-sized either way. */
+  .VPNavBar .container > .content,
+  .VPNavBar .VPNavBarSearch,
+  .VPNavBarSearch > * {
+    min-width: 0;
+  }
+
+  .VPNavBarSearch .DocSearch-Button {
+    overflow: hidden;
+  }
+}
+
 /* --- Tables on narrow screens ----------------------------------------------
    The capability matrix is three columns of prose and the page a reader is told to
    consult before committing to an architecture. Horizontally scrolling it on a phone
