@@ -13,13 +13,8 @@ import { useData, withBase } from 'vitepress'
 interface Action {
   text: string
   link: string
-  theme?: 'brand' | 'alt'
-}
-
-interface StreamRow {
-  seq: string
-  type: string
-  detail?: string
+  /* Only `brand` is ever declared; everything else is the outline button. */
+  theme?: 'brand'
 }
 
 interface Noun {
@@ -57,7 +52,6 @@ interface HomeData {
     note: string
     noteLink?: string
   }
-  panel: { tabs: string[]; streamLabel: string; rows: StreamRow[] }
   nouns: { title: string; intro: string; items: Noun[] }
   journey: { title: string; intro: string; stages: Stage[] }
   band: { title: string; body: string; columns: BandColumn[] }
@@ -71,21 +65,34 @@ const home = computed(() => frontmatter.value.home as HomeData)
    llms.txt. Renaming them moves the page's own words out of the file an assistant reads
    first, and nothing warns you. `home.hero.accent` names the tail of `hero.text` that takes
    the accent colour, so the headline itself is written once. */
-const heroText = computed(() => (frontmatter.value.hero?.text as string) ?? '')
 const heroTagline = computed(() => (frontmatter.value.hero?.tagline as string) ?? '')
 const heroAccent = computed(() => home.value?.hero?.accent ?? '')
-const heroLead = computed(() =>
-  heroAccent.value && heroText.value.endsWith(heroAccent.value)
-    ? heroText.value.slice(0, -heroAccent.value.length)
-    : heroText.value,
-)
+const heroLead = computed(() => {
+  const text = (frontmatter.value.hero?.text as string) ?? ''
+  /* `slice(0, length - accent.length)`, not `slice(0, -accent.length)`: an empty accent
+     would make the negative form return an empty string. */
+  return text.slice(0, text.length - heroAccent.value.length)
+})
+
+/* The panel's two samples and the event log under them: identical in every locale, because
+   they are SDK identifiers and event type names, not copy. They live here rather than in two
+   frontmatter blocks that would have to be edited in lockstep — and where editing the English
+   one would age the Chinese page's `source_hash` for a change with nothing to translate.
+   The tab labels sit beside the slots they switch, so the two cannot drift apart. */
+const TABS = ['quickstart.ts', 'install'] as const
+const STREAM_LABEL = 'SESSION EVENT STREAM'
+const STREAM_ROWS: { seq: string; type: string; detail?: string }[] = [
+  { seq: 'seq 1', type: 'run.started' },
+  { seq: 'seq 2', type: 'agent.thinking' },
+  { seq: 'seq 3', type: 'agent.assistant', detail: '"I can research topics and…"' },
+  { seq: 'seq 4', type: 'agent.tool', detail: 'web_search · start → end' },
+  { seq: 'seq 5', type: 'run.finished', detail: 'succeeded' },
+]
+
+const activeTab = ref(0)
 
 /* Drawn icons rather than emoji or unicode glyphs, one stroke weight throughout. Keyed by
    name so the frontmatter carries a word and never raw markup. */
-/* The panel's tabs were drawn as a control and wired to nothing. They switch now, because
-   the second one carries the install line — without it the page imports a package it never
-   tells you how to add. */
-const activeTab = ref(0)
 
 const ICONS: Record<string, string> = {
   play: 'M7 4.5 18 12 7 19.5v-15Z',
@@ -113,7 +120,7 @@ const ICONS: Record<string, string> = {
     <!-- Hero: the claim on the left, the loop it names running on the right. -->
     <header class="hero">
       <div class="inner hero-grid">
-      <div class="hero-copy">
+      <div>
         <span class="dot" aria-hidden="true" />
         <h1>{{ heroLead }}<span class="accent">{{ heroAccent }}</span></h1>
         <p class="tagline">{{ heroTagline }}</p>
@@ -134,15 +141,14 @@ const ICONS: Record<string, string> = {
       </div>
 
       <div class="panel">
-        <div class="panel-tabs" role="tablist">
+        <div class="panel-tabs">
           <button
-            v-for="(tab, i) in home.panel.tabs"
+            v-for="(tab, i) in TABS"
             :key="tab"
             type="button"
-            role="tab"
             class="panel-tab"
             :class="{ on: activeTab === i }"
-            :aria-selected="activeTab === i"
+            :aria-pressed="activeTab === i"
             @click="activeTab = i"
           >{{ tab }}</button>
         </div>
@@ -151,8 +157,8 @@ const ICONS: Record<string, string> = {
         <div class="panel-code" v-show="activeTab === 0"><slot /></div>
         <div class="panel-code" v-show="activeTab === 1"><slot name="install" /></div>
         <div class="stream">
-          <p class="stream-label"><span class="pip" aria-hidden="true" />{{ home.panel.streamLabel }}</p>
-          <p v-for="(row, i) in home.panel.rows" :key="row.seq" class="row" :style="{ '--i': i }">
+          <p class="stream-label"><span class="pip" aria-hidden="true" />{{ STREAM_LABEL }}</p>
+          <p v-for="(row, i) in STREAM_ROWS" :key="row.seq" class="row" :style="{ '--i': i }">
             <span class="seq">{{ row.seq }}</span>
             <span class="type">{{ row.type }}</span>
             <!-- Always rendered, even when empty: the rows share one grid, so a row that
@@ -247,10 +253,6 @@ const ICONS: Record<string, string> = {
    (#b8410f on white, #ff8a5c on the dark ground); `--zc-accent` is the full-strength fill,
    which is legible as a field but never as text. */
 
-.zc-home {
-  display: block;
-}
-
 /* One measure, shared by every block. The band gets a full-width ground simply by not having
    one — no `50vw` arithmetic, which is off by half a scrollbar wherever scrollbars take space. */
 .inner {
@@ -262,9 +264,12 @@ const ICONS: Record<string, string> = {
 h1,
 h2,
 h3 {
-  letter-spacing: -0.02em;
-  text-wrap: balance;
   margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  /* The site-level `:lang(zh)` rule in custom.css turns this off for Chinese, where a line
+     can break between any two characters and balancing splits words down the middle. */
+  text-wrap: balance;
 }
 
 /* --- Hero ------------------------------------------------------------------ */
@@ -295,14 +300,9 @@ h3 {
   font-size: clamp(32px, 4.2vw, 46px);
   line-height: 1.08;
   letter-spacing: -0.03em;
-  font-weight: 700;
 }
 
 /* Chinese wraps between any two Han characters, so balancing splits words down the middle. */
-:lang(zh) .hero h1 {
-  text-wrap: initial;
-}
-
 .accent {
   color: var(--vp-c-brand-1);
 }
@@ -336,7 +336,7 @@ h3 {
 
 .btn-brand {
   background: var(--zc-accent);
-  color: var(--zc-ink);
+  color: var(--vp-button-brand-text);
 }
 
 .btn-brand:hover {
@@ -475,13 +475,12 @@ h3 {
 }
 
 .row > span {
-  margin: 0;
   font-family: var(--vp-font-family-mono);
   font-size: 11.5px;
   line-height: 1.95;
   white-space: nowrap;
   /* Plays once on load, then stays. A docs page should settle, not loop. */
-  animation: row-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: row-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   animation-delay: calc(0.42s + var(--i) * 0.34s);
 }
 
@@ -526,19 +525,14 @@ h3 {
 
 /* --- Sections -------------------------------------------------------------- */
 
-/* `padding-block`, never the shorthand: `.inner` owns the horizontal measure, and
-   `padding: 56px 0` here out-specifies it and zeroes the gutter — which put the section
-   text hard against the screen edge below 1000px. */
-section > .inner {
+/* Named, rather than `section > .inner` with the band cancelling itself back out: the band
+   supplies its own ground and its own padding, so it was never one of these.
+   `padding-block`, never the shorthand — `.inner` owns the horizontal measure, and
+   `padding: 56px 0` would out-specify it and zero the gutter. */
+.nouns-section > .inner,
+.journey-section > .inner {
   padding-block: 56px;
   border-top: 1px solid var(--vp-c-divider);
-}
-
-/* The band's ground already marks the boundary; it must not also draw the section rule,
-   and it must not add the section's block padding on top of its own. */
-.band > .inner {
-  border-top: none;
-  padding-block: 0;
 }
 
 .sec-head {
@@ -548,7 +542,6 @@ section > .inner {
 
 .sec-head h2 {
   font-size: 23px;
-  font-weight: 700;
 }
 
 .sec-head p {
@@ -565,9 +558,34 @@ section > .inner {
 }
 
 /* The 2px rule is the one place the full-strength accent appears as a field. */
-.noun {
+/* The four nouns and the band's two columns are one card: a 2px accent rule, a title, a
+   paragraph, a link. Only the heading size and the nouns' bottom-alignment differ. */
+.noun,
+.band-col {
   border-top: 2px solid var(--zc-accent);
   padding-top: 16px;
+}
+
+.noun p,
+.band-col p {
+  margin: 8px 0 12px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--vp-c-text-2);
+}
+
+.noun a,
+.band-col a {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vp-c-brand-1);
+}
+
+/* Every link on this page that underlines only on hover. `.note a` is deliberately not
+   here: it carries a resting underline and changes colour instead. */
+.noun a:hover,
+.band-col a:hover,
+.noun {
   /* The bodies are different lengths — markedly so once translated — so let the column
      stretch and push the link to the bottom, keeping the link row flat. */
   display: flex;
@@ -580,7 +598,6 @@ section > .inner {
 
 .noun h3 {
   font-size: 16px;
-  font-weight: 700;
 }
 
 .noun-id {
@@ -589,24 +606,6 @@ section > .inner {
   font-weight: 400;
   color: var(--vp-c-brand-1);
   margin-left: 5px;
-}
-
-.noun p {
-  margin: 8px 0 12px;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--vp-c-text-2);
-}
-
-.noun a {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--vp-c-brand-1);
-}
-
-.noun a:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 /* --- Journey --------------------------------------------------------------- */
@@ -717,7 +716,6 @@ section > .inner {
 
 .band-lead h2 {
   font-size: 21px;
-  font-weight: 700;
 }
 
 .band-lead p {
@@ -756,31 +754,8 @@ section > .inner {
   padding: 2px 5px;
 }
 
-.band-col {
-  border-top: 2px solid var(--zc-accent);
-  padding-top: 14px;
-}
-
 .band-col h3 {
   font-size: 14.5px;
-  font-weight: 700;
-}
-
-.band-col p {
-  margin: 6px 0 10px;
-  font-size: 13.5px;
-  color: var(--vp-c-text-2);
-}
-
-.band-col a {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--vp-c-brand-1);
-}
-
-.band-col a:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 /* --- Narrow ---------------------------------------------------------------- */
@@ -810,7 +785,8 @@ section > .inner {
     gap: 14px;
   }
 
-  section > .inner {
+  .nouns-section > .inner,
+  .journey-section > .inner {
     padding-block: 44px;
   }
 }

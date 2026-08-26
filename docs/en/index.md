@@ -1,7 +1,6 @@
 ---
 title: ZooWork Managed Agents
 layout: page
-pageClass: zc-home-page
 sidebar: false
 aside: false
 hero:
@@ -21,15 +20,6 @@ home:
         link: /en/reference/capabilities
     note: Create your key in the ZooWork App, under Settings → API Keys.
     noteLink: /en/get-started/authentication
-  panel:
-    tabs: [quickstart.ts, install]
-    streamLabel: SESSION EVENT STREAM
-    rows:
-      - { seq: 'seq 1', type: run.started }
-      - { seq: 'seq 2', type: agent.thinking }
-      - { seq: 'seq 3', type: agent.assistant, detail: '"I can research topics and…"' }
-      - { seq: 'seq 4', type: agent.tool, detail: 'web_search · start → end' }
-      - { seq: 'seq 5', type: run.finished, detail: succeeded }
   nouns:
     title: Four nouns carry the whole API
     intro: Everything the SDK does is a verb on one of these. Learn them once and every

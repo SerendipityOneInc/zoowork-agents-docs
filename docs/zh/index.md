@@ -1,11 +1,10 @@
 ---
 title: ZooWork Managed Agents
 layout: page
-pageClass: zc-home-page
 sidebar: false
 aside: false
 source: /en/
-source_hash: eabbc0965e51ecfa01dea70e7ff5b60d0b4ff16aefaef5d4559453c20f19865c
+source_hash: 170e2a4508a686b078324a7e86f74224f5451d0e2a494d8a07e0b74062d5255c
 hero:
   text: 创建一个 agent，流式拿回每个事件。
   tagline: 一个由你自己的代码驱动的托管 agent 运行时。可续传的持久事件流；skills、sessions
@@ -23,15 +22,6 @@ home:
         link: /zh/reference/capabilities
     note: 在 ZooWork App 的设置 → API Keys 里创建你的 key。
     noteLink: /zh/get-started/authentication
-  panel:
-    tabs: [quickstart.ts, install]
-    streamLabel: SESSION EVENT STREAM
-    rows:
-      - { seq: 'seq 1', type: run.started }
-      - { seq: 'seq 2', type: agent.thinking }
-      - { seq: 'seq 3', type: agent.assistant, detail: '"I can research topics and…"' }
-      - { seq: 'seq 4', type: agent.tool, detail: 'web_search · start → end' }
-      - { seq: 'seq 5', type: run.finished, detail: succeeded }
   nouns:
     title: 四个名词撑起整套 API
     intro: SDK 做的每一件事，都是作用在这四者之一上的动词。把它们学一遍，之后每一页参考文档都能自己读懂。

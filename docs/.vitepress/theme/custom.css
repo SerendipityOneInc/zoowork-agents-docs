@@ -191,11 +191,15 @@
   color: var(--vp-c-brand-1);
 }
 
-/* --- Home ------------------------------------------------------------------
-   The home page is not the stock hero-and-features layout: it is `theme/components/ZcHome.vue`,
-   mounted from each locale's `index.md`, which carries its content as frontmatter so both
-   language trees stay ordinary translated markdown. The component owns its own layout, and
-   the ~140 lines that used to bend `VPHome` here went with the layout they were bending. */
+/* Chinese wraps between any two Han characters, so `text-wrap: balance` splits words down
+   the middle — it once broke 基础|设施 across two lines. This is a property of the language,
+   not of any one component, so the exemption belongs here, wherever balancing is used. */
+html:lang(zh) :is(h1, h2, h3, h4) {
+  /* `html:lang(zh) :is(...)` rather than the shorter `:lang(zh) :where(...)`: a component's
+     scoped `h2 { text-wrap: balance }` compiles to `h2[data-v-…]`, which out-specifies a
+     zero-weight `:where()`. This has to win, so it is written to. */
+  text-wrap: initial;
+}
 
 /* --- Tables on narrow screens ----------------------------------------------
    The capability matrix is three columns of prose and the page a reader is told to

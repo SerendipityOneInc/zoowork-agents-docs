@@ -18,17 +18,19 @@ import llmstxt from 'vitepress-plugin-llms'
 // `home.hero.accent` still being the tail of `hero.text` (the component colours the headline
 // by splitting on it, and silently drops the accent when they drift apart).
 
-interface HomeLink {
-  link?: unknown
-}
-
-function collectLinks(node: unknown, out: string[]): void {
+/* Any key whose name ends in `link` holds one — `link` itself, and `noteLink`, which the
+   page renders and the first version of this walk quietly skipped. */
+function collectLinks(node: unknown, out: Set<string>): void {
   if (Array.isArray(node)) {
     for (const item of node) collectLinks(item, out)
   } else if (node && typeof node === 'object') {
-    const link = (node as HomeLink).link
-    if (typeof link === 'string') out.push(link)
-    for (const value of Object.values(node)) collectLinks(value, out)
+    for (const [key, value] of Object.entries(node)) {
+      if (typeof value === 'string') {
+        if (/link$/i.test(key)) out.add(value)
+      } else {
+        collectLinks(value, out)
+      }
+    }
   }
 }
 
@@ -43,19 +45,14 @@ function checkHomePage(relativePath: string, frontmatter: Record<string, any>, s
   }
 
   // Each of these drives a section of the page; an empty one is a section that vanishes.
-  const required: [string, unknown][] = [
-    ['home.hero.actions', home.hero?.actions],
-    ['home.panel.tabs', home.panel?.tabs],
-    ['home.panel.rows', home.panel?.rows],
-    ['home.nouns.items', home.nouns?.items],
-    ['home.journey.stages', home.journey?.stages],
-    ['home.band.columns', home.band?.columns],
-  ]
-  for (const [key, value] of required) {
-    if (!Array.isArray(value) || value.length === 0) fail(`\`${key}\` is missing or empty`)
+  // Written as paths so the name appears once rather than as a string and an expression
+  // that have to be kept pointing at the same thing.
+  for (const path of ['hero.actions', 'nouns.items', 'journey.stages', 'band.columns']) {
+    const value = path.split('.').reduce<any>((node, key) => node?.[key], home)
+    if (!Array.isArray(value) || value.length === 0) fail(`\`home.${path}\` is missing or empty`)
   }
 
-  const links: string[] = []
+  const links = new Set<string>()
   collectLinks(home, links)
   for (const link of links) {
     if (!link.startsWith('/')) continue // external or relative; VitePress does not resolve these
@@ -63,6 +60,22 @@ function checkHomePage(relativePath: string, frontmatter: Record<string, any>, s
     // a trailing slash as that directory's index.
     const path = link.replace(/[?#].*$/, '').replace(/\/$/, '/index')
     if (!existsSync(join(srcDir, `${path}.md`))) fail(`link "${link}" has no page behind it`)
+  }
+
+  /* The zh page tracks a specific revision of the en page. Nothing else in the repo reads
+     `source_hash`, so this is the only place the drift can be caught — and doing it here
+     rather than in `buildEnd` means `pnpm dev` catches it too. */
+  if (typeof frontmatter.source === 'string') {
+    const sourceFile = `${frontmatter.source.replace(/\/$/, '/index')}.md`.replace(/^\//, '')
+    const expected = createHash('sha256')
+      .update(readFileSync(join(srcDir, sourceFile)))
+      .digest('hex')
+    if (frontmatter.source_hash !== expected) {
+      fail(
+        `source_hash is ${frontmatter.source_hash ?? 'missing'}, but ${sourceFile} now ` +
+          `hashes to ${expected}. Re-translate any changed copy, then record the new hash.`,
+      )
+    }
   }
 
   const text = frontmatter.hero?.text
@@ -76,20 +89,6 @@ function checkHomePage(relativePath: string, frontmatter: Record<string, any>, s
   }
 
   return problems
-}
-
-// The zh home tracks a specific revision of the en home through `source_hash`. Both files now
-// carry the page's content in frontmatter, so an edit to one silently ages the other's marker,
-// and nothing else in the repo reads this key — the build is the only place to catch it.
-function checkTranslationFreshness(srcDir: string): string[] {
-  const expected = createHash('sha256').update(readFileSync(join(srcDir, 'en/index.md'))).digest('hex')
-  const recorded = /^source_hash:\s*(\S+)/m.exec(readFileSync(join(srcDir, 'zh/index.md'), 'utf-8'))?.[1]
-  return recorded === expected
-    ? []
-    : [
-        `zh/index.md: source_hash is ${recorded ?? 'missing'}, but en/index.md now hashes to ` +
-          `${expected}. Re-translate any changed copy, then record the new hash.`,
-      ]
 }
 
 // Reference tables here are three and four columns of prose - the capability matrix, the
@@ -305,12 +304,12 @@ export default defineConfig({
   ],
   markdown: { config: stackableTables },
   transformPageData(pageData, { siteConfig }) {
-    if (!/^(en|zh)\/index\.md$/.test(pageData.relativePath)) return
+    // Keyed off the frontmatter rather than a list of locale paths: a page that declares
+    // `home:` is a page that renders ZcHome, and every locale's index is expected to declare
+    // one — so a third language is covered without editing anything here.
+    const isLocaleIndex = /^[^/]+\/index\.md$/.test(pageData.relativePath)
+    if (!pageData.frontmatter.home && !isLocaleIndex) return
     const problems = checkHomePage(pageData.relativePath, pageData.frontmatter, siteConfig.srcDir)
-    if (problems.length > 0) throw new Error(`Home page check failed:\n  ${problems.join('\n  ')}`)
-  },
-  buildEnd: ({ srcDir }) => {
-    const problems = checkTranslationFreshness(srcDir)
     if (problems.length > 0) throw new Error(`Home page check failed:\n  ${problems.join('\n  ')}`)
   },
   // Exactly two locales, both under a prefix. Do NOT add a `root` entry: VitePress puts
