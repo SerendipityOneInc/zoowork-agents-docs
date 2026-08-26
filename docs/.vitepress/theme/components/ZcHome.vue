@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useData, withBase } from 'vitepress'
 
 /* The home page's structure comes from the page's own frontmatter, not from this file, so the
@@ -55,8 +55,9 @@ interface HomeData {
     accent: string
     actions: Action[]
     note: string
+    noteLink?: string
   }
-  panel: { tab: string; streamLabel: string; rows: StreamRow[] }
+  panel: { tabs: string[]; streamLabel: string; rows: StreamRow[] }
   nouns: { title: string; intro: string; items: Noun[] }
   journey: { title: string; intro: string; stages: Stage[] }
   band: { title: string; body: string; columns: BandColumn[] }
@@ -81,6 +82,11 @@ const heroLead = computed(() =>
 
 /* Drawn icons rather than emoji or unicode glyphs, one stroke weight throughout. Keyed by
    name so the frontmatter carries a word and never raw markup. */
+/* The panel's tabs were drawn as a control and wired to nothing. They switch now, because
+   the second one carries the install line — without it the page imports a package it never
+   tells you how to add. */
+const activeTab = ref(0)
+
 const ICONS: Record<string, string> = {
   play: 'M7 4.5 18 12 7 19.5v-15Z',
   key: 'M15 7a4 4 0 1 0-3.9 4.9L7 16v3h3v-2h2v-2h1.1A4 4 0 0 0 15 7Z',
@@ -120,13 +126,30 @@ const ICONS: Record<string, string> = {
             :href="withBase(action.link)"
           >{{ action.text }}</a>
         </div>
-        <p class="note"><span class="pip" aria-hidden="true" />{{ home.hero.note }}</p>
+        <p class="note">
+          <span class="pip" aria-hidden="true" />
+          <a v-if="home.hero.noteLink" :href="withBase(home.hero.noteLink)">{{ home.hero.note }}</a>
+          <template v-else>{{ home.hero.note }}</template>
+        </p>
       </div>
 
       <div class="panel">
-        <div class="panel-tab">{{ home.panel.tab }}</div>
-        <!-- The page body: one fenced block, highlighted by the site's own pipeline. -->
-        <div class="panel-code"><slot /></div>
+        <div class="panel-tabs" role="tablist">
+          <button
+            v-for="(tab, i) in home.panel.tabs"
+            :key="tab"
+            type="button"
+            role="tab"
+            class="panel-tab"
+            :class="{ on: activeTab === i }"
+            :aria-selected="activeTab === i"
+            @click="activeTab = i"
+          >{{ tab }}</button>
+        </div>
+        <!-- Both samples are fenced blocks in the page body, so both carry the site's own
+             shiki highlighting and both reach llms-full.txt. -->
+        <div class="panel-code" v-show="activeTab === 0"><slot /></div>
+        <div class="panel-code" v-show="activeTab === 1"><slot name="install" /></div>
         <div class="stream">
           <p class="stream-label"><span class="pip" aria-hidden="true" />{{ home.panel.streamLabel }}</p>
           <p v-for="(row, i) in home.panel.rows" :key="row.seq" class="row" :style="{ '--i': i }">
@@ -330,6 +353,19 @@ h3 {
   color: var(--vp-c-brand-1);
 }
 
+.note a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--vp-c-divider);
+  text-underline-offset: 3px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+
+.note a:hover {
+  color: var(--vp-c-brand-1);
+  text-decoration-color: currentColor;
+}
+
 .note {
   display: flex;
   align-items: baseline;
@@ -363,13 +399,28 @@ h3 {
   overflow: hidden;
 }
 
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
 .panel-tab {
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
-  color: var(--vp-c-text-1);
+  color: var(--vp-c-text-2);
   padding: 10px 20px 9px;
-  border-bottom: 1px solid var(--vp-c-divider);
-  display: inline-block;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.panel-tab:hover {
+  color: var(--vp-c-text-1);
+}
+
+.panel-tab.on {
+  color: var(--vp-c-text-1);
   box-shadow: inset 0 -2px 0 var(--zc-accent);
 }
 
@@ -390,8 +441,8 @@ h3 {
   line-height: 1.75;
 }
 
-/* The copy button and language label belong to a reference block, not to a framed sample. */
-.panel-code :deep(button.copy),
+/* The tab already names the language, so the block's own label is noise — but the copy
+   button stays: this is the sample a reader most wants to run. */
 .panel-code :deep(span.lang) {
   display: none;
 }
@@ -475,9 +526,19 @@ h3 {
 
 /* --- Sections -------------------------------------------------------------- */
 
+/* `padding-block`, never the shorthand: `.inner` owns the horizontal measure, and
+   `padding: 56px 0` here out-specifies it and zeroes the gutter — which put the section
+   text hard against the screen edge below 1000px. */
 section > .inner {
-  padding: 56px 0;
+  padding-block: 56px;
   border-top: 1px solid var(--vp-c-divider);
+}
+
+/* The band's ground already marks the boundary; it must not also draw the section rule,
+   and it must not add the section's block padding on top of its own. */
+.band > .inner {
+  border-top: none;
+  padding-block: 0;
 }
 
 .sec-head {
@@ -750,7 +811,7 @@ section > .inner {
   }
 
   section > .inner {
-    padding: 44px 0;
+    padding-block: 44px;
   }
 }
 

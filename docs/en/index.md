@@ -20,8 +20,9 @@ home:
       - text: Capability matrix
         link: /en/reference/capabilities
     note: Create your key in the ZooWork App, under Settings → API Keys.
+    noteLink: /en/get-started/authentication
   panel:
-    tab: quickstart.ts
+    tabs: [quickstart.ts, install]
     streamLabel: SESSION EVENT STREAM
     rows:
       - { seq: 'seq 1', type: run.started }
@@ -132,6 +133,14 @@ for await (const ev of zc.streamEvents(agent_id, session_id)) {
   if (isRunFinished(ev)) break
 }
 ```
+
+<template v-slot:install>
+
+```bash
+npm i @zoowork-ai/sdk
+```
+
+</template>
 
 <template v-slot:edges>
 

@@ -45,6 +45,7 @@ function checkHomePage(relativePath: string, frontmatter: Record<string, any>, s
   // Each of these drives a section of the page; an empty one is a section that vanishes.
   const required: [string, unknown][] = [
     ['home.hero.actions', home.hero?.actions],
+    ['home.panel.tabs', home.panel?.tabs],
     ['home.panel.rows', home.panel?.rows],
     ['home.nouns.items', home.nouns?.items],
     ['home.journey.stages', home.journey?.stages],

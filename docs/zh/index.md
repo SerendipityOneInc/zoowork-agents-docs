@@ -5,7 +5,7 @@ pageClass: zc-home-page
 sidebar: false
 aside: false
 source: /en/
-source_hash: e73d58e537061581c950684e2fc2b6b3b4c040c8f4df584bcceb6e7ff3bec713
+source_hash: eabbc0965e51ecfa01dea70e7ff5b60d0b4ff16aefaef5d4559453c20f19865c
 hero:
   text: 创建一个 agent，流式拿回每个事件。
   tagline: 一个由你自己的代码驱动的托管 agent 运行时。可续传的持久事件流；skills、sessions
@@ -21,9 +21,10 @@ home:
         link: /zh/reference/typescript-sdk
       - text: 能力矩阵
         link: /zh/reference/capabilities
-    note: 在 ZooWork App 的 设置 → API Keys 里创建你的 key。
+    note: 在 ZooWork App 的设置 → API Keys 里创建你的 key。
+    noteLink: /zh/get-started/authentication
   panel:
-    tab: quickstart.ts
+    tabs: [quickstart.ts, install]
     streamLabel: SESSION EVENT STREAM
     rows:
       - { seq: 'seq 1', type: run.started }
@@ -132,6 +133,14 @@ for await (const ev of zc.streamEvents(agent_id, session_id)) {
   if (isRunFinished(ev)) break
 }
 ```
+
+<template v-slot:install>
+
+```bash
+npm i @zoowork-ai/sdk
+```
+
+</template>
 
 <template v-slot:edges>
 
