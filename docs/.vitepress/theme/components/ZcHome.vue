@@ -584,7 +584,11 @@ h3 {
 /* Every link on this page that underlines only on hover. `.note a` is deliberately not
    here: it carries a resting underline and changes colour instead. */
 .noun a:hover,
-.band-col a:hover,
+.band-col a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .noun {
   /* The bodies are different lengths — markedly so once translated — so let the column
      stretch and push the link to the bottom, keeping the link row flat. */
