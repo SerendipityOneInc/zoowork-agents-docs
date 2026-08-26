@@ -5,14 +5,14 @@ pageClass: zc-home-page
 sidebar: false
 aside: false
 source: /en/
-source_hash: 40ae02a7a6991bcf2cf031f454f94fc341bf205b4ffae1494d163a7fd9bdc94a
+source_hash: e73d58e537061581c950684e2fc2b6b3b4c040c8f4df584bcceb6e7ff3bec713
 hero:
-  text: 创建一个 agent，streaming 拿回每一个事件。
+  text: 创建一个 agent，流式拿回每个事件。
   tagline: 一个由你自己的代码驱动的托管 agent 运行时。可续传的持久事件流；skills、sessions
     与聊天渠道；一个 API key，一个 TypeScript SDK。
 home:
   hero:
-    accent: streaming 拿回每一个事件。
+    accent: 流式拿回每个事件。
     actions:
       - text: 快速开始
         link: /zh/get-started/quickstart
@@ -21,7 +21,7 @@ home:
         link: /zh/reference/typescript-sdk
       - text: 能力矩阵
         link: /zh/reference/capabilities
-    note: API key 由你所在组织的管理员发放 —— 没有自助注册入口。
+    note: 在 ZooWork App 的 设置 → API Keys 里创建你的 key。
   panel:
     tab: quickstart.ts
     streamLabel: SESSION EVENT STREAM
@@ -92,7 +92,7 @@ home:
           - { text: TypeScript SDK, link: /zh/reference/typescript-sdk, icon: brackets }
   band:
     title: 这里的每一条断言，要么已验证，要么被标注。
-    body: 一项能力只有在真实部署上被实际跑通之后，才会被写成"可用"。其余的一律带明确标注；
+    body: 一项能力只有在真实部署上被实际跑通之后，才会被写成「可用」。其余的一律带明确标注；
       而不存在的东西会有属于它自己的一页说明它不存在，并给出真正的替代方案。
     columns:
       - title: 能力矩阵

@@ -101,9 +101,12 @@ const ICONS: Record<string, string> = {
 </script>
 
 <template>
-  <div class="zc-home" v-if="home">
+  <!-- The page's own landmark: `layout: page` renders no <main>, so without this the h1 sits
+       outside any main region and the hero's <header> registers as a second banner. -->
+  <main class="zc-home" v-if="home">
     <!-- Hero: the claim on the left, the loop it names running on the right. -->
     <header class="hero">
+      <div class="inner hero-grid">
       <div class="hero-copy">
         <span class="dot" aria-hidden="true" />
         <h1>{{ heroLead }}<span class="accent">{{ heroAccent }}</span></h1>
@@ -135,10 +138,12 @@ const ICONS: Record<string, string> = {
           </p>
         </div>
       </div>
+      </div>
     </header>
 
     <!-- The four objects every reference page is written against. -->
     <section class="nouns-section">
+      <div class="inner">
       <div class="sec-head">
         <h2>{{ home.nouns.title }}</h2>
         <p>{{ home.nouns.intro }}</p>
@@ -150,10 +155,12 @@ const ICONS: Record<string, string> = {
           <a :href="withBase(noun.link)">{{ noun.linkText }} <span aria-hidden="true">→</span></a>
         </div>
       </div>
+      </div>
     </section>
 
     <!-- Numbered because the order is the lifecycle, not decoration. -->
     <section class="journey-section">
+      <div class="inner">
       <div class="sec-head">
         <h2>{{ home.journey.title }}</h2>
         <p>{{ home.journey.intro }}</p>
@@ -187,11 +194,12 @@ const ICONS: Record<string, string> = {
           </div>
         </li>
       </ol>
+      </div>
     </section>
 
     <!-- The site's actual promise, given the weight it earns. -->
     <section class="band">
-      <div class="band-inner">
+      <div class="inner band-grid">
         <div class="band-lead">
           <h2>{{ home.band.title }}</h2>
           <p>{{ home.band.body }}</p>
@@ -207,7 +215,7 @@ const ICONS: Record<string, string> = {
         </div>
       </div>
     </section>
-  </div>
+  </main>
 </template>
 
 <style scoped>
@@ -217,10 +225,15 @@ const ICONS: Record<string, string> = {
    which is legible as a field but never as text. */
 
 .zc-home {
-  --zch-gap: 28px;
+  display: block;
+}
+
+/* One measure, shared by every block. The band gets a full-width ground simply by not having
+   one — no `50vw` arithmetic, which is off by half a scrollbar wherever scrollbars take space. */
+.inner {
   max-width: 1152px;
-  margin: 0 auto;
-  padding: 0 24px;
+  margin-inline: auto;
+  padding-inline: 24px;
 }
 
 h1,
@@ -234,13 +247,16 @@ h3 {
 /* --- Hero ------------------------------------------------------------------ */
 
 .hero {
+  padding: 56px 0;
+}
+
+.hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
   gap: 56px;
   /* Start, not centre: the code panel is much taller than the copy, and centring split the
      difference into a hole above the headline. */
   align-items: start;
-  padding: 56px 0;
 }
 
 .dot {
@@ -351,23 +367,25 @@ h3 {
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
   color: var(--vp-c-text-1);
-  padding: 10px 18px 9px;
+  padding: 10px 20px 9px;
   border-bottom: 1px solid var(--vp-c-divider);
   display: inline-block;
   box-shadow: inset 0 -2px 0 var(--zc-accent);
 }
 
-.panel-code :deep(div[class*='language-']) {
-  margin: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
+/* This block arrives with no theme chrome at all: `layout: page` renders <Content> outside
+   `.vp-doc`, and every code-block rule the default theme ships is scoped under it — including
+   `overflow-x: auto`. Unscrolled, `.panel`'s clip removes the tail of every long line. */
 .panel-code :deep(div[class*='language-'] pre) {
-  padding: 18px 4px;
+  overflow-x: auto;
+  /* Padding on the code, not the pre, so it survives a horizontal scroll at both ends. */
+  padding: 18px 0;
+  margin: 0;
 }
 
 .panel-code :deep(code) {
+  display: block;
+  padding: 0 20px;
   font-size: 12.5px;
   line-height: 1.75;
 }
@@ -457,7 +475,7 @@ h3 {
 
 /* --- Sections -------------------------------------------------------------- */
 
-section {
+section > .inner {
   padding: 56px 0;
   border-top: 1px solid var(--vp-c-divider);
 }
@@ -489,6 +507,14 @@ section {
 .noun {
   border-top: 2px solid var(--zc-accent);
   padding-top: 16px;
+  /* The bodies are different lengths — markedly so once translated — so let the column
+     stretch and push the link to the bottom, keeping the link row flat. */
+  display: flex;
+  flex-direction: column;
+}
+
+.noun a {
+  margin-top: auto;
 }
 
 .noun h3 {
@@ -618,18 +644,14 @@ section {
    Full-bleed, so the site's one promise gets a ground of its own. */
 
 .band {
-  border-top: none;
   background: var(--vp-c-bg-alt);
-  margin-inline: calc(50% - 50vw);
-  padding: 52px calc(50vw - 50%);
+  padding: 52px 0;
 }
 
-.band-inner {
+.band-grid {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 3fr);
   gap: 40px;
-  max-width: 1152px;
-  margin: 0 auto;
 }
 
 .band-lead h2 {
@@ -704,9 +726,12 @@ section {
 
 @media (max-width: 1000px) {
   .hero {
+    padding: 44px 0 40px;
+  }
+
+  .hero-grid {
     grid-template-columns: 1fr;
     gap: 36px;
-    padding: 44px 0 40px;
   }
 
   .nouns {
@@ -714,7 +739,7 @@ section {
     gap: 26px;
   }
 
-  .band-inner {
+  .band-grid {
     grid-template-columns: 1fr;
     gap: 26px;
   }
@@ -724,14 +749,14 @@ section {
     gap: 14px;
   }
 
-  section {
+  section > .inner {
     padding: 44px 0;
   }
 }
 
 @media (max-width: 600px) {
-  .zc-home {
-    padding: 0 20px;
+  .inner {
+    padding-inline: 20px;
   }
 
   .nouns {

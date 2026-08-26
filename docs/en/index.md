@@ -19,7 +19,7 @@ home:
         link: /en/reference/typescript-sdk
       - text: Capability matrix
         link: /en/reference/capabilities
-    note: An organization administrator issues your key — there is no self-serve signup.
+    note: Create your key in the ZooWork App, under Settings → API Keys.
   panel:
     tab: quickstart.ts
     streamLabel: SESSION EVENT STREAM

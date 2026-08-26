@@ -5,53 +5,90 @@ import { defineConfig, type DefaultTheme, type MarkdownRenderer } from 'vitepres
 import llmstxt from 'vitepress-plugin-llms'
 
 // The home page draws its own layout from `home:` frontmatter, which buys the design its
-// structure and costs it the dead-link check: VitePress only validates links written as
-// markdown, so a page renamed out from under the home page's chips would ship a 404 with a
-// green build. This hook puts that guarantee back — every `link:` in either index resolves
-// to a real source file, or the build fails the way a dead markdown link would.
+// structure and costs it two guarantees the markdown body used to give it for free.
 //
-// It also checks that `home.hero.accent` is still a suffix of `hero.text`. The component
-// colours the headline by splitting on it and falls back to a single colour when it stops
-// matching, which is a silent loss of the one accent the page spends.
-function checkHomeFrontmatter(srcDir: string): void {
+// The first is the dead-link check: VitePress only validates links written as markdown, so a
+// page renamed out from under the home page's chips would ship a 404 on a green build.
+// `checkHomePage` walks the parsed frontmatter — the same object the component reads, not a
+// regex over the raw text, so quoting, folding and flow style cannot fool it — and resolves
+// every link against the source tree.
+//
+// The second is shape: with the content in frontmatter, a mistyped key renders an empty
+// section rather than failing anywhere. So the required blocks are asserted too, along with
+// `home.hero.accent` still being the tail of `hero.text` (the component colours the headline
+// by splitting on it, and silently drops the accent when they drift apart).
+
+interface HomeLink {
+  link?: unknown
+}
+
+function collectLinks(node: unknown, out: string[]): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectLinks(item, out)
+  } else if (node && typeof node === 'object') {
+    const link = (node as HomeLink).link
+    if (typeof link === 'string') out.push(link)
+    for (const value of Object.values(node)) collectLinks(value, out)
+  }
+}
+
+function checkHomePage(relativePath: string, frontmatter: Record<string, any>, srcDir: string): string[] {
   const problems: string[] = []
+  const fail = (message: string) => problems.push(`${relativePath}: ${message}`)
 
-  for (const page of ['en/index.md', 'zh/index.md']) {
-    const source = readFileSync(join(srcDir, page), 'utf-8')
-    const frontmatter = source.slice(0, source.indexOf('\n---', 4))
-
-    // Links appear in both YAML styles here: block (`link: /en/...` on its own line) and
-    // flow (`{ text: ..., link: /en/..., icon: ... }`), so match the value up to a comma or
-    // brace rather than to the end of the line.
-    for (const [, link] of frontmatter.matchAll(/\blink:\s*(\/[^,}\s]+)/g)) {
-      const target = join(srcDir, `${link.replace(/\/$/, '/index')}.md`)
-      if (!existsSync(target)) problems.push(`${page}: link "${link}" has no page at ${target}`)
-    }
-
-    const text = /^\s*text:\s*(.+)$/m.exec(frontmatter)?.[1]?.trim()
-    const accent = /^\s*accent:\s*(.+)$/m.exec(frontmatter)?.[1]?.trim()
-    if (text && accent && !text.endsWith(accent)) {
-      problems.push(`${page}: hero.accent "${accent}" is no longer the tail of hero.text "${text}"`)
-    }
+  const home = frontmatter.home
+  if (!home || typeof home !== 'object') {
+    fail('no `home:` block — the page would render blank')
+    return problems
   }
 
-  // The zh home tracks a specific revision of the en home through `source_hash`, and both
-  // files now carry the page's content in frontmatter — so an edit to one silently ages the
-  // other's marker. Nothing else in the repo reads this key, so the build is the only place
-  // the drift can be caught.
-  const enSource = readFileSync(join(srcDir, 'en/index.md'))
-  const expected = createHash('sha256').update(enSource).digest('hex')
+  // Each of these drives a section of the page; an empty one is a section that vanishes.
+  const required: [string, unknown][] = [
+    ['home.hero.actions', home.hero?.actions],
+    ['home.panel.rows', home.panel?.rows],
+    ['home.nouns.items', home.nouns?.items],
+    ['home.journey.stages', home.journey?.stages],
+    ['home.band.columns', home.band?.columns],
+  ]
+  for (const [key, value] of required) {
+    if (!Array.isArray(value) || value.length === 0) fail(`\`${key}\` is missing or empty`)
+  }
+
+  const links: string[] = []
+  collectLinks(home, links)
+  for (const link of links) {
+    if (!link.startsWith('/')) continue // external or relative; VitePress does not resolve these
+    // Match VitePress's own normalisation before resolving: drop the anchor or query, and read
+    // a trailing slash as that directory's index.
+    const path = link.replace(/[?#].*$/, '').replace(/\/$/, '/index')
+    if (!existsSync(join(srcDir, `${path}.md`))) fail(`link "${link}" has no page behind it`)
+  }
+
+  const text = frontmatter.hero?.text
+  const accent = home.hero?.accent
+  if (typeof text !== 'string' || !text.trim()) {
+    fail('`hero.text` is missing — llms.txt takes the site description from it')
+  } else if (typeof accent !== 'string' || !accent.trim()) {
+    fail('`home.hero.accent` is missing, so the headline renders in one colour')
+  } else if (!text.endsWith(accent)) {
+    fail(`\`home.hero.accent\` ("${accent}") is no longer the tail of \`hero.text\` ("${text}")`)
+  }
+
+  return problems
+}
+
+// The zh home tracks a specific revision of the en home through `source_hash`. Both files now
+// carry the page's content in frontmatter, so an edit to one silently ages the other's marker,
+// and nothing else in the repo reads this key — the build is the only place to catch it.
+function checkTranslationFreshness(srcDir: string): string[] {
+  const expected = createHash('sha256').update(readFileSync(join(srcDir, 'en/index.md'))).digest('hex')
   const recorded = /^source_hash:\s*(\S+)/m.exec(readFileSync(join(srcDir, 'zh/index.md'), 'utf-8'))?.[1]
-  if (recorded !== expected) {
-    problems.push(
-      `zh/index.md: source_hash is ${recorded ?? 'missing'}, but en/index.md now hashes to ` +
-        `${expected}. Re-translate any changed copy, then record the new hash.`,
-    )
-  }
-
-  if (problems.length > 0) {
-    throw new Error(`Home frontmatter check failed:\n  ${problems.join('\n  ')}`)
-  }
+  return recorded === expected
+    ? []
+    : [
+        `zh/index.md: source_hash is ${recorded ?? 'missing'}, but en/index.md now hashes to ` +
+          `${expected}. Re-translate any changed copy, then record the new hash.`,
+      ]
 }
 
 // Reference tables here are three and four columns of prose - the capability matrix, the
@@ -266,7 +303,15 @@ export default defineConfig({
     ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#0d1117' }],
   ],
   markdown: { config: stackableTables },
-  buildEnd: ({ srcDir }) => checkHomeFrontmatter(srcDir),
+  transformPageData(pageData, { siteConfig }) {
+    if (!/^(en|zh)\/index\.md$/.test(pageData.relativePath)) return
+    const problems = checkHomePage(pageData.relativePath, pageData.frontmatter, siteConfig.srcDir)
+    if (problems.length > 0) throw new Error(`Home page check failed:\n  ${problems.join('\n  ')}`)
+  },
+  buildEnd: ({ srcDir }) => {
+    const problems = checkTranslationFreshness(srcDir)
+    if (problems.length > 0) throw new Error(`Home page check failed:\n  ${problems.join('\n  ')}`)
+  },
   // Exactly two locales, both under a prefix. Do NOT add a `root` entry: VitePress puts
   // every key in this object into the language menu, so a root locale labelled 'English'
   // would show up alongside `en` as a second, identical "English" choice. `docs/index.md`
@@ -308,9 +353,15 @@ export default defineConfig({
   // would roughly double the token cost of llms-full.txt while adding no information —
   // and the identifiers an assistant needs are English on both sides anyway.
   //
-  // The English index page is kept (the plugin drops index pages by default): it carries
-  // the orientation an assistant most needs up front, namely what this API is and what
-  // it is not. The root docs/index.md stays out — it is only a redirect stub.
+  // The English index page is kept (the plugin drops index pages by default), but what it
+  // contributes changed when the home page moved its layout into frontmatter: the plugin
+  // emits the markdown BODY only, so llms.txt now takes its title and description from
+  // `hero.text` / `hero.tagline`, and the index's own entry carries the canonical
+  // create-start-session-stream snippet plus the paragraph naming what the API does not do.
+  // The longer orientation lives in get-started/concepts and reference/not-supported, both
+  // of which are in the same bundle. Keep `hero.text` and `hero.tagline` where they are —
+  // renaming them silently falls back to the site description and drops the tagline line.
+  // The root docs/index.md stays out — it is only a redirect stub.
   vite: {
     plugins: [
       llmstxt({
