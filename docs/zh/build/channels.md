@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: 2bfee111a66f0c5655eb81121421bfc8a1f00a300fc9ca5d10d06c977c8a67ba
+source_hash: 7b06adcc9f9b9faaace09369abd769ba083ec78365d94ef1ce563a40322ff93d
 ---
 
 # 渠道
@@ -82,6 +82,8 @@ pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: fa
 
 `brand` 决定真实的域名：`'feishu'`（默认）给的是 `open.feishu.cn` 的 URI，`'lark'` 给的是 `open.larksuite.com`。它必须和对方将要批准它的那个工作区对上。
 
+**在把二维码显示出去之前，先把 `account` 定下来。** `startFeishuSetup` 也收这个参数，命名规则和显式绑定那条路径完全一样，见下面的「给绑定命名：`account`」。在扫码这条路径上它更要紧：对方批准扫码会在那个飞书工作区里注册出一个**新应用**，之后才轮到写绑定记录，所以名字撞了是在**有人已经扫过之后**才以 `409 channel.conflict` 的形式暴露出来，而那个刚注册出来的应用就留在对方的工作区里了。用同一个名字重试，这两件事会再发生一遍。
+
 ## 显式配置 —— Slack 和企业微信走这条
 
 `addChannel` 是非交互路径，也是 Slack 和企业微信唯一的路径。凭证由你提供，放进 `config` 传入。
@@ -103,16 +105,29 @@ await zc.addChannel(agentId, {
 
 Slack 跑在 socket mode 下，所以除了 bot token 还需要那个 app 级的 `xapp-` token。两个都在 Slack 应用自己的设置页里拿。
 
-`account` 给这次绑定命名（默认 `'default'`），所以一个 agent 可以在同一平台上持有多个账号。
-
-同一个 `platform` + `account` 绑第二次**不会**报错，也不会产生第二个渠道：第二次调用返回 `201` 并覆盖第一次。把 `addChannel` 当成 upsert，不是 create。
-
 `allow_from` **只在创建时**接受，之后不能再编辑。
 
 ::: danger 201 的含义是「存下了」，不是「能用」
 绑定时**不校验凭证**。我们用一组故意编造的凭证去绑，拿回来的是 `201`，带着 `health: 'unknown'`、`status: 'configured'`——和一个正常绑定返回的形状一模一样。几秒之后，同一个渠道在列表里的状态变成了 `health: 'unhealthy'`、`status: 'error'`。
 
 所以 201 只告诉你绑定被存下来了，不代表它能工作。真正的判定要从后续 `listChannels` 的 `health` / `status` 里读，不要只凭创建调用的成功就向用户报告绑定成功。
+:::
+
+### 给绑定命名：`account`
+
+`account` 给这次绑定命名（默认 `'default'`），所以一个 agent 可以在同一平台上持有多个账号。它属于这条记录的身份，不是一个设置项：`updateChannel` 和 `removeChannel` 都靠 `platform` + `account` 找到绑定，而且没有任何接口能给它改名——只能删掉重绑。
+
+选值之前有四件事要知道：
+
+- **这个名字在你名下是全局唯一的，跨所有 agent。** 同一个 (owner, platform, account) 只有一条有效绑定，所以在一个 agent 上占掉 `feishu` / `default`，你其他所有 agent 就都用不了这个名字了。
+- **`'default'` 很可能已经被占了**——只要同一个登录账号曾经在 App 里绑过这个平台。那条绑定不是通过这套 API 建的，服务端不会去接管它，直接返回 `409 channel.conflict`。
+- **格式是 `^[a-z0-9][a-z0-9_-]{0,63}$`**，另外还有三个保留字（`__proto__`、`prototype`、`constructor`）。别的都是 `400`，而且服务端不会替你做任何规范化——带大写、空格或非 ASCII 字符的显示名会被拒掉，不会被清洗。
+- **SDK 没法替你预检这个名字。** `listChannels` 的范围是单个 agent，而这个约束覆盖你整个账号，所以被你另一个 agent 占掉的名字在这里根本看不见。自己记账。
+
+::: warning 换凭证要先 remove 再 add
+拿**完全相同**的请求体去绑同一个 `platform` + `account`，返回的还是 `201`，而且回放的是你已经有的那条绑定——它不会产生第二个渠道，也不会覆盖任何东西。同一对组合换一份**不同的 `config`** 再绑，返回的是 `409 channel.conflict`。
+
+所以 `addChannel` 不是 upsert。要把一个绑定换到新凭证上，先 `removeChannel` 再 `addChannel`；直接重绑会失败。
 :::
 
 ## 列表、更新、解绑

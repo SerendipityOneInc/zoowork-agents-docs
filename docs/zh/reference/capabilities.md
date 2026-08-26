@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 59f9ea35531197ae3f9ac1e494d3ab8f3bd09df71c185bf37b0ce5c73de607cf
+source_hash: ad533862a1d1557ec1bcd4d86f8f0289a1eab2bb4421953f9a228a46644ff72c
 ---
 
 # 能力矩阵
@@ -97,7 +97,7 @@ source_hash: 59f9ea35531197ae3f9ac1e494d3ab8f3bd09df71c185bf37b0ce5c73de607cf
 | 能绑哪些平台 | 已实测 | `feishu`、`slack`、`wecom` 可以通过 `addChannel` 绑定。`weixin`/`wechat` 返回 `400 channel.weixin_setup_required`，指向一条这套 API 没有的 QR 流——在这里绑不了。其他名字一律 `400 channel.invalid_request`。 |
 | `dm_policy: 'pairing'` | 不存在 | 创建和更新都返回 `400 channel.pairing_unsupported`。 |
 | `listChannels()` | 已实测 | 纯 API agent 返回 `{ channels: [] }`。 |
-| `addChannel()` | 已实测 | 返回 `201`——但**绑定时不校验凭证**。编造的凭证同样返回 `201`，带 `health: 'unknown'` / `status: 'configured'`，随后在列表里变成 `health: 'unhealthy'` / `status: 'error'`。判定要从后续的 list 里读，绝不能只看 201。`allow_from` 只在创建时写入。 |
+| `addChannel()` | 已实测 | 返回 `201`——但**绑定时不校验凭证**。编造的凭证同样返回 `201`，带 `health: 'unknown'` / `status: 'configured'`，随后在列表里变成 `health: 'unhealthy'` / `status: 'error'`。判定要从后续的 list 里读，绝不能只看 201。`allow_from` 只在创建时写入。请求体完全相同时重发会回放同一个 `201`，但同一个 `platform` + `account` 换一份**不同的 `config`** 会返回 `409 channel.conflict`——换凭证要先 remove 再 add。 |
 | `updateChannel()` | 已实测 | 直接返回渠道的新状态。`enabled: false` 还会把 `status` 变成 `'disabled'`、`health` 重置为 `'unknown'`。该平台没有绑定时返回 `404 channel.not_found`。 |
 | `removeChannel()` | 已实测 | `{ ok: true }`，下一次 list 里就没有了。 |
 | 飞书 QR 设备流 —— `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` | 已实测 | 实测默认值 `expires_in: 600`、`poll_interval: 5`。`brand: 'lark'` 确实会把 URI 域名换成 `open.larksuite.com`。被取消的 session 在下一次轮询时返回 `404 channel.feishu_session_not_found`。 |
