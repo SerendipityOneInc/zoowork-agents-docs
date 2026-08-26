@@ -1,8 +1,10 @@
 node_modules/
 dist/
 docs/.vitepress/cache/
+docs/.vitepress/.temp/
 .wrangler/
 .DS_Store
+.impeccable/
 *.local
 
 # Never commit local credentials or agent tool state

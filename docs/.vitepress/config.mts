@@ -1,5 +1,58 @@
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { defineConfig, type DefaultTheme, type MarkdownRenderer } from 'vitepress'
 import llmstxt from 'vitepress-plugin-llms'
+
+// The home page draws its own layout from `home:` frontmatter, which buys the design its
+// structure and costs it the dead-link check: VitePress only validates links written as
+// markdown, so a page renamed out from under the home page's chips would ship a 404 with a
+// green build. This hook puts that guarantee back — every `link:` in either index resolves
+// to a real source file, or the build fails the way a dead markdown link would.
+//
+// It also checks that `home.hero.accent` is still a suffix of `hero.text`. The component
+// colours the headline by splitting on it and falls back to a single colour when it stops
+// matching, which is a silent loss of the one accent the page spends.
+function checkHomeFrontmatter(srcDir: string): void {
+  const problems: string[] = []
+
+  for (const page of ['en/index.md', 'zh/index.md']) {
+    const source = readFileSync(join(srcDir, page), 'utf-8')
+    const frontmatter = source.slice(0, source.indexOf('\n---', 4))
+
+    // Links appear in both YAML styles here: block (`link: /en/...` on its own line) and
+    // flow (`{ text: ..., link: /en/..., icon: ... }`), so match the value up to a comma or
+    // brace rather than to the end of the line.
+    for (const [, link] of frontmatter.matchAll(/\blink:\s*(\/[^,}\s]+)/g)) {
+      const target = join(srcDir, `${link.replace(/\/$/, '/index')}.md`)
+      if (!existsSync(target)) problems.push(`${page}: link "${link}" has no page at ${target}`)
+    }
+
+    const text = /^\s*text:\s*(.+)$/m.exec(frontmatter)?.[1]?.trim()
+    const accent = /^\s*accent:\s*(.+)$/m.exec(frontmatter)?.[1]?.trim()
+    if (text && accent && !text.endsWith(accent)) {
+      problems.push(`${page}: hero.accent "${accent}" is no longer the tail of hero.text "${text}"`)
+    }
+  }
+
+  // The zh home tracks a specific revision of the en home through `source_hash`, and both
+  // files now carry the page's content in frontmatter — so an edit to one silently ages the
+  // other's marker. Nothing else in the repo reads this key, so the build is the only place
+  // the drift can be caught.
+  const enSource = readFileSync(join(srcDir, 'en/index.md'))
+  const expected = createHash('sha256').update(enSource).digest('hex')
+  const recorded = /^source_hash:\s*(\S+)/m.exec(readFileSync(join(srcDir, 'zh/index.md'), 'utf-8'))?.[1]
+  if (recorded !== expected) {
+    problems.push(
+      `zh/index.md: source_hash is ${recorded ?? 'missing'}, but en/index.md now hashes to ` +
+        `${expected}. Re-translate any changed copy, then record the new hash.`,
+    )
+  }
+
+  if (problems.length > 0) {
+    throw new Error(`Home frontmatter check failed:\n  ${problems.join('\n  ')}`)
+  }
+}
 
 // Reference tables here are three and four columns of prose - the capability matrix, the
 // method lists, the event vocabulary - and on a phone they can only scroll sideways, which
@@ -213,6 +266,7 @@ export default defineConfig({
     ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#0d1117' }],
   ],
   markdown: { config: stackableTables },
+  buildEnd: ({ srcDir }) => checkHomeFrontmatter(srcDir),
   // Exactly two locales, both under a prefix. Do NOT add a `root` entry: VitePress puts
   // every key in this object into the language menu, so a root locale labelled 'English'
   // would show up alongside `en` as a second, identical "English" choice. `docs/index.md`
