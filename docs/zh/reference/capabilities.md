@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: ad533862a1d1557ec1bcd4d86f8f0289a1eab2bb4421953f9a228a46644ff72c
+source_hash: 1b443e7fb81efbfc478f6714276c9bb4a9e5c5d18e351c9ad37b5bddf6683e94
 ---
 
 # 能力矩阵
@@ -76,7 +76,7 @@ source_hash: ad533862a1d1557ec1bcd4d86f8f0289a1eab2bb4421953f9a228a46644ff72c
 | `listEvents()` | 已实测 | 服务端默认 100，最大 500，**一次调用只给一页** 。长 session 会静默截断，不报错。`listAllEvents()` 替你把页翻完。 |
 | `listEvents()` 上的 `types` 过滤 | 已实测 | `?types=agent.assistant` 会按预期收窄结果。 |
 | `streamEvents()`（SSE） | 已实测 | 这个流是 **session 级** 的：一个回合结束时它不会关闭。用 `isRunFinished` 判断一个回合的结束。session 转入空闲后，服务端才关掉连接。 |
-| 用 `?after=<seq>` 续传 | 已实测 | 每个 SSE 帧的 `id:` 行里都带一个持久的 `seq`，服务端会从那个 seq 开始重放，所以重连不花你任何代价，也不需要客户端做一轮去重。 |
+| 断线续传 | 已实测 | 重放发生在服务端，所以重连不花你任何代价，也不需要客户端做一轮去重。把最后一帧 `id:` 行的值发回去即可——它是一个不透明的续传令牌，SDK 把它放在 `ev.cursor` 上，用 `{ cursor }` 传回（直接调 HTTP 就是`?cursor=` 或 `Last-Event-ID` 请求头）。`?after=<seq>` 也能重放，但会切到废弃的 engine-only 通道，那条通道不含你自己发的 input 事件。 |
 | `?deltas=` 增量预览 | 可用，未实测 | 是**快照替换** 语义，不是前缀追加：每一帧都是到目前为止的全文。把它们拼起来会得到重复的文本。delta 通道没接线的地方返回 `501 not_configured`。SDK 会跳过这些帧。 |
 | 用 `run.finished` 判断回合结束 | 已实测 | `payload.status` 是 `succeeded`、`failed` 或 `aborted`。 |
 | `agent.tool` 的 `start` 和 `end` 阶段 | 已实测 | 一次调用每个 phase 发一个事件，共享同一个 `toolCallId`；调用并发时它们并不相邻，所以按 id 配对，永远不要按位置配对。 |

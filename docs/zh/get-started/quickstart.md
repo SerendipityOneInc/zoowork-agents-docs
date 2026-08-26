@@ -1,7 +1,7 @@
 ---
 title: 快速开始
 source: /en/get-started/quickstart
-source_hash: 62d698839a5deb480714c88f1d84ea3d3a7bb12ca26a226c7ff61b39df10e001
+source_hash: e922ad7b1a3731b5ae7242ecc089d44f6f15458f0f18c1ade3be7f81975f4955
 ---
 
 # 快速开始
@@ -317,7 +317,8 @@ try {
 
 ```bash [curl]
 # -N disables buffering so frames arrive as they are produced.
-# Resume after a drop by appending ?after=<last seq you saw>.
+# Resume after a drop by appending ?cursor=<the last id: line you saw>,
+# or by sending it as a Last-Event-ID request header.
 curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Accept: text/event-stream"
@@ -347,10 +348,14 @@ curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" 
 - **`run.finished` 结束的是回合，不是流。** `isRunFinished(ev)` 为真时请自己跳出循环，否则你会一直阻塞到服务端的空闲超时。
 - **`runOutcome(ev)` 的取值是 `succeeded | failed | aborted`。** 即使个别工具调用出了错，这次 run 依然可能以 `succeeded` 结束——`toolCall(ev).isError === true` 不会让 run 失败。不要用「没有工具报错」来推断成功。
 - **对每一个不是 `agent.assistant` 的事件，`assistantText(ev)` 都返回 `''`** ，所以在整个循环里一路拼接是安全的，拼出来就是完整回复。
-- **用 `after` 续传。** 每一帧都带一个持久的 `seq`。连接断了，就用 `{ after: lastSeq }` 重新起这个 generator，服务端从那里开始重放。不丢，也不重。
+- **用 `cursor` 续传。** 每一个流出来的帧都带一个 `cursor` 续传令牌。连接断了，就拿你看到的最后一个重新起这个 generator，服务端从那里开始重放——不丢，也不重。`{ after: seq }` 也能续传，但会切到废弃的 engine-only 通道，那条通道不含你自己发的 input 事件；它只留给 `cursor` 出现之前存下来的旧游标。
 
 ```ts
-for await (const ev of zc.streamEvents(agentId, sessionId, { after: lastSeq })) { /* ... */ }
+let cursor: string | undefined
+for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
+  cursor = ev.cursor ?? cursor
+  /* ... */
+}
 ```
 
 如果你更想用轮询，`listEvents(agentId, sessionId)` 走 REST 读的是同一批事件。它只返回一页——服务端默认 100 条，最多 500 条——而且整页会被静默截断：没有 `has_more`，没有总数，也没有游标。用 `listAllEvents(agentId, sessionId)` 一次把所有页走完，不要自己写这个循环。
@@ -500,5 +505,5 @@ cleaned up agent agt_example
 
 - [Agents](../build/agents.md) —— 配置分区、`updateAgent()` 的合并语义，以及两种响应结构。
 - [Sessions](../build/sessions.md) —— 多回合对话、`postEvents()`、`system.message` 和 `user.interrupt`。
-- [事件与流式](../build/events.md) —— 完整的事件词表、用 `after` 续传，以及走 REST 读历史。
+- [事件与流式](../build/events.md) —— 完整的事件词表、断线续传，以及走 REST 读历史。
 - [不支持的能力](../reference/not-supported.md) —— 这里不存在的东西，包括客户端执行的自定义工具。在你围绕某个能力做设计之前，先读这一页。

@@ -1,7 +1,7 @@
 ---
 title: 错误处理
 source: /en/reference/errors
-source_hash: 332ae182bc8ee632d214c3d6a3b071ed1e44f66d5ef48337e48dd3fa714452f8
+source_hash: d3a3edf7a6c008820c6ae602dd50ae7eac9c3188d58c37a8bfdfb772e22ebc9a
 ---
 
 # 错误与重试
@@ -141,7 +141,7 @@ if (e instanceof ZooworkError) {
 | `listModels`、`getAgent`、`getSession`、`listEvents`、`listAgentSkills`，以及其余的 `list*` / `get*` 读操作 | **能** | 都是读。网络错误和 5xx 用指数退避重试。 |
 | `startAgent`、`stopAgent` | **能** | 每次调用都对同一个 id 重跑一遍它的收敛动作。检查 `warnings`，另外记住 `channel_routes_reload_failed` 在纯 API 的 agent 上是预期内的噪声，不是失败。 |
 | `deleteAgent` | **能** | 软删除。重复调用都会成功。 |
-| `streamEvents` | **能** | 用 `{ after: lastSeq }` 重连。续传发生在服务端，两个窗口之间什么都不会丢。 |
+| `streamEvents` | **能** | 用最后一个事件的续传令牌重连——`{ cursor: ev.cursor }`。续传发生在服务端，两个窗口之间什么都不会丢。**不要**用 `{ after: lastSeq }` 重连：那会切到废弃的 engine-only 通道，它会丢掉你自己发的 input 事件（`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`）。 |
 | `createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion` | **只在带 `Idempotency-Key` 时能** | 不带的话，超时之后的一次重试会创建出第二个 agent，或者第二个 session，并把开场那一回合再跑一遍。 |
 | `updateAgent`、`putAgentSkill`、`deleteAgentSkill` | **不能** | 每次成功都会 bump `config_version`。超时之后先 `getAgent()` 对账，再决定怎么办。 |
 | `updateSchedule`、`deleteSchedule` | **不能** | 这两条都不提供跨超时的幂等保证。超时之后请列出这个 agent 的定时任务、读它们的运行记录来对账，不要把这次写入再发一遍。 |

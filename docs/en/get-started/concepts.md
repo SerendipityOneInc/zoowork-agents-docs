@@ -192,9 +192,11 @@ useful; expecting the API session to remember that chat is not.
 ## Event
 
 An event is the unit of everything that happens inside a session. The log is append-only and
-durably sequenced by `seq`, a monotonic per-session integer. `seq` is what makes the stream
-resumable: every SSE frame carries it in the `id:` line, and `?after=<seq>` replays from there
-server-side.
+durably sequenced by `seq`, a monotonic per-session integer. Resuming a dropped stream uses a
+different value: every SSE frame carries an opaque resume token in its `id:` line, which the SDK
+hands you as `ev.cursor`. Send it back - `{ cursor }` through the SDK, `?cursor=` or a
+`Last-Event-ID` header over raw HTTP - and the server replays from there. `?after=<seq>` also
+replays, but on a deprecated engine-only lane that omits your own input events.
 
 Reach into `payload` as little as possible. The SDK ships typed readers for the shapes that
 matter, and they return an empty value for events of the wrong type:
@@ -329,10 +331,10 @@ setTimeout(() => ctl.abort(), 120_000)
 
 let text = ''
 let outcome: string | undefined
-let lastSeq = 0
+let cursor: string | undefined
 
 for await (const ev of zc.streamEvents(agentId, session.session_id, { signal: ctl.signal })) {
-  lastSeq = ev.seq
+  cursor = ev.cursor ?? cursor
   text += assistantText(ev)
   if (isRunFinished(ev)) {
     outcome = runOutcome(ev) // 'succeeded' | 'failed' | 'aborted'
@@ -351,14 +353,19 @@ await zc.postEvents(agentId, session.session_id, [
   { type: 'user.message', content: 'Now say it in French.' },
 ])
 
-for await (const ev of zc.streamEvents(agentId, session.session_id, { after: lastSeq })) {
+for await (const ev of zc.streamEvents(agentId, session.session_id, cursor ? { cursor } : {})) {
+  cursor = ev.cursor ?? cursor
   if (isRunFinished(ev)) break
 }
 ```
 
-Passing `after: lastSeq` is also how you recover from a dropped connection: reconnect with the
-last `seq` you processed and the server resumes from there. The SDK does not reconnect on your
-behalf.
+That `cursor` is also how you recover from a dropped connection: every streamed event carries
+one, and reconnecting with the last one you saw makes the server resume from there. The SDK
+does not reconnect on your behalf.
+
+Do not resume with `{ after: seq }`. It still works, but it selects a deprecated engine-only
+lane that omits your own input events - the `user.message` you posted would be missing from
+the resumed stream. Keep `after` for cursors you stored before `cursor` existed.
 
 The stream is session-scoped, not turn-scoped. It does not close when `run.finished` arrives -
 break out of the loop yourself - and the server closes it once the session goes idle.
