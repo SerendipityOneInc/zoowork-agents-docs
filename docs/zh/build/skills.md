@@ -1,7 +1,7 @@
 ---
 title: Skills
 source: /en/build/skills
-source_hash: 5276b8014fb159a247bde744725e3fe0808f4740c5d8109db316bfd369787cab
+source_hash: 9d36d062d96e84a6cb52cd7bb6fd990b173da58c4f2e9d9b8b551c995a213b27
 ---
 
 # Skills
@@ -216,6 +216,7 @@ await zc.putAgentSkill(agentId, skill.skill_id)
 
 ## 相关
 
+- [每用户一个 agent](/zh/build/per-user-agents)——把一个 org skill 分发到一批按用户划分的 agent 上，含灰度钉版与 reconcile。
 - [Agents](/zh/build/agents)——`config_version` 的语义，以及为什么每一次 skill 写入都会 bump 它。
 - [工具](/zh/build/tools)——内置工具集，那是另一套机制。
 - [能力矩阵](/zh/reference/capabilities)——各个面当前的验证状态。

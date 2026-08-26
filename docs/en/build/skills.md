@@ -273,6 +273,8 @@ rather than from the agent remembering the first.
 
 ## Related
 
+- [An agent per user](/en/build/per-user-agents) - distributing one org skill across a fleet of
+  per-user agents, with canary pinning and reconciliation.
 - [Agents](/en/build/agents) - `config_version` semantics and why every skill write bumps it.
 - [Tools](/en/build/tools) - the built-in tool set, which is a separate mechanism.
 - [Capability matrix](/en/reference/capabilities) - current verification status of each surface.
