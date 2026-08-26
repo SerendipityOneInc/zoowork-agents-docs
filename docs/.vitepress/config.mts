@@ -97,6 +97,7 @@ interface PageSet {
   channels: string
   tools: string
   skills: string
+  perUserAgents: string
   environments: string
   reference: string
   sdk: string
@@ -117,6 +118,7 @@ const EN: PageSet = {
   channels: 'Channels',
   tools: 'Tools',
   skills: 'Skills',
+  perUserAgents: 'An agent per user',
   environments: 'Environments',
   reference: 'Reference',
   sdk: 'TypeScript SDK',
@@ -137,6 +139,7 @@ const ZH: PageSet = {
   channels: '渠道',
   tools: '工具',
   skills: 'Skills',
+  perUserAgents: '每用户一个 agent',
   environments: 'Environments',
   reference: '参考',
   sdk: 'TypeScript SDK',
@@ -165,6 +168,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
         { text: t.channels, link: `${base}/build/channels` },
         { text: t.tools, link: `${base}/build/tools` },
         { text: t.skills, link: `${base}/build/skills` },
+        { text: t.perUserAgents, link: `${base}/build/per-user-agents` },
         { text: t.environments, link: `${base}/build/environments` },
       ],
     },
