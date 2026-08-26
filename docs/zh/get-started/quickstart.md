@@ -1,7 +1,7 @@
 ---
 title: 快速开始
 source: /en/get-started/quickstart
-source_hash: e922ad7b1a3731b5ae7242ecc089d44f6f15458f0f18c1ade3be7f81975f4955
+source_hash: c0cbd3c57da03c5ea10578bf6151c15c47d4464f0067ebac461495a34cd94238
 ---
 
 # 快速开始
@@ -20,7 +20,7 @@ npx skills add SerendipityOneInc/zoowork-sdk-skills
 ## 前置条件
 
 - **Node 20 或更高。** `@zoowork-ai/sdk` 是一个 ES module，没有任何运行时依赖，用的是平台自带的 `fetch`。
-- **一个 API key** ，形如 `zct_...`。由组织管理员为你的组织签发并交给你。没有自助注册页面。
+- **一个 API key** ，形如 `zct_...`。你自己就能在 ZooWork App 的 **设置 → API Keys** 里建。企业组织里这个标签页只有 admin 能看到，而且 Developer Preview 期间它只对已进入分批开放范围的账号出现——看不到就找你的组织管理员要一把。完整说明见[鉴权](/zh/get-started/authentication)。
 
 这个 key 只能放在服务端。它认证的是你的整个组织，不是某一个终端用户。
 

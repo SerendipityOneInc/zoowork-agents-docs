@@ -21,8 +21,19 @@ Keys are created in the ZooWork App, under **Settings → API Keys**:
 2. **Create API Key**, give it a name you will recognize later (`orders-backend`, not
    `test`), and copy the secret. It is shown **exactly once** and cannot be retrieved again -
    losing it means rotating it.
-3. On a personal organization any member can do this. On an enterprise organization the tab
-   requires the **admin** role - if you cannot see it, ask your org admin for a key instead.
+
+Two separate things decide whether that tab is on your Settings page at all:
+
+- **Your role.** On a personal organization any member can create a key. On an enterprise
+  organization the tab requires the **admin** role.
+- **Whether your account is in the preview.** The App asks the server whether your account
+  is on the agent runtime this API talks to, and hides the tab unless the answer comes back
+  yes. During the Developer Preview that is a staged rollout, not a setting you can flip.
+
+Either one can be why the tab is missing, and the fallback is the same: **ask your org admin
+for a key.** What they hand you is the same credential you would have created yourself - it
+authenticates the organization, not the person who created it, so one key serves every
+service your organization runs against this API.
 
 The same page manages the key afterwards: **Rotate** invalidates the old secret immediately
 and shows a new one once; **Revoke** kills the key outright. Neither has an API - key

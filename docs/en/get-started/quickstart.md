@@ -19,7 +19,7 @@ is the production reference with auth and persistence.
 ## Prerequisites
 
 - **Node 20 or later.** `@zoowork-ai/sdk` is an ES module with no runtime dependencies; it uses the platform `fetch`.
-- **An API key** that looks like `zct_...`. An organization administrator issues it for your organization and hands it to you. There is no self-serve signup page.
+- **An API key** that looks like `zct_...`. You create it yourself in the ZooWork App under **Settings → API Keys**. On an enterprise organization that tab is admin-only, and during the Developer Preview it appears only for accounts already in the rollout — if it is not there, ask your org admin for a key. [Authentication](/en/get-started/authentication) has the whole story.
 
 Keep the key server-side. It authenticates as your whole organization, not as one end user.
 
