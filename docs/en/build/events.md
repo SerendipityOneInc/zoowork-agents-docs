@@ -263,7 +263,7 @@ await zc.postEvents(agentId, sessionId, [
 streamEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; signal?: AbortSignal },
+  opts?: { after?: number; cursor?: string; signal?: AbortSignal },
 ): AsyncGenerator<SessionEvent>
 ```
 

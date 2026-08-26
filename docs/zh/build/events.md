@@ -1,7 +1,7 @@
 ---
 title: 事件与流式
 source: /en/build/events
-source_hash: c17b67d4d2ffdc3ea04b39789ad024a256e729a04ffe5c2558695742d674ca72
+source_hash: 34196ded166a0b71310bb22c54ef8d3431ab2b499571245c6c288480aabae1fc
 ---
 
 # 事件与流式
@@ -225,7 +225,7 @@ await zc.postEvents(agentId, sessionId, [
 streamEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; signal?: AbortSignal },
+  opts?: { after?: number; cursor?: string; signal?: AbortSignal },
 ): AsyncGenerator<SessionEvent>
 ```
 

@@ -1,7 +1,7 @@
 ---
 title: 核心概念
 source: /en/get-started/concepts
-source_hash: bb40d14f90507f1356f130bea1f1a2ffb4057f8bd08926b9eb2379856f5b80f2
+source_hash: a0159c4a662baa95f575e40aa10c8133ac1240ed097bcb7b8c9547b7d94712d7
 ---
 
 # 核心概念
@@ -151,7 +151,7 @@ session 被创建出来，只要你一直往里 post 就一直累积回合，之
 
 ## Event
 
-event 是 session 内发生的一切的最小单位。这份日志只追加，并按 `seq` 持久排序——`seq` 是每个 session 内单调递增的整数。流能续传全靠 `seq`：每一个 SSE 帧都在 `id:` 行里带着它，`?after=<seq>` 让服务端从那里重放。
+event 是 session 内发生的一切的最小单位。这份日志只追加，并按 `seq` 持久排序——`seq` 是每个 session 内单调递增的整数。续传用的是另一个值：每一个 SSE 帧都在 `id:` 行里带着一个不透明的续传令牌，SDK 把它放在 `ev.cursor` 上。把它发回去——走 SDK 就是 `{ cursor }`，直接调 HTTP 就是 `?cursor=` 或 `Last-Event-ID` 请求头——服务端就从那里重放。`?after=<seq>` 也能重放，但走的是废弃的 engine-only 通道，那条通道不含你自己发的 input 事件。
 
 尽量少直接读 `payload`。SDK 为重要的那几种结构提供了带类型的读取函数，遇到类型不匹配的事件它们返回空值：
 
@@ -265,10 +265,10 @@ setTimeout(() => ctl.abort(), 120_000)
 
 let text = ''
 let outcome: string | undefined
-let lastSeq = 0
+let cursor: string | undefined
 
 for await (const ev of zc.streamEvents(agentId, session.session_id, { signal: ctl.signal })) {
-  lastSeq = ev.seq
+  cursor = ev.cursor ?? cursor
   text += assistantText(ev)
   if (isRunFinished(ev)) {
     outcome = runOutcome(ev) // 'succeeded' | 'failed' | 'aborted'
@@ -287,12 +287,15 @@ await zc.postEvents(agentId, session.session_id, [
   { type: 'user.message', content: 'Now say it in French.' },
 ])
 
-for await (const ev of zc.streamEvents(agentId, session.session_id, { after: lastSeq })) {
+for await (const ev of zc.streamEvents(agentId, session.session_id, cursor ? { cursor } : {})) {
+  cursor = ev.cursor ?? cursor
   if (isRunFinished(ev)) break
 }
 ```
 
-传 `after: lastSeq` 也是断线之后续传的做法：带上你处理过的最后一个 `seq` 重连，服务端从那里继续。SDK 不会替你重连。
+这个 `cursor` 也是断线之后续传的做法：每一个流出来的事件都带一个，拿你看到的最后一个重连，服务端就从那里继续。SDK 不会替你重连。
+
+不要用 `{ after: seq }` 续传。它仍然能用，但会切到废弃的 engine-only 通道，那条通道不含你自己发的 input 事件——你刚 post 进去的那条 `user.message` 在续传出来的流里就没有了。`after` 只留给 `cursor` 出现之前存下来的旧游标。
 
 流的作用域是 session，不是回合。`run.finished` 到达时它不会关闭——需要你自己跳出循环——服务端会在 session 空闲之后关掉它。
 

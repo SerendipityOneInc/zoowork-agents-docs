@@ -168,7 +168,7 @@ Retry safety is per operation, not per error. Nothing in the SDK retries for you
 | `listModels`, `getAgent`, `getSession`, `listEvents`, `listAgentSkills`, and the other `list*` / `get*` reads | **Yes** | Reads. Retry on network errors and 5xx with exponential backoff. |
 | `startAgent`, `stopAgent` | **Yes** | Each call re-runs its convergence actions against the same id. Check `warnings`, and remember `channel_routes_reload_failed` is expected noise on an API-only agent, not a failure. |
 | `deleteAgent` | **Yes** | Soft delete. Repeated calls succeed. |
-| `streamEvents` | **Yes** | Reconnect with `{ after: lastSeq }`. Resume is server-side, so nothing between windows is lost. |
+| `streamEvents` | **Yes** | Reconnect with the last event's resume token — `{ cursor: ev.cursor }`. Resume is server-side, so nothing between windows is lost. Do **not** reconnect with `{ after: lastSeq }`: that selects the deprecated engine-only lane, which drops your own input events (`user.message`, `user.interrupt`, `user.tool_confirmation`, `system.message`). |
 | `createAgent`, `createSession`, `createSchedule`, `createEnvironment`, `createEnvironmentVersion`, `uploadSkill`, `uploadSkillVersion` | **Only with an `Idempotency-Key`** | Without one, a retry after a timeout creates a second agent, or a second session that runs the opening turn again. |
 | `updateAgent`, `putAgentSkill`, `deleteAgentSkill` | **No** | Each success bumps `config_version`. After a timeout, `getAgent()` first and reconcile before you decide. |
 | `updateSchedule`, `deleteSchedule` | **No** | Neither carries a cross-timeout idempotency guarantee. After a timeout, reconcile by listing the agent's schedules and reading their runs rather than sending the write again. |

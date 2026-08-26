@@ -323,7 +323,8 @@ try {
 
 ```bash [curl]
 # -N disables buffering so frames arrive as they are produced.
-# Resume after a drop by appending ?after=<last seq you saw>.
+# Resume after a drop by appending ?cursor=<the last id: line you saw>,
+# or by sending it as a Last-Event-ID request header.
 curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Accept: text/event-stream"
@@ -353,10 +354,14 @@ Four things that trip people up:
 - **`run.finished` ends the turn, not the stream.** Break out of the loop yourself when `isRunFinished(ev)` is true, or you will block until the server's idle timeout.
 - **`runOutcome(ev)` is `succeeded | failed | aborted`.** A run can finish `succeeded` even when individual tool calls errored - `toolCall(ev).isError === true` does not fail the run. Do not infer success from the absence of tool errors.
 - **`assistantText(ev)` returns `''` for every event that is not `agent.assistant`**, so concatenating it over the whole loop is safe and gives you the full reply.
-- **Resume with `after`.** Every frame carries a durable `seq`. If the connection drops, restart the generator with `{ after: lastSeq }` and the server replays from there. Nothing is lost and nothing is duplicated.
+- **Resume with `cursor`.** Every streamed frame carries a `cursor` resume token. If the connection drops, restart the generator with the last one you saw and the server replays from there - nothing lost, nothing duplicated. `{ after: seq }` also resumes, but it selects a deprecated engine-only lane that omits your own input events; keep it for cursors stored before `cursor` existed.
 
 ```ts
-for await (const ev of zc.streamEvents(agentId, sessionId, { after: lastSeq })) { /* ... */ }
+let cursor: string | undefined
+for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
+  cursor = ev.cursor ?? cursor
+  /* ... */
+}
 ```
 
 `listEvents(agentId, sessionId)` reads the same events over REST if you prefer polling. It returns one page - server default 100, maximum 500 - and a full page is truncated silently: no `has_more`, no total, no next cursor. Use `listAllEvents(agentId, sessionId)` to walk every page in one call rather than writing the loop yourself.
@@ -506,5 +511,5 @@ cleaned up agent agt_example
 
 - [Agents](../build/agents.md) - configuration sections, `updateAgent()` merge semantics, and the two response shapes.
 - [Sessions](../build/sessions.md) - multi-turn conversations, `postEvents()`, `system.message`, and `user.interrupt`.
-- [Events and streaming](../build/events.md) - the full event vocabulary, resume with `after`, and reading history over REST.
+- [Events and streaming](../build/events.md) - the full event vocabulary, resuming a dropped stream, and reading history over REST.
 - [Not supported](../reference/not-supported.md) - what does not exist here, including client-executed custom tools. Read this before you design around a capability.
