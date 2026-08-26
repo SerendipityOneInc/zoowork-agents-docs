@@ -1,6 +1,7 @@
 node_modules/
 dist/
 docs/.vitepress/cache/
+docs/.vitepress/.temp/
 .wrangler/
 .DS_Store
 *.local
@@ -12,3 +13,4 @@ docs/.vitepress/cache/
 .dev.vars
 !.dev.vars.example
 .claude/
+.impeccable/

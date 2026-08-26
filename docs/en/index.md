@@ -1,64 +1,144 @@
 ---
 title: ZooWork Managed Agents
-layout: home
+layout: page
+sidebar: false
+aside: false
 hero:
-  text: Agents that run on our infrastructure
-  tagline: Create an agent, start it, open a session, and stream durable events back. One API key, one TypeScript SDK.
-  actions:
-    - theme: brand
-      text: Quickstart
-      link: /en/get-started/quickstart
-    - theme: alt
-      text: Capability matrix
-      link: /en/reference/capabilities
-features:
-  - title: Event streams that resume
-    details: Every SSE frame carries a durable per-session seq in its id line. Reconnect with the after query parameter and the server replays from that point, so you never re-list history and de-duplicate.
-  - title: The whole lifecycle over one key
-    details: Create, start, update, run sessions, interrupt, stop, delete.
-  - title: Out-of-band system messages
-    details: Post a system.message into a running session and the model has it in context on the following turn, without spending a user turn on it.
-  - title: One client, both wire shapes
-    details: REST answers in snake_case and SSE in camelCase for the same event, and neither carries a top-level type field. The SDK normalizes both into a single SessionEvent.
+  text: Create an agent, stream every event.
+  tagline: A hosted runtime for agents you drive from your own code. Durable, resumable
+    event streams; skills, sessions and chat channels; one API key and one TypeScript SDK.
+home:
+  hero:
+    accent: stream every event.
+    actions:
+      - text: Quickstart
+        link: /en/get-started/quickstart
+        theme: brand
+      - text: TypeScript SDK
+        link: /en/reference/typescript-sdk
+      - text: Capability matrix
+        link: /en/reference/capabilities
+    note: Create your key in the ZooWork App, under Settings → API Keys.
+    noteLink: /en/get-started/authentication
+  nouns:
+    title: Four nouns carry the whole API
+    intro: Everything the SDK does is a verb on one of these. Learn them once and every
+      reference page reads itself.
+    items:
+      - name: Agent
+        id: agt_
+        body: A persistent, versioned configuration — model, persona, skills, tool policy.
+          It comes back stopped, so start it before it will accept sessions.
+        linkText: Agents
+        link: /en/build/agents
+      - name: Session
+        id: ses_
+        body: One conversation, created as a sub-resource of an agent. It holds the transcript
+          and scopes every event you write or read.
+        linkText: Sessions
+        link: /en/build/sessions
+      - name: Event
+        id: seq
+        body: The unit in both directions. You write four types and read back a durable,
+          sequence-numbered log that resumes from the last cursor you saw.
+        linkText: Events and streaming
+        link: /en/build/events
+      - name: Skill
+        id: skl_
+        body: A packaged capability in the registry, versioned independently of any agent.
+          Install it unpinned and one publish reaches every agent that has it.
+        linkText: Skills
+        link: /en/build/skills
+  journey:
+    title: From key to production
+    intro: The lifecycle in order — or jump straight to the page you need.
+    stages:
+      - name: Get started
+        hint: Key to first streamed reply
+        chips:
+          - { text: Quickstart, link: /en/get-started/quickstart, icon: play }
+          - { text: Authentication, link: /en/get-started/authentication, icon: key }
+          - { text: Core concepts, link: /en/get-started/concepts, icon: compass }
+      - name: Build
+        hint: The loop, surface by surface
+        chips:
+          - { text: Agents, link: /en/build/agents, icon: agent }
+          - { text: Sessions, link: /en/build/sessions, icon: thread }
+          - { text: Events and streaming, link: /en/build/events, icon: pulse }
+          - { text: Skills, link: /en/build/skills, icon: skill }
+          - { text: Tools, link: /en/build/tools, icon: wrench }
+          - { text: Environments, link: /en/build/environments, icon: layers }
+      - name: Ship to users
+        hint: Your product, their agents
+        chips:
+          - { text: An agent per user, link: /en/build/per-user-agents, icon: users, badge: NEW }
+          - { text: Channels, link: /en/build/channels, icon: chat }
+      - name: Know the edges
+        hint: Verified, untested, absent
+        chips:
+          - { text: Capability matrix, link: /en/reference/capabilities, icon: table }
+          - { text: Not supported, link: /en/reference/not-supported, icon: blocked }
+          - { text: Errors, link: /en/reference/errors, icon: alert }
+          - { text: TypeScript SDK, link: /en/reference/typescript-sdk, icon: brackets }
+  band:
+    title: Every claim here is verified — or labelled.
+    body: A capability is documented as working only after it has been exercised against a
+      live deployment. Anything else carries an explicit note, and what does not exist gets a
+      page of its own that says so, with the real alternative.
+    columns:
+      - title: Capability matrix
+        body: Verified, untested and missing — one table, per surface.
+        linkText: Read the matrix
+        link: /en/reference/capabilities
+      - title: Not supported
+        body: Custom tools, webhooks, file uploads — named absences, each with what to do instead.
+        linkText: Check before designing
+        link: /en/reference/not-supported
 ---
 
-::: warning Developer Preview
-The API may change before general availability. Pages here carry a badge when a route exists
-but we have not exercised it; anything without a badge was verified against a live deployment.
-:::
+<ZcHome>
 
-## Where to start
+```ts
+import {
+  createZooworkClient, assistantText, isRunFinished,
+} from '@zoowork-ai/sdk'
 
-1. [Quickstart](/en/get-started/quickstart) - key to first streamed reply, including the
-   `startAgent()` step.
-2. [Events and streaming](/en/build/events) - the event vocabulary, resuming with `after`, and
-   why `listEvents` truncates long sessions unless you page.
-3. [Capability matrix](/en/reference/capabilities) - what is verified, what is untested, and
-   what is missing, in one table.
+const zc = createZooworkClient() // reads ZOOWORK_API_KEY
 
-## What you get
+const { agent_id } = await zc.createAgent({
+  resource: {
+    name: 'quickstart-agent',
+    model: { primary: 'litellm/claude-sonnet-5' },
+  },
+})
+await zc.startAgent(agent_id)
+await zc.waitUntilRunning(agent_id)
 
-**Agent.** A persistent, versioned configuration: name, model, persona, skills, tool policy.
-A newly created agent comes back with `status.desired_state === 'stopped'`, so you must call
-`startAgent()` before it will accept sessions. Wait on `status.desired_state`, never on
-`status.actual_state` - `running` is not one of its values, so that loop never returns.
+const { session_id } = await zc.createSession(agent_id, {
+  initial_events: [{ type: 'user.message', content: 'Hi' }],
+})
 
-**Session.** One conversation, created as a sub-resource of an agent:
-`POST /agents/{id}/sessions`, or `createSession(agentId, input)` in the SDK. It holds the
-transcript and is the scope of every event you write or read. There is no top-level session
-collection.
+for await (const ev of zc.streamEvents(agent_id, session_id)) {
+  process.stdout.write(assistantText(ev))
+  if (isRunFinished(ev)) break
+}
+```
 
-**Event.** The unit in both directions. You write four types - `user.message`,
-`user.interrupt`, `system.message`, and `user.tool_confirmation`; you read back a durable,
-sequence-numbered log of what the agent did (`run.started`, `agent.thinking`,
-`agent.assistant`, `agent.tool`, `run.finished`). A turn ends at `run.finished`, whose
-`payload.status` is `succeeded`, `failed`, or `aborted`. The stream itself is session-scoped
-and does not close when a turn ends.
+<template v-slot:install>
 
-## What this is not
+```bash
+npm i @zoowork-ai/sdk
+```
+
+</template>
+
+<template v-slot:edges>
 
 **Client-executed custom tools do not exist**: there is no `{type: "custom"}` tool definition
 and no `user.custom_tool_result` event, so the agent never calls back into your process.
 Session-level outcome definitions, vaults, session `resources[]` mounts, and platform webhooks
 are also absent. Read [Not supported](/en/reference/not-supported) before you design around
 any of them.
+
+</template>
+</ZcHome>

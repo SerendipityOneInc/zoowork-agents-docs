@@ -77,8 +77,6 @@
   --vp-c-yellow-2: #8a6206;
   --vp-c-yellow-3: #9a7010;
   --vp-c-yellow-soft: rgb(234 179 8 / 0.13);
-
-  --vp-home-hero-name-color: var(--vp-c-text-1);
 }
 
 .dark {
@@ -193,146 +191,14 @@
   color: var(--vp-c-brand-1);
 }
 
-/* --- Home ------------------------------------------------------------------
-   The default home layout reserves the right half of the viewport for a hero image
-   this site does not have, which leaves a wide column of nothing on a desktop. Centre
-   the hero instead and hold the tagline to a readable measure. */
-
-.VPHome .VPHero .container {
-  flex-direction: column;
-  text-align: center;
-  max-width: 940px;
-}
-
-/* The stock hero reserves nav + 80px above and 64px below for a two-line headline and two
-   buttons, which pushed everything else off a 1280x860 screen. Half that, so the first
-   viewport ends inside the feature row instead of on empty space. */
-@media (min-width: 960px) {
-  .VPHome .VPHero {
-    padding-top: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + 44px);
-    padding-bottom: 44px;
-  }
-}
-
-/* The stock hero gives `.main` two thirds of the row and the remaining third to an image.
-   With no image that third is dead space, and it was the real reason the headline wrapped
-   at 626px inside a 940px container. */
-.VPHome .VPHero .main {
-  width: 100%;
-  max-width: none;
-  order: 1;
-}
-
-/* The hero has no `name`, so `text` is the headline and carries the ink.
-
-   `width: 100%` is the load-bearing line. The stock rule is `width: fit-content`, and the
-   default theme only re-centres it under `.has-image` - so a hero without an image keeps a
-   shrink-to-content box sitting flush left, and the container's `text-align: center` centres
-   the words inside a box that is itself off the page axis. Measured at 1538px: the English
-   headline sat 27px left of centre, the Chinese one 119px, the gap being the difference in
-   string width, not a language rule. Filling the line puts the headline back on the single
-   axis this section is built around. */
-.VPHome .VPHero .text {
-  width: 100%;
-  letter-spacing: -0.03em;
-  max-width: none;
-  text-wrap: balance;
-}
-
-/* Balancing is an English nicety and a Chinese hazard: Chinese wraps between any two Han
-   characters, so balancing the zh headline split 基础|设施 down the middle of a word. Left
-   to wrap on its own it fits one line at the widths where the display size applies. */
-:lang(zh) .VPHome .VPHero .text {
+/* Chinese wraps between any two Han characters, so `text-wrap: balance` splits words down
+   the middle — it once broke 基础|设施 across two lines. This is a property of the language,
+   not of any one component, so the exemption belongs here, wherever balancing is used. */
+html:lang(zh) :is(h1, h2, h3, h4) {
+  /* `html:lang(zh) :is(...)` rather than the shorter `:lang(zh) :where(...)`: a component's
+     scoped `h2 { text-wrap: balance }` compiles to `h2[data-v-…]`, which out-specifies a
+     zero-weight `:where()`. This has to win, so it is written to. */
   text-wrap: initial;
-}
-
-.VPHome .VPHero .tagline {
-  margin: 24px auto 0;
-  max-width: 62ch;
-  text-wrap: balance;
-}
-
-.VPHome .VPHero .actions {
-  justify-content: center;
-}
-
-.VPHome .VPHero .action .VPButton {
-  border-radius: var(--zc-radius);
-}
-
-/* Four claims about the API are content, not cards. Drop the box and set them as columns
-   under a hairline, which is also what makes them read at a glance. At every width: gating
-   this to desktop left the phone showing grey boxes, so the same four items arrived in two
-   different visual languages depending on the screen. */
-.VPHome .VPFeature {
-  border: none;
-  border-radius: 0;
-  border-top: 1px solid var(--vp-c-divider);
-  background: transparent;
-  padding-top: 20px;
-}
-
-.VPHome .VPFeature .box {
-  padding: 0;
-}
-
-.VPHome .VPFeature .title {
-  font-size: 15px;
-  line-height: 1.4;
-  text-wrap: balance;
-}
-
-.VPHome .VPFeature .details {
-  margin-top: 10px;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-/* The home body inherits the 1152px content container, so its prose ran the full width of
-   the feature grid - about 140 characters a line, twice the measure of every other page on
-   the site. Hold the whole block to one column so the section rules and the callout end
-   where the sentences end.
-
-   Centred, not flush left. The page already has two centred axes above it - the hero and
-   its actions - and a left-hugging column under them read as a layout bug with a hole cut
-   out of the right side, which is exactly what it looked like. Three widths, one axis:
-   the 1152px feature band, the 940px hero, the reading column inside both. */
-.VPHome .vp-doc > div {
-  max-width: 74ch;
-  margin-top: 40px;
-  margin-inline: auto;
-}
-
-/* "Where to start" is the whole job of an index: three routes out of it. Set the list as
-   navigation rows rather than a numbered paragraph - the reading order still lives in the
-   markup, so the decimal markers were only decoration. */
-.VPHome .vp-doc ol {
-  list-style: none;
-  padding-left: 0;
-  margin-top: 4px;
-}
-
-.VPHome .vp-doc ol > li {
-  border-top: 1px solid var(--vp-c-divider);
-  padding: 14px 0;
-  margin: 0;
-  color: var(--vp-c-text-2);
-}
-
-/* No closing rule on the last row: the next section's `h2` already draws one, and the two
-   sat 30px apart as a double line. */
-
-.VPHome .vp-doc ol > li > a:first-child {
-  display: inline-block;
-  margin-right: 2px;
-  color: var(--vp-c-text-1);
-  font-weight: 600;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.VPHome .vp-doc ol > li:hover > a:first-child {
-  color: var(--vp-c-brand-1);
 }
 
 /* --- Tables on narrow screens ----------------------------------------------
