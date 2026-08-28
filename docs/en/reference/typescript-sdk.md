@@ -108,7 +108,7 @@ The `{ serviceToken }` variant is internal-only and not usable with an API key; 
 
 ## Methods
 
-`ZooworkClient` exposes 58 methods, grouped below the way the client groups them. Everything
+`ZooworkClient` exposes 62 methods, grouped below the way the client groups them. Everything
 the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
 `agentId` first. The skill registry and Environments are top-level resources and take none.
 
@@ -137,9 +137,9 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 **Channels**
 
 Bind a chat platform to an API-created agent, so the same agent also answers people in the
-chat app. Feishu/Lark is the only platform with a server-driven QR flow here; Slack and WeCom
-bind through `addChannel` with credentials you already hold, and WeChat cannot be bound on this
-API at all. See [Channels](/en/build/channels) for the platform table and the traps.
+chat app. Feishu/Lark, WeCom and WeChat have a server-driven QR flow; Slack does not and binds
+through `addChannel` with credentials you already hold, while WeChat is the reverse — the QR
+flow is its only path. See [Channels](/en/build/channels) for the platform table and the traps.
 
 | Method | Returns | What it does |
 |---|---|---|
@@ -147,10 +147,11 @@ API at all. See [Channels](/en/build/channels) for the platform table and the tr
 | `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from `health`/`status` on a follow-up `listChannels`. |
 | `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, or `enabled` on one binding and returns it in its new state. `allow_from` is write-once at create. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
 | `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Unbinds one `platform` + `account` (`account` defaults to `'default'`). Idempotent, unlike `updateChannel` - removing a binding that is not there answers `200 { ok: true }`. |
-| `startFeishuSetup(agentId, input?)` | `Promise<FeishuSetupSession>` | Starts the Feishu/Lark QR registration and answers `{ session_id, verification_uri_complete, expires_in, poll_interval }`. You own the UI: render `verification_uri_complete`, usually as a QR code. `brand: 'lark'` switches the URI host to `open.larksuite.com` and must match the workspace the person approves it in. |
-| `pollFeishuSetup(agentId, sessionId)` | `Promise<FeishuPollResult>` | Polls that session once. A cancelled or vanished session answers `404 channel.feishu_session_not_found` rather than a terminal status, so a hand-rolled loop must treat that 404 as an end condition, not a transport error to retry. |
-| `cancelFeishuSetup(agentId, sessionId)` | `Promise<void>` | Abandons a setup session. Polling it afterwards 404s. |
-| `waitForFeishuSetup(agentId, sessionId, opts?)` | `Promise<FeishuPollResult>` | Drives the poll loop until the session leaves `pending`, then hands back that terminal poll. A rejection is an outcome, not a throw: `expired`, `denied`, and `error` come back in `status`. Defaults: 10-minute budget, server-suggested interval. |
+| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts a QR registration on `'feishu'`, `'wecom'` or `'weixin'`. Feishu answers `verification_uri_complete` and a `poll_interval`, with `expires_in: 600`; WeCom and WeChat answer `qrcode_url` with no interval and `expires_in: 300`, and WeChat's may be an inline `data:image/…` payload. You own the UI: render whichever one came back, usually as a QR code. `brand: 'lark'` (Feishu only) switches the URI host to `open.larksuite.com` and must match the workspace the person approves it in. |
+| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | Polls that session once. A cancelled or vanished session answers `404 channel.{platform}_session_not_found` rather than a terminal status, so a hand-rolled loop must treat that 404 as an end condition, not a transport error to retry. |
+| `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | Abandons a setup session. Polling it afterwards 404s. |
+| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | Drives the poll loop until the session leaves `pending`, then hands back that terminal poll. A rejection is an outcome, not a throw: `expired`, `denied`, and `error` come back in `status`. Defaults: 10-minute budget, server-suggested interval (5s locally where the platform sends none). |
+| `startFeishuSetup` / `pollFeishuSetup` / `cancelFeishuSetup` / `waitForFeishuSetup` | as above | The Feishu-only spellings, kept for callers written against 0.3.x-0.4.x. They call the four methods above with `platform: 'feishu'`. |
 
 **Skill registry**
 
@@ -817,7 +818,7 @@ fields within a version: ignore what you do not recognize rather than failing on
 The ones that do not are closed on purpose - `SessionEvent`, `SessionHistoryEntry`,
 `ToolCall`, `ExecResult`, `WakeResult`, `Ownership`, `EnvironmentConfig`, `AgentResource`,
 `OutcomeConfig`, `OutcomeEvaluator`, `SystemPromptDeclaration`, `SSEMessage`, `ZooworkConfig`,
-`ZooworkAuth`, `AddChannelInput`, `UpdateChannelInput`, and `FeishuSetupInput` take no extra
+`ZooworkAuth`, `AddChannelInput`, `UpdateChannelInput`, and `ChannelSetupInput` take no extra
 keys, and an extra key on them is a compile error rather than a field that survives to the
 wire.
 
@@ -1253,8 +1254,13 @@ import {
   // channels
   type AgentChannel,
   type ChannelPlatform,
+  type AddChannelPlatform,
+  type GuidedSetupPlatform,
   type AddChannelInput,
   type UpdateChannelInput,
+  type ChannelSetupInput,
+  type ChannelSetupSession,
+  type ChannelPollResult,
   type FeishuSetupInput,
   type FeishuSetupSession,
   type FeishuPollResult,
@@ -1325,7 +1331,7 @@ import {
 } from '@zoowork-ai/sdk'
 ```
 
-Thirteen values and fifty-two types, pinned by a test that asserts the entry point's exports as
+Thirteen values and fifty-seven types, pinned by a test that asserts the entry point's exports as
 a set - a missing symbol and an accidental extra one both fail it. `DEFAULT_BASE_URL` is the
 public gateway base that `ZOOWORK_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.

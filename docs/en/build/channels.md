@@ -8,7 +8,7 @@ agent with no channels is a pure API agent — that is the default, and nothing 
 required for API use.
 
 ::: warning New surface, rolling out
-Verified end to end on 2026-08-25. This family arrives with a gateway release that is still
+Verified end to end on 2026-08-28. This family arrives with a gateway release that is still
 rolling out, and a deployment without it answers **404 with a different error envelope** —
 `{"error":{"type":"not_found"}}` instead of this family's `{"code": …, "detail": …}`. That
 difference is how you tell "this deployment has no channels yet" from "that thing does not
@@ -17,18 +17,17 @@ exist".
 
 ## Which platforms you can bind
 
-Probed against a live deployment on 2026-08-25. A platform outside this table answers
+Probed against a live deployment on 2026-08-28. A platform outside this table answers
 `400 channel.invalid_request`.
 
 | Platform | `addChannel` | Server-driven QR flow | You supply |
 |---|---|---|---|
-| `feishu` | ✅ | ✅ — the only one here | nothing, or app credentials |
+| `feishu` | ✅ | ✅ | nothing, or app credentials |
 | `slack` | ✅ | ❌ never | bot token + app token |
-| `wecom` | ✅ | ❌ not on this API yet | bot id + secret |
-| `weixin` / `wechat` | ❌ | ❌ not on this API yet | — cannot bind here |
+| `wecom` | ✅ | ✅ | nothing, or bot id + secret |
+| `weixin` / `wechat` | ❌ | ✅ — the only path | nothing |
 
-The "no" in that column means two different things, and the difference decides whether you
-should wait for it.
+Three of the four have a QR flow, and the two "no"s in this table are the interesting cases.
 
 **Slack will not get one.** A server-driven flow needs the chat platform to hand credentials
 back to a server that asked for them. Slack has no such thing: a Slack app is created by a
@@ -38,32 +37,32 @@ have seen the guided Slack setup in the ZooWork app, that guidance is exactly th
 someone create the app and then has them paste the two tokens — the same two tokens you pass
 here.
 
-**WeCom and WeChat may.** Their QR flows exist in the product; they are simply not exposed on
-this API yet. Today WeCom binds through `addChannel` with credentials you already hold, and
-**WeChat cannot be bound here at all** — it rejects `addChannel` with
-`400 channel.weixin_setup_required`, directing you to a QR flow this API does not have. Treat
-WeChat as unavailable rather than following that error message.
+**WeChat goes the other way: the QR flow is its only path.** `addChannel` with
+`platform: 'weixin'` (or `'wechat'`) answers `400 channel.weixin_setup_required`, and that
+error means what it says — use `startChannelSetup(agentId, 'weixin')`. There are no WeChat
+credentials for you to bring.
 
-## The Feishu QR device flow
+## The QR flow
 
-This is the interactive path, and on this API only Feishu has one: you get a
-verification URL, show it to the person who owns the Feishu workspace (usually as a QR code),
-and poll until they approve. Your code never touches platform credentials.
+This is the interactive path, and Feishu, WeCom and WeChat all have one: you get a URL, show
+it to the person who owns the chat workspace (usually as a QR code), and poll until they
+approve. Your code never touches platform credentials.
 
 ```ts
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
 const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
-// 1. Start a setup session.
-const setup = await zc.startFeishuSetup(agentId)
+// 1. Start a setup session. Platform is 'feishu', 'wecom' or 'weixin'.
+const setup = await zc.startChannelSetup(agentId, 'feishu')
 
 // 2. YOU own the UI: render the URL — typically as a QR code — and show it.
+//    Feishu answers verification_uri_complete, WeCom and WeChat answer qrcode_url.
 //    The session expires after setup.expires_in seconds.
-console.log(setup.verification_uri_complete)
+console.log(setup.verification_uri_complete ?? setup.qrcode_url)
 
 // 3. Let the SDK drive the poll loop until the person approves (or doesn't).
-const done = await zc.waitForFeishuSetup(agentId, setup.session_id, {
+const done = await zc.waitForChannelSetup(agentId, 'feishu', setup.session_id, {
   timeoutMs: setup.expires_in * 1000,
   onPoll: (p) => console.log('…', p.status),
 })
@@ -75,50 +74,70 @@ if (done.status === 'success') {
 }
 ```
 
-`waitForFeishuSetup` polls at the server's suggested interval and returns **every** terminal
+`waitForChannelSetup` polls at the server's suggested interval and returns **every** terminal
 outcome instead of throwing on the human ones — "the person never scanned" is an outcome,
 not an exception. It throws only for a timeout you set (`408` / `type: 'timeout'`) or your
 own abort (`0` / `'aborted'`).
 
-If you drive the loop yourself, use `pollFeishuSetup(agentId, sessionId)` and treat `status`
-values you do not recognize as still-in-flight:
+If you drive the loop yourself, use `pollChannelSetup(agentId, platform, sessionId)` and treat
+`status` values you do not recognize as still-in-flight:
 
 | `status` | Meaning |
 |---|---|
 | `pending` | Waiting for the person. Keep polling at `poll_interval` seconds. |
 | `success` | Bound. `channel_configured: true`. |
 | `expired` | The session outlived `expires_in`. Start a new one. |
-| `denied` | The person rejected it. |
+| `denied` | The person rejected it. Feishu only. |
 | `error` | Something else went wrong; `message` has the detail. |
 
-A pending poll answers `{ status: 'pending', channel_configured: false, message: null,
-poll_interval: 5 }`. Observed defaults on a fresh session: `expires_in: 600`,
-`poll_interval: 5`.
+A pending poll answers `{ status: 'pending', channel_configured: false, message: null }`, plus
+`poll_interval: 5` on Feishu.
+
+### What differs per platform
+
+The three flows share the routes and the `status` vocabulary, and differ in what the setup
+answer carries and what the body may say:
+
+| | `feishu` | `wecom` | `weixin` |
+|---|---|---|---|
+| Setup answers | `verification_uri_complete` | `qrcode_url` | `qrcode_url` |
+| `poll_interval` | `5` | none — you pick the cadence | none |
+| `expires_in` | `600` | `300` | `300` |
+| Body reads | `brand`, `account`, `dm_policy`, `group_policy` | `account`, `dm_policy`, `group_policy` | `dm_policy` only |
+
+Two details worth coding for. **WeChat's `qrcode_url` may be an inline image**, a
+`data:image/…` payload rather than a URL, so check the prefix before you hand it to a QR
+encoder. And **WeChat takes only `dm_policy: 'open'` or `'disabled'`** — `'allowlist'` answers
+`400 channel.allowlist_unsupported` — pins the account to `'default'`, forces the group policy
+to `'disabled'`, and ignores anything else you put in the body rather than rejecting it.
 
 ::: warning A session can stop existing, and then polling 404s
-`cancelFeishuSetup(agentId, sessionId)` abandons a session — and afterwards polling it answers
-`404 channel.feishu_session_not_found` rather than a terminal `status`. So a hand-rolled loop
-must treat that 404 as an ending, not as a transport error to retry. `waitForFeishuSetup`
+`cancelChannelSetup(agentId, platform, sessionId)` abandons a session — and afterwards polling
+it answers `404 channel.feishu_session_not_found` (or `channel.wecom_session_not_found` /
+`channel.weixin_session_not_found`) rather than a terminal `status`. So a hand-rolled loop
+must treat that 404 as an ending, not as a transport error to retry. `waitForChannelSetup`
 surfaces it as a thrown `ZooworkError` carrying that `type`.
 
 Whether a session that simply runs past `expires_in` reports `status: 'expired'` in a 200 or
 disappears into the same 404 has not been observed. Handle both.
 :::
 
-`brand` picks the real host: `'feishu'` (default) gives an `open.feishu.cn` URI, `'lark'` gives
-`open.larksuite.com`. It has to match the workspace the person will approve it in.
+`brand` is Feishu's alone and picks the real host: `'feishu'` (default) gives an
+`open.feishu.cn` URI, `'lark'` gives `open.larksuite.com`. It has to match the workspace the
+person will approve it in.
 
-**Pick `account` before you show the QR.** `startFeishuSetup` takes one too, and the name
-follows the same rules as the explicit path — see [Naming the binding](#naming-the-binding-account).
+**Pick `account` before you show the QR** on Feishu and WeCom. The name follows the same rules
+as the explicit path — see [Naming the binding](#naming-the-binding-account).
 It matters more here: approving the scan registers a **new app** in that Feishu workspace, and
 only then is the binding written, so a name clash surfaces as `409 channel.conflict` *after*
 someone has already scanned, leaving that fresh app behind in their workspace. Retrying under
 the same name does both again.
 
-## Explicit config — the path for Slack and WeCom
+## Explicit config — the path for Slack
 
-`addChannel` is the non-interactive path, and the only path for Slack and WeCom. You bring the
-platform app's credentials and pass them in `config`.
+`addChannel` is the non-interactive path: the only path for Slack, an alternative to the QR
+flow for Feishu and WeCom, and refused for WeChat. You bring the platform app's credentials
+and pass them in `config`.
 
 **`config` keys are platform-specific, and they are camelCase.** These are the keys the
 channel service reads; anything else you put in `config` is stored and ignored.
@@ -214,7 +233,7 @@ tell them apart. Match on it rather than on the status alone:
 
 | `code` | What happened | What to do |
 |---|---|---|
-| `channel.feishu_session_not_found` | The QR session is gone — cancelled, or possibly expired. | Start a new setup session. |
+| `channel.feishu_session_not_found`, and the `wecom` / `weixin` spellings of it | The QR session is gone — cancelled, or possibly expired. | Start a new setup session. |
 | `channel.not_found` | The agent exists, but has no binding on that platform. | Nothing to update or remove; bind first. |
 | `service_api.not_found` | Unknown agent, an agent you cannot reach, or an unknown action in the path. | Check the agent id and the route. |
 

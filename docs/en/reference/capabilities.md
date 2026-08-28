@@ -89,21 +89,22 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 
 ## Channels
 
-Verified 2026-08-25, on a deployment carrying the channels release. The family is still
+Verified 2026-08-28, on a deployment carrying the channels release. The family is still
 rolling out; a deployment without it answers 404 in the engine-passthrough envelope
 (`{"error":{"type":"not_found"}}`), which is how you tell that case apart.
 See [Channels](/en/build/channels).
 
 | Surface | Status | Notes |
 |---|---|---|
-| Platforms you can bind | Verified | `feishu`, `slack`, `wecom` bind through `addChannel`. `weixin`/`wechat` answer `400 channel.weixin_setup_required` pointing at a QR flow this API does not have — unbindable here. Anything else answers `400 channel.invalid_request`. |
+| Platforms you can bind | Verified | `feishu`, `slack`, `wecom` bind through `addChannel`; `feishu`, `wecom`, `weixin` bind through the QR flow. `weixin`/`wechat` on `addChannel` answer `400 channel.weixin_setup_required` — the QR flow it points at exists, so follow it. Anything else answers `400 channel.invalid_request`. |
 | `dm_policy: 'pairing'` | Not available | `400 channel.pairing_unsupported` on both create and update. |
 | `listChannels()` | Verified | `{ channels: [] }` for a pure API agent. |
 | `addChannel()` | Verified | Answers `201` — but **credentials are not validated at bind time**. Bogus ones returned `201` with `health: 'unknown'` / `status: 'configured'`, then listed as `health: 'unhealthy'` / `status: 'error'`. Read the verdict from a follow-up list, never from the 201. `allow_from` is write-once at create. Re-posting an identical body replays the same `201`, but the same `platform` + `account` with a **different** `config` answers `409 channel.conflict` — rotating credentials means remove-then-add. |
 | `updateChannel()` | Verified | Returns the channel in its new state. `enabled: false` also moves `status` to `'disabled'` and resets `health` to `'unknown'`. `404 channel.not_found` when that platform has no binding. |
 | `removeChannel()` | Verified | `{ ok: true }`, and the channel is gone from the next list. |
-| Feishu QR device flow — `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` | Verified | Observed defaults `expires_in: 600`, `poll_interval: 5`. `brand: 'lark'` really switches the URI host to `open.larksuite.com`. A cancelled session answers `404 channel.feishu_session_not_found` on the next poll. |
-| `waitForFeishuSetup()` | Verified | Drives the loop at the server's interval and returns body-reported terminal statuses. A session that stopped existing throws instead — see the caveat on the Channels page. |
+| QR flow — `startChannelSetup()` / `pollChannelSetup()` / `cancelChannelSetup()` | Verified | On all three guided platforms. Feishu: `verification_uri_complete`, `expires_in: 600`, `poll_interval: 5`, and `brand: 'lark'` really switches the URI host to `open.larksuite.com`. WeCom and WeChat: `qrcode_url`, `expires_in: 300`, no `poll_interval`. A cancelled session answers `404 channel.{platform}_session_not_found` on the next poll. |
+| WeChat setup body | Verified | `dm_policy` only, and only `'open'`/`'disabled'` — `'allowlist'` answers `400 channel.allowlist_unsupported`. The account is pinned to `'default'`, the group policy to `'disabled'`, and anything else in the body is ignored rather than rejected. |
+| `waitForChannelSetup()` | Verified | Drives the loop at the server's interval and returns body-reported terminal statuses. A session that stopped existing throws instead — see the caveat on the Channels page. The Feishu-only spellings (`startFeishuSetup()` etc.) still work and call these. |
 | A scanned-to-completion binding | Available, not verified | Every route was exercised, but no run has taken a real person through the QR approval, so `status: 'success'` and a healthy channel are unobserved. |
 | Channel cleanup on `deleteAgent()` | Available, not verified | A successful delete best-effort disables the agent's channels; a cleanup failure never turns the delete into an error. Confirmed only that the channels routes answer `404 service_api.not_found` once the agent is deleted. |
 

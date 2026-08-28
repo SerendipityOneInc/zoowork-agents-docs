@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 1b443e7fb81efbfc478f6714276c9bb4a9e5c5d18e351c9ad37b5bddf6683e94
+source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
 ---
 
 # 能力矩阵
@@ -90,18 +90,19 @@ source_hash: 1b443e7fb81efbfc478f6714276c9bb4a9e5c5d18e351c9ad37b5bddf6683e94
 
 ## 渠道 {#channels}
 
-2026-08-25 在一套带了渠道版本的部署上实测。这一族仍在灰度；没带上它的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。见[渠道](/zh/build/channels)。
+2026-08-28 在一套带了渠道版本的部署上实测。这一族仍在灰度；没带上它的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。见[渠道](/zh/build/channels)。
 
 | 面 | 状态 | 说明 |
 |---|---|---|
-| 能绑哪些平台 | 已实测 | `feishu`、`slack`、`wecom` 可以通过 `addChannel` 绑定。`weixin`/`wechat` 返回 `400 channel.weixin_setup_required`，指向一条这套 API 没有的 QR 流——在这里绑不了。其他名字一律 `400 channel.invalid_request`。 |
+| 能绑哪些平台 | 已实测 | `feishu`、`slack`、`wecom` 可以通过 `addChannel` 绑定；`feishu`、`wecom`、`weixin` 可以走扫码流。`weixin`/`wechat` 调 `addChannel` 返回 `400 channel.weixin_setup_required`——它指向的扫码流是存在的，照着走即可。其他名字一律 `400 channel.invalid_request`。 |
 | `dm_policy: 'pairing'` | 不存在 | 创建和更新都返回 `400 channel.pairing_unsupported`。 |
 | `listChannels()` | 已实测 | 纯 API agent 返回 `{ channels: [] }`。 |
 | `addChannel()` | 已实测 | 返回 `201`——但**绑定时不校验凭证**。编造的凭证同样返回 `201`，带 `health: 'unknown'` / `status: 'configured'`，随后在列表里变成 `health: 'unhealthy'` / `status: 'error'`。判定要从后续的 list 里读，绝不能只看 201。`allow_from` 只在创建时写入。请求体完全相同时重发会回放同一个 `201`，但同一个 `platform` + `account` 换一份**不同的 `config`** 会返回 `409 channel.conflict`——换凭证要先 remove 再 add。 |
 | `updateChannel()` | 已实测 | 直接返回渠道的新状态。`enabled: false` 还会把 `status` 变成 `'disabled'`、`health` 重置为 `'unknown'`。该平台没有绑定时返回 `404 channel.not_found`。 |
 | `removeChannel()` | 已实测 | `{ ok: true }`，下一次 list 里就没有了。 |
-| 飞书 QR 设备流 —— `startFeishuSetup()` / `pollFeishuSetup()` / `cancelFeishuSetup()` | 已实测 | 实测默认值 `expires_in: 600`、`poll_interval: 5`。`brand: 'lark'` 确实会把 URI 域名换成 `open.larksuite.com`。被取消的 session 在下一次轮询时返回 `404 channel.feishu_session_not_found`。 |
-| `waitForFeishuSetup()` | 已实测 | 按服务端的间隔驱动循环，并把 body 报告的终态当返回值交回。session 不存在的情况是抛异常——见渠道页的告诫。 |
+| 扫码流 —— `startChannelSetup()` / `pollChannelSetup()` / `cancelChannelSetup()` | 已实测 | 三个平台都实测过。飞书：`verification_uri_complete`、`expires_in: 600`、`poll_interval: 5`，`brand: 'lark'` 确实会把 URI 域名换成 `open.larksuite.com`。企业微信和微信：`qrcode_url`、`expires_in: 300`、没有 `poll_interval`。被取消的 session 在下一次轮询时返回 `404 channel.{platform}_session_not_found`。 |
+| 微信 setup 的请求体 | 已实测 | 只读 `dm_policy`，而且只接受 `'open'`/`'disabled'`——`'allowlist'` 返回 `400 channel.allowlist_unsupported`。account 钉死为 `'default'`、group policy 钉死为 `'disabled'`，请求体里其他字段被忽略而不是报错。 |
+| `waitForChannelSetup()` | 已实测 | 按服务端的间隔驱动循环，并把 body 报告的终态当返回值交回。session 不存在的情况是抛异常——见渠道页的告诫。只针对飞书的旧拼写（`startFeishuSetup()` 等）仍然可用，内部调的就是这几个。 |
 | 真人扫码完成的绑定 | 可用，未实测 | 每条路由都跑过了，但没有任何一次运行让真人走完 QR 批准，所以 `status: 'success'` 和一个健康的渠道都没有被观察到。 |
 | `deleteAgent()` 的渠道清理 | 可用，未实测 | 删除成功后 best-effort 停用该 agent 的渠道；清理失败永远不会把删除变成报错。已确认的只有：agent 删除后，渠道路由返回 `404 service_api.not_found`。 |
 
