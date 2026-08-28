@@ -89,8 +89,8 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 
 ## Channels
 
-Verified 2026-08-28, on a deployment carrying the channels release. The family is still
-rolling out; a deployment without it answers 404 in the engine-passthrough envelope
+Verified 2026-08-28, on the deployment this SDK talks to by default. A deployment that
+predates the channels release answers 404 in the engine-passthrough envelope
 (`{"error":{"type":"not_found"}}`), which is how you tell that case apart.
 See [Channels](/en/build/channels).
 

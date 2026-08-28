@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: 77e0bcf3e35490edaed2ea3703dd89b126268dbfdc0e286eb80e2df9fe58368c
+source_hash: badf90f37cc2722a1a00bdf4d4221656ea813fd6f2aaf9f5ca380118db24e029
 ---
 
 # 渠道
@@ -10,8 +10,8 @@ source_hash: 77e0bcf3e35490edaed2ea3703dd89b126268dbfdc0e286eb80e2df9fe58368c
 
 渠道绑在 **agent** 级别，用的就是你手上的 `agent_id`。没绑渠道的 agent 是纯 API agent——这是默认状态，本页的一切对纯 API 使用都不是必需的。
 
-::: warning 新面，正在灰度
-2026-08-28 端到端实测过。这一族随一个仍在灰度的网关版本发布，没带上它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。
+::: warning 新面
+2026-08-28 在 SDK 默认指向的那套部署上端到端实测过。这一族随一个较新的网关版本发布，早于它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。
 :::
 
 ## 能绑哪些平台

@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
+source_hash: 0e3c1252cdfc3f7506d9d4ab438c0c0a12fdc02f43734fdafd8307249b795105
 ---
 
 # 能力矩阵
@@ -90,7 +90,7 @@ source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
 
 ## 渠道 {#channels}
 
-2026-08-28 在一套带了渠道版本的部署上实测。这一族仍在灰度；没带上它的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。见[渠道](/zh/build/channels)。
+2026-08-28 在 SDK 默认指向的那套部署上实测。早于渠道版本的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。见[渠道](/zh/build/channels)。
 
 | 面 | 状态 | 说明 |
 |---|---|---|

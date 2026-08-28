@@ -7,12 +7,12 @@ Channels attach at the **agent** level, keyed by the same `agent_id` you already
 agent with no channels is a pure API agent — that is the default, and nothing on this page is
 required for API use.
 
-::: warning New surface, rolling out
-Verified end to end on 2026-08-28. This family arrives with a gateway release that is still
-rolling out, and a deployment without it answers **404 with a different error envelope** —
-`{"error":{"type":"not_found"}}` instead of this family's `{"code": …, "detail": …}`. That
-difference is how you tell "this deployment has no channels yet" from "that thing does not
-exist".
+::: warning New surface
+Verified end to end on 2026-08-28, on the deployment this SDK talks to by default. This family
+arrived with a recent gateway release, and a deployment that predates it answers **404 with a
+different error envelope** — `{"error":{"type":"not_found"}}` instead of this family's
+`{"code": …, "detail": …}`. That difference is how you tell "this deployment has no channels
+yet" from "that thing does not exist".
 :::
 
 ## Which platforms you can bind
