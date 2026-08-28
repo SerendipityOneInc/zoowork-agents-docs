@@ -1,7 +1,7 @@
 ---
 title: 能力矩阵
 source: /en/reference/capabilities
-source_hash: 87f7203b09bbb91c6d3302792d684a7f2984a0c5655cd1158280413374899167
+source_hash: 55b340029440ad116a4f4b5ee91f9a90e9fa6e049c753a9a59340c73723092c3
 ---
 
 # 能力矩阵
@@ -102,7 +102,7 @@ source_hash: 87f7203b09bbb91c6d3302792d684a7f2984a0c5655cd1158280413374899167
 | `addChannel()` | 已实测 | 返回 `201`——但**绑定时不校验凭证**。编造的凭证同样返回 `201`，带 `health: 'unknown'` / `status: 'configured'`，随后在列表里变成 `health: 'unhealthy'` / `status: 'error'`。判定要从后续的 list 里读，绝不能只看 201。请求体里的 `allow_from` 会被收下然后忽略——真正生效的值由 `dm_policy` 推导，也没有任何地方把它回显出来。请求体完全相同时重发会回放同一个 `201`，但同一个 `platform` + `account` 换一份**不同的 `config`** 会返回 `409 channel.conflict`——换凭证要先 remove 再 add。 |
 | `updateChannel()` | 已实测 | 直接返回渠道的新状态。`enabled: false` 还会把 `status` 变成 `'disabled'`、`health` 重置为 `'unknown'`。该平台没有绑定时返回 `404 channel.not_found`。 |
 | `removeChannel()` | 已实测 | `{ ok: true }`，下一次 list 里就没有了。 |
-| 扫码流 —— `startChannelSetup()` / `pollChannelSetup()` / `cancelChannelSetup()` | 已实测 | 三个平台都实测过。飞书：`verification_uri_complete`、`expires_in: 600`、`poll_interval: 5`，`brand: 'lark'` 确实会把 URI 域名换成 `open.larksuite.com`。企业微信和微信：`qrcode_url`、`expires_in: 300`、没有 `poll_interval`。被取消的 session 在下一次轮询时返回 `404 channel.{platform}_session_not_found`。 |
+| 扫码流 —— `startChannelSetup()` / `pollChannelSetup()` / `cancelChannelSetup()` | 已实测 | 三个平台都实测过。飞书：`verification_uri_complete`、`expires_in: 600`、`poll_interval: 5`，`brand: 'lark'` 确实会把 URI 域名换成 `open.larksuite.com`。企业微信和微信：`qrcode_url`、`expires_in: 300`、没有 `poll_interval`。被取消的、或不存在的 session 在下一次轮询时返回 `404 channel.{platform}_session_not_found`；而让 session 自己活过 `expires_in`，返回的是 `200` 带 `status: 'expired'`——三个平台都等到时钟走完实测过。 |
 | 微信 setup 的请求体 | 已实测 | 只读 `dm_policy`，而且只接受 `'open'`/`'disabled'`——`'allowlist'` 返回 `400 channel.allowlist_unsupported`。account 钉死为 `'default'`、group policy 钉死为 `'disabled'`，请求体里其他字段被忽略而不是报错。 |
 | `waitForChannelSetup()` | 已实测 | 按服务端的间隔驱动循环，并把 body 报告的终态当返回值交回。session 不存在的情况是抛异常——见渠道页的告诫。只针对飞书的旧拼写（`startFeishuSetup()` 等）仍然可用，内部调的就是这几个。 |
 | 真人扫码完成的绑定 | 可用，未实测 | 每条路由都跑过了，但没有任何一次运行让真人走完 QR 批准，所以 `status: 'success'` 和一个健康的渠道都没有被观察到。 |

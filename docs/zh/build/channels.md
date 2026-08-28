@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: db6a05dcd59fc76ba579bb026147af1fedb3044bfb43281fa6f21ee8b4625cf3
+source_hash: 104564bad4d4122803db2d052bc1c09a8a468ccee5f54aae0fd96fc517331149
 ---
 
 # 渠道
@@ -88,10 +88,10 @@ pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: fa
 
 有两点要在代码里处理。**微信的 `qrcode_url` 可能是一张内嵌图片**，也就是 `data:image/…` 而不是一个 URL，所以喂给二维码库之前先判断前缀。另外**微信的 `dm_policy` 只接受 `'open'` 和 `'disabled'`**——传 `'allowlist'` 返回 `400 channel.allowlist_unsupported`——它把 account 钉死为 `'default'`、group policy 钉死为 `'disabled'`，请求体里的其他字段会被忽略而不是报错。
 
-::: warning session 会「不存在」，那时轮询返回 404
-`cancelChannelSetup(agentId, platform, sessionId)` 放弃一个 session——之后再轮询它，返回的是 `404 channel.feishu_session_not_found`（企业微信和微信是 `channel.wecom_session_not_found` / `channel.weixin_session_not_found`），而**不是**某个终态 `status`。所以你自己写的轮询循环必须把这个 404 当成一种结束，而不是当成可重试的传输错误。`waitForChannelSetup` 会把它抛成一个带这个 `type` 的 `ZooworkError`。
+::: warning 被取消的 session 会「不存在」，那时轮询返回 404
+`cancelChannelSetup(agentId, platform, sessionId)` 放弃一个 session——之后再轮询它，返回的是 `404 channel.feishu_session_not_found`（企业微信和微信是 `channel.wecom_session_not_found` / `channel.weixin_session_not_found`），而**不是**某个终态 `status`。传一个从来不存在的 session id 也是同样的 404。所以你自己写的轮询循环必须把这个 404 当成一种结束，而不是当成可重试的传输错误；`waitForChannelSetup` 会把它抛成一个带这个 `type` 的 `ZooworkError`。
 
-至于一个 session 单纯活过了 `expires_in` 之后，是返回 200 带 `status: 'expired'`，还是同样变成这个 404——**我们没有观察到**。两种都要处理。
+**单纯活过 `expires_in` 是另一种情况，它不会 404。** 让 session 自己过期，再去轮询，返回的是 `200 { status: 'expired', message: 'Session expired, please try again' }`——三个平台各起一个 session、等到它的时钟走完之后实测的。所以过期是一个普通的终态，只有被取消的和不存在的 session 才会抛异常。
 :::
 
 `brand` 只有飞书有，它决定真实的域名：`'feishu'`（默认）给的是 `open.feishu.cn` 的 URI，`'lark'` 给的是 `open.larksuite.com`。它必须和对方将要批准它的那个工作区对上。

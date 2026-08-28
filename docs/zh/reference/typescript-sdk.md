@@ -1,7 +1,7 @@
 ---
 title: TypeScript SDK 参考
 source: /en/reference/typescript-sdk
-source_hash: b182ffa3dbed94ea0835c63094d58f01a5ae5cf7e3fe37af44a079732e39e2e1
+source_hash: 9f589ed980a8791b9c4a636fa6715eeb6b47eeeb0dd508f6bcac8015d9795d5c
 ---
 
 # TypeScript SDK 参考
@@ -151,7 +151,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 | `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 改一个绑定的 `dm_policy`、`group_policy` 或 `enabled`，并把改完之后的状态返回给你。`allow_from` 在这里和创建时都设不了——真正生效的值由 `dm_policy` 推导。**不**幂等：这个平台上没有绑定就是 `404 channel.not_found`。 |
 | `removeChannel(agentId, platform, opts?)` | `Promise<void>` | 解绑一个 `platform` + `account`（`account` 默认 `'default'`）。和 `updateChannel` 不同，它是幂等的——删一个本来就不存在的绑定返回 `200 { ok: true }`。 |
 | `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | 在 `'feishu'` / `'wecom'` / `'weixin'` 上发起扫码注册。飞书返回 `verification_uri_complete` 和 `poll_interval`，`expires_in: 600`；企业微信和微信返回 `qrcode_url`，没有 `poll_interval`，`expires_in: 300`，而且微信的 `qrcode_url` 可能是内嵌的 `data:image/…`。UI 归你自己做：把返回的那个渲染出来，通常是渲染成二维码。`brand: 'lark'`（只有飞书有）会把 URI 的 host 换成 `open.larksuite.com`，而且必须和扫码那个人所在的 workspace 对得上。 |
-| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | 轮询这个 session 一次。被取消或已经消失的 session 返回的是 `404 channel.{platform}_session_not_found`，不是某个终态，所以自己写的轮询循环要把这个 404 当成结束条件，而不是一个该重试的传输错误。 |
+| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | 轮询这个 session 一次。被取消的、或根本不存在的 session 返回的是 `404 channel.{platform}_session_not_found`，不是某个终态，所以自己写的轮询循环要把这个 404 当成结束条件，而不是一个该重试的传输错误。单纯活过 `expires_in` 的 session 不会 404，它返回 `200` 带 `status: 'expired'`。 |
 | `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | 放弃一个 setup session。之后再轮询它就是 404。 |
 | `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | 替你把轮询循环跑完，直到这个 session 离开 `pending`，然后把那次终态的轮询结果交给你。被拒绝是一种结果，不是异常：`expired`、`denied`、`error` 都从 `status` 里回来。默认值：10 分钟预算，间隔听服务端的（平台不给间隔时本地按 5 秒）。这个预算和飞书对得上，但比企业微信、微信的 300 秒 session 长，所以传 `setup.expires_in * 1000` 更稳。 |
 | `startFeishuSetup` / `pollFeishuSetup` / `cancelFeishuSetup` / `waitForFeishuSetup` | 同上 | 只针对飞书的旧拼写，为 0.3.x-0.4.x 写的调用方保留，内部就是用 `platform: 'feishu'` 调上面四个。 |

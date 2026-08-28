@@ -116,15 +116,18 @@ encoder. And **WeChat takes only `dm_policy: 'open'` or `'disabled'`** — `'all
 `400 channel.allowlist_unsupported` — pins the account to `'default'`, forces the group policy
 to `'disabled'`, and ignores anything else you put in the body rather than rejecting it.
 
-::: warning A session can stop existing, and then polling 404s
+::: warning A cancelled session stops existing, and then polling 404s
 `cancelChannelSetup(agentId, platform, sessionId)` abandons a session — and afterwards polling
 it answers `404 channel.feishu_session_not_found` (or `channel.wecom_session_not_found` /
-`channel.weixin_session_not_found`) rather than a terminal `status`. So a hand-rolled loop
-must treat that 404 as an ending, not as a transport error to retry. `waitForChannelSetup`
-surfaces it as a thrown `ZooworkError` carrying that `type`.
+`channel.weixin_session_not_found`) rather than a terminal `status`. A session id that never
+existed answers the same 404. So a hand-rolled loop must treat that 404 as an ending, not as a
+transport error to retry; `waitForChannelSetup` surfaces it as a thrown `ZooworkError` carrying
+that `type`.
 
-Whether a session that simply runs past `expires_in` reports `status: 'expired'` in a 200 or
-disappears into the same 404 has not been observed. Handle both.
+**Running past `expires_in` is the other case, and it does not 404.** A session left to expire
+on its own answers `200 { status: 'expired', message: 'Session expired, please try again' }` —
+measured on all three platforms by starting a session and polling it after its clock ran out.
+So expiry is an ordinary terminal status, and only cancelled or unknown sessions throw.
 :::
 
 `brand` is Feishu's alone and picks the real host: `'feishu'` (default) gives an
