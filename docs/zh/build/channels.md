@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: badf90f37cc2722a1a00bdf4d4221656ea813fd6f2aaf9f5ca380118db24e029
+source_hash: db6a05dcd59fc76ba579bb026147af1fedb3044bfb43281fa6f21ee8b4625cf3
 ---
 
 # 渠道
@@ -16,7 +16,7 @@ source_hash: badf90f37cc2722a1a00bdf4d4221656ea813fd6f2aaf9f5ca380118db24e029
 
 ## 能绑哪些平台
 
-2026-08-28 对一套真实部署实测。表外的平台名一律返回 `400 channel.invalid_request`。
+2026-08-28 对一套真实部署实测。表外的名字大多返回 `400 channel.invalid_request`——`discord`、`telegram`、`msteams`、`dingtalk-connector` 都是，而且大小写敏感，写成 `WECOM` 同样是 `400`。只有一个名字既没写进文档也没被拒绝：`dingtalk` 在渠道服务的平台列表里，绑定会返回 `201`，但我们没有让它在这套 API 上真正工作过，所以把它当成「未验证」，不是「支持」。
 
 | 平台 | `addChannel` | 服务端扫码流 | 你要提供什么 |
 |---|---|---|---|
@@ -25,7 +25,7 @@ source_hash: badf90f37cc2722a1a00bdf4d4221656ea813fd6f2aaf9f5ca380118db24e029
 | `wecom` | ✅ | ✅ | 什么都不用，或 bot id + secret |
 | `weixin` / `wechat` | ❌ | ✅ —— 唯一的路径 | 什么都不用 |
 
-四个平台里三个有扫码流，表里这两个 ❌ 才是需要解释的。
+四个平台里三个有扫码流。表里那两个 ❌ 才是需要解释的：Slack 没有扫码流，而微信只有扫码流。
 
 **Slack 不会有。** 服务端驱动的扫码流，前提是聊天平台愿意把凭证交回给发起请求的服务端。Slack 没有这种东西：Slack 应用只能由人在 `api.slack.com/apps` 上创建，它的 `xoxb-` / `xapp-` token 只会出现在那个人的浏览器里。所以 Slack 永远是「`addChannel` + 把两个 token 放进 `config`」。如果你在 ZooWork App 里见过 Slack 的引导式配置，那个引导做的正是这件事：帮人把应用建出来，然后让他粘贴那两个 token——和你在这里传的是同两个。
 
@@ -108,7 +108,7 @@ pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: fa
 |---|---|
 | `slack` | `{ botToken: 'xoxb-…', appToken: 'xapp-…' }` —— 两个都必需 |
 | `wecom` | `{ botId: '…', secret: '…' }` —— 两个都必需 |
-| `feishu` | `{ appId: '…', appSecret: '…', domain: '…' }` —— 只在你跳过扫码流时才需要 |
+| `feishu` | `{ appId: '…', appSecret: '…', domain: 'feishu' \| 'lark' }` —— 只在你跳过扫码流时才需要 |
 
 ```ts
 await zc.addChannel(agentId, {
@@ -119,7 +119,11 @@ await zc.addChannel(agentId, {
 
 Slack 跑在 socket mode 下，所以除了 bot token 还需要那个 app 级的 `xapp-` token。两个都在 Slack 应用自己的设置页里拿。
 
-`allow_from` **只在创建时**接受，之后不能再编辑。
+::: warning `allow_from` 会被收下，然后被忽略
+创建请求体里仍然可以写 `allow_from`，但写了不起作用：真正生效的值是从 `dm_policy` 推导出来的（`'open'` 就是「所有人」），这个字段也从来不会出现在返回的渠道对象里，`updateChannel` 更没有办法设置它。要控制可达性就用 `dm_policy` / `group_policy`；把 `allow_from` 当成一个为了兼容旧客户端而保留的字段。
+:::
+
+`updateChannel` 同样改不了 `config`——见下面换凭证那条。
 
 ::: danger 201 的含义是「存下了」，不是「能用」
 绑定时**不校验凭证**。我们用一组故意编造的凭证去绑，拿回来的是 `201`，带着 `health: 'unknown'`、`status: 'configured'`——和一个正常绑定返回的形状一模一样。几秒之后，同一个渠道在列表里的状态变成了 `health: 'unhealthy'`、`status: 'error'`。
@@ -157,7 +161,7 @@ await zc.removeChannel(agentId, 'feishu')                        // account: 'de
 await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 ```
 
-`dm_policy` 和 `group_policy` 是可达性策略——谁能在私聊、谁能在群里找到这个 agent。服务端对两者的默认值都是 `'open'`，传枚举外的值返回 `400 channel.invalid_request`。有一个值在这里被直接拒绝：`dm_policy: 'pairing'` 在创建和更新时都返回 `400 channel.pairing_unsupported`——pairing 是聊天产品侧的能力，API 创建的 agent 上没有。
+`dm_policy` 和 `group_policy` 是可达性策略——谁能在私聊、谁能在群里找到这个 agent。服务端对两者的默认值都是 `'open'`，另外两个可用值是 `'allowlist'` 和 `'disabled'`，其余一律 `400 channel.invalid_request`。两个例外要知道：`dm_policy: 'pairing'` 在创建和更新时都返回 `400 channel.pairing_unsupported`——pairing 是聊天产品侧的能力，API 创建的 agent 上没有；微信把可用值进一步收窄到 `'open'` 和 `'disabled'`，见[三个平台的差别](#三个平台的差别)。
 
 `updateChannel` 直接把渠道的**新**状态交回来，你不需要再读一次。注意 `enabled: false` 不只是翻一个标志位：实测它会把 `status` 变成 `'disabled'`，并把 `health` 重置为 `'unknown'`。
 
@@ -187,4 +191,4 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 对纯 API agent，`status.actual_state` 永远停在 `activating`，[Agents](/zh/build/agents) 页教你无视它。绑定渠道之后，`actual_state` 报告的是渠道的连通性——它的值会真的变化，仪表盘可以拿它看**渠道健康**。但它仍然不是 API 就绪信号：判断能不能开 session，依旧看 `desired_state === 'running'`（或用 `waitUntilRunning`）。
 :::
 
-还有一条生命周期备注：删除 agent 会 best-effort 停用它的渠道。这个清理永远不会把一次成功的删除变成报错，所以坏运气的时候，一个聊天绑定可能比它的 agent 活得久——如果某个绑定必须消失，先 `removeChannel` 再 `deleteAgent`。
+两条生命周期备注。**绑定不要求 agent 处于运行状态**——一个从来没启动过的 agent，`addChannel` 和扫码流都照收；渠道会在你启动它之后才真正上线。（App 里那条路更严格，所以同一次绑定在那边可能是 `409`、在这里是 `201`。）另外，**删除 agent 会 best-effort 解绑它的渠道**——是真的删掉，不是停用。这个清理永远不会把一次成功的删除变成报错，所以坏运气的时候，一个聊天绑定可能比它的 agent 活得久；如果某个绑定必须消失，先 `removeChannel` 再 `deleteAgent`。

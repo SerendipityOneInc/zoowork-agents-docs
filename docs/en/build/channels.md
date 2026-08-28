@@ -17,8 +17,12 @@ yet" from "that thing does not exist".
 
 ## Which platforms you can bind
 
-Probed against a live deployment on 2026-08-28. A platform outside this table answers
-`400 channel.invalid_request`.
+Probed against a live deployment on 2026-08-28. Most names outside this table answer
+`400 channel.invalid_request` — `discord`, `telegram`, `msteams` and `dingtalk-connector` all
+do, and matching is case-sensitive, so `WECOM` is a `400` too. One name is neither documented
+nor rejected: `dingtalk` is in the channel service's platform list and binds with a `201`, but
+no configuration for it has been made to work through this API, so treat it as untested rather
+than supported.
 
 | Platform | `addChannel` | Server-driven QR flow | You supply |
 |---|---|---|---|
@@ -27,7 +31,8 @@ Probed against a live deployment on 2026-08-28. A platform outside this table an
 | `wecom` | ✅ | ✅ | nothing, or bot id + secret |
 | `weixin` / `wechat` | ❌ | ✅ — the only path | nothing |
 
-Three of the four have a QR flow, and the two "no"s in this table are the interesting cases.
+Three of the four have a QR flow. The two ❌ cells are the interesting ones — Slack has no QR
+flow, and WeChat has nothing else.
 
 **Slack will not get one.** A server-driven flow needs the chat platform to hand credentials
 back to a server that asked for them. Slack has no such thing: a Slack app is created by a
@@ -146,7 +151,7 @@ channel service reads; anything else you put in `config` is stored and ignored.
 |---|---|
 | `slack` | `{ botToken: 'xoxb-…', appToken: 'xapp-…' }` — both required |
 | `wecom` | `{ botId: '…', secret: '…' }` — both required |
-| `feishu` | `{ appId: '…', appSecret: '…', domain: '…' }` — only when you skip the QR flow |
+| `feishu` | `{ appId: '…', appSecret: '…', domain: 'feishu' \| 'lark' }` — only when you skip the QR flow |
 
 ```ts
 await zc.addChannel(agentId, {
@@ -158,7 +163,14 @@ await zc.addChannel(agentId, {
 Slack runs in socket mode, which is why it needs the app-level `xapp-` token as well as the
 bot token. Both come from the Slack app's own settings pages.
 
-`allow_from` is accepted **only at create** and cannot be edited later.
+::: warning `allow_from` is accepted and ignored
+The create body still takes `allow_from`, and passing it changes nothing: the effective value
+is derived from `dm_policy` (`'open'` becomes "anyone"), the field is never echoed back on the
+channel, and `updateChannel` has no way to set it. Use `dm_policy` / `group_policy` to control
+reach; treat `allow_from` as a field that exists for compatibility with an older client.
+:::
+
+`updateChannel` cannot change `config` either — see the credential-rotation note below.
 
 ::: danger 201 means stored, not working
 Credentials are **not validated when you bind**. We bound a channel with deliberately bogus
@@ -217,10 +229,12 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 ```
 
 `dm_policy` and `group_policy` are the reachability policies — who may reach the agent in
-direct messages and in groups. `'open'` is the server default for both, and an unrecognized
-value answers `400 channel.invalid_request`. One value is rejected outright here:
-`dm_policy: 'pairing'` answers `400 channel.pairing_unsupported` on both create and update —
-pairing exists in the chat product, not on API-created agents.
+direct messages and in groups. `'open'` is the server default for both; `'allowlist'` and
+`'disabled'` are the other two accepted values, and anything else answers
+`400 channel.invalid_request`. Two exceptions are worth knowing: `dm_policy: 'pairing'` answers
+`400 channel.pairing_unsupported` on both create and update — pairing exists in the chat
+product, not on API-created agents — and WeChat narrows the set further to `'open'` and
+`'disabled'`, as the [QR flow section](#what-differs-per-platform) describes.
 
 `updateChannel` hands back the channel in its **new** state, so you do not need a follow-up
 read. Note that `enabled: false` is more than a flag: it was observed moving `status` to
@@ -265,6 +279,10 @@ dashboards can read it for **channel health**. It is still not an API-readiness 
 keep gating on `desired_state === 'running'` (or `waitUntilRunning`).
 :::
 
-And one lifecycle note: deleting an agent best-effort disables its channels. That cleanup
-never turns a successful delete into an error, so on a bad day a chat binding can outlive
-its agent — if a binding must be gone, `removeChannel` before `deleteAgent`.
+Two lifecycle notes. **Binding does not require a running agent** — an agent that has never
+been started accepts `addChannel` and the QR flow alike; the channel simply comes online once
+you start it. (The in-app surface is stricter, so the same binding attempt can be a `409`
+there and a `201` here.) And **deleting an agent best-effort unbinds its channels** — it is a
+real removal, not a disable. That cleanup never turns a successful delete into an error, so on
+a bad day a chat binding can outlive its agent; if a binding must be gone, `removeChannel`
+before `deleteAgent`.
