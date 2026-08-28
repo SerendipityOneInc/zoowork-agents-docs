@@ -1,7 +1,7 @@
 ---
 title: 渠道
 source: /en/build/channels
-source_hash: 7b06adcc9f9b9faaace09369abd769ba083ec78365d94ef1ce563a40322ff93d
+source_hash: 77e0bcf3e35490edaed2ea3703dd89b126268dbfdc0e286eb80e2df9fe58368c
 ---
 
 # 渠道
@@ -11,44 +11,45 @@ source_hash: 7b06adcc9f9b9faaace09369abd769ba083ec78365d94ef1ce563a40322ff93d
 渠道绑在 **agent** 级别，用的就是你手上的 `agent_id`。没绑渠道的 agent 是纯 API agent——这是默认状态，本页的一切对纯 API 使用都不是必需的。
 
 ::: warning 新面，正在灰度
-2026-08-25 端到端实测过。这一族随一个仍在灰度的网关版本发布，没带上它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。
+2026-08-28 端到端实测过。这一族随一个仍在灰度的网关版本发布，没带上它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。
 :::
 
 ## 能绑哪些平台
 
-2026-08-25 对一套真实部署实测。表外的平台名一律返回 `400 channel.invalid_request`。
+2026-08-28 对一套真实部署实测。表外的平台名一律返回 `400 channel.invalid_request`。
 
 | 平台 | `addChannel` | 服务端扫码流 | 你要提供什么 |
 |---|---|---|---|
-| `feishu` | ✅ | ✅ —— 这套 API 上唯一有的 | 什么都不用，或应用凭证 |
+| `feishu` | ✅ | ✅ | 什么都不用，或应用凭证 |
 | `slack` | ✅ | ❌ 永远不会有 | bot token + app token |
-| `wecom` | ✅ | ❌ 这套 API 上还没有 | bot id + secret |
-| `weixin` / `wechat` | ❌ | ❌ 这套 API 上还没有 | —— 在这里绑不了 |
+| `wecom` | ✅ | ✅ | 什么都不用，或 bot id + secret |
+| `weixin` / `wechat` | ❌ | ✅ —— 唯一的路径 | 什么都不用 |
 
-「服务端扫码流」这一列的两个 ❌ 含义完全不同，这个区别决定了你该不该等它。
+四个平台里三个有扫码流，表里这两个 ❌ 才是需要解释的。
 
 **Slack 不会有。** 服务端驱动的扫码流，前提是聊天平台愿意把凭证交回给发起请求的服务端。Slack 没有这种东西：Slack 应用只能由人在 `api.slack.com/apps` 上创建，它的 `xoxb-` / `xapp-` token 只会出现在那个人的浏览器里。所以 Slack 永远是「`addChannel` + 把两个 token 放进 `config`」。如果你在 ZooWork App 里见过 Slack 的引导式配置，那个引导做的正是这件事：帮人把应用建出来，然后让他粘贴那两个 token——和你在这里传的是同两个。
 
-**企业微信和微信可能会有。** 它们的扫码流在产品里是存在的，只是还没有开放到这套 API 上。今天企业微信走 `addChannel`，凭证由你自己准备；而**微信在这里完全绑不了**——它会用 `400 channel.weixin_setup_required` 拒绝 `addChannel`，让你去走一条这套 API 还没有的扫码流。把微信当成暂不可用，不要照着那句报错去找路。
+**微信正好相反：扫码流是它唯一的路径。** 用 `platform: 'weixin'`（或 `'wechat'`）调 `addChannel` 会返回 `400 channel.weixin_setup_required`，这句报错说的就是字面意思——改用 `startChannelSetup(agentId, 'weixin')`。微信这边没有需要你自己准备的凭证。
 
-## 飞书 QR 设备流
+## 扫码流
 
-这是交互路径，在这套 API 上也只有飞书有：你拿到一个验证 URL，展示给飞书工作区的所有者（通常渲染成二维码），然后轮询直到对方批准。你的代码全程不接触平台凭证。
+这是交互路径，飞书、企业微信、微信三家都有：你拿到一个 URL，展示给聊天工作区的所有者（通常渲染成二维码），然后轮询直到对方批准。你的代码全程不接触平台凭证。
 
 ```ts
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
 const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
-// 1. 开一个 setup session。
-const setup = await zc.startFeishuSetup(agentId)
+// 1. 开一个 setup session。platform 是 'feishu' / 'wecom' / 'weixin' 之一。
+const setup = await zc.startChannelSetup(agentId, 'feishu')
 
 // 2. UI 归你管：把这个 URL 渲染出来（通常是二维码）展示给对方。
+//    飞书返回 verification_uri_complete，企业微信和微信返回 qrcode_url。
 //    session 会在 setup.expires_in 秒后过期。
-console.log(setup.verification_uri_complete)
+console.log(setup.verification_uri_complete ?? setup.qrcode_url)
 
 // 3. 让 SDK 驱动轮询，直到对方批准（或者没批准）。
-const done = await zc.waitForFeishuSetup(agentId, setup.session_id, {
+const done = await zc.waitForChannelSetup(agentId, 'feishu', setup.session_id, {
   timeoutMs: setup.expires_in * 1000,
   onPoll: (p) => console.log('…', p.status),
 })
@@ -60,33 +61,46 @@ if (done.status === 'success') {
 }
 ```
 
-`waitForFeishuSetup` 按服务端建议的间隔轮询，并且把**每一种**终态都当返回值交回来，而不是对「人为结果」抛异常——「对方一直没扫码」是一种结果，不是一个 exception。它只在两种情况下抛错：你设的超时到了（`408` / `type: 'timeout'`），或你自己 abort 了（`0` / `'aborted'`）。
+`waitForChannelSetup` 按服务端建议的间隔轮询，并且把**每一种**终态都当返回值交回来，而不是对「人为结果」抛异常——「对方一直没扫码」是一种结果，不是一个 exception。它只在两种情况下抛错：你设的超时到了（`408` / `type: 'timeout'`），或你自己 abort 了（`0` / `'aborted'`）。
 
-如果你自己驱动轮询，用 `pollFeishuSetup(agentId, sessionId)`，并把不认识的 `status` 一律当作仍在进行中：
+如果你自己驱动轮询，用 `pollChannelSetup(agentId, platform, sessionId)`，并把不认识的 `status` 一律当作仍在进行中：
 
 | `status` | 含义 |
 |---|---|
 | `pending` | 等对方操作。按 `poll_interval` 秒继续轮询。 |
 | `success` | 已绑定。`channel_configured: true`。 |
 | `expired` | session 活过了 `expires_in`。重新开一个。 |
-| `denied` | 对方拒绝了。 |
+| `denied` | 对方拒绝了。只有飞书有这个状态。 |
 | `error` | 其他错误；细节在 `message` 里。 |
 
-pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: false, message: null, poll_interval: 5 }`。新建 session 的实测默认值：`expires_in: 600`、`poll_interval: 5`。
+pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: false, message: null }`，飞书还会多一个 `poll_interval: 5`。
+
+### 三个平台的差别
+
+三条流走的是同一组路由、同一套 `status` 词汇，差别在于 setup 返回什么、请求体能写什么：
+
+| | `feishu` | `wecom` | `weixin` |
+|---|---|---|---|
+| setup 返回 | `verification_uri_complete` | `qrcode_url` | `qrcode_url` |
+| `poll_interval` | `5` | 没有——间隔由你自己定 | 没有 |
+| `expires_in` | `600` | `300` | `300` |
+| 请求体读哪些字段 | `brand`、`account`、`dm_policy`、`group_policy` | `account`、`dm_policy`、`group_policy` | 只有 `dm_policy` |
+
+有两点要在代码里处理。**微信的 `qrcode_url` 可能是一张内嵌图片**，也就是 `data:image/…` 而不是一个 URL，所以喂给二维码库之前先判断前缀。另外**微信的 `dm_policy` 只接受 `'open'` 和 `'disabled'`**——传 `'allowlist'` 返回 `400 channel.allowlist_unsupported`——它把 account 钉死为 `'default'`、group policy 钉死为 `'disabled'`，请求体里的其他字段会被忽略而不是报错。
 
 ::: warning session 会「不存在」，那时轮询返回 404
-`cancelFeishuSetup(agentId, sessionId)` 放弃一个 session——之后再轮询它，返回的是 `404 channel.feishu_session_not_found`，而**不是**某个终态 `status`。所以你自己写的轮询循环必须把这个 404 当成一种结束，而不是当成可重试的传输错误。`waitForFeishuSetup` 会把它抛成一个带这个 `type` 的 `ZooworkError`。
+`cancelChannelSetup(agentId, platform, sessionId)` 放弃一个 session——之后再轮询它，返回的是 `404 channel.feishu_session_not_found`（企业微信和微信是 `channel.wecom_session_not_found` / `channel.weixin_session_not_found`），而**不是**某个终态 `status`。所以你自己写的轮询循环必须把这个 404 当成一种结束，而不是当成可重试的传输错误。`waitForChannelSetup` 会把它抛成一个带这个 `type` 的 `ZooworkError`。
 
 至于一个 session 单纯活过了 `expires_in` 之后，是返回 200 带 `status: 'expired'`，还是同样变成这个 404——**我们没有观察到**。两种都要处理。
 :::
 
-`brand` 决定真实的域名：`'feishu'`（默认）给的是 `open.feishu.cn` 的 URI，`'lark'` 给的是 `open.larksuite.com`。它必须和对方将要批准它的那个工作区对上。
+`brand` 只有飞书有，它决定真实的域名：`'feishu'`（默认）给的是 `open.feishu.cn` 的 URI，`'lark'` 给的是 `open.larksuite.com`。它必须和对方将要批准它的那个工作区对上。
 
-**在把二维码显示出去之前，先把 `account` 定下来。** `startFeishuSetup` 也收这个参数，命名规则和显式绑定那条路径完全一样，见下面的「给绑定命名：`account`」。在扫码这条路径上它更要紧：对方批准扫码会在那个飞书工作区里注册出一个**新应用**，之后才轮到写绑定记录，所以名字撞了是在**有人已经扫过之后**才以 `409 channel.conflict` 的形式暴露出来，而那个刚注册出来的应用就留在对方的工作区里了。用同一个名字重试，这两件事会再发生一遍。
+**在把二维码显示出去之前，先把 `account` 定下来**（飞书和企业微信）。命名规则和显式绑定那条路径完全一样，见下面的「给绑定命名：`account`」。在扫码这条路径上它更要紧：对方批准扫码会在那个飞书工作区里注册出一个**新应用**，之后才轮到写绑定记录，所以名字撞了是在**有人已经扫过之后**才以 `409 channel.conflict` 的形式暴露出来，而那个刚注册出来的应用就留在对方的工作区里了。用同一个名字重试，这两件事会再发生一遍。
 
-## 显式配置 —— Slack 和企业微信走这条
+## 显式配置 —— Slack 走这条
 
-`addChannel` 是非交互路径，也是 Slack 和企业微信唯一的路径。凭证由你提供，放进 `config` 传入。
+`addChannel` 是非交互路径：它是 Slack 唯一的路径，是飞书和企业微信在扫码流之外的另一条路，微信则完全不接受它。凭证由你提供，放进 `config` 传入。
 
 **`config` 的字段是平台相关的，而且是 camelCase。** 下面这些是渠道服务真正读取的字段；`config` 里的其他键会被存下来但不生效。
 
@@ -153,7 +167,7 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 
 | `code` | 发生了什么 | 该怎么办 |
 |---|---|---|
-| `channel.feishu_session_not_found` | QR session 没了——被取消了，也可能是过期了。 | 重新开一个 setup session。 |
+| `channel.feishu_session_not_found`，以及它的 `wecom` / `weixin` 两种拼写 | QR session 没了——被取消了，也可能是过期了。 | 重新开一个 setup session。 |
 | `channel.not_found` | agent 在，但它在那个平台上没有绑定。 | 没有东西可更新或解绑；先去绑。 |
 | `service_api.not_found` | agent 不存在、你没权限访问、或者路径里的 action 不认识。 | 检查 agent id 和路由。 |
 
