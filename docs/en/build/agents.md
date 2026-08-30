@@ -94,8 +94,9 @@ create route per the API contract, but no turn has proven each one changed the a
 behaviour. Verify the effect you depend on before you build on it.
 :::
 
-`skills` at create time is the one `resource` field the SDK types allow but the public gateway
-does not honour - see [Skills](./skills). `environment_id` and `environment_version` do work
+`skills` at create time does work (staging-verified 2026-08-30): the skill is installed, but
+neither the create receipt nor `getAgent`'s `declared` echoes the field - confirm the install
+with `listAgentSkills(agentId)`, not the receipt. See [Skills](./skills). `environment_id` and `environment_version` do work
 here; [Environments](./environments) has the resolution rules.
 
 ## Read an agent, and the two response shapes
@@ -392,6 +393,7 @@ last-write-wins per section. Serialize your own writes if that matters.
 ## Next
 
 - [Sessions](./sessions) - open a session against a running agent and drive a turn.
+- [An agent per user](./per-user-agents) - the multi-user shape for when users must not share sandbox files and memory.
 - [Events and streaming](./events) - read what the agent does, with resumable SSE.
 - [Skills](./skills) - what is attached by default and what you can change.
 - [Errors](../reference/errors) - the `ZooworkError.type` values worth branching on.

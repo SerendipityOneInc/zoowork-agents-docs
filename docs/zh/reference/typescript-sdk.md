@@ -922,7 +922,7 @@ interface AgentResource {
 而不是一个能发到服务端的字段。更新的服务端所接受的新字段，只能走
 `updateAgent(agentId, sections)`——那个参数的类型是 `Record<string, unknown>`，什么都不检查。
 
-有一个字段类型上允许、但你不该通过公开网关发送：创建时的 `skills`（改用 `putAgentSkill()`）。
+创建时的 `skills` 会生效但不被任何读取面回显——确认安装用 `listAgentSkills()`，不要看创建回执。
 逐字段的说明见 [Agents](/zh/build/agents)。
 
 ### `AgentSkill`

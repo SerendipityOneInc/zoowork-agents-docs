@@ -310,3 +310,7 @@ Per-agent listing and lifecycle do have methods - `listSessions(agentId, { page 
 `archiveSession(agentId, sessionId)`, `deleteSession(agentId, sessionId)` - and none of them
 changes the two paragraphs above: you still fan out across agents yourself, and `metadata` is
 still write-once.
+
+One last boundary: a session isolates conversation history, not files - every session of an agent
+shares one `/workspace`. When a multi-user product needs file and memory isolation, see
+[An agent per user](./per-user-agents).

@@ -85,7 +85,7 @@ const agent = await zc.createAgent({
 `name`、`model`（含 `max_tokens`，实测会把回复截断在上限处）、`labels` 和 `mcp` 已经端到端验证过。`persona.docs`、`tool_policy` 和 `sandbox.scope` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
 :::
 
-创建时的 `skills` 是唯一一个 SDK 类型允许、而公开网关不认的 `resource` 字段——见 [Skills](./skills)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments)。
+创建时的 `skills` 是生效的（staging 实测 2026-08-30）：skill 会真的装上，但创建回执和 `getAgent` 的 `declared` 都**不回显**这个字段——确认安装读 `listAgentSkills(agentId)`，不要看回执。见 [Skills](./skills)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments)。
 
 ## 读取 agent，以及两种响应结构
 
@@ -330,6 +330,7 @@ const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example'
 ## 下一步
 
 - [Sessions](./sessions) —— 在一个运行中的 agent 上开 session，驱动一个回合。
+- [每用户一个 agent](./per-user-agents) —— 用户之间不能共享沙箱文件和记忆时的多用户形态。
 - [事件与流式](./events) —— 用可续传的 SSE 读 agent 在做什么。
 - [Skills](./skills) —— 默认挂了什么，你能改什么。
 - [错误处理](../reference/errors) —— 值得拿来做分支判断的 `ZooworkError.type` 取值。

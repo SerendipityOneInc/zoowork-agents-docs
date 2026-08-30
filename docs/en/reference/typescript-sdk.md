@@ -956,8 +956,8 @@ TypeScript error rather than a field that reaches the server. A field a newer se
 has to reach it through `updateAgent(agentId, sections)`, which is typed
 `Record<string, unknown>` and checks nothing.
 
-One field the type allows that you should not send through the public gateway: `skills` at
-create time (use `putAgentSkill()` instead). See
+`skills` at create time works but is echoed by no read surface - confirm the install with
+`listAgentSkills()`, not the create receipt. See
 [Agents](/en/build/agents) for the field-by-field notes.
 
 ### `AgentSkill`
