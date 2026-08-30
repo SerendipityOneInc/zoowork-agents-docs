@@ -256,3 +256,5 @@ const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 也没有顶层的 session 资源，所以无法跨 agent 列出 session。完整边界见[不支持的能力](/zh/reference/not-supported)。
 
 按 agent 的列举和生命周期操作确实有方法 —— `listSessions(agentId, { page })`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)` —— 但它们不改变上面这两段：跨 agent 还是得你自己扇出去合并，`metadata` 还是只能写一次。
+
+最后一个边界：session 隔离的是对话历史，不隔离沙箱里的文件——同一个 agent 的所有 session 共享一个 `/workspace`。多用户产品需要文件和记忆隔离时，见[每用户一个 agent](./per-user-agents)。

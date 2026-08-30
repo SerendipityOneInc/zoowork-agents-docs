@@ -28,7 +28,8 @@ See [Authentication](/en/get-started/authentication) for where the key comes fro
 ## Agent
 
 An agent is a configuration object that outlives any conversation. You create it once and reuse
-it across sessions, users, and days.
+it across sessions and days. Whether to share one agent across *users* is an isolation decision -
+the sandbox and memory are shared agent-wide; see [An agent per user](/en/build/per-user-agents).
 
 ### What it owns
 

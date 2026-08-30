@@ -30,7 +30,7 @@ key 从哪来见[鉴权](/zh/get-started/authentication)。
 
 ## Agent
 
-agent 是一个配置对象，它比任何一段对话活得更久。你创建一次，然后在多个 session、多个用户、多天之间反复复用。
+agent 是一个配置对象，它比任何一段对话活得更久。你创建一次，然后在多个 session、多天之间反复复用。要不要在多个*用户*之间共用同一个 agent，取决于你的隔离需求——沙箱和记忆都是 agent 级共享的，见[每用户一个 agent](/zh/build/per-user-agents)。
 
 ### 它持有什么
 
