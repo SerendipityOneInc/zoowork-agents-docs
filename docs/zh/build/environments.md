@@ -1,7 +1,8 @@
 ---
 title: Environments
+description: 定义可复用的沙箱模板，并把带版本的 Environment 绑定到 agent。
 source: /en/build/environments
-source_hash: 11fb0e99b5f0acd1b36f59c3d0ac17efa7e3cc9406b1d65dd63ef411c3581882
+source_hash: 1188ae924b5e7780ef2f0c063864d5907c0f38e0d2f2b4eedc2cddc44e624ffa
 ---
 
 # Environments
@@ -187,6 +188,6 @@ Environment 这一行带着两个版本号，它们不是同一个号。`latest_
 
 ## 相关
 
-- [Agents](/zh/build/agents)——完整的 agent 资源和 `config_version` 语义。
-- [工具](/zh/build/tools)——在这个 Environment 构建出的沙箱里，agent 能做什么。
-- [能力矩阵](/zh/reference/capabilities)——整套 API 的验证状态。
+- [Agents](./agents.md)——完整的 agent 资源和 `config_version` 语义。
+- [工具](./tools.md)——在这个 Environment 构建出的沙箱里，agent 能做什么。
+- [能力矩阵](../reference/capabilities.md)——整套 API 的验证状态。

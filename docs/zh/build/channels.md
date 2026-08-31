@@ -1,7 +1,8 @@
 ---
 title: 渠道
+description: 把 agent 接入聊天平台，并管理各渠道的配置流程与生命周期。
 source: /en/build/channels
-source_hash: 77e0bcf3e35490edaed2ea3703dd89b126268dbfdc0e286eb80e2df9fe58368c
+source_hash: 983ec749c157740108fd8a37e786e6b40c4702414cff87d8e310eea4e39a6618
 ---
 
 # 渠道
@@ -184,7 +185,7 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 :::
 
 ::: warning `actual_state` 开始有含义了
-对纯 API agent，`status.actual_state` 永远停在 `activating`，[Agents](/zh/build/agents) 页教你无视它。绑定渠道之后，`actual_state` 报告的是渠道的连通性——它的值会真的变化，仪表盘可以拿它看**渠道健康**。但它仍然不是 API 就绪信号：判断能不能开 session，依旧看 `desired_state === 'running'`（或用 `waitUntilRunning`）。
+对纯 API agent，`status.actual_state` 永远停在 `activating`，[Agents](./agents.md) 页教你无视它。绑定渠道之后，`actual_state` 报告的是渠道的连通性——它的值会真的变化，仪表盘可以拿它看**渠道健康**。但它仍然不是 API 就绪信号：判断能不能开 session，依旧看 `desired_state === 'running'`（或用 `waitUntilRunning`）。
 :::
 
 还有一条生命周期备注：删除 agent 会 best-effort 停用它的渠道。这个清理永远不会把一次成功的删除变成报错，所以坏运气的时候，一个聊天绑定可能比它的 agent 活得久——如果某个绑定必须消失，先 `removeChannel` 再 `deleteAgent`。

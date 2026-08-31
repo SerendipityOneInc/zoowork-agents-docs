@@ -1,9 +1,13 @@
+---
+description: Look up every TypeScript SDK client method, exported type, helper, and error class.
+---
+
 # TypeScript SDK reference
 
 Every symbol `@zoowork-ai/sdk` exports, with the signature the compiler sees.
 
-This page is the reference. For task-shaped guidance start at [Agents](/en/build/agents),
-[Sessions](/en/build/sessions), or the [Quickstart](/en/get-started/quickstart).
+This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
+[Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
 
 ## Install
 
@@ -27,7 +31,7 @@ The SDK has **zero runtime dependencies**. It uses the platform `fetch`, Web Str
 |---|---|
 | Node 20 or later | The main target. `fetch` and `ReadableStream` are built in. |
 | Cloudflare Workers, Deno, Bun, other edge runtimes | Supported by construction. The SSE parser is written against Web Streams, not Node streams. |
-| Browsers | Technically works, but your API key authenticates your whole organization. Do not ship it to a client. See [Authentication](/en/get-started/authentication). |
+| Browsers | Technically works, but your API key authenticates your whole organization. Do not ship it to a client. See [Authentication](../get-started/authentication.md). |
 
 ### Injecting `fetch`
 
@@ -139,7 +143,7 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 Bind a chat platform to an API-created agent, so the same agent also answers people in the
 chat app. Feishu/Lark, WeCom and WeChat have a server-driven QR flow; Slack does not and binds
 through `addChannel` with credentials you already hold, while WeChat is the reverse — the QR
-flow is its only path. See [Channels](/en/build/channels) for the platform table and the traps.
+flow is its only path. See [Channels](../build/channels.md) for the platform table and the traps.
 
 | Method | Returns | What it does |
 |---|---|---|
@@ -275,7 +279,7 @@ command comes back looking like a short one.
 
 Only the methods with a section below carry behaviour beyond their signature; the rest are
 one call each. A method being on the client is not a claim that its route has been exercised -
-the [capability matrix](/en/reference/capabilities) is where that is recorded, family by
+the [capability matrix](./capabilities.md) is where that is recorded, family by
 family.
 
 All snippets below assume:
@@ -351,10 +355,10 @@ console.log(created.agent_id, created.config_version) // "agt_...", 1
 ```
 
 The new agent is **stopped**: `createSession()` before `startAgent()` is
-`409 agent_not_running`. See [Quickstart](/en/get-started/quickstart).
+`409 agent_not_running`. See [Quickstart](../get-started/quickstart.md).
 
 The `config_version` on this receipt goes stale immediately - a receipt saying `1` is commonly
-followed by a `getAgent()` saying `3`. See [Errors and retries](/en/reference/errors).
+followed by a `getAgent()` saying `3`. See [Errors and retries](./errors.md).
 
 ---
 
@@ -408,10 +412,10 @@ console.log(updated.declared?.labels) // { tier: 'paid' } - replaced, not merged
 ```
 
 `tool_policy` and `system_prompt` are the exceptions even to that: every PUT naming one
-replaces it wholesale. See [Tools](/en/build/tools).
+replaces it wholesale. See [Tools](../build/tools.md).
 
 **Every successful PUT bumps `config_version`, including one whose body is byte-identical to
-what is stored.** See [Errors and retries](/en/reference/errors).
+what is stored.** See [Errors and retries](./errors.md).
 
 `skills`, `credentials`, and unknown fields in the PUT body return `400`.
 
@@ -427,7 +431,7 @@ Soft-deletes the agent and resolves with nothing. Repeated calls succeed. After 
 `getAgent()` returns `404 not_found`.
 
 It does **not** stop the agent, cancel running workflows, delete schedules, or release the
-sandbox - stop first, then delete. See [Agents](/en/build/agents).
+sandbox - stop first, then delete. See [Agents](../build/agents.md).
 
 ---
 
@@ -448,7 +452,7 @@ console.log(warnings)
 
 **`warnings` is informational, not a failure.** An API-only agent reports
 `channel_routes_reload_failed` on every start and every stop; do not retry on it. See
-[Agents](/en/build/agents).
+[Agents](../build/agents.md).
 
 Then wait for `status.desired_state === 'running'`, and never for `status.actual_state`. That
 wait is a method - do not write the loop yourself:
@@ -599,7 +603,7 @@ The agent must be running. Against a stopped agent this throws
 `ZooworkError` with `status: 409` and `type: 'agent_not_running'`.
 
 Derive the idempotency key from something stable in your own system, never from a value
-generated at call time. See [Errors and retries](/en/reference/errors).
+generated at call time. See [Errors and retries](./errors.md).
 
 ---
 
@@ -673,7 +677,7 @@ With no run in flight, `user.interrupt` answers `accepted: false`. **That is a n
 error** - nothing throws, and there is nothing to handle.
 
 **`system.message` reaches the model on the following turn**, out of band, and carries its
-body in `text` rather than `content`. See [Events](/en/build/events).
+body in `text` rather than `content`. See [Events](../build/events.md).
 
 Give each event an `idempotency_key` (any stable string) and a `postEvents` retried after a
 timeout will not deliver it twice.
@@ -853,7 +857,7 @@ interface SessionEvent {
 `SessionEvent` is camelCase while `SessionRecord` and `AgentRecord` next to it are
 snake_case - that is the wire, not a typo, so do not "fix" `eventType` into `event_type`.
 REST spells the same event in snake_case and SSE in camelCase; `normalizeEvent()` absorbs
-both, which is why every SDK read hands you one shape. See [Events](/en/build/events).
+both, which is why every SDK read hands you one shape. See [Events](../build/events.md).
 
 ### `AgentRecord`
 
@@ -921,7 +925,7 @@ interface AgentStatus {
 
 `actual_state` is chat-channel health, not API readiness. `running` is not even a member of
 its enum, so a loop polling for it never returns. Poll `status.desired_state`. See
-[Agents](/en/build/agents).
+[Agents](../build/agents.md).
 :::
 
 `config_version` here is the authoritative version on the read path.
@@ -958,7 +962,7 @@ has to reach it through `updateAgent(agentId, sections)`, which is typed
 
 `skills` at create time works but is echoed by no read surface - confirm the install with
 `listAgentSkills()`, not the create receipt. See
-[Agents](/en/build/agents) for the field-by-field notes.
+[Agents](../build/agents.md) for the field-by-field notes.
 
 ### `AgentSkill`
 
@@ -1086,7 +1090,7 @@ carries `args`, `end` carries `isError` and `resultPreview`, and `blocked` means
 parked on an approval and has **not** run. Pair them by `toolCallId` - they are **not
 adjacent** in the stream when calls run concurrently. A tool failing does not fail the run:
 `isError: true` is still followed by `run.finished` with `succeeded`. See
-[Events](/en/build/events).
+[Events](../build/events.md).
 
 ### Config types
 
@@ -1110,7 +1114,7 @@ class ZooworkError extends Error {
 ```
 
 Thrown by every method on a non-2xx response. Match on `error.type`, never on the message.
-See [Errors and retries](/en/reference/errors) for the full treatment.
+See [Errors and retries](./errors.md) for the full treatment.
 
 ## Event helpers
 
@@ -1127,7 +1131,7 @@ Pure functions over a `SessionEvent`. None of them touch the network.
 | `normalizeEvent` | `(raw: unknown, sseId?: string) => SessionEvent` | Absorbs either wire shape into a `SessionEvent`. |
 
 Because the text helpers return `''` for non-matching types, you can accumulate
-unconditionally. See [Events](/en/build/events).
+unconditionally. See [Events](../build/events.md).
 
 ### `messageText(message)`
 
@@ -1339,10 +1343,10 @@ so you can compare against it or build a URL by hand.
 That is the entire public surface. Anything not on this list does not exist - in particular
 there is no `patchSession`: `PATCH /agents/{id}/sessions/{sid}` answers `405`, and a session's
 `metadata` is write-once at `createSession()`. See
-[Not supported](/en/reference/not-supported).
+[Not supported](./not-supported.md).
 
 ## Next
 
-- [Errors and retries](/en/reference/errors) - the `ZooworkError.type` values worth branching on.
-- [Agents](/en/build/agents) - create, start, update, and the two response shapes.
-- [Sessions](/en/build/sessions) - drive a turn, page the event log, read the transcript.
+- [Errors and retries](./errors.md) - the `ZooworkError.type` values worth branching on.
+- [Agents](../build/agents.md) - create, start, update, and the two response shapes.
+- [Sessions](../build/sessions.md) - drive a turn, page the event log, read the transcript.

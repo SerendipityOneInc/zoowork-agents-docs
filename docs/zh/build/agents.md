@@ -1,12 +1,13 @@
 ---
 title: Agents
+description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: 1fcb2a7bf1443c1d39f40e790d3e8f019e534841efc3f5fcce4cc5160ec4fc47
+source_hash: f11acd11a8e48884f39fbcdb210c8ac22888e6af86997f884f89318d3cac3b2a
 ---
 
 # Agents
 
-agent 是一个持久化的配置对象：一个名字、一个模型、若干 persona 文档、labels，以及一份工具策略。你创建它一次，启动它，然后在它下面开 [session](./sessions)。配置存在服务端，所以每个 session 都继承它，你不需要重复发送任何东西。
+agent 是一个持久化的配置对象：一个名字、一个模型、若干 persona 文档、labels，以及一份工具策略。你创建它一次，启动它，然后在它下面开 [session](./sessions.md)。配置存在服务端，所以每个 session 都继承它，你不需要重复发送任何东西。
 
 从别的 managed-agent API 过来的人，会在 ZooWork 的 agent 上被三件事绊住。写代码之前先读这三条。
 
@@ -45,7 +46,7 @@ const created: AgentRecord = await zc.createAgent(
 console.log(created.agent_id, created.config_version)
 ```
 
-`Idempotency-Key` 的作用域是 `agent.create + key`：同一个 key 配同一份 body 会收敛到第一次的响应，同一个 key 配不同的 body 返回 `409`。见[错误处理](../reference/errors)。
+`Idempotency-Key` 的作用域是 `agent.create + key`：同一个 key 配同一份 body 会收敛到第一次的响应，同一个 key 配不同的 body 返回 `409`。见[错误处理](../reference/errors.md)。
 
 onboarding 面试总是被跳过——agent 会直接回答你的第一条消息。
 
@@ -59,9 +60,9 @@ onboarding 面试总是被跳过——agent 会直接回答你的第一条消息
 | `model.max_tokens` | integer | 单次模型请求的输出 token 上限。不设走平台默认；非法值创建时报 400。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
-| `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools)。 |
+| `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools.md)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
-| `mcp` | array | 远程 MCP server 声明。见[工具](./tools)。 |
+| `mcp` | array | 远程 MCP server 声明。见[工具](./tools.md)。 |
 
 ```ts
 const agent = await zc.createAgent({
@@ -85,7 +86,7 @@ const agent = await zc.createAgent({
 `name`、`model`（含 `max_tokens`，实测会把回复截断在上限处）、`labels` 和 `mcp` 已经端到端验证过。`persona.docs`、`tool_policy` 和 `sandbox.scope` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
 :::
 
-创建时的 `skills` 是生效的（staging 实测 2026-08-30）：skill 会真的装上，但创建回执和 `getAgent` 的 `declared` 都**不回显**这个字段——确认安装读 `listAgentSkills(agentId)`，不要看回执。见 [Skills](./skills)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments)。
+创建时的 `skills` 是生效的（staging 实测 2026-08-30）：skill 会真的装上，但创建回执和 `getAgent` 的 `declared` 都**不回显**这个字段——确认安装读 `listAgentSkills(agentId)`，不要看回执。见 [Skills](./skills.md)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments.md)。
 
 ## 读取 agent，以及两种响应结构
 
@@ -141,7 +142,7 @@ const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
 ```
 
-这个数字在两次读取之间还会跳：你还什么都没写，第一次读回来的版本号就可能已经高于创建回执上的那个。把 `config_version` 当成一个不透明的单调计数器，永远不要把它当成你自己那次写入的回执。完整规则见[错误处理](../reference/errors)。
+这个数字在两次读取之间还会跳：你还什么都没写，第一次读回来的版本号就可能已经高于创建回执上的那个。把 `config_version` 当成一个不透明的单调计数器，永远不要把它当成你自己那次写入的回执。完整规则见[错误处理](../reference/errors.md)。
 
 ```ts
 const agent = await zc.getAgent(created.agent_id)
@@ -173,7 +174,7 @@ console.log(warnings)
 | `desired_state` | 生命周期意图。**API 由它把关。** | `running`、`stopped`、`deleted` |
 | `actual_state` | 聊天渠道路由的健康度。与 API 是否就绪无关。 | `activating`、`active`、`degraded`、`error`、`stopped`、`deleting` |
 
-纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 在这个状态下驱动完整的回合已经验证过。唯一能让 `actual_state` 动起来的事是绑定[渠道](/zh/build/channels)：那之后它报告的是渠道的连通性 —— 依然不是 API 就绪信号。
+纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 在这个状态下驱动完整的回合已经验证过。唯一能让 `actual_state` 动起来的事是绑定[渠道](./channels.md)：那之后它报告的是渠道的连通性 —— 依然不是 API 就绪信号。
 
 轮询 `desired_state`，并带上超时。`waitUntilRunning()` 就是这个循环，已经写好了：
 
@@ -223,7 +224,7 @@ try {
 }
 ```
 
-匹配 `e.type`，永远不要匹配 `e.message`。见[错误处理](../reference/errors)。
+匹配 `e.type`，永远不要匹配 `e.message`。见[错误处理](../reference/errors.md)。
 
 ## 修改 agent
 
@@ -252,7 +253,7 @@ console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - repl
 
 ### `tool_policy` 和 `system_prompt` 是整体替换
 
-有两个小节是合并规则的例外：每一次点名 `tool_policy` 或 `system_prompt` 的 PUT 都会替换掉整个对象。见[工具](./tools)。
+有两个小节是合并规则的例外：每一次点名 `tool_policy` 或 `system_prompt` 的 PUT 都会替换掉整个对象。见[工具](./tools.md)。
 
 所以这两个都没有局部写入。要往策略里加东西，先从 `declared` 里把当前这份读出来，自己算好并集再发。
 
@@ -272,7 +273,7 @@ const second = configVersion(await zc.getAgent(agentId))          // 6 - bumped 
 
 ### PUT 会拒绝什么
 
-PUT body 里的 `skills`、`credentials`，以及任何未知字段，都返回 `400`。skill 走它自己的路由管理 —— 见 [Skills](./skills)。
+PUT body 里的 `skills`、`credentials`，以及任何未知字段，都返回 `400`。skill 走它自己的路由管理 —— 见 [Skills](./skills.md)。
 
 ## 停止与删除
 
@@ -294,7 +295,7 @@ await zc.deleteAgent(agentId) // then this
 
 ## agent 上的 skill
 
-三个方法，完整说明见 [Skills](./skills)。
+三个方法，完整说明见 [Skills](./skills.md)。
 
 ```ts
 const skills = await zc.listAgentSkills(agentId)                 // attached skills, resolved and merged
@@ -302,7 +303,7 @@ await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true }) // attach one 
 await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
 ```
 
-刚创建出来的 agent 已经挂上了整个全局 skill 目录，所以对 global scope 的 skill 调 `putAgentSkill()` 会返回 `404` —— 不要重试。见 [Skills](./skills)。
+刚创建出来的 agent 已经挂上了整个全局 skill 目录，所以对 global scope 的 skill 调 `putAgentSkill()` 会返回 `404` —— 不要重试。见 [Skills](./skills.md)。
 
 ## 列出你的 agent
 
@@ -329,8 +330,8 @@ const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example'
 
 ## 下一步
 
-- [Sessions](./sessions) —— 在一个运行中的 agent 上开 session，驱动一个回合。
-- [每用户一个 agent](./per-user-agents) —— 用户之间不能共享沙箱文件和记忆时的多用户形态。
-- [事件与流式](./events) —— 用可续传的 SSE 读 agent 在做什么。
-- [Skills](./skills) —— 默认挂了什么，你能改什么。
-- [错误处理](../reference/errors) —— 值得拿来做分支判断的 `ZooworkError.type` 取值。
+- [Sessions](./sessions.md) —— 在一个运行中的 agent 上开 session，驱动一个回合。
+- [每用户一个 agent](./per-user-agents.md) —— 用户之间不能共享沙箱文件和记忆时的多用户形态。
+- [事件与流式](./events.md) —— 用可续传的 SSE 读 agent 在做什么。
+- [Skills](./skills.md) —— 默认挂了什么，你能改什么。
+- [错误处理](../reference/errors.md) —— 值得拿来做分支判断的 `ZooworkError.type` 取值。

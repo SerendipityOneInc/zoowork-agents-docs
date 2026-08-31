@@ -1,3 +1,7 @@
+---
+description: Control built-in tools, declare MCP servers, and observe tool calls through events.
+---
+
 # Tools
 
 An agent runs inside a managed sandbox with a built-in tool set already available to the
@@ -105,7 +109,7 @@ const toolEvents = await zc.listAllEvents(agentId, sessionId, { types: ['agent.t
 ::: warning `listEvents` returns one page
 `listEvents` answers a single page - 100 events by default, 500 at most - and a long session
 truncates silently: there is no error, no `has_more`, and no total. `listAllEvents` walks the
-cursor for you. See [Events and streaming](/en/build/events).
+cursor for you. See [Events and streaming](./events.md).
 :::
 
 ## Narrowing the tool set with `tool_policy`
@@ -135,7 +139,7 @@ await zc.updateAgent(agentId, { tool_policy: {} })
 ```
 
 **Every PUT bumps `config_version`**, including one that changes nothing, so do not re-PUT the
-policy on every turn. See [Errors and retries](/en/reference/errors).
+policy on every turn. See [Errors and retries](../reference/errors.md).
 
 **The identifiers are platform-defined.** `read` and `web_search` above come from the
 platform's own request examples. Confirm the names your deployment uses by running a turn and
@@ -151,14 +155,14 @@ blocked.
 The agent resource also accepts `sandbox: { scope: 'agent' | 'session' }`. The field is
 accepted by the API; we have not exercised either value, so it is not documented further
 here. What is *installed* in the sandbox is governed by the
-[Environment](/en/build/environments), not by `tool_policy`.
+[Environment](./environments.md), not by `tool_policy`.
 
 ## Reading tool activity
 
 One tool call produces a sequence of `agent.tool` events that share a `toolCallId`, one per
 phase: `start`, `end`, and `blocked`. Pair `start` and `end` by `toolCallId`, not by
 adjacency. When the model issues several calls concurrently, their events interleave. What
-each phase carries is in [Events and streaming](/en/build/events).
+each phase carries is in [Events and streaming](./events.md).
 
 ```ts
 const pending = new Map<string, string>()
@@ -235,14 +239,14 @@ A run that blocks on an approval nobody answers does not wait for you. The turn 
 `ZooworkClient` does have `listApprovals` and `resolveApproval`, but they drive the separate
 approvals REST resource, not the `user.tool_confirmation` event loop.
 
-See the [capability matrix](/en/reference/capabilities) for the current status of this surface.
+See the [capability matrix](../reference/capabilities.md) for the current status of this surface.
 :::
 
 ## Related
 
-- [Events and streaming](/en/build/events) - the event vocabulary, the `seq` resume cursor, and
+- [Events and streaming](./events.md) - the event vocabulary, the `seq` resume cursor, and
   `run.finished`.
-- [Skills](/en/build/skills) - packaged capabilities attached to an agent, which are a different
+- [Skills](./skills.md) - packaged capabilities attached to an agent, which are a different
   mechanism from tools.
-- [Environments](/en/build/environments) - what is installed in the sandbox the tools run in.
-- [Not supported](/en/reference/not-supported) - the full list of gaps, including this one.
+- [Environments](./environments.md) - what is installed in the sandbox the tools run in.
+- [Not supported](../reference/not-supported.md) - the full list of gaps, including this one.

@@ -1,10 +1,11 @@
 ---
 title: ZooWork Managed Agents
+description: 使用 ZooWork TypeScript SDK、Session 和流式事件构建 agent 产品。
 layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: 170e2a4508a686b078324a7e86f74224f5451d0e2a494d8a07e0b74062d5255c
+source_hash: de4e464eff4e153412d3d09297b1f23981e3797d464552fadd18f208f35cc8da
 hero:
   text: 创建一个 agent，流式拿回每个事件。
   tagline: 一个由你自己的代码驱动的托管 agent 运行时。可续传的持久事件流；skills、sessions
@@ -137,7 +138,7 @@ npm i @zoowork-ai/sdk
 **客户端执行的自定义工具不存在**：没有 `{type: "custom"}` 这种工具定义，也没有
 `user.custom_tool_result` 事件，所以 agent 永远不会回调进你的进程。session 级的 outcome
 定义、vault、session 的 `resources[]` 挂载、平台 webhook，同样都不存在。在围绕它们做设计之前，
-先读[不支持的能力](/zh/reference/not-supported)。
+先读[不支持的能力](./reference/not-supported.md)。
 
 </template>
 </ZcHome>

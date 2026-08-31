@@ -1,3 +1,7 @@
+---
+description: Handle ZooworkError, choose safe retries, and use idempotency correctly.
+---
+
 # Errors and retries
 
 Every SDK method throws a `ZooworkError` when the API answers with a non-2xx status. This
@@ -108,11 +112,11 @@ Observed on the public gateway against a live deployment, unless a row says othe
 | `type` | HTTP | Cause | What to do |
 |---|---:|---|---|
 | `agent_not_running` | 409 | `createSession()` or `postEvents()` on an agent whose `status.desired_state` is not `running`. A newly created agent is stopped, and so is one you stopped yourself. | Call `startAgent()`, poll `status.desired_state` until it reads `running`, then retry. Never poll `actual_state`. |
-| `not_found` / `service_api.not_found` | 404 | Unknown agent or session id, a soft-deleted one, **or one that belongs to another organization**. Both spellings exist: the agents family answers `service_api.not_found`, the sessions, schedules, and environments family answers a bare `not_found`. | Match on both spellings, or prefer `status === 404`. Do not read this as "deleted". See [Authentication](/en/get-started/authentication) - cross-tenant reads are hidden as 404, never rejected as 403. Keep your own record of the ids you create. |
+| `not_found` / `service_api.not_found` | 404 | Unknown agent or session id, a soft-deleted one, **or one that belongs to another organization**. Both spellings exist: the agents family answers `service_api.not_found`, the sessions, schedules, and environments family answers a bare `not_found`. | Match on both spellings, or prefer `status === 404`. Do not read this as "deleted". See [Authentication](../get-started/authentication.md) - cross-tenant reads are hidden as 404, never rejected as 403. Keep your own record of the ids you create. |
 | `service_token.invalid` | 401 | The key is missing, malformed, revoked, or its bound user left the organization. Emitted by the gateway, in the gateway's envelope. | Fix the credential. Do not retry - it will fail identically. Verify with `listModels()`. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
 | `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
-| *(none captured)* | 404 | `putAgentSkill()` with a global-catalog skill id. Only skills your own tenant uploaded are installable here, and the global catalog is already attached to every new agent, so there is nothing to install. | Branch on `status === 404`. The check runs in the gateway and we captured no type on it, so a handler keyed on `e.type` never fires. See [Skills](/en/build/skills). |
+| *(none captured)* | 404 | `putAgentSkill()` with a global-catalog skill id. Only skills your own tenant uploaded are installable here, and the global catalog is already attached to every new agent, so there is nothing to install. | Branch on `status === 404`. The check runs in the gateway and we captured no type on it, so a handler keyed on `e.type` never fires. See [Skills](../build/skills.md). |
 
 ::: warning Not yet verified
 `idempotency_conflict` is documented by the API. The header is accepted on `createAgent()`
@@ -125,7 +129,7 @@ it; do not assume the exact wording of the message.
 
 `updateAgent()` answers **400** when the body names `skills`, `credentials`, or any
 unknown field. Skills go through `putAgentSkill()`; there is no credentials API at all - see
-[Not supported](/en/reference/not-supported).
+[Not supported](./not-supported.md).
 
 Two create-time rejections carry their own narrower type rather than `invalid_request`:
 `invalid_persona_doc_name` for a `persona.docs` entry named `MEMORY.md` or anything under the
@@ -138,7 +142,7 @@ is safe to rely on is the status.
 :::
 
 `postEvents()` answers **400** for any event outside the four accepted types - see
-[Events](/en/build/events). We captured no `error.type` on it, so branch on `status === 400`
+[Events](../build/events.md). We captured no `error.type` on it, so branch on `status === 400`
 for `postEvents()` failures, and treat them as programming errors rather than transient ones:
 your event shape is wrong and a retry will not change that.
 
@@ -284,6 +288,6 @@ Three things this does on purpose:
 
 ## Next
 
-- [TypeScript SDK reference](/en/reference/typescript-sdk) - every method, type, and helper.
-- [Authentication](/en/get-started/authentication) - why a cross-tenant id is a 404.
-- [Agents](/en/build/agents) - start, stop, and the `config_version` semantics behind this page.
+- [TypeScript SDK reference](./typescript-sdk.md) - every method, type, and helper.
+- [Authentication](../get-started/authentication.md) - why a cross-tenant id is a 404.
+- [Agents](../build/agents.md) - start, stop, and the `config_version` semantics behind this page.

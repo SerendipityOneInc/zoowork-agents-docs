@@ -1,7 +1,8 @@
 ---
 title: 错误处理
+description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: d3a3edf7a6c008820c6ae602dd50ae7eac9c3188d58c37a8bfdfb772e22ebc9a
+source_hash: 1701831120fdbdc3a11c3767008e8a3fe845d7d61ed400fbce951aea6cf6e0fb
 ---
 
 # 错误与重试
@@ -94,11 +95,11 @@ if (e instanceof ZooworkError) {
 | `type` | HTTP | 原因 | 怎么办 |
 |---|---:|---|---|
 | `agent_not_running` | 409 | 对一个 `status.desired_state` 不是 `running` 的 agent 调 `createSession()` 或 `postEvents()`。新创建的 agent 是停止的，你自己停掉的也一样。 | 调 `startAgent()`，轮询 `status.desired_state` 直到它是 `running`，再重试。永远不要轮询 `actual_state`。 |
-| `not_found` / `service_api.not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。两种拼写都存在：agent 这一族返回 `service_api.not_found`，session、定时任务、environment 这一族返回不带点的 `not_found`。 | 两种拼写都匹配，或者干脆按 `status === 404` 分支。不要把它读成「已删除」。见[鉴权](/zh/get-started/authentication)——跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
+| `not_found` / `service_api.not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。两种拼写都存在：agent 这一族返回 `service_api.not_found`，session、定时任务、environment 这一族返回不带点的 `not_found`。 | 两种拼写都匹配，或者干脆按 `status === 404` 分支。不要把它读成「已删除」。见[鉴权](../get-started/authentication.md)——跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
 | `service_token.invalid` | 401 | key 缺失、格式不对、已吊销，或者它绑定的用户离开了组织。由网关发出，用网关的信封。 | 修凭证。不要重试——重试会一模一样地失败。用 `listModels()` 验证。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
 | `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本。 | 改请求。原样重试会一模一样地失败。 |
-| *（没抓到 type）* | 404 | `putAgentSkill()` 传一个全局目录里的 skill id。这里只有你自己租户上传的 skill 装得上，而全局目录在每个新 agent 创建时就已经挂上了，所以没有什么需要装的。 | 按 `status === 404` 分支。这个检查跑在网关里，而且我们没有在它上面抓到 type，所以按 `e.type` 匹配的 handler 永远不会触发。见 [Skills](/zh/build/skills)。 |
+| *（没抓到 type）* | 404 | `putAgentSkill()` 传一个全局目录里的 skill id。这里只有你自己租户上传的 skill 装得上，而全局目录在每个新 agent 创建时就已经挂上了，所以没有什么需要装的。 | 按 `status === 404` 分支。这个检查跑在网关里，而且我们没有在它上面抓到 type，所以按 `e.type` 匹配的 handler 永远不会触发。见 [Skills](../build/skills.md)。 |
 
 ::: warning 尚未验证
 `idempotency_conflict` 是 API 文档里写的。`createAgent()` 接受这个请求头，`createSession()` 上的重放也确实生效；但我们从没在 `createAgent()` 上重放过同一个 key 去看它去重，两边也都没有刻意去制造冲突。请处理它；不要假设报错文本的具体措辞。
@@ -106,7 +107,7 @@ if (e instanceof ZooworkError) {
 
 ### 更多 400
 
-`updateAgent()` 在 body 里出现 `skills`、`credentials` 或任何未知字段时返回 **400** 。skill 走 `putAgentSkill()`；凭据则根本没有 API——见[不支持的能力](/zh/reference/not-supported)。
+`updateAgent()` 在 body 里出现 `skills`、`credentials` 或任何未知字段时返回 **400** 。skill 走 `putAgentSkill()`；凭据则根本没有 API——见[不支持的能力](./not-supported.md)。
 
 有两种创建期的拒绝带的是自己更窄的 type，而不是 `invalid_request`：`persona.docs` 条目取名 `MEMORY.md` 或落在保留的 `memory/` 命名空间下时是 `invalid_persona_doc_name`，body 里带 `sandbox.template` 字段时是 `sandbox_template_deprecated`。操作上它们和任何别的 400 一样：改 body，不要重试。
 
@@ -114,7 +115,7 @@ if (e instanceof ZooworkError) {
 这两个 type 字符串来自 API 自己的参考文档；我们两个都没有触发过。可以放心依赖的是状态码。
 :::
 
-四种被接受的事件类型之外的事件，`postEvents()` 一律以 **400** 拒绝——见[事件与流式](/zh/build/events)。我们没有在它上面抓到 `error.type`，所以 `postEvents()` 的失败请按 `status === 400` 分支，并且把它当作编程错误而不是瞬时故障：你的事件结构写错了，重试改变不了这件事。
+四种被接受的事件类型之外的事件，`postEvents()` 一律以 **400** 拒绝——见[事件与流式](../build/events.md)。我们没有在它上面抓到 `error.type`，所以 `postEvents()` 的失败请按 `status === 400` 分支，并且把它当作编程错误而不是瞬时故障：你的事件结构写错了，重试改变不了这件事。
 
 ### API 文档里写的其他 type
 
@@ -240,6 +241,6 @@ async function openSession(agentId: string, text: string, jobId: string) {
 
 ## 下一步
 
-- [TypeScript SDK 参考](/zh/reference/typescript-sdk) —— 每个方法、类型和辅助函数。
-- [鉴权](/zh/get-started/authentication) —— 为什么跨租户的 id 是 404。
-- [Agents](/zh/build/agents) —— 启动、停止，以及这一页背后的 `config_version` 语义。
+- [TypeScript SDK 参考](./typescript-sdk.md) —— 每个方法、类型和辅助函数。
+- [鉴权](../get-started/authentication.md) —— 为什么跨租户的 id 是 404。
+- [Agents](../build/agents.md) —— 启动、停止，以及这一页背后的 `config_version` 语义。

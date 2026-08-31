@@ -1,3 +1,7 @@
+---
+description: Connect agents to chat platforms and manage each channel's setup and lifecycle.
+---
+
 # Channels
 
 A channel binds a chat platform account to your agent, so the same agent that answers your
@@ -259,7 +263,7 @@ that is an application-level design problem, not a flag.
 
 ::: warning `actual_state` starts meaning something
 For a pure API agent, `status.actual_state` parks at `activating` forever and the
-[Agents](/en/build/agents) page tells you to ignore it. Once a channel is bound,
+[Agents](./agents.md) page tells you to ignore it. Once a channel is bound,
 `actual_state` reports that channel's connectivity — so its value will now move, and
 dashboards can read it for **channel health**. It is still not an API-readiness signal:
 keep gating on `desired_state === 'running'` (or `waitUntilRunning`).

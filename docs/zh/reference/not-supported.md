@@ -1,7 +1,8 @@
 ---
 title: 不支持的能力
+description: 确认哪些能力不存在，以及每项能力最接近的可用替代方案。
 source: /en/reference/not-supported
-source_hash: 256f6365d117cfb3e0a829b01fd4ca4395c2882070a7ada4e049ed3d6fe50d41
+source_hash: 42803168dfb0643067d47f90f73c9c4dbc074e5d657a67c6095124068fec3daa
 ---
 
 # 不支持的能力
@@ -12,7 +13,7 @@ source_hash: 256f6365d117cfb3e0a829b01fd4ca4395c2882070a7ada4e049ed3d6fe50d41
 这一页上的任何一条都不是「找对参数就能解决」的问题。这些能力在 API 里就是不存在。如果你的产品依赖其中之一，现在就改设计，别等到第一次集成测试之后。
 :::
 
-按你在上面建起一整个产品的可能性排序。就算后面的你只是扫一眼，前三条也要读完。存在的东西见[能力矩阵](/zh/reference/capabilities)。
+按你在上面建起一整个产品的可能性排序。就算后面的你只是扫一眼，前三条也要读完。存在的东西见[能力矩阵](./capabilities.md)。
 
 ## 客户端执行的自定义工具 {#client-executed-custom-tools}
 
@@ -20,7 +21,7 @@ source_hash: 256f6365d117cfb3e0a829b01fd4ca4395c2882070a7ada4e049ed3d6fe50d41
 
 **实际发生的：** 没有可以在 agent 上声明的自定义工具类型，也没有 `user.custom_tool_result` 事件可以用来回答。写入侧只接受四种事件类型：`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`。
 
-**替代：** 把决策留在你自己的进程里：等 `run.finished`，把活干完，下一个回合再把答案作为 `user.message` 发回去。这条路慢一个回合。唯一另一种能把你的代码放到一个 agent 工具背后的形态是在 agent 上声明**远程 HTTP MCP server**——见[工具](/zh/build/tools)。
+**替代：** 把决策留在你自己的进程里：等 `run.finished`，把活干完，下一个回合再把答案作为 `user.message` 发回去。这条路慢一个回合。唯一另一种能把你的代码放到一个 agent 工具背后的形态是在 agent 上声明**远程 HTTP MCP server**——见[工具](../build/tools.md)。
 
 ## 保险库式的终端用户凭证托管 {#vault-style-end-user-credential-storage}
 
@@ -44,13 +45,13 @@ source_hash: 256f6365d117cfb3e0a829b01fd4ca4395c2882070a7ada4e049ed3d6fe50d41
 
 **实际发生的：** `initial_events` 只接受 `user.message`。session 上没有 outcome 类型的事件，session 事件词表里也没有任何「达标 / 未达标」的信号。一次 run 以 `run.finished` 结束，状态是 `succeeded`、`failed` 或 `aborted`，它描述的是这一回合有没有跑完，不是答案好不好。
 
-**替代：** 两条真实路径。**无人值守的 cron 工作**，outcome 门是全套存在的：把 `payload.outcome` 写在 schedule 上——或者在 `resource.outcome` 放一个默认——配一个 `command` 或 `rubric` evaluator，run 会对着它迭代，并且在达标之前扣住发布。见[能力矩阵](/zh/reference/capabilities#automation)。**交互式 session**，在你自己的进程里评分：从 `agent.assistant` 事件里读出 assistant 文本，你想怎么打分就怎么打分，再发一条 `user.message` 继续迭代。这个循环的每一步都是已实测的。
+**替代：** 两条真实路径。**无人值守的 cron 工作**，outcome 门是全套存在的：把 `payload.outcome` 写在 schedule 上——或者在 `resource.outcome` 放一个默认——配一个 `command` 或 `rubric` evaluator，run 会对着它迭代，并且在达标之前扣住发布。见[能力矩阵](./capabilities.md#automation)。**交互式 session**，在你自己的进程里评分：从 `agent.assistant` 事件里读出 assistant 文本，你想怎么打分就怎么打分，再发一条 `user.message` 继续迭代。这个循环的每一步都是已实测的。
 
 ## 端到端的人工审批 {#end-to-end-human-approval}
 
 **你想建的：** agent 提议一个危险动作，你的 UI 弹出一张同意或拒绝的卡片，run 根据这一次点击继续或停止。
 
-**实际发生的：** 零件是分开存在的——`agent.approval` 在事件词表里，`agent.tool` 有一个 `blocked` 阶段，`user.tool_confirmation` 是被接受的写入类型——但从没造出过一个真实的待处理审批，所以这个往返没有任何一环被证明过，而一个在等审批的 agent 会把这一回合耗在等待上。见[能力矩阵](/zh/reference/capabilities#tools)。
+**实际发生的：** 零件是分开存在的——`agent.approval` 在事件词表里，`agent.tool` 有一个 `blocked` 阶段，`user.tool_confirmation` 是被接受的写入类型——但从没造出过一个真实的待处理审批，所以这个往返没有任何一环被证明过，而一个在等审批的 agent 会把这一回合耗在等待上。见[能力矩阵](./capabilities.md#tools)。
 
 **替代：** 在你这边做门控。把危险能力从 agent 的 `tool_policy` 里拿掉，让 agent 用文字描述它想做什么，在你自己的 UI 里做决定，再把结果作为 `user.message` 发回去。
 
@@ -82,7 +83,7 @@ source_hash: 256f6365d117cfb3e0a829b01fd4ca4395c2882070a7ada4e049ed3d6fe50d41
 
 **你想建的：** 把百分之十的流量切到配置 v3 的灰度，或者一次调用回滚到上一个版本。
 
-**实际发生的：** `config_version` 每次 PUT 都会涨（见[错误](/zh/reference/errors)），但没有任何路由能列出版本、取回旧版本，或者把一个 session 固定到某个版本上。
+**实际发生的：** `config_version` 每次 PUT 都会涨（见[错误](./errors.md)），但没有任何路由能列出版本、取回旧版本，或者把一个 session 固定到某个版本上。
 
 **替代：** 你 PUT 过的每一份配置自己留一份，这样回滚就是把上一份 body 再 PUT 一次。要做灰度，就跑两个配置不同的 agent，在你自己的代码里分流。
 
@@ -107,6 +108,6 @@ source_hash: 256f6365d117cfb3e0a829b01fd4ca4395c2882070a7ada4e049ed3d6fe50d41
 | environment 里的 cargo、gem 或 go 包 | 只有 apt、npm 和 pip。 |
 | 凭证 API；Environment secret、运行时环境变量、沙箱启动钩子 | 平台为它自己的内置技能注入凭据，那条通道不对你开放；environment 配置也不收 secret、环境变量和启动钩子。你自己的密钥留在你自己的服务里。 |
 | 定时任务的暂停与恢复、归档、跨定时任务的运行历史、删除 agent 时自动清理定时任务 | 没有——删掉重建，运行记录一次读一个定时任务。定时任务在停止和删除之后都还活着，你得先自己删掉。 |
-| 文件的 SDK 方法 | 文件路由在线协议上存在，但后端没有接线；`ZooworkClient` 对它什么都没暴露，所以你得用自己的 `fetch` 调。artifact 在 client 上（`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`）；审批、定时任务、environment、session 的归档与删除也都在——见[能力矩阵](/zh/reference/capabilities)。 |
+| 文件的 SDK 方法 | 文件路由在线协议上存在，但后端没有接线；`ZooworkClient` 对它什么都没暴露，所以你得用自己的 `fetch` 调。artifact 在 client 上（`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`）；审批、定时任务、environment、session 的归档与删除也都在——见[能力矩阵](./capabilities.md)。 |
 | 从你自己的代码轮换或吊销 key | 没有 API。ZooWork App 的 **设置 → API Keys** 可以立即轮换或吊销一把 key，新密钥只显示一次。 |
 | 按 scope、按用户或只读的 API key | 只有一个组织级的 key，对组织内每一个 agent 都有完整的读写权限。 |

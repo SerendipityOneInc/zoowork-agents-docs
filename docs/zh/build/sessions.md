@@ -1,7 +1,8 @@
 ---
 title: Sessions
+description: 创建、继续、列出、归档和删除 session，并读取 transcript。
 source: /en/build/sessions
-source_hash: aedee97509d2138e485521d2f3089ea2a702b23c2e61c843a54ae7f0f5b02f81
+source_hash: dad35b406c904d944a19b11487481836daea2324130f3e220f1af3ee49483631
 ---
 
 # Sessions
@@ -82,7 +83,7 @@ console.log(session.session_key)  // "api:ses_example"
 
 ### Idempotency-Key
 
-`createSession` 接收一个可选的第三个参数，作为 `Idempotency-Key` 请求头发出。用同一个 key 重放会返回已存在的那个 session，而不是再建一个、把开场回合跑两遍。怎么选 key、怎么复用 key，见[错误处理](/zh/reference/errors)。
+`createSession` 接收一个可选的第三个参数，作为 `Idempotency-Key` 请求头发出。用同一个 key 重放会返回已存在的那个 session，而不是再建一个、把开场回合跑两遍。怎么选 key、怎么复用 key，见[错误处理](../reference/errors.md)。
 
 事件写入路径用的是事件级的键而不是 header：给每个事件带一个 `idempotency_key`（任何稳定字符串），超时后重试 `postEvents` 就不会把同一条消息投递两次。
 
@@ -120,7 +121,7 @@ const second = await runTurn(session.session_id, first.cursor)
 console.log(second.text)                 // mentions "Ada"
 ```
 
-`postEvents` 返回 `202`，以及一个把每个事件的结果包起来的对象 —— 数组在 `events` 下面，不是响应本身。被接受的事件返回的就是历史里将出现的完整事件对象（带 `seq`）；没有进行中 run 时的 `user.interrupt` 返回 `{ id, type, accepted: false }`。被接受意味着事件已入队，不代表回合已经结束。一个回合在你看到 `run.finished` 时结束，它的 `payload.status` 是 `succeeded`、`failed` 或 `aborted` —— 见[事件与流式](/zh/build/events)。
+`postEvents` 返回 `202`，以及一个把每个事件的结果包起来的对象 —— 数组在 `events` 下面，不是响应本身。被接受的事件返回的就是历史里将出现的完整事件对象（带 `seq`）；没有进行中 run 时的 `user.interrupt` 返回 `{ id, type, accepted: false }`。被接受意味着事件已入队，不代表回合已经结束。一个回合在你看到 `run.finished` 时结束，它的 `payload.status` 是 `succeeded`、`failed` 或 `aborted` —— 见[事件与流式](./events.md)。
 
 写入路径接受四种事件类型：`user.message`、`user.interrupt`、`system.message` 和 `user.tool_confirmation`。
 
@@ -253,8 +254,8 @@ const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 自己记录你创建过的那些 `session_id` —— 把它们和你应用里所属的东西存在一起 —— 并且在创建时就把之后需要检索的一切放进 `metadata`，因为后面加不进去。
 :::
 
-也没有顶层的 session 资源，所以无法跨 agent 列出 session。完整边界见[不支持的能力](/zh/reference/not-supported)。
+也没有顶层的 session 资源，所以无法跨 agent 列出 session。完整边界见[不支持的能力](../reference/not-supported.md)。
 
 按 agent 的列举和生命周期操作确实有方法 —— `listSessions(agentId, { page })`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)` —— 但它们不改变上面这两段：跨 agent 还是得你自己扇出去合并，`metadata` 还是只能写一次。
 
-最后一个边界：session 隔离的是对话历史，不隔离沙箱里的文件——同一个 agent 的所有 session 共享一个 `/workspace`。多用户产品需要文件和记忆隔离时，见[每用户一个 agent](./per-user-agents)。
+最后一个边界：session 隔离的是对话历史，不隔离沙箱里的文件——同一个 agent 的所有 session 共享一个 `/workspace`。多用户产品需要文件和记忆隔离时，见[每用户一个 agent](./per-user-agents.md)。

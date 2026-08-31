@@ -1,3 +1,7 @@
+---
+description: Define reusable sandbox templates and attach versioned environments to agents.
+---
+
 # Environments
 
 ::: warning Not yet verified
@@ -233,6 +237,6 @@ Pinning `latest_version` is how an agent create earns the `409 environment_not_r
 
 ## Related
 
-- [Agents](/en/build/agents) - the full agent resource and `config_version` semantics.
-- [Tools](/en/build/tools) - what the agent can do inside the sandbox this Environment builds.
-- [Capability matrix](/en/reference/capabilities) - verification status across the API.
+- [Agents](./agents.md) - the full agent resource and `config_version` semantics.
+- [Tools](./tools.md) - what the agent can do inside the sandbox this Environment builds.
+- [Capability matrix](../reference/capabilities.md) - verification status across the API.

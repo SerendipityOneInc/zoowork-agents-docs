@@ -1,7 +1,8 @@
 ---
 title: 核心概念
+description: 理解 Agent、Session、Event 三个原语及其生命周期。
 source: /en/get-started/concepts
-source_hash: a0159c4a662baa95f575e40aa10c8133ac1240ed097bcb7b8c9547b7d94712d7
+source_hash: be82fad051faa1c948c95fda403614d29ccb8b8e063aa9c3bee302df848bf54e
 ---
 
 # 核心概念
@@ -16,7 +17,7 @@ ZooWork Managed Agents 有三个原语。你构建的一切都建立在它们之
 
 没有独立的 Run 资源。run 存在于 session 内部，你通过事件（`run.started`、`run.finished`）观察它，但你永远不会创建、获取或列出一个 run。
 
-沙箱模板是另一个独立的可选资源，叫 Environment。如果你需要自定义软件包或网络白名单，就在 agent 上固定一个；运行时你不和它打交道。见 [Environments](/zh/build/environments)。
+沙箱模板是另一个独立的可选资源，叫 Environment。如果你需要自定义软件包或网络白名单，就在 agent 上固定一个；运行时你不和它打交道。见 [Environments](../build/environments.md)。
 
 本页所有示例都用 TypeScript SDK：
 
@@ -26,11 +27,11 @@ import { createZooworkClient } from '@zoowork-ai/sdk'
 const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 ```
 
-key 从哪来见[鉴权](/zh/get-started/authentication)。
+key 从哪来见[鉴权](./authentication.md)。
 
 ## Agent
 
-agent 是一个配置对象，它比任何一段对话活得更久。你创建一次，然后在多个 session、多天之间反复复用。要不要在多个*用户*之间共用同一个 agent，取决于你的隔离需求——沙箱和记忆都是 agent 级共享的，见[每用户一个 agent](/zh/build/per-user-agents)。
+agent 是一个配置对象，它比任何一段对话活得更久。你创建一次，然后在多个 session、多天之间反复复用。要不要在多个*用户*之间共用同一个 agent，取决于你的隔离需求——沙箱和记忆都是 agent 级共享的，见[每用户一个 agent](../build/per-user-agents.md)。
 
 ### 它持有什么
 
@@ -44,7 +45,7 @@ agent 是一个配置对象，它比任何一段对话活得更久。你创建�
 
 它还持有一个 `status` 块，那是服务端维护的状态，你只读。
 
-`POST /agents` 返回一份扁平的创建回执。`GET` 和 `PUT` 返回的是一份投影：配置在 `declared` 下，版本在 `status.config_version` 下。按 `agent.status?.config_version ?? agent.config_version` 读版本号，一个表达式两边都能用。两种形态的并排对照见 [Agents](/zh/build/agents)。
+`POST /agents` 返回一份扁平的创建回执。`GET` 和 `PUT` 返回的是一份投影：配置在 `declared` 下，版本在 `status.config_version` 下。按 `agent.status?.config_version ?? agent.config_version` 读版本号，一个表达式两边都能用。两种形态的并排对照见 [Agents](../build/agents.md)。
 
 ### 生命周期
 
@@ -54,7 +55,7 @@ createAgent() --> [stopped] --startAgent()--> [running] --stopAgent()--> [stoppe
                                             deleteAgent()
 ```
 
-新创建的 agent 处于 **stopped** 。创建调用本身不会启动它，而且在 `startAgent()` 返回之前，`createSession()` 会失败并返回 `409 agent_not_running`。见[快速开始](/zh/get-started/quickstart)。
+新创建的 agent 处于 **stopped** 。创建调用本身不会启动它，而且在 `startAgent()` 返回之前，`createSession()` 会失败并返回 `409 agent_not_running`。见[快速开始](./quickstart.md)。
 
 ```ts
 const { warnings } = await zc.startAgent(agentId)
@@ -63,7 +64,7 @@ const { warnings } = await zc.startAgent(agentId)
 
 `stopAgent()` 的形态相同。`warnings` 数组是信息性的，不要在它上面重试。
 
-`deleteAgent()` 是软删除：它不会停掉 agent、不会取消进行中的工作、不会删除调度，也不会释放它的沙箱。请先调 `stopAgent()`。见 [Agents](/zh/build/agents)。
+`deleteAgent()` 是软删除：它不会停掉 agent、不会取消进行中的工作、不会删除调度，也不会释放它的沙箱。请先调 `stopAgent()`。见 [Agents](../build/agents.md)。
 
 ### `desired_state` 与 `actual_state`
 
@@ -89,7 +90,7 @@ while ((await zc.getAgent(agentId)).status?.actual_state !== 'running') {
 await zc.waitUntilRunning(agentId)
 ```
 
-`waitUntilRunning()` 按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`；如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooworkError`。见 [Agents](/zh/build/agents)。
+`waitUntilRunning()` 按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`；如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooworkError`。见 [Agents](../build/agents.md)。
 
 在一个 `actual_state` 始终没离开过 `activating` 的 agent 上，一个完整的回合照样正常跑完。
 
@@ -97,11 +98,11 @@ await zc.waitUntilRunning(agentId)
 
 `config_version` 是一个单调递增的整数，描述当前生效的是哪一份渲染后的配置快照。已经在跑的回合保留它自己的快照；下一个回合才会用上新的。
 
-它不是一张回执。每一次成功的 `PUT` 都会把它 bump 一次，包括请求体与当前配置逐字节相同的 PUT；而 `updateAgent()` 没有「期望版本号」这个参数，所以你不能用 `config_version` 给重试去重，也不能用它判断「我那次写入到底成没成」。写入超时之后，改用 `getAgent()` 并比对 `declared`。见[错误处理](/zh/reference/errors)。
+它不是一张回执。每一次成功的 `PUT` 都会把它 bump 一次，包括请求体与当前配置逐字节相同的 PUT；而 `updateAgent()` 没有「期望版本号」这个参数，所以你不能用 `config_version` 给重试去重，也不能用它判断「我那次写入到底成没成」。写入超时之后，改用 `getAgent()` 并比对 `declared`。见[错误处理](../reference/errors.md)。
 
 `upgradeSystemPrompt()` 是唯一一个接受期望版本号的调用：它要求 `expected_config_version`，agent 已经往前走了就答 `409 config_version_changed`。
 
-`updateAgent()` 按段做一层深度的合并：你省略的段会被保留。有两个段是例外，每次写入都被整体替换而不是合并——`tool_policy`（`{}` 会把它清回完整的工具清单），以及 `system_prompt`（部分写入会替换掉整个 pin，把上一份声明带着的东西一并丢掉）。见[工具](/zh/build/tools)。
+`updateAgent()` 按段做一层深度的合并：你省略的段会被保留。有两个段是例外，每次写入都被整体替换而不是合并——`tool_policy`（`{}` 会把它清回完整的工具清单），以及 `system_prompt`（部分写入会替换掉整个 pin，把上一份声明带着的东西一并丢掉）。见[工具](../build/tools.md)。
 
 ## Session
 
@@ -118,7 +119,7 @@ session.session_key // 'api:...'
 
 `POST /agents/{agent_id}/sessions`。每一个 session 调用的第一个参数都是 agent id：`createSession(agentId, input)`、`postEvents(agentId, sessionId, events)`、`listEvents(agentId, sessionId, opts)`、`streamEvents(agentId, sessionId, opts)`。
 
-`createSession` 的第三个参数接受一个 `Idempotency-Key`；用同一个 key 重试会收敛到第一个 session，而不是再建一个。见[错误处理](/zh/reference/errors)。
+`createSession` 的第三个参数接受一个 `Idempotency-Key`；用同一个 key 重试会收敛到第一个 session，而不是再建一个。见[错误处理](../reference/errors.md)。
 
 ### 它持有什么
 
@@ -143,7 +144,7 @@ s.history?.forEach((row) => {
 
 session 被创建出来，只要你一直往里 post 就一直累积回合，之后仍然可读。它不会在一个回合结束时过期。
 
-`ZooworkClient` 没有 `patchSession`，所以 session 的 `metadata` 只能在 `createSession` 时写一次——之后要拿来检索的东西，创建时就放进去。见 [Sessions](/zh/build/sessions)。
+`ZooworkClient` 没有 `patchSession`，所以 session 的 `metadata` 只能在 `createSession` 时写一次——之后要拿来检索的东西，创建时就放进去。见 [Sessions](../build/sessions.md)。
 
 按 agent 的列举和生命周期操作确实有方法——`listSessions(agentId)`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)`。但仍然没有顶层的 session 集合，所以要跨 agent 找回一段会话，还是得自己记录 `session_id`。
 
@@ -167,7 +168,7 @@ import {
 
 ### 你写入的事件
 
-四种入站类型，其余一律被拒绝：`user.message` 开启一个回合，`user.interrupt` 中止正在进行的 run，`system.message` 是一条带外说明、模型在下一个回合读到它（它的字段是 `text`，不是 `content`），`user.tool_confirmation` 处理一个待定的工具审批。请求体结构见[事件与流式](/zh/build/events)。
+四种入站类型，其余一律被拒绝：`user.message` 开启一个回合，`user.interrupt` 中止正在进行的 run，`system.message` 是一条带外说明、模型在下一个回合读到它（它的字段是 `text`，不是 `content`），`user.tool_confirmation` 处理一个待定的工具审批。请求体结构见[事件与流式](../build/events.md)。
 
 ```ts
 const res = await zc.postEvents(agentId, sessionId, [
@@ -181,7 +182,7 @@ res.events[0]?.accepted // true
 对一个正在跑的 run 发 `user.interrupt` 会被接受（`accepted: true`），该 run 以带 `status: 'aborted'` 的 `run.finished` 结束。没有正在进行的 run 时它返回 `accepted: false`——这是空操作，不是错误，也不需要重试。
 
 ::: warning 尚未验证
-审批闭环没有端到端跑通过。目前请把「人在环中」的审批当作不可用：一个卡在审批上的 agent 会把这个回合耗到超时。见[能力矩阵](/zh/reference/capabilities)。
+审批闭环没有端到端跑通过。目前请把「人在环中」的审批当作不可用：一个卡在审批上的 agent 会把这个回合耗到超时。见[能力矩阵](../reference/capabilities.md)。
 :::
 
 `user.message` 只实测过 `content` 为纯字符串的形式。富内容块未经测试。
@@ -221,7 +222,7 @@ res.events[0]?.accepted // true
 
 ### 两种线格式
 
-REST 把字段拼成 snake_case（`event_type`、`run_id`、`created_at`），SSE 拼成 camelCase（`eventType`、`runId`、`createdAt`）；两者都没有顶层的 `type` 字段。SDK 把两者归一成同一个 `SessionEvent`，并为直接调 HTTP API 的情况导出了 `normalizeEvent`。见[事件与流式](/zh/build/events)。
+REST 把字段拼成 snake_case（`event_type`、`run_id`、`created_at`），SSE 拼成 camelCase（`eventType`、`runId`、`createdAt`）；两者都没有顶层的 `type` 字段。SDK 把两者归一成同一个 `SessionEvent`，并为直接调 HTTP API 的情况导出了 `normalizeEvent`。见[事件与流式](../build/events.md)。
 
 ::: warning listEvents 只返回一页
 服务端默认 100 条事件，最大 500 条。`listEvents` 只返回一页——长会话会静默截断，不报任何错。请用 `zc.listAllEvents(agentId, sessionId)`，它替你把页翻完。
@@ -301,9 +302,9 @@ for await (const ev of zc.streamEvents(agentId, session.session_id, cursor ? { c
 
 ## 接下来读什么
 
-- [快速开始](/zh/get-started/quickstart)——从拿到 key 到收到第一条回复。
-- [Agents](/zh/build/agents)——完整的配置面。
-- [Sessions](/zh/build/sessions)——session 的选项与读取。
-- [事件与流式](/zh/build/events)——payload 结构、续传与过滤。
-- [错误处理](/zh/reference/errors)——按 `ZooworkError.type` 匹配。
-- [不支持的能力](/zh/reference/not-supported)——在围绕某个能力做设计之前，先来这里查一下。
+- [快速开始](./quickstart.md)——从拿到 key 到收到第一条回复。
+- [Agents](../build/agents.md)——完整的配置面。
+- [Sessions](../build/sessions.md)——session 的选项与读取。
+- [事件与流式](../build/events.md)——payload 结构、续传与过滤。
+- [错误处理](../reference/errors.md)——按 `ZooworkError.type` 匹配。
+- [不支持的能力](../reference/not-supported.md)——在围绕某个能力做设计之前，先来这里查一下。

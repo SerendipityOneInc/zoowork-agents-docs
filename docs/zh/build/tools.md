@@ -1,7 +1,8 @@
 ---
 title: 工具
+description: 控制内置工具、声明 MCP server，并通过事件观察工具调用。
 source: /en/build/tools
-source_hash: 7efb2ab13ffb229a5824bd8eb816ccf54a5e7496a72badc52602a6a6bb74d39d
+source_hash: 7e43f217453a95c44b4f9f6bba88db2798ae2dc64634de8150ec7f0d021f7a66
 ---
 
 # 工具
@@ -90,7 +91,7 @@ const toolEvents = await zc.listAllEvents(agentId, sessionId, { types: ['agent.t
 ```
 
 ::: warning `listEvents` 只返回一页
-`listEvents` 只返回一页——默认 100 条事件，最多 500 条——长 session 会被静默截断：不报错，没有 `has_more`，也没有总数。`listAllEvents` 会替你走完游标。见[事件与流式](/zh/build/events)。
+`listEvents` 只返回一页——默认 100 条事件，最多 500 条——长 session 会被静默截断：不报错，没有 `has_more`，也没有总数。`listAllEvents` 会替你走完游标。见[事件与流式](./events.md)。
 :::
 
 ## 用 `tool_policy` 收窄工具集
@@ -115,7 +116,7 @@ await zc.createAgent({
 await zc.updateAgent(agentId, { tool_policy: {} })
 ```
 
-**每一次 PUT 都会 bump `config_version`** ，包括什么都没改的那一次，所以不要每个回合都重 PUT 一遍策略。见[错误处理](/zh/reference/errors)。
+**每一次 PUT 都会 bump `config_version`** ，包括什么都没改的那一次，所以不要每个回合都重 PUT 一遍策略。见[错误处理](../reference/errors.md)。
 
 **这些标识符由平台定义。** 上面的 `read` 和 `web_search` 来自平台自己的请求示例。按上面的方式跑一个回合、读 `toolCall(ev).toolName`，来确认你那套部署实际用的名字。
 
@@ -123,11 +124,11 @@ await zc.updateAgent(agentId, { tool_policy: {} })
 `tool_policy: {}`（默认值）我们已经端到端实测过。非空的 allow/deny 策略在真实运行中是否生效，我们没有实测过；所以在你亲眼盯过一个「本应被拦截」的回合的 `agent.tool` 事件之前，把收窄后的策略当作未确认。
 :::
 
-agent 资源还接受 `sandbox: { scope: 'agent' | 'session' }`。这个字段 API 是收的；两个取值我们都没实测过，所以本页不再展开。沙箱里*装了什么*由 [Environment](/zh/build/environments) 决定，不由 `tool_policy` 决定。
+agent 资源还接受 `sandbox: { scope: 'agent' | 'session' }`。这个字段 API 是收的；两个取值我们都没实测过，所以本页不再展开。沙箱里*装了什么*由 [Environment](./environments.md) 决定，不由 `tool_policy` 决定。
 
 ## 读取工具活动
 
-一次工具调用产生一系列共享同一个 `toolCallId` 的 `agent.tool` 事件，每个 phase 一个：`start`、`end` 和 `blocked`。按 `toolCallId` 配对 `start` 和 `end`，不要按相邻位置配。模型并发发出多个调用时，它们的事件会交错。每个 phase 各携带什么，见[事件与流式](/zh/build/events)。
+一次工具调用产生一系列共享同一个 `toolCallId` 的 `agent.tool` 事件，每个 phase 一个：`start`、`end` 和 `blocked`。按 `toolCallId` 配对 `start` 和 `end`，不要按相邻位置配。模型并发发出多个调用时，它们的事件会交错。每个 phase 各携带什么，见[事件与流式](./events.md)。
 
 ```ts
 const pending = new Map<string, string>()
@@ -187,12 +188,12 @@ await zc.updateAgent(agentId, {
 
 `ZooworkClient` 上确实有 `listApprovals` 和 `resolveApproval`，但它们调的是另外那套 approvals REST 资源，不是 `user.tool_confirmation` 事件闭环。
 
-这个面当前的状态见[能力矩阵](/zh/reference/capabilities)。
+这个面当前的状态见[能力矩阵](../reference/capabilities.md)。
 :::
 
 ## 相关
 
-- [事件与流式](/zh/build/events)——事件词汇表、`seq` 续传游标，以及 `run.finished`。
-- [Skills](/zh/build/skills)——挂在 agent 上的打包能力，和工具是两套不同的机制。
-- [Environments](/zh/build/environments)——工具运行所在的那个沙箱里装了什么。
-- [不支持的能力](/zh/reference/not-supported)——完整的缺口清单，包括这一条。
+- [事件与流式](./events.md)——事件词汇表、`seq` 续传游标，以及 `run.finished`。
+- [Skills](./skills.md)——挂在 agent 上的打包能力，和工具是两套不同的机制。
+- [Environments](./environments.md)——工具运行所在的那个沙箱里装了什么。
+- [不支持的能力](../reference/not-supported.md)——完整的缺口清单，包括这一条。

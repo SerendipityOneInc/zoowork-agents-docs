@@ -1,3 +1,7 @@
+---
+description: Create and protect an organization API key and diagnose authentication failures.
+---
+
 # Authentication
 
 Every request to the ZooWork API is authenticated with one credential: an organization
@@ -68,7 +72,7 @@ Keep it on a server you control:
 
 This key is the only credential the API accepts. There is no vault for your own or your end
 users' secrets - keep those in your own service. See
-[Not supported](/en/reference/not-supported).
+[Not supported](../reference/not-supported.md).
 
 ## Tenancy: 404, not 403
 
@@ -132,11 +136,11 @@ A missing or invalid key returns **401**. Match on `ZooworkError.status` and
 | `startAgent()` / `stopAgent()` | Yes |
 | `listAgentSkills()` | Yes |
 | Sessions, events, SSE stream under your agents | Yes |
-| Installing a skill your own organization uploaded | The route is open to `org` and `personal` scope; we have not exercised it (see [Skills](/en/build/skills)) |
+| Installing a skill your own organization uploaded | The route is open to `org` and `personal` scope; we have not exercised it (see [Skills](../build/skills.md)) |
 | Installing a skill from the global catalog | No - returns 404. Global skills are already attached at agent creation |
-| Uploading a skill (`uploadSkill()` / `uploadSkillVersion()`) | The multipart route takes `org` and `personal` scope only; `global` and `pack` are 403. See [Skills](/en/build/skills) for what has been driven |
-| Schedules under your own agents | Agent-scoped routes, all seven on the client. See the [capability matrix](/en/reference/capabilities) for what has been driven |
-| Environments in your organization | Scoped to your org. The platform default Environment - the one a fresh agent is pinned to - is not fetchable by any key, because the gateway forces an org selector and the default belongs to no org. See [Environments](/en/build/environments) |
+| Uploading a skill (`uploadSkill()` / `uploadSkillVersion()`) | The multipart route takes `org` and `personal` scope only; `global` and `pack` are 403. See [Skills](../build/skills.md) for what has been driven |
+| Schedules under your own agents | Agent-scoped routes, all seven on the client. See the [capability matrix](../reference/capabilities.md) for what has been driven |
+| Environments in your organization | Scoped to your org. The platform default Environment - the one a fresh agent is pinned to - is not fetchable by any key, because the gateway forces an org selector and the default belongs to no org. See [Environments](../build/environments.md) |
 | Any agent id in another organization | No - returns 404, not 403 |
 | Listing agents created by a different key in your organization | No - the list selector is exact; fetch by id still works |
 | Per-user or read-only scoping of the key itself | No such variant exists |

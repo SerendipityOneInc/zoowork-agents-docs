@@ -55,3 +55,10 @@ Where a capability does not exist, the page still exists and says so — see
 - **No unlabelled roadmap.** If something is planned but absent, it goes under
   "Not supported" with what to do instead, not into a future-tense sentence in a
   guide.
+- **Review the AI output after every documentation change.** Run `pnpm build`, then
+  read `dist/docs/llms.txt` and the affected section of `dist/docs/llms-full.txt`.
+  Also open the affected `dist/docs/**/*.md` files and follow their internal links.
+  `scripts/check-ai-docs.mjs` catches structural drift and broken links, but it cannot
+  decide whether the generated summary is accurate or whether an important caveat was
+  lost. A documentation change is not finished until both the human page and its AI
+  representation have been reviewed and updated together.
