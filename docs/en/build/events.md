@@ -1,3 +1,7 @@
+---
+description: Post events, stream SSE, resume with cursors, and interpret the event vocabulary.
+---
+
 # Events and streaming
 
 Everything that happens inside a session is an event. You drive the session by posting a
@@ -232,7 +236,7 @@ it from is camelCase (`approvalId`). Any other shape is `400 invalid_event`.
 
 ::: warning Not yet verified
 The accepted body above is read from the request parser; no live pending approval has been
-created and resolved through this route. The [capability matrix](/en/reference/capabilities)
+created and resolved through this route. The [capability matrix](../reference/capabilities.md)
 records the state of the approval loop.
 :::
 

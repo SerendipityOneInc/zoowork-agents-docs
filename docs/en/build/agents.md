@@ -1,7 +1,11 @@
+---
+description: Create, configure, start, update, and delete agents, including versioned response shapes.
+---
+
 # Agents
 
 An agent is a persistent configuration object: a name, a model, persona documents, labels,
-and a tool policy. You create it once, start it, and then open [sessions](./sessions) against
+and a tool policy. You create it once, start it, and then open [sessions](./sessions.md) against
 it. The configuration lives on the server, so every session inherits it without you resending
 anything.
 
@@ -51,7 +55,7 @@ console.log(created.agent_id, created.config_version)
 
 The `Idempotency-Key` is scoped to `agent.create + key`: same key and same body converges on
 the first response, same key and a different body returns `409`. See
-[Errors](../reference/errors).
+[Errors](../reference/errors.md).
 
 The onboarding interview is always skipped, so the agent answers your first message directly.
 
@@ -65,9 +69,9 @@ The onboarding interview is always skipped, so the agent answers your first mess
 | `model.max_tokens` | integer | Output-token cap per model request. Omit to use the platform default; invalid values are rejected at create. |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | Guidance documents. Only inline `content` is stored. Only the canonical names are read when the prompt is assembled: `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`. Other names are saved but never reach the model. `MEMORY.md` and the `memory/` namespace are reserved and return `400 invalid_persona_doc_name`. |
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
-| `tool_policy` | object | `{}` means the full tool manifest. A non-empty object is an allow/deny policy, e.g. `{ allow: ['read', 'web_search'] }`. See [Tools](./tools). |
+| `tool_policy` | object | `{}` means the full tool manifest. A non-empty object is an allow/deny policy, e.g. `{ allow: ['read', 'web_search'] }`. See [Tools](./tools.md). |
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
-| `mcp` | array | Remote MCP server declarations. See [Tools](./tools). |
+| `mcp` | array | Remote MCP server declarations. See [Tools](./tools.md). |
 
 ```ts
 const agent = await zc.createAgent({
@@ -96,8 +100,8 @@ behaviour. Verify the effect you depend on before you build on it.
 
 `skills` at create time does work (staging-verified 2026-08-30): the skill is installed, but
 neither the create receipt nor `getAgent`'s `declared` echoes the field - confirm the install
-with `listAgentSkills(agentId)`, not the receipt. See [Skills](./skills). `environment_id` and `environment_version` do work
-here; [Environments](./environments) has the resolution rules.
+with `listAgentSkills(agentId)`, not the receipt. See [Skills](./skills.md). `environment_id` and `environment_version` do work
+here; [Environments](./environments.md) has the resolution rules.
 
 ## Read an agent, and the two response shapes
 
@@ -158,7 +162,7 @@ const configVersion = (a: AgentRecord): number | undefined =>
 The number also jumps between the two reads: the first version you read back is commonly
 higher than the one on the create receipt, before you have written anything. Treat
 `config_version` as an opaque monotonic counter, never as a receipt for your own write.
-[Errors](../reference/errors) has the full rules.
+[Errors](../reference/errors.md) has the full rules.
 
 ```ts
 const agent = await zc.getAgent(created.agent_id)
@@ -200,7 +204,7 @@ An API-only agent has zero channels (`status.channels.expected === 0`), so nothi
 connects, so `actual_state` sits at `activating` indefinitely and `active` is unreachable.
 `running` is not even a member of the `actual_state` enum, so polling for it never returns.
 Sessions work perfectly while `actual_state` is `activating` - full turns in that state are
-verified. Binding a [channel](/en/build/channels) is the one thing that makes `actual_state`
+verified. Binding a [channel](./channels.md) is the one thing that makes `actual_state`
 move: it then reports that channel's connectivity - and it is still not an API-readiness
 signal.
 
@@ -261,7 +265,7 @@ try {
 }
 ```
 
-Match on `e.type`, never on `e.message`. See [Errors](../reference/errors).
+Match on `e.type`, never on `e.message`. See [Errors](../reference/errors.md).
 
 ## Update an agent
 
@@ -296,7 +300,7 @@ and sending them is a type error.
 ### `tool_policy` and `system_prompt` are replaced wholesale
 
 Two sections are exceptions to the merge: every PUT that names `tool_policy` or
-`system_prompt` replaces the whole object. See [Tools](./tools).
+`system_prompt` replaces the whole object. See [Tools](./tools.md).
 
 So there is no partial write for either. To add to a policy, read the current one out of
 `declared` and send the union yourself.
@@ -321,7 +325,7 @@ turns already in flight keep the old one.
 ### What a PUT rejects
 
 `skills`, `credentials`, and any unknown field in the PUT body return `400`. Skills
-are managed through their own routes - see [Skills](./skills).
+are managed through their own routes - see [Skills](./skills.md).
 
 ## Stop and delete
 
@@ -346,7 +350,7 @@ Repeated deletes also return `204`. After deletion, `getAgent()` returns `404 no
 
 ## Skills on an agent
 
-Three methods, covered in full on [Skills](./skills).
+Three methods, covered in full on [Skills](./skills.md).
 
 ```ts
 const skills = await zc.listAgentSkills(agentId)                 // attached skills, resolved and merged
@@ -356,7 +360,7 @@ await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
 
 A freshly created agent already has the entire global skill catalog attached, so
 `putAgentSkill()` on a global-scope skill returns `404` - do not retry it. See
-[Skills](./skills).
+[Skills](./skills.md).
 
 ## List your agents
 
@@ -392,8 +396,8 @@ last-write-wins per section. Serialize your own writes if that matters.
 
 ## Next
 
-- [Sessions](./sessions) - open a session against a running agent and drive a turn.
-- [An agent per user](./per-user-agents) - the multi-user shape for when users must not share sandbox files and memory.
-- [Events and streaming](./events) - read what the agent does, with resumable SSE.
-- [Skills](./skills) - what is attached by default and what you can change.
-- [Errors](../reference/errors) - the `ZooworkError.type` values worth branching on.
+- [Sessions](./sessions.md) - open a session against a running agent and drive a turn.
+- [An agent per user](./per-user-agents.md) - the multi-user shape for when users must not share sandbox files and memory.
+- [Events and streaming](./events.md) - read what the agent does, with resumable SSE.
+- [Skills](./skills.md) - what is attached by default and what you can change.
+- [Errors](../reference/errors.md) - the `ZooworkError.type` values worth branching on.

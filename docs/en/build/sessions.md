@@ -1,3 +1,7 @@
+---
+description: Create, continue, list, archive, and delete sessions, then read their transcripts.
+---
+
 # Sessions
 
 A session is one conversation with one agent. You create it, post `user.message` events
@@ -91,7 +95,7 @@ the surface the conversation came from. Nothing in the platform interprets it.
 
 `createSession` takes an optional third argument, sent as the `Idempotency-Key` header.
 Replaying the same key returns the existing session instead of creating a second one and
-running the opening turn twice. [Errors and retries](/en/reference/errors) has the rules for
+running the opening turn twice. [Errors and retries](../reference/errors.md) has the rules for
 choosing and reusing a key.
 
 The event write path takes a per-event key instead of a header: give each event an
@@ -138,7 +142,7 @@ console.log(second.text)                 // mentions "Ada"
 history will show (with its `seq`); a `user.interrupt` with no run in flight comes back as
 `{ id, type, accepted: false }`. Acceptance means the event was queued, not that the turn has
 finished. A turn ends when you see `run.finished`, whose `payload.status` is `succeeded`,
-`failed`, or `aborted` - see [Events and streaming](/en/build/events).
+`failed`, or `aborted` - see [Events and streaming](./events.md).
 
 The write path accepts four event types: `user.message`, `user.interrupt`, `system.message`,
 and `user.tool_confirmation`.
@@ -304,7 +308,7 @@ at create time, because you cannot add it later.
 :::
 
 There is also no top-level session resource, so there is no way to list sessions across
-agents. See [Not supported](/en/reference/not-supported) for the full boundary.
+agents. See [Not supported](../reference/not-supported.md) for the full boundary.
 
 Per-agent listing and lifecycle do have methods - `listSessions(agentId, { page })`,
 `archiveSession(agentId, sessionId)`, `deleteSession(agentId, sessionId)` - and none of them
@@ -313,4 +317,4 @@ still write-once.
 
 One last boundary: a session isolates conversation history, not files - every session of an agent
 shares one `/workspace`. When a multi-user product needs file and memory isolation, see
-[An agent per user](./per-user-agents).
+[An agent per user](./per-user-agents.md).

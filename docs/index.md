@@ -11,4 +11,4 @@ if (typeof window !== 'undefined') window.location.replace(withBase('/en/'))
 
 # ZooWork Managed Agents
 
-[English](/en/) · [简体中文](/zh/)
+[English](./en/index.md) · [简体中文](./zh/index.md)

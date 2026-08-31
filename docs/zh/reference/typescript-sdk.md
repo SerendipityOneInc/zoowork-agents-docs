@@ -1,15 +1,16 @@
 ---
 title: TypeScript SDK 参考
+description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 16b4142afd00b7ef0c5291a2c44da115b9121ddd19f0f867d9a84f8c7994a680
+source_hash: 40037b1eb85b70b9280934419488df50af148009a07907347338cb425e8f38ef
 ---
 
 # TypeScript SDK 参考
 
 `@zoowork-ai/sdk` 导出的每一个符号，附带编译器看到的签名。
 
-这一页是参考手册。想看按任务组织的说明，从 [Agents](/zh/build/agents)、[Sessions](/zh/build/sessions)
-或[快速开始](/zh/get-started/quickstart)开始。
+这一页是参考手册。想看按任务组织的说明，从 [Agents](../build/agents.md)、[Sessions](../build/sessions.md)
+或[快速开始](../get-started/quickstart.md)开始。
 
 ## 安装
 
@@ -33,7 +34,7 @@ npm install @zoowork-ai/sdk
 |---|---|
 | Node 20 及以上 | 主要目标。`fetch` 和 `ReadableStream` 是内置的。 |
 | Cloudflare Workers、Deno、Bun 及其他边缘运行时 | 从构造上就支持。SSE 解析器是照着 Web Streams 写的，不是 Node streams。 |
-| 浏览器 | 技术上能跑，但你的 API key 认证的是整个组织。不要把它发到客户端。见[鉴权](/zh/get-started/authentication)。 |
+| 浏览器 | 技术上能跑，但你的 API key 认证的是整个组织。不要把它发到客户端。见[鉴权](../get-started/authentication.md)。 |
 
 ### 注入 `fetch`
 
@@ -142,7 +143,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 把一个聊天平台绑到用 API 创建出来的 agent 上，这样同一个 agent 也能在聊天软件里回复人。
 飞书 / Lark、企业微信、微信三家都有服务端驱动的扫码流程；Slack 没有，只能走 `addChannel`，
 用你已经拿到的凭证绑定；微信正相反，扫码流是它唯一的路径。平台对照表和各种坑见
-[渠道](/zh/build/channels)。
+[渠道](../build/channels.md)。
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
@@ -272,7 +273,7 @@ await zc.createSchedule(agentId, {
 | `getEnvironmentVersion(environmentId, version)` | `Promise<EnvironmentVersionRecord>` | 读取一个版本。要判断某个版本能不能用，轮询**这个** ，看 `status`；这里没有 `state` 字段，照着 `state` 写的循环永远不会结束。 |
 
 只有下面有小节的方法才带着签名之外的行为；其余的都是一次调用的事。一个方法在客户端上，不等于它这条
-路由已经被跑过——这件事记在[能力矩阵](/zh/reference/capabilities)里，一族一族地记。
+路由已经被跑过——这件事记在[能力矩阵](./capabilities.md)里，一族一族地记。
 
 下面所有代码片段都假设：
 
@@ -346,10 +347,10 @@ console.log(created.agent_id, created.config_version) // "agt_...", 1
 ```
 
 新建的 agent 是**停止** 的：没先调 `startAgent()` 就 `createSession()`，就是
-`409 agent_not_running`。见[快速开始](/zh/get-started/quickstart)。
+`409 agent_not_running`。见[快速开始](../get-started/quickstart.md)。
 
 这份回执上的 `config_version` 立刻就会过期——回执写着 `1`，紧接着一次 `getAgent()` 常常已经是
-`3` 了。见[错误处理](/zh/reference/errors)。
+`3` 了。见[错误处理](./errors.md)。
 
 ---
 
@@ -402,10 +403,10 @@ console.log(updated.declared?.labels) // { tier: 'paid' } - replaced, not merged
 ```
 
 连这条规则都有例外，就是 `tool_policy` 和 `system_prompt`：任何点到它们的 PUT 都会整体替换。
-见[工具](/zh/build/tools)。
+见[工具](../build/tools.md)。
 
 **每一次成功的 PUT 都会 bump `config_version`，包括请求体和已存内容逐字节相同的那一次。**
-见[错误处理](/zh/reference/errors)。
+见[错误处理](./errors.md)。
 
 PUT 请求体里出现 `skills`、`credentials` 以及未知字段，都返回 `400`。
 
@@ -420,7 +421,7 @@ deleteAgent(agentId: string): Promise<void>
 软删除该 agent，resolve 时不带任何值。重复调用会成功。删除之后，`getAgent()` 返回 `404 not_found`。
 
 它**不会** 停止 agent、不会取消正在跑的 workflow、不会删除定时任务、也不会释放 sandbox——
-先停再删。见 [Agents](/zh/build/agents)。
+先停再删。见 [Agents](../build/agents.md)。
 
 ---
 
@@ -440,7 +441,7 @@ console.log(warnings)
 ```
 
 **`warnings` 是提示信息，不是失败。** 纯 API 的 agent 每次启动、每次停止都会报
-`channel_routes_reload_failed`；不要因为它去重试。见 [Agents](/zh/build/agents)。
+`channel_routes_reload_failed`；不要因为它去重试。见 [Agents](../build/agents.md)。
 
 然后等 `status.desired_state === 'running'`，永远不要等 `status.actual_state`。这个等待本身
 就是一个方法——不要自己写这个循环：
@@ -583,7 +584,7 @@ console.log(session.session_key) // "api:ses_example"
 agent 必须处于运行状态。对一个已停止的 agent 调用，会抛出 `ZooworkError`，`status: 409`，
 `type: 'agent_not_running'`。
 
-幂等 key 要从你自己系统里稳定的东西派生，绝不要用调用时现生成的值。见[错误处理](/zh/reference/errors)。
+幂等 key 要从你自己系统里稳定的东西派生，绝不要用调用时现生成的值。见[错误处理](./errors.md)。
 
 ---
 
@@ -655,7 +656,7 @@ console.log(r.events[0]?.accepted)
 不抛任何异常，也没有什么要你处理。
 
 **`system.message` 会在下一个回合到达模型** ，走的是带外通道，而且它的正文放在 `text` 里，
-不是 `content`。见[事件](/zh/build/events)。
+不是 `content`。见[事件](../build/events.md)。
 
 给每个事件带一个 `idempotency_key`（任何稳定字符串），超时后重试的 `postEvents` 就不会把同一条消息投递两次。
 
@@ -824,7 +825,7 @@ interface SessionEvent {
 `SessionEvent` 是 camelCase，紧挨着它的 `SessionRecord` 和 `AgentRecord` 是 snake_case——
 这是线上的样子，不是笔误，所以不要把 `eventType` 「改正」成 `event_type`。同一个事件，
 REST 用 snake_case 拼写，SSE 用 camelCase 拼写；`normalizeEvent()` 把两种都吸收掉，
-这就是 SDK 的每一次读取都只给你一种形状的原因。见[事件](/zh/build/events)。
+这就是 SDK 的每一次读取都只给你一种形状的原因。见[事件](../build/events.md)。
 
 ### `AgentRecord`
 
@@ -889,7 +890,7 @@ interface AgentStatus {
 的前置条件，不是 `running` 就是 `409 agent_not_running`。
 
 `actual_state` 是聊天频道的健康度，不是 API 就绪状态。`running` 甚至不在它的枚举里，
-所以轮询它的循环永远不会返回。轮询 `status.desired_state`。见 [Agents](/zh/build/agents)。
+所以轮询它的循环永远不会返回。轮询 `status.desired_state`。见 [Agents](../build/agents.md)。
 :::
 
 这里的 `config_version` 是读取路径上的权威版本号。
@@ -923,7 +924,7 @@ interface AgentResource {
 `updateAgent(agentId, sections)`——那个参数的类型是 `Record<string, unknown>`，什么都不检查。
 
 创建时的 `skills` 会生效但不被任何读取面回显——确认安装用 `listAgentSkills()`，不要看创建回执。
-逐字段的说明见 [Agents](/zh/build/agents)。
+逐字段的说明见 [Agents](../build/agents.md)。
 
 ### `AgentSkill`
 
@@ -1043,7 +1044,7 @@ interface ToolCall {
 一次工具调用会产生**一串共享同一个 `toolCallId` 的事件，每个 phase 一个** ：`start` 带 `args`，
 `end` 带 `isError` 和 `resultPreview`，`blocked` 表示这次调用停在审批上、**还没有** 执行。
 按 `toolCallId` 配对——并发调用时，它们在流里**不相邻** 。一个工具失败不会让 run 失败：
-带 `isError: true` 的事件后面，照样跟着 `succeeded` 的 `run.finished`。见[事件](/zh/build/events)。
+带 `isError: true` 的事件后面，照样跟着 `succeeded` 的 `run.finished`。见[事件](../build/events.md)。
 
 ### 配置类型
 
@@ -1067,7 +1068,7 @@ class ZooworkError extends Error {
 ```
 
 所有方法在遇到非 2xx 响应时都会抛出它。匹配 `error.type`，永远不要匹配报错文本。
-完整说明见[错误处理](/zh/reference/errors)。
+完整说明见[错误处理](./errors.md)。
 
 ## 事件辅助函数
 
@@ -1083,7 +1084,7 @@ class ZooworkError extends Error {
 | `messageText` | `(message: unknown) => string` | 一条 `{ role, content }` 消息的文本。 |
 | `normalizeEvent` | `(raw: unknown, sseId?: string) => SessionEvent` | 把两种线格式中的任意一种吸收成 `SessionEvent`。 |
 
-因为文本类辅助函数对不匹配的类型返回 `''`，你可以无条件地累加。见[事件](/zh/build/events)。
+因为文本类辅助函数对不匹配的类型返回 `''`，你可以无条件地累加。见[事件](../build/events.md)。
 
 ### `messageText(message)`
 
@@ -1286,10 +1287,10 @@ import {
 
 这就是全部的公开接口面。不在这个清单上的东西就是不存在——特别地，没有 `patchSession`：
 `PATCH /agents/{id}/sessions/{sid}` 返回 `405`，所以一个 session 的 `metadata` 是在
-`createSession()` 时一次写定的。见[不支持的能力](/zh/reference/not-supported)。
+`createSession()` 时一次写定的。见[不支持的能力](./not-supported.md)。
 
 ## 下一步
 
-- [错误处理](/zh/reference/errors) —— 值得拿来分支的 `ZooworkError.type` 取值。
-- [Agents](/zh/build/agents) —— 创建、启动、修改，以及两种响应形状。
-- [Sessions](/zh/build/sessions) —— 驱动一个回合、给事件日志翻页、读取会话记录。
+- [错误处理](./errors.md) —— 值得拿来分支的 `ZooworkError.type` 取值。
+- [Agents](../build/agents.md) —— 创建、启动、修改，以及两种响应形状。
+- [Sessions](../build/sessions.md) —— 驱动一个回合、给事件日志翻页、读取会话记录。

@@ -1,7 +1,8 @@
 ---
 title: 鉴权
+description: 创建和保护组织 API key，并诊断鉴权失败。
 source: /en/get-started/authentication
-source_hash: e908eda0d023dbca3e03eb35fa3f1270d4609e951e278053dff887a012eb0ac1
+source_hash: 48fdc1f032d50febeda6ea5e4eb5ad1d44424d4c2775b7d20cf5e2033f27d505
 ---
 
 # 鉴权
@@ -61,7 +62,7 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 - 不要提交进代码仓，不要打进日志或错误信息。
 - **在你的用户和 ZooWork API 之间放你自己的后端。** 你的后端持有这个 key，按你自己的方式认证用户，并决定每个用户能碰哪个 agent、哪个会话。
 
-**这个 key 是 API 接受的唯一凭据。** 没有给你自己、或你终端用户的密钥用的保险库——把它们留在你自己的服务里。见[不支持的能力](/zh/reference/not-supported)。
+**这个 key 是 API 接受的唯一凭据。** 没有给你自己、或你终端用户的密钥用的保险库——把它们留在你自己的服务里。见[不支持的能力](../reference/not-supported.md)。
 
 ## 租户隔离：返回 404，不是 403
 
@@ -113,11 +114,11 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 | `startAgent()` / `stopAgent()` | 能 |
 | `listAgentSkills()` | 能 |
 | 你的 agent 下的 session、事件、SSE 流 | 能 |
-| 安装你自己组织上传的 skill | 路由对 `org` 和 `personal` scope 是开放的；我们尚未实测（见 [Skills](/zh/build/skills)） |
+| 安装你自己组织上传的 skill | 路由对 `org` 和 `personal` scope 是开放的；我们尚未实测（见 [Skills](../build/skills.md)） |
 | 安装全局目录里的 skill | **不能——返回 404。** 全局 skill 在 agent 创建时就已经挂上了 |
-| 上传 skill（`uploadSkill()` / `uploadSkillVersion()`） | 这条 multipart 路由只收 `org` 和 `personal` scope；`global` 和 `pack` 是 403。实测到哪一步见 [Skills](/zh/build/skills) |
-| 你自己 agent 下的定时任务 | 挂在 agent 下的路由，七个方法都在客户端上。实测到哪一步见[能力矩阵](/zh/reference/capabilities) |
-| 你组织内的 environment | 限于你的组织。平台默认的那个 environment——新建 agent 被钉上的那个——任何 key 都读不到，因为网关强制加了组织选择器，而默认 environment 不属于任何组织。见 [Environments](/zh/build/environments) |
+| 上传 skill（`uploadSkill()` / `uploadSkillVersion()`） | 这条 multipart 路由只收 `org` 和 `personal` scope；`global` 和 `pack` 是 403。实测到哪一步见 [Skills](../build/skills.md) |
+| 你自己 agent 下的定时任务 | 挂在 agent 下的路由，七个方法都在客户端上。实测到哪一步见[能力矩阵](../reference/capabilities.md) |
+| 你组织内的 environment | 限于你的组织。平台默认的那个 environment——新建 agent 被钉上的那个——任何 key 都读不到，因为网关强制加了组织选择器，而默认 environment 不属于任何组织。见 [Environments](../build/environments.md) |
 | 其他组织的任何 agent id | **不能——返回 404，不是 403** |
 | 列出同组织内由另一个 key 创建的 agent | 不能——列表选择器是精确匹配；按 id 读取仍然可行 |
 | 把 key 本身按用户细分或降为只读 | 不存在这样的变体 |

@@ -1,3 +1,7 @@
+---
+description: Create and start an agent, open a session, and stream its first reply in five minutes.
+---
+
 # Quickstart
 
 Create an agent, start it, open a session, and stream the reply. About five minutes end to end.
@@ -19,7 +23,7 @@ is the production reference with auth and persistence.
 ## Prerequisites
 
 - **Node 20 or later.** `@zoowork-ai/sdk` is an ES module with no runtime dependencies; it uses the platform `fetch`.
-- **An API key** that looks like `zct_...`. You create it yourself in the ZooWork App under **Settings → API Keys**. On an enterprise organization that tab is admin-only, and during the Developer Preview it appears only for accounts already in the rollout — if it is not there, ask your org admin for a key. [Authentication](/en/get-started/authentication) has the whole story.
+- **An API key** that looks like `zct_...`. You create it yourself in the ZooWork App under **Settings → API Keys**. On an enterprise organization that tab is admin-only, and during the Developer Preview it appears only for accounts already in the rollout — if it is not there, ask your org admin for a key. [Authentication](./authentication.md) has the whole story.
 
 Keep the key server-side. It authenticates as your whole organization, not as one end user.
 

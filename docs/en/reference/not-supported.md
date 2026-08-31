@@ -1,3 +1,7 @@
+---
+description: Identify unavailable capabilities and the closest supported alternative for each.
+---
+
 # Not supported
 
 Things that do not exist here. Each entry says what you would try to build, what actually
@@ -11,7 +15,7 @@ after the first integration test.
 
 Ordered by how likely you are to build a whole product on top of it. Read the first three
 even if you skim the rest. For what does exist, see the
-[capability matrix](/en/reference/capabilities).
+[capability matrix](./capabilities.md).
 
 ## Client-executed custom tools
 
@@ -25,7 +29,7 @@ types: `user.message`, `user.interrupt`, `user.tool_confirmation`, `system.messa
 **Instead:** keep the decision in your own process: wait for `run.finished`, do the work, and
 post the answer back as a `user.message` on the next turn. That path is slower by one turn.
 The only other shape that puts your code behind an agent tool is a **remote HTTP MCP server**
-declared on the agent - see [Tools](/en/build/tools).
+declared on the agent - see [Tools](../build/tools.md).
 
 ## Vault-style end-user credential storage
 
@@ -69,7 +73,7 @@ the turn ran, not whether the answer was good.
 **Instead:** two real paths. For **unattended cron work** the outcome gate exists in full:
 put `payload.outcome` on the schedule - or a default at `resource.outcome` - with a `command`
 or `rubric` evaluator, and the run iterates against it and withholds publication until
-satisfied. See the [capability matrix](/en/reference/capabilities#automation). For
+satisfied. See the [capability matrix](./capabilities.md#automation). For
 **interactive sessions**, grade in your own process: read the assistant text from
 `agent.assistant` events, score it however you like, and post another `user.message` to
 iterate. Every step of that loop is verified.
@@ -83,7 +87,7 @@ card, and the run continues or stops based on the click.
 `blocked` phase on `agent.tool`, `user.tool_confirmation` as an accepted write type - but no
 real pending approval has ever been produced, so nothing about the round trip is proven, and
 an agent waiting on one spends the turn waiting. See the
-[capability matrix](/en/reference/capabilities#tools).
+[capability matrix](./capabilities.md#tools).
 
 **Instead:** gate on your side. Keep the dangerous capability out of the agent's tool policy,
 have the agent describe what it wants to do in text, make the decision in your own UI, then
@@ -135,7 +139,7 @@ durable `seq` and the server replays from it, so a dropped connection costs you 
 **You would build:** a canary that sends ten percent of traffic to configuration v3, or a
 one-call rollback to the previous version.
 
-**What happens:** `config_version` increments on every PUT ([Errors](/en/reference/errors)),
+**What happens:** `config_version` increments on every PUT ([Errors](./errors.md)),
 but no route lists versions, fetches an old one, or pins a session to one.
 
 **Instead:** keep your own copy of every configuration you PUT, so rolling back means
@@ -168,6 +172,6 @@ Smaller gaps, same rule: they do not exist, so do not plan on them.
 | cargo, gem, or go packages in an environment | apt, npm, and pip only. |
 | A credential API; environment secrets, runtime environment variables, sandbox start hooks | The platform injects credentials for its own built-in skills; that lane is not open to you, and an environment config does not accept secrets, variables, or start hooks. Your keys stay in your own service. |
 | Schedule pause and unpause, archive, run history across schedules, automatic cleanup when an agent is deleted | Not present - delete and recreate, and read runs one schedule at a time. Schedules survive stop and delete, so remove them yourself first. |
-| SDK methods for files | The files routes exist on the wire but their backend is not wired; `ZooworkClient` exposes nothing for them, so you would call them with your own `fetch`. Artifacts are on the client (`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`), as are approvals, schedules, environments, and session archive and delete - see the [capability matrix](/en/reference/capabilities). |
+| SDK methods for files | The files routes exist on the wire but their backend is not wired; `ZooworkClient` exposes nothing for them, so you would call them with your own `fetch`. Artifacts are on the client (`listArtifacts` / `getArtifact` / `downloadArtifact` / `deleteArtifact`), as are approvals, schedules, environments, and session archive and delete - see the [capability matrix](./capabilities.md). |
 | Key rotation or revocation from your own code | No API. In the ZooWork App, **Settings → API Keys** rotates or revokes a key immediately, and the new secret is shown exactly once. |
 | Scoped, per-user, or read-only API keys | One organization-wide key, with full read and write over every agent in the organization. |

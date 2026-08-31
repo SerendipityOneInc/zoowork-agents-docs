@@ -1,3 +1,7 @@
+---
+description: Understand the Agent, Session, and Event primitives and their lifecycle.
+---
+
 # Core concepts
 
 ZooWork Managed Agents has three primitives. Everything you build sits on top of them.
@@ -13,7 +17,7 @@ events (`run.started`, `run.finished`), but you never create, fetch, or list one
 
 Sandbox templates are a separate optional resource called an Environment. You pin one on the
 agent if you need custom packages or a network allowlist; you do not interact with it at
-runtime. See [Environments](/en/build/environments).
+runtime. See [Environments](../build/environments.md).
 
 All examples on this page use the TypeScript SDK:
 
@@ -23,13 +27,13 @@ import { createZooworkClient } from '@zoowork-ai/sdk'
 const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 ```
 
-See [Authentication](/en/get-started/authentication) for where the key comes from.
+See [Authentication](./authentication.md) for where the key comes from.
 
 ## Agent
 
 An agent is a configuration object that outlives any conversation. You create it once and reuse
 it across sessions and days. Whether to share one agent across *users* is an isolation decision -
-the sandbox and memory are shared agent-wide; see [An agent per user](/en/build/per-user-agents).
+the sandbox and memory are shared agent-wide; see [An agent per user](../build/per-user-agents.md).
 
 ### What it owns
 
@@ -48,7 +52,7 @@ It also owns a `status` block, which is state the server maintains and you only 
 `POST /agents` answers with a flat create receipt. `GET` and `PUT` answer with a projection:
 configuration under `declared`, version under `status.config_version`. Read the version as
 `agent.status?.config_version ?? agent.config_version` and one expression works for both. See
-[Agents](/en/build/agents) for the two shapes side by side.
+[Agents](../build/agents.md) for the two shapes side by side.
 
 ### Lifecycle
 
@@ -60,7 +64,7 @@ createAgent() --> [stopped] --startAgent()--> [running] --stopAgent()--> [stoppe
 
 A newly created agent is **stopped**. Nothing about the create call starts it, and until
 `startAgent()` returns, `createSession()` fails with `409 agent_not_running`. See
-[Quickstart](/en/get-started/quickstart).
+[Quickstart](./quickstart.md).
 
 ```ts
 const { warnings } = await zc.startAgent(agentId)
@@ -70,7 +74,7 @@ const { warnings } = await zc.startAgent(agentId)
 `stopAgent()` is the same shape. The `warnings` array is informational; do not retry on it.
 
 `deleteAgent()` is a soft delete: it does not stop the agent, cancel in-flight work, delete
-schedules, or release its sandbox. Call `stopAgent()` first. See [Agents](/en/build/agents).
+schedules, or release its sandbox. Call `stopAgent()` first. See [Agents](../build/agents.md).
 
 ### `desired_state` vs `actual_state`
 
@@ -103,7 +107,7 @@ await zc.waitUntilRunning(agentId)
 
 `waitUntilRunning()` polls `desired_state` on a 30-second budget, 500 ms apart, and throws a
 `ZooworkError` with `status === 408` and `type === 'timeout'` if the agent never gets there.
-See [Agents](/en/build/agents).
+See [Agents](../build/agents.md).
 
 A full turn completes normally on an agent whose `actual_state` never leaves `activating`.
 
@@ -116,7 +120,7 @@ What it is not is a receipt. Every successful `PUT` bumps it, including a PUT wh
 byte-identical to the current configuration, and `updateAgent()` takes no expected-version
 parameter, so you cannot use `config_version` to deduplicate retries or to detect "did my write
 land". After a write times out, `getAgent()` and compare `declared` instead. See
-[Errors](/en/reference/errors).
+[Errors](../reference/errors.md).
 
 `upgradeSystemPrompt()` is the one call that does take an expected version: it requires
 `expected_config_version` and answers `409 config_version_changed` if the agent has moved on.
@@ -124,7 +128,7 @@ land". After a write times out, `getAgent()` and compare `declared` instead. See
 `updateAgent()` merges one level deep per section: sections you omit are preserved. Two sections
 are the exception and are replaced wholesale on every write - `tool_policy`, where `{}` clears
 it back to the full tool manifest, and `system_prompt`, where a partial write replaces the whole
-pin and drops whatever the previous declaration carried. See [Tools](/en/build/tools).
+pin and drops whatever the previous declaration carried. See [Tools](../build/tools.md).
 
 ## Session
 
@@ -146,7 +150,7 @@ session.session_key // 'api:...'
 
 `createSession` accepts an `Idempotency-Key` as a third argument; retrying with the same key
 converges on the first session rather than creating a second one. See
-[Errors](/en/reference/errors).
+[Errors](../reference/errors.md).
 
 ### What it owns
 
@@ -177,7 +181,7 @@ readable afterwards. It does not expire at the end of a turn.
 
 `ZooworkClient` has no `patchSession`, so a session's `metadata` is write-once at
 `createSession` - put anything you will need to search on in there when you create it. See
-[Sessions](/en/build/sessions).
+[Sessions](../build/sessions.md).
 
 Per-agent listing and lifecycle do have methods - `listSessions(agentId)`,
 `archiveSession(agentId, sessionId)`, `deleteSession(agentId, sessionId)`. There is still no
@@ -217,7 +221,7 @@ import {
 Four inbound types, and everything else is rejected: `user.message` starts a turn,
 `user.interrupt` aborts the in-flight run, `system.message` is an out-of-band note the model
 reads on the following turn (its field is `text`, not `content`), and `user.tool_confirmation`
-resolves a pending tool approval. See [Events and streaming](/en/build/events) for the body
+resolves a pending tool approval. See [Events and streaming](../build/events.md) for the body
 shapes.
 
 ```ts
@@ -237,7 +241,7 @@ submitted event.
 ::: warning Not yet verified
 The approval loop has not been driven end to end. Treat human-in-the-loop approval as
 unavailable for now: an agent blocked on an approval will time the turn out. See
-[Capabilities](/en/reference/capabilities).
+[Capabilities](../reference/capabilities.md).
 :::
 
 Only `content` as a plain string has been verified for `user.message`. Rich content blocks are
@@ -285,7 +289,7 @@ An `agent.tool` event with `isError: true` is still followed by `run.finished` w
 REST spells the fields in snake_case (`event_type`, `run_id`, `created_at`) and SSE in camelCase
 (`eventType`, `runId`, `createdAt`); neither carries a top-level `type` field. The SDK
 normalizes both into one `SessionEvent`, and exports `normalizeEvent` for the case where you
-call the HTTP API directly. See [Events and streaming](/en/build/events).
+call the HTTP API directly. See [Events and streaming](../build/events.md).
 
 ::: warning listEvents returns one page
 The server default is 100 events and the maximum is 500. `listEvents` returns a single page -
@@ -373,9 +377,9 @@ break out of the loop yourself - and the server closes it once the session goes 
 
 ## Where to go next
 
-- [Quickstart](/en/get-started/quickstart) - key to first reply.
-- [Agents](/en/build/agents) - the full configuration surface.
-- [Sessions](/en/build/sessions) - session options and reads.
-- [Events and streaming](/en/build/events) - payload shapes, resume, and filtering.
-- [Errors](/en/reference/errors) - matching on `ZooworkError.type`.
-- [Not supported](/en/reference/not-supported) - check here before designing around a capability.
+- [Quickstart](./quickstart.md) - key to first reply.
+- [Agents](../build/agents.md) - the full configuration surface.
+- [Sessions](../build/sessions.md) - session options and reads.
+- [Events and streaming](../build/events.md) - payload shapes, resume, and filtering.
+- [Errors](../reference/errors.md) - matching on `ZooworkError.type`.
+- [Not supported](../reference/not-supported.md) - check here before designing around a capability.

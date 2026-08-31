@@ -1,3 +1,7 @@
+---
+description: Package, upload, attach, inspect, update, and remove skills from agents.
+---
+
 # Skills
 
 A skill is a packaged capability attached to an agent: a `SKILL.md` plus its supporting
@@ -273,8 +277,8 @@ rather than from the agent remembering the first.
 
 ## Related
 
-- [An agent per user](/en/build/per-user-agents) - distributing one org skill across a fleet of
+- [An agent per user](./per-user-agents.md) - distributing one org skill across a fleet of
   per-user agents, with canary pinning and reconciliation.
-- [Agents](/en/build/agents) - `config_version` semantics and why every skill write bumps it.
-- [Tools](/en/build/tools) - the built-in tool set, which is a separate mechanism.
-- [Capability matrix](/en/reference/capabilities) - current verification status of each surface.
+- [Agents](./agents.md) - `config_version` semantics and why every skill write bumps it.
+- [Tools](./tools.md) - the built-in tool set, which is a separate mechanism.
+- [Capability matrix](../reference/capabilities.md) - current verification status of each surface.

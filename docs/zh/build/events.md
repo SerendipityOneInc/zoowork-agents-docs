@@ -1,7 +1,8 @@
 ---
 title: 事件与流式
+description: 写入事件、消费 SSE、通过 cursor 续传，并理解完整的事件词表。
 source: /en/build/events
-source_hash: 34196ded166a0b71310bb22c54ef8d3431ab2b499571245c6c288480aabae1fc
+source_hash: 3bc0bc2364d7d0cedcd38e2d8a41e5a45a78454cf12f9a54714cf8c35248f0c4
 ---
 
 # 事件与流式
@@ -197,7 +198,7 @@ if (r.events[0]?.accepted === false) {
 注意这里大小写风格是混的：请求体是 snake_case（`approval_id`），而你读到这个值的那个事件 payload 是 camelCase（`approvalId`）。其他任何形状都是 `400 invalid_event`。
 
 ::: warning 尚未验证
-上面这个可接受的请求体是从请求解析器里读出来的；没有任何一个真实的待处理审批通过这条路由被创建并解决过。审批闭环的状态记在[能力矩阵](/zh/reference/capabilities)里。
+上面这个可接受的请求体是从请求解析器里读出来的；没有任何一个真实的待处理审批通过这条路由被创建并解决过。审批闭环的状态记在[能力矩阵](../reference/capabilities.md)里。
 :::
 
 ### `system.message`

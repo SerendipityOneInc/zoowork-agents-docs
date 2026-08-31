@@ -1,5 +1,6 @@
 ---
 title: ZooWork Managed Agents
+description: Build agent products with the ZooWork TypeScript SDK, sessions, and streaming events.
 layout: page
 sidebar: false
 aside: false
@@ -137,7 +138,7 @@ npm i @zoowork-ai/sdk
 **Client-executed custom tools do not exist**: there is no `{type: "custom"}` tool definition
 and no `user.custom_tool_result` event, so the agent never calls back into your process.
 Session-level outcome definitions, vaults, session `resources[]` mounts, and platform webhooks
-are also absent. Read [Not supported](/en/reference/not-supported) before you design around
+are also absent. Read [Not supported](./reference/not-supported.md) before you design around
 any of them.
 
 </template>

@@ -1,7 +1,8 @@
 ---
 title: 能力矩阵
+description: 查看每项 managed-agent 能力是已验证、未验证，还是不存在。
 source: /en/reference/capabilities
-source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
+source_hash: cc982ca92402779fd7e2c3c7c50d0e631f0b7cc250ccdcc26bc5e1b09852eba2
 ---
 
 # 能力矩阵
@@ -16,7 +17,7 @@ source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
 |---|---|
 | **已实测** | 我们在一套真实部署上跑过，并观察到了结果。 |
 | **可用，未实测** | 路由存在，契约也有文档，但我们没有驱动过它。它可能完全按描述工作。把它当成你还得自己做的活儿，别放进你的演示路径。 |
-| **不存在** | 它就是没有。[不支持的能力](/zh/reference/not-supported)会说明改用什么。 |
+| **不存在** | 它就是没有。[不支持的能力](./not-supported.md)会说明改用什么。 |
 
 所有标着**已实测** 的，都是在一套真实部署上、用一个组织 API key 观察到的——和你的 key 走的是同一条路径：主体在 2026-08-06，较新的面（system prompt、artifacts、outcome）在 2026-08-14，内置技能凭证链路在 2026-08-16。
 
@@ -31,13 +32,13 @@ source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
 | `startAgent()` | 已实测 | 必须调。新 agent 是 `stopped`。`desired_state` 会在远不到一秒内翻成 `running`。返回里的 `channel_routes_reload_failed` 警告在纯 API 的 agent 上是正常噪声，不是失败。 |
 | `stopAgent()` | 已实测 | 亚秒级。之后 `createSession()` 返回 `409 agent_not_running`。 |
 | 用 `status.desired_state` 把关就绪 | 已实测 | 唯一正确的就绪信号。轮询到它是 `running` 为止。 |
-| 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 报的是聊天渠道的连通性，不是 API 是否就绪。没绑渠道的 agent 永远停在 `activating`，`active` 到不了；绑定[渠道](/zh/build/channels)之后它报告的是渠道健康——无论哪种情况，`running` 都根本不在它的枚举里，等它的循环永远不会返回。 |
+| 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 报的是聊天渠道的连通性，不是 API 是否就绪。没绑渠道的 agent 永远停在 `activating`，`active` 到不了；绑定[渠道](../build/channels.md)之后它报告的是渠道健康——无论哪种情况，`running` 都根本不在它的枚举里，等它的循环永远不会返回。 |
 | `updateAgent()` | 已实测 | **按小节合并** 。你省略的小节会被保留：只带 `labels` 的一次 PUT 不会动 `name`、`model` 和 `persona`。 |
 | `tool_policy` / `system_prompt` 整体替换 | 可用，未实测 | 合并规则的两个例外：每一次 PUT 都整体替换这两个小节。`{}` 会恢复完整的工具清单。我们只在其他小节上跑过合并行为。 |
 | `system_prompt` pin | 已实测 | 新建 agent 会自动 pin 创建那一刻 active 的平台模板版本——2026-08-14 观察到 `{source:'platform',version:1}`——而且这个 pin **自己永远不跟随**之后的平台 activation。`{source:'custom',base_version,template}` 整体覆盖模板（13 个功能 slot 各出现一次，64 KiB 上限）。要挪 pin 只有一个显式调用——见下一行。 |
 | `getSystemPrompt()` / `previewSystemPrompt()` | 已实测 | 声明 + 实际生效的渲染模板；以及按你给定的运行时事实做确定性的完整 prompt 装配——13 个 `slot_hashes`，`transcript` 恒为 `[]`，过期的 `config_version` 返回 `409 config_version_changed`。2026-08-14 实测。 |
 | `upgradeSystemPrompt()` | 已实测 | 把 pin 挪到当前 active 的平台版本（或用 `template_version` 指定一个）。`expected_config_version` 是真 CAS：过期返回 `409 config_version_changed`，200 回执带**新的** `config_version`——升级就是一次普通的配置写入。2026-08-14 实测；更老的网关部署上，这一个调用会撞网关 404。 |
-| 把 `config_version` 当幂等回执 | 不存在 | 每一次成功的 PUT 都会 bump 它，值完全相同的 PUT 也一样，而且不是你发起的写入同样会 bump 它。它是一个变更计数器，不是内容哈希。见[错误与重试](/zh/reference/errors)。 |
+| 把 `config_version` 当幂等回执 | 不存在 | 每一次成功的 PUT 都会 bump 它，值完全相同的 PUT 也一样，而且不是你发起的写入同样会 bump 它。它是一个变更计数器，不是内容哈希。见[错误与重试](./errors.md)。 |
 | `deleteAgent()` | 已实测 | 软删除。它不停止 agent，不删除它的定时任务，也不释放它的沙箱。先调 `stopAgent()`，定时任务自己删。 |
 | 列出 agent | 可用，未实测 | `listAgents(opts?)` 调的就是它。线协议上的路由把 `owner_uid` 加 `org_id` 当成精确 AND 选择器，所以同一组织内由另一个 key 创建的 agent，能按 id 读到，却永远不会出现在你的列表里；这类 id 自己记一份。`labels` 按声明的 label 过滤，`page` 从 1 开始，每页大小固定为 100。`{ labels: { workspace_id: '...' } }` 能把一个聊天 URL 里的 workspace id 解析成它对应的 agent。 |
 | 其他组织的 agent id | 已实测 | 返回 **404** ，不是 403。存在性被隐藏，所以 404 不代表「已删除」。 |
@@ -86,11 +87,11 @@ source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
 | 同一个事件的两种线格式拼写 | 已实测 | REST 返回 snake_case，SSE 返回 camelCase，两边都没有顶层的 `type`，SDK 把两种归一成同一个 `SessionEvent`。 |
 | 完整事件词表 | 可用，未实测 | 一个正常回合会产生 `run.started`、`agent.lifecycle`、`agent.item`、`agent.thinking`、`agent.assistant`、`agent.tool`、`run.finished`，这些我们都观察到了。`SESSION_EVENT_TYPES` 里剩下的成员是契约声明的，我们没有每一个都见过。未知类型会原样穿过 SDK，而不是抛错。 |
 | `session.status_*`、`span.*`、`stop_reason` | 不存在 | 不在词表里。`status_idle` 加 `stop_reason.type === 'requires_action'` 那套编程模型在这里没有对应物；用 `run.finished`。 |
-| 把事件推送到你的服务器 | 不存在 | 见[不支持的能力](/zh/reference/not-supported)。要么挂住流，要么用 `after` 轮询。 |
+| 把事件推送到你的服务器 | 不存在 | 见[不支持的能力](./not-supported.md)。要么挂住流，要么用 `after` 轮询。 |
 
 ## 渠道 {#channels}
 
-2026-08-28 在一套带了渠道版本的部署上实测。这一族仍在灰度；没带上它的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。见[渠道](/zh/build/channels)。
+2026-08-28 在一套带了渠道版本的部署上实测。这一族仍在灰度；没带上它的部署返回的 404 是引擎透传的信封（`{"error":{"type":"not_found"}}`），靠这个区分。见[渠道](../build/channels.md)。
 
 | 面 | 状态 | 说明 |
 |---|---|---|
@@ -112,10 +113,10 @@ source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
 |---|---|---|
 | 模型可用的内置工具 | 已实测 | 一个正常回合会产生成对的 `agent.tool` 事件。确切的工具名在运行时随这些事件到达；没有公开的目录路由让你先枚举它们。 |
 | `tool_policy` 的 allow 和 deny | 可用，未实测 | `{}` 表示完整清单。非空对象会被读成一份收窄可用工具面的 allow/deny 策略。我们没有跑过收窄后的策略，所以请通过观察 `agent.tool` 里出现哪些工具，来确认你的策略生效了。 |
-| 客户端执行的自定义工具 | 不存在 | 没有自定义工具类型，也没有 `user.custom_tool_result` 事件。这是最大的一个缺口。围绕它做设计之前，先[读一下替代方案](/zh/reference/not-supported#client-executed-custom-tools)。 |
+| 客户端执行的自定义工具 | 不存在 | 没有自定义工具类型，也没有 `user.custom_tool_result` 事件。这是最大的一个缺口。围绕它做设计之前，先[读一下替代方案](./not-supported.md#client-executed-custom-tools)。 |
 | 远程 HTTP MCP server | 已实测 | 声明在 agent 上（`resource.mcp[]`），不是独立资源；传输是 `streamable-http`（默认）和 `sse`。工具在模型清单里以 `mcp__<server>__<tool>` 出现——server 名不能带下划线——并且对公开 server **真的会执行**。目录按 `config_version` 固定；探测失败的 server 会 pin 一个空目录并发一条 `kind: 'mcp_connection_failed'` 的 `agent.error`，不会让 run 失败。这是唯一一条能让你自己的代码撑起一个 agent 工具的路径，但**只支持无鉴权**：`credential` slug 能声明进去，其背后的存储过网关是 404，所以需要鉴权的 server 今天做不起来。 |
 | stdio MCP server、MCP OAuth | 不存在 | 就只有远程 HTTP。 |
-| 端到端的审批门控工具执行 | 不存在 | 零件在词表里都有；闭环没有被证明过。`listApprovals()` 和 `resolveApproval()` 驱动的是一个 REST 资源，不是 `user.tool_confirmation` 那条事件闭环，而且在那个后端没接线的地方它们返回 `501 not_configured`。卡在审批上的 run 会把整个回合预算耗光。见[不支持的能力](/zh/reference/not-supported#end-to-end-human-approval)。 |
+| 端到端的审批门控工具执行 | 不存在 | 零件在词表里都有；闭环没有被证明过。`listApprovals()` 和 `resolveApproval()` 驱动的是一个 REST 资源，不是 `user.tool_confirmation` 那条事件闭环，而且在那个后端没接线的地方它们返回 `501 not_configured`。卡在审批上的 run 会把整个回合预算耗光。见[不支持的能力](./not-supported.md#end-to-end-human-approval)。 |
 | `POST /agents/{id}/exec` | 可用，未实测 | 一个运维扩展，在 agent 的沙箱里跑一条命令，不是给 agent 用工具的通路。`exec(agentId, args)` 调的就是它，`args` 是 argv：要 shell 语义就写 `['bash', '-lc', 'pwd']`。它要求 agent 级的沙箱：session 级的 agent 拿到 `409 exec_requires_agent_scope`，没有沙箱后端的部署拿到 `501 not_configured`。 |
 
 ## Skills
@@ -123,7 +124,7 @@ source_hash: d3d9f4510eb54d5907749dcb114352c04cc50776d81087585a36f4279f25b4b8
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | `listAgentSkills()` | 已实测 | 一个全新的 agent 已经**挂上了整个全局目录** ，docx、pptx、xlsx、pdf 都在里面。你不用装它们；它们从创建那一刻就在。 |
-| 调用平台服务的内置技能（语音、视频、三方 connector） | 已实测 | 在 API 创建的 agent 上零配置可用：平台会在沙箱创建时把这些技能需要的服务凭证注入进去。你这边没有任何凭证步骤——也没有塞入自己凭证的口子，见[不支持](/zh/reference/not-supported)。 |
+| 调用平台服务的内置技能（语音、视频、三方 connector） | 已实测 | 在 API 创建的 agent 上零配置可用：平台会在沙箱创建时把这些技能需要的服务凭证注入进去。你这边没有任何凭证步骤——也没有塞入自己凭证的口子，见[不支持](./not-supported.md)。 |
 | 读取 skill 目录 | 已实测 | `listSkills({ scope, q, page })` 读的就是它。目录路由返回 200。我们看到的每一条 `scope` 都是 `global`。`q` 按名字匹配；`page` 从 1 开始，每页固定 100。 |
 | 对全局目录里的 skill 调 `putAgentSkill()` | 不存在 | 通过网关返回 `404`。安装路由只对你自己租户上传的 skill 有意义。既然全局 skill 在创建时就挂上了，这条更多是「你已经有了，只是管不了」，而不是「你用不了」。 |
 | 对 `org` skill 调 `putAgentSkill()` | 已实测 | 装上和读回来都成立：skill 从 `listAgentSkills()` 回来时带 `eligible: true`，下一个回合就从它自己的内容作答。 |
@@ -143,11 +144,11 @@ Environment 是一份可选的、不可变的沙箱镜像，你把它固定在 a
 | cargo、gem、go | 不存在 | 三个包管理器，不是六个。 |
 | 网络策略 | 可用，未实测 | `unrestricted`，或者 `limited` 加一份域名的 `allowed_hosts` 列表（`*.` 前缀覆盖一层子域名）。在 `unrestricted` 上给 `allowed_hosts` 是 `400`。 |
 | 受控文件和构建脚本 | 可用，未实测 | 文件落在一个固定目录下；顶层 `bin/*` 里可执行的条目会被链接到 path 上。构建脚本只在镜像构建时运行。 |
-| 大文件直传、构建日志、重试、归档 | 可用，未实测 | 上传流程、体积上限、重试的行为都见 [Environments](/zh/build/environments)。 |
+| 大文件直传、构建日志、重试、归档 | 可用，未实测 | 上传流程、体积上限、重试的行为都见 [Environments](../build/environments.md)。 |
 | Environment 锁 | 可用，未实测 | agent 的 environment 在它第一次成功创建沙箱之前可以改，之后返回 `409 environment_locked`。停掉 agent 也不会解锁。第一次就固定准。 |
 | Secret、运行时环境变量、沙箱启动钩子 | 不存在 | Environment 是一份构建期产物。这些它一个都不收。 |
 | 继承任意基础镜像 | 不存在 | 自定义 environment 永远继承平台的基础镜像。 |
-| 在你自己的机器上跑工具 | 不存在 | 见[不支持的能力](/zh/reference/not-supported#self-hosted-tool-execution)。 |
+| 在你自己的机器上跑工具 | 不存在 | 见[不支持的能力](./not-supported.md#self-hosted-tool-execution)。 |
 
 ## 自动化 {#automation}
 
@@ -169,7 +170,7 @@ Environment 是一份可选的、不可变的沙箱镜像，你把它固定在 a
 |---|---|---|
 | 写、读、下载工作区文件 | 不存在 | 线协议上确实有这些路由，但**没有任何 `ZooworkClient` 方法覆盖文件** ，它们背后的后端也没接线。文件放你自己的库。 |
 | 用户文件的持久存储 | 不存在 | 后端没有接到一个共享的持久工作区上。不要把它当成你的权威存储。 |
-| 给 session 附加文件 | 不存在 | 见[不支持的能力](/zh/reference/not-supported#session-file-attachment-and-repository-mounting)。 |
+| 给 session 附加文件 | 不存在 | 见[不支持的能力](./not-supported.md#session-file-attachment-and-repository-mounting)。 |
 | 从你自己的代码发布 artifact | 不存在 | 发布只在循环内：模型的 `artifact_publish` 工具把工作区文件变成一份不可变快照，配一个可撤销的 capability URL。你的进程造不出一个来。 |
 | 列出与读取已发布的 artifact | 已实测 | `listArtifacts()` / `getArtifact()`。一次一页，带真实的 `has_more`（这个列表——和 `listEvents` 不同——会告诉你它截断了），支持 `session_id` / `source_path` / `created_before` 过滤。这些路由强制要求 `owner_uid`+`org_id` 选择器且网关不注入；SDK 从 agent 自己的投影里推导。2026-08-14 对一个没有 artifact 的 agent 实测——**有内容的行形状仍未观察过**。 |
 | 重新解析与删除 artifact | 可用，未实测 | `downloadArtifact()` 为 `ready` 的 artifact 换发一个新访问 URL——把 URL 当密钥对待，未 finalize 的行返回 `409 artifact_not_ready`；`deleteArtifact()` 删除一个。两条路由都可达（未知 id 是 404，和其他外部 id 一样被隐藏），但都没对一个真实存在的 artifact 跑过。 |

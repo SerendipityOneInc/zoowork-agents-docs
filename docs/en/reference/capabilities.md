@@ -1,3 +1,7 @@
+---
+description: Check which managed-agent capabilities are verified, unverified, or unavailable.
+---
+
 # Capability matrix
 
 What works, what exists but has never been driven, and what is absent. One row per
@@ -13,7 +17,7 @@ routes we have read but not run.
 |---|---|
 | **Verified** | We ran it against a live deployment and observed the result. |
 | **Available, not verified** | The route exists and its contract is documented, but we have not driven it. It may behave exactly as described. Treat it as work you still have to do, and keep it off your demo path. |
-| **Not available** | It does not exist. [Not supported](/en/reference/not-supported) says what to do instead. |
+| **Not available** | It does not exist. [Not supported](./not-supported.md) says what to do instead. |
 
 Everything marked **Verified** was observed on a live deployment with an org API key — the
 same path your key takes — on 2026-08-06, with the newer surfaces (system prompt, artifacts,
@@ -30,13 +34,13 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 | `startAgent()` | Verified | Required. A new agent is `stopped`. `desired_state` flips to `running` in well under a second. The returned `channel_routes_reload_failed` warning is normal noise for an API-only agent, not a failure. |
 | `stopAgent()` | Verified | Sub-second. Afterwards `createSession()` returns `409 agent_not_running`. |
 | Gate readiness on `status.desired_state` | Verified | The only correct readiness signal. Poll until it is `running`. |
-| Gate readiness on `status.actual_state` | Not available | `actual_state` reports chat-channel connectivity, not API readiness. An agent with no channels stays at `activating` forever and `active` is unreachable; once a [channel](/en/build/channels) is bound it reports that channel's health — either way, `running` is not even a member of its enum, so a loop waiting for it never returns. |
+| Gate readiness on `status.actual_state` | Not available | `actual_state` reports chat-channel connectivity, not API readiness. An agent with no channels stays at `activating` forever and `active` is unreachable; once a [channel](../build/channels.md) is bound it reports that channel's health — either way, `running` is not even a member of its enum, so a loop waiting for it never returns. |
 | `updateAgent()` | Verified | Merges **per section**. Sections you omit are preserved: a PUT carrying only `labels` leaves `name`, `model`, and `persona` intact. |
 | `tool_policy` / `system_prompt` replacement | Available, not verified | The two exceptions to the merge rule: every PUT replaces each of these sections wholesale. `{}` restores the full tool manifest. We have only exercised the merge behaviour on other sections. |
 | `system_prompt` pin | Verified | A fresh create pins the platform template version active at that moment — `{source:'platform',version:1}` observed on 2026-08-14 — and the pin never follows a later platform activation on its own. `{source:'custom',base_version,template}` replaces the whole template (all 13 functional slots exactly once, 64 KiB cap). Moving the pin is one explicit call — the row below. |
 | `getSystemPrompt()` / `previewSystemPrompt()` | Verified | The declaration plus the rendered template in effect; and deterministic assembly of the exact prompt for runtime facts you supply — 13 `slot_hashes`, `transcript` always `[]`, and a stale `config_version` answers `409 config_version_changed`. Verified 2026-08-14. |
 | `upgradeSystemPrompt()` | Verified | Moves the pin to the active platform version (or a specific one via `template_version`). `expected_config_version` is a real CAS: stale answers `409 config_version_changed`, and the 200 receipt carries the NEW `config_version` — an upgrade is a config write like any other. Verified 2026-08-14; an older gateway deployment answers a gateway 404 on this one call. |
-| `config_version` as an idempotency receipt | Not available | Every successful PUT increments it, including a PUT with identical values, and writes you did not make increment it too. It is a change counter, not a content hash. See [Errors and retries](/en/reference/errors). |
+| `config_version` as an idempotency receipt | Not available | Every successful PUT increments it, including a PUT with identical values, and writes you did not make increment it too. It is a change counter, not a content hash. See [Errors and retries](./errors.md). |
 | `deleteAgent()` | Verified | A soft delete. It does not stop the agent, does not remove its schedules, and does not release its sandbox. Call `stopAgent()` first, and remove schedules yourself. |
 | Listing agents | Available, not verified | `listAgents(opts?)` calls it. The wire route takes `owner_uid` plus `org_id` as an exact AND selector, so an agent created by a different key in your organization can be fetched by id but never appears in your list; keep your own record of those ids. `labels` filters on declared labels and `page` is 1-based, with the page size fixed at 100. `{ labels: { workspace_id: '...' } }` resolves a chat-URL workspace id to its agent. |
 | Agent id from another organization | Verified | Returns **404**, not 403. Existence is hidden, so 404 does not mean "deleted". |
@@ -85,14 +89,14 @@ outcome) on 2026-08-14 and the built-in skill credential path on 2026-08-16.
 | Two wire spellings for one event | Verified | REST answers snake_case and SSE answers camelCase, neither carries a top-level `type`, and the SDK normalizes both into one `SessionEvent`. |
 | Full event vocabulary | Available, not verified | A normal turn produces `run.started`, `agent.lifecycle`, `agent.item`, `agent.thinking`, `agent.assistant`, `agent.tool`, `run.finished`, all observed. The remaining members of `SESSION_EVENT_TYPES` are declared by the contract and we have not seen every one. Unknown types pass through the SDK rather than throwing. |
 | `session.status_*`, `span.*`, `stop_reason` | Not available | Not in the vocabulary. The `status_idle` plus `stop_reason.type === 'requires_action'` programming model has no counterpart here; use `run.finished`. |
-| Push delivery of events to your server | Not available | See [Not supported](/en/reference/not-supported). Hold the stream or poll with `after`. |
+| Push delivery of events to your server | Not available | See [Not supported](./not-supported.md). Hold the stream or poll with `after`. |
 
 ## Channels
 
 Verified 2026-08-28, on a deployment carrying the channels release. The family is still
 rolling out; a deployment without it answers 404 in the engine-passthrough envelope
 (`{"error":{"type":"not_found"}}`), which is how you tell that case apart.
-See [Channels](/en/build/channels).
+See [Channels](../build/channels.md).
 
 | Surface | Status | Notes |
 |---|---|---|
@@ -114,10 +118,10 @@ See [Channels](/en/build/channels).
 |---|---|---|
 | Built-in tools available to the model | Verified | A normal turn produces paired `agent.tool` events. The exact tool names arrive on those events at runtime; there is no published catalog route to enumerate them first. |
 | `tool_policy` allow and deny | Available, not verified | `{}` means the full manifest. A non-empty object is read as an allow/deny policy that narrows the surface. We have not exercised a narrowed policy, so confirm your policy took effect by watching which tools appear in `agent.tool`. |
-| Client-executed custom tools | Not available | There is no custom tool type and no `user.custom_tool_result` event. This is the largest single gap. [Read the alternatives](/en/reference/not-supported#client-executed-custom-tools) before designing around it. |
+| Client-executed custom tools | Not available | There is no custom tool type and no `user.custom_tool_result` event. This is the largest single gap. [Read the alternatives](./not-supported.md#client-executed-custom-tools) before designing around it. |
 | Remote HTTP MCP server | Verified | Declared on the agent (`resource.mcp[]`), not as its own resource; transports are `streamable-http` (the default) and `sse`. Tools appear in the model's manifest as `mcp__<server>__<tool>` — the server name must not contain an underscore — and really execute against a public server. The catalog pins per `config_version`; a failed probe pins an empty catalog and emits `agent.error` with `kind: 'mcp_connection_failed'` rather than failing the run. This is the only route by which your own code can back an agent tool, and it works **unauthenticated only**: the `credential` slug is accepted but the store behind it answers 404 through the gateway, so a server that needs auth cannot be made to work today. |
 | stdio MCP servers, MCP OAuth | Not available | Remote HTTP is the whole of it. |
-| Approval-gated tool execution, end to end | Not available | The pieces exist in the vocabulary; the closed loop is unproven. `listApprovals()` and `resolveApproval()` drive a REST resource, not the `user.tool_confirmation` event loop, and where that backend is not wired they answer `501 not_configured`. A run parked on an approval burns its whole turn budget waiting. See [Not supported](/en/reference/not-supported#end-to-end-human-approval). |
+| Approval-gated tool execution, end to end | Not available | The pieces exist in the vocabulary; the closed loop is unproven. `listApprovals()` and `resolveApproval()` drive a REST resource, not the `user.tool_confirmation` event loop, and where that backend is not wired they answer `501 not_configured`. A run parked on an approval burns its whole turn budget waiting. See [Not supported](./not-supported.md#end-to-end-human-approval). |
 | `POST /agents/{id}/exec` | Available, not verified | An operations extension that runs a command in the agent's sandbox, not a path for agent tool use. `exec(agentId, args)` calls it, and `args` is argv: use `['bash', '-lc', 'pwd']` for shell semantics. Requires an agent-scope sandbox: session-scoped agents get `409 exec_requires_agent_scope`, and a deployment with no sandbox backend gets `501 not_configured`. |
 
 ## Skills
@@ -125,7 +129,7 @@ See [Channels](/en/build/channels).
 | Capability | Status | Note |
 |---|---|---|
 | `listAgentSkills()` | Verified | A brand new agent already has the **entire global catalog attached**, including docx, pptx, xlsx, and pdf. You do not install these; they are there from creation. |
-| Built-in skills that call platform services (speech, video, third-party connectors) | Verified | Zero setup on API-created agents: the platform injects the service credentials these skills need into the sandbox when it is created. There is no credential step on your side — and no way to add your own; see [Not supported](/en/reference/not-supported). |
+| Built-in skills that call platform services (speech, video, third-party connectors) | Verified | Zero setup on API-created agents: the platform injects the service credentials these skills need into the sandbox when it is created. There is no credential step on your side — and no way to add your own; see [Not supported](./not-supported.md). |
 | Reading the skill catalog | Verified | `listSkills({ scope, q, page })` reads it. The catalog route answers 200. Every entry we saw had `scope: global`. `q` matches on name; `page` is 1-based with a fixed page size of 100. |
 | `putAgentSkill()` on a global-catalog skill | Not available | Returns `404` through the gateway. The install route is only meaningful for skills your own tenant uploaded. Since global skills are attached at creation, this is mostly "you already have them, and you cannot manage them" rather than "you cannot use them". |
 | `putAgentSkill()` on an `org` skill | Verified | Install and read-back both work: the skill comes back from `listAgentSkills()` with `eligible: true`, and the next turn answers from its own content. |
@@ -146,11 +150,11 @@ packages, controlled files, a build script, and a network policy.
 | cargo, gem, go | Not available | Three package managers, not six. |
 | Network policy | Available, not verified | `unrestricted`, or `limited` with an `allowed_hosts` list of domains (a `*.` prefix covers one sub-domain level). `allowed_hosts` on `unrestricted` is a `400`. |
 | Controlled files and a build script | Available, not verified | Files land under a fixed directory; executable top-level `bin/*` entries are linked onto the path. The build script runs at image build time only. |
-| Direct upload for large files, build logs, retry, archive | Available, not verified | See [Environments](/en/build/environments) for the upload flow, the size caps, and how a retry behaves. |
+| Direct upload for large files, build logs, retry, archive | Available, not verified | See [Environments](../build/environments.md) for the upload flow, the size caps, and how a retry behaves. |
 | Environment lock | Available, not verified | An agent's environment can be changed until its first successful sandbox creation, then answers `409 environment_locked`. Stopping the agent does not unlock it. Pin deliberately the first time. |
 | Secrets, runtime environment variables, sandbox start hooks | Not available | An environment is a build-time artifact. It accepts none of these. |
 | Arbitrary base image inheritance | Not available | A custom environment always inherits the platform base. |
-| Running tools on your own machine | Not available | See [Not supported](/en/reference/not-supported#self-hosted-tool-execution). |
+| Running tools on your own machine | Not available | See [Not supported](./not-supported.md#self-hosted-tool-execution). |
 
 ## Automation
 
@@ -172,7 +176,7 @@ packages, controlled files, a build script, and a network policy.
 |---|---|---|
 | Write, read, or download a workspace file | Not available | The routes exist on the wire, but **no `ZooworkClient` method covers files** and the backend behind them is not wired. Keep files in your own store. |
 | Durable storage for user files | Not available | The backend is not wired to a shared persistent workspace. Do not make this your store of record. |
-| Attaching a file to a session | Not available | See [Not supported](/en/reference/not-supported#session-file-attachment-and-repository-mounting). |
+| Attaching a file to a session | Not available | See [Not supported](./not-supported.md#session-file-attachment-and-repository-mounting). |
 | Publishing an artifact from your own code | Not available | Publishing stays in-loop: the model's `artifact_publish` tool turns a workspace file into an immutable snapshot behind a revocable capability URL. Your process cannot create one. |
 | Listing and reading published artifacts | Verified | `listArtifacts()` / `getArtifact()`. One page per call with a real `has_more` (this list, unlike `listEvents`, says when it truncated), and filters on `session_id`, `source_path`, `created_before`. The routes demand `owner_uid`+`org_id` selectors and the gateway does not inject them; the SDK derives both from the agent's own projection. Verified 2026-08-14 against an agent with no artifacts — the row shape of a populated page is still unobserved. |
 | Re-resolving and deleting an artifact | Available, not verified | `downloadArtifact()` mints a fresh access URL for a `ready` artifact — treat the URL as a secret, and expect `409 artifact_not_ready` before finalization — and `deleteArtifact()` removes one. Both routes are reachable (an unknown id answers 404, hidden like every other foreign id), but neither has been driven against an artifact that actually exists. |

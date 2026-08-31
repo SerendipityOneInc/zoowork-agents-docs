@@ -1,3 +1,7 @@
+---
+description: Provision an isolated agent for each user and roll out configuration updates safely.
+---
+
 # An agent per user
 
 A common product shape: you build one agent, you run your own user accounts, and every user
@@ -13,7 +17,7 @@ agent by itself.
 ## Why an agent per user, and not one agent with many sessions
 
 For per-user *conversation* state, one agent with a session per conversation is enough, and it
-is the cheaper design — see [Sessions](/en/build/sessions). Reach for an agent per user when
+is the cheaper design — see [Sessions](./sessions.md). Reach for an agent per user when
 the users must not share what lives **outside** the transcript:
 
 - **The sandbox.** An agent has one sandbox, and every session of that agent works in the same
@@ -22,7 +26,7 @@ the users must not share what lives **outside** the transcript:
 - **Model-side memory.** Where the deployment enables the model's memory tools, they are
   scoped to the agent, across sessions — and they are invisible over the API, so you cannot
   partition them per user after the fact. See the
-  [capability matrix](/en/reference/capabilities) for their status.
+  [capability matrix](../reference/capabilities.md) for their status.
 
 There is no per-user sandbox inside a single agent, and no way to partition `/workspace` by
 end user. Isolation is drawn at the agent boundary, so per-user isolation means per-user
@@ -49,7 +53,7 @@ change weekly costs you one `uploadSkillVersion` call.
 
 ## Why the update propagates
 
-Three facts from [Skills](/en/build/skills) combine into the mechanism:
+Three facts from [Skills](./skills.md) combine into the mechanism:
 
 1. An `org`-scope skill is **visible** to every agent under your organization, but attaches to
    an agent only through an explicit install. Scope grants visibility, not effect — your other
@@ -101,7 +105,7 @@ Four points that keep this loop honest:
   existing `agent_id` before creating.
 - **A created agent is stopped.** Without `startAgent` + `waitUntilRunning`, the first
   session call answers `409 agent_not_running`. Wait on `desired_state` — see
-  [Agents](/en/build/agents).
+  [Agents](./agents.md).
 - **The API key never leaves your backend.** It is an organization credential with full
   write over every agent in the org; there is no per-user or scoped variant. The browser
   talks to your backend, and your backend talks to ZooWork.
@@ -172,7 +176,7 @@ With the diff, active users converge on their next visit and dormant agents cost
   reconciliation drop it (`deleteAgentSkill`) before deleting the registry entry.
 - **Only your own skills install.** `global` catalog entries list but answer 404 on
   `putAgentSkill` — and they are already attached anyway. See
-  [the trap in Skills](/en/build/skills#the-trap-global-skills-are-listable-but-not-installable).
+  [the trap in Skills](./skills.md#the-trap-global-skills-are-listable-but-not-installable).
 - **Skill eligibility is per agent.** After installing, confirm `eligible: true` in
   `listAgentSkills` on a real agent rather than assuming the upload's success carries over.
 - **Per-turn context still belongs in the session.** The agent-per-user split covers identity
@@ -181,6 +185,6 @@ With the diff, active users converge on their next visit and dormant agents cost
 
 ## Related
 
-- [Skills](/en/build/skills) — upload rules, version-follow semantics, and the global-skill trap.
-- [Agents](/en/build/agents) — `config_version`, start/stop, and `desired_state`.
-- [Sessions](/en/build/sessions) — the cheaper pattern when users only need separate conversations.
+- [Skills](./skills.md) — upload rules, version-follow semantics, and the global-skill trap.
+- [Agents](./agents.md) — `config_version`, start/stop, and `desired_state`.
+- [Sessions](./sessions.md) — the cheaper pattern when users only need separate conversations.

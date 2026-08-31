@@ -34,6 +34,23 @@ function collectLinks(node: unknown, out: Set<string>): void {
   }
 }
 
+function checkSourceHash(
+  relativePath: string,
+  frontmatter: Record<string, any>,
+  srcDir: string,
+): string[] {
+  if (typeof frontmatter.source !== 'string') return []
+
+  const sourceFile = `${frontmatter.source.replace(/\/$/, '/index')}.md`.replace(/^\//, '')
+  const expected = createHash('sha256').update(readFileSync(join(srcDir, sourceFile))).digest('hex')
+  if (frontmatter.source_hash === expected) return []
+
+  return [
+    `${relativePath}: source_hash is ${frontmatter.source_hash ?? 'missing'}, but ${sourceFile} ` +
+      `now hashes to ${expected}. Re-translate any changed copy, then record the new hash.`,
+  ]
+}
+
 function checkHomePage(relativePath: string, frontmatter: Record<string, any>, srcDir: string): string[] {
   const problems: string[] = []
   const fail = (message: string) => problems.push(`${relativePath}: ${message}`)
@@ -60,22 +77,6 @@ function checkHomePage(relativePath: string, frontmatter: Record<string, any>, s
     // a trailing slash as that directory's index.
     const path = link.replace(/[?#].*$/, '').replace(/\/$/, '/index')
     if (!existsSync(join(srcDir, `${path}.md`))) fail(`link "${link}" has no page behind it`)
-  }
-
-  /* The zh page tracks a specific revision of the en page. Nothing else in the repo reads
-     `source_hash`, so this is the only place the drift can be caught — and doing it here
-     rather than in `buildEnd` means `pnpm dev` catches it too. */
-  if (typeof frontmatter.source === 'string') {
-    const sourceFile = `${frontmatter.source.replace(/\/$/, '/index')}.md`.replace(/^\//, '')
-    const expected = createHash('sha256')
-      .update(readFileSync(join(srcDir, sourceFile)))
-      .digest('hex')
-    if (frontmatter.source_hash !== expected) {
-      fail(
-        `source_hash is ${frontmatter.source_hash ?? 'missing'}, but ${sourceFile} now ` +
-          `hashes to ${expected}. Re-translate any changed copy, then record the new hash.`,
-      )
-    }
   }
 
   const text = frontmatter.hero?.text
@@ -306,6 +307,11 @@ export default defineConfig({
   outDir: '../dist/docs',
   cleanUrls: true,
   lastUpdated: true,
+  sitemap: {
+    // VitePress requires the deployment base in the hostname when the site is served
+    // from a sub-path. This emits /docs/sitemap.xml with canonical /docs/... URLs.
+    hostname: 'https://zooclaw.ai/docs/',
+  },
   // Matches the page surface in each scheme, so the mobile browser chrome does not sit on
   // the page as a separate colour. The palette itself is in theme/custom.css.
   head: [
@@ -314,6 +320,35 @@ export default defineConfig({
   ],
   markdown: { config: stackableTables },
   transformPageData(pageData, { siteConfig }) {
+    // Every rendered page gets a canonical URL. Locale pages also point crawlers at their
+    // translated counterpart, while x-default stays on the authored English source.
+    const route = pageData.relativePath.replace(/index\.md$/, '').replace(/\.md$/, '')
+    const locale = route.match(/^(en|zh)\//)?.[1]
+    const canonicalRoute = locale ? route : 'en/'
+    const canonical = new URL(canonicalRoute, 'https://zooclaw.ai/docs/').href
+    const head = (pageData.frontmatter.head ??= [])
+    head.push(['link', { rel: 'canonical', href: canonical }])
+
+    if (locale) {
+      const suffix = route.slice(locale.length)
+      const english = new URL(`en${suffix}`, 'https://zooclaw.ai/docs/').href
+      const chinese = new URL(`zh${suffix}`, 'https://zooclaw.ai/docs/').href
+      head.push(
+        ['link', { rel: 'alternate', hreflang: 'en-US', href: english }],
+        ['link', { rel: 'alternate', hreflang: 'zh-CN', href: chinese }],
+        ['link', { rel: 'alternate', hreflang: 'x-default', href: english }],
+      )
+    }
+
+    const sourceProblems = checkSourceHash(
+      pageData.relativePath,
+      pageData.frontmatter,
+      siteConfig.srcDir,
+    )
+    if (sourceProblems.length > 0) {
+      throw new Error(`Translation drift check failed:\n  ${sourceProblems.join('\n  ')}`)
+    }
+
     // Keyed off the frontmatter rather than a list of locale paths: a page that declares
     // `home:` is a page that renders ZcHome, and every locale's index is expected to declare
     // one — so a third language is covered without editing anything here.
