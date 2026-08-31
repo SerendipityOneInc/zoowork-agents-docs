@@ -298,7 +298,7 @@ export default defineConfig({
   title: 'ZooWork Managed Agents',
   description: 'Build agent products on ZooWork. TypeScript SDK, sessions, and streaming events.',
   // The site does not own a host of its own: it is served from a path on the main
-  // domain, at zooclaw.ai/docs, next to /blog and /industry. `base` puts that prefix
+  // domain, at zoowork.ai/docs, next to /blog and /industry. `base` puts that prefix
   // on every generated URL; `outDir` mirrors the prefix in the build output so the
   // deployed asset tree is laid out exactly like the public URL space. Cloudflare
   // serves `dist/` at the zone root, so `dist/docs/en/…` answers `/docs/en/…` with no
@@ -310,7 +310,7 @@ export default defineConfig({
   sitemap: {
     // VitePress requires the deployment base in the hostname when the site is served
     // from a sub-path. This emits /docs/sitemap.xml with canonical /docs/... URLs.
-    hostname: 'https://zooclaw.ai/docs/',
+    hostname: 'https://zoowork.ai/docs/',
   },
   // Matches the page surface in each scheme, so the mobile browser chrome does not sit on
   // the page as a separate colour. The palette itself is in theme/custom.css.
@@ -325,14 +325,14 @@ export default defineConfig({
     const route = pageData.relativePath.replace(/index\.md$/, '').replace(/\.md$/, '')
     const locale = route.match(/^(en|zh)\//)?.[1]
     const canonicalRoute = locale ? route : 'en/'
-    const canonical = new URL(canonicalRoute, 'https://zooclaw.ai/docs/').href
+    const canonical = new URL(canonicalRoute, 'https://zoowork.ai/docs/').href
     const head = (pageData.frontmatter.head ??= [])
     head.push(['link', { rel: 'canonical', href: canonical }])
 
     if (locale) {
       const suffix = route.slice(locale.length)
-      const english = new URL(`en${suffix}`, 'https://zooclaw.ai/docs/').href
-      const chinese = new URL(`zh${suffix}`, 'https://zooclaw.ai/docs/').href
+      const english = new URL(`en${suffix}`, 'https://zoowork.ai/docs/').href
+      const chinese = new URL(`zh${suffix}`, 'https://zoowork.ai/docs/').href
       head.push(
         ['link', { rel: 'alternate', hreflang: 'en-US', href: english }],
         ['link', { rel: 'alternate', hreflang: 'zh-CN', href: chinese }],

@@ -90,8 +90,8 @@ for (const file of localeHtmlFiles) {
   const route = path.replace(/index\.html$/, '').replace(/\.html$/, '')
   const locale = route.split('/', 1)[0]
   const suffix = route.slice(locale.length)
-  const english = `https://zooclaw.ai/docs/en${suffix}`
-  const chinese = `https://zooclaw.ai/docs/zh${suffix}`
+  const english = `https://zoowork.ai/docs/en${suffix}`
+  const chinese = `https://zoowork.ai/docs/zh${suffix}`
   const canonical = locale === 'en' ? english : chinese
   const content = readFileSync(file, 'utf8')
 
@@ -123,7 +123,7 @@ const expectedHtmlPages = filesUnder(resolve('docs'), '.md')
   .filter((file) => file.startsWith('en/') || file.startsWith('zh/'))
   .map((file) => {
     const route = file.replace(/index\.md$/, '').replace(/\.md$/, '')
-    return `https://zooclaw.ai/docs/${route}`
+    return `https://zoowork.ai/docs/${route}`
   })
 
 for (const url of expectedHtmlPages) {

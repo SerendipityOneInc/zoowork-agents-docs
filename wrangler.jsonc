@@ -19,11 +19,11 @@
     "not_found_handling": "404-page"
   },
 
-  // A path route on the apex, alongside zooclaw.ai/blog* and zooclaw.ai/industry*.
+  // A path route on the apex, alongside zoowork.ai/blog* and zoowork.ai/industry*.
   // Everything outside /docs stays with whatever Worker already owns it.
-  "routes": [{ "pattern": "zooclaw.ai/docs*", "zone_name": "zooclaw.ai" }],
+  "routes": [{ "pattern": "zoowork.ai/docs*", "zone_name": "zoowork.ai" }],
 
-  // The docs are reachable at zooclaw.ai/docs; a second public URL on workers.dev
+  // The docs are reachable at zoowork.ai/docs; a second public URL on workers.dev
   // would only be another thing for search engines to index.
   "workers_dev": false,
 
