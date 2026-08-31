@@ -10,7 +10,7 @@ pnpm build
 
 ## Deployment
 
-The site is served from **https://zooclaw.ai/docs** by an assets-only Cloudflare
+The site is served from **https://zoowork.ai/docs** by an assets-only Cloudflare
 Worker named `zooclaw-docs` — no Worker code runs, every request is answered from
 the static build.
 
