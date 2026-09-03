@@ -4,6 +4,25 @@ import { join } from 'node:path'
 import { defineConfig, type DefaultTheme, type MarkdownRenderer } from 'vitepress'
 import llmstxt from 'vitepress-plugin-llms'
 
+const DOCS_URL = 'https://zoowork.ai/docs/'
+
+function localeUrls(route: string) {
+  const locale = route.match(/^(en|zh)(?=\/|$)/)?.[1]
+  if (!locale) return
+
+  const suffix = route.slice(locale.length)
+  const english = new URL(`en${suffix}`, DOCS_URL).href
+  const chinese = new URL(`zh${suffix}`, DOCS_URL).href
+
+  return {
+    alternates: [
+      { lang: 'en', url: english },
+      { lang: 'zh', url: chinese },
+      { lang: 'x-default', url: english },
+    ],
+  }
+}
+
 // The home page draws its own layout from `home:` frontmatter, which buys the design its
 // structure and costs it two guarantees the markdown body used to give it for free.
 //
@@ -310,7 +329,15 @@ export default defineConfig({
   sitemap: {
     // VitePress requires the deployment base in the hostname when the site is served
     // from a sub-path. This emits /docs/sitemap.xml with canonical /docs/... URLs.
-    hostname: 'https://zoowork.ai/docs/',
+    hostname: DOCS_URL,
+    transformItems(items) {
+      return items.flatMap((item) => {
+        const urls = localeUrls(item.url)
+        if (!urls) return []
+
+        return [{ ...item, links: urls.alternates }]
+      })
+    },
   },
   // Matches the page surface in each scheme, so the mobile browser chrome does not sit on
   // the page as a separate colour. The palette itself is in theme/custom.css.
@@ -323,20 +350,19 @@ export default defineConfig({
     // Every rendered page gets a canonical URL. Locale pages also point crawlers at their
     // translated counterpart, while x-default stays on the authored English source.
     const route = pageData.relativePath.replace(/index\.md$/, '').replace(/\.md$/, '')
-    const locale = route.match(/^(en|zh)\//)?.[1]
-    const canonicalRoute = locale ? route : 'en/'
-    const canonical = new URL(canonicalRoute, 'https://zoowork.ai/docs/').href
+    const urls = localeUrls(route)
+    const canonical = urls
+      ? new URL(route, DOCS_URL).href
+      : new URL('en/', DOCS_URL).href
     const head = (pageData.frontmatter.head ??= [])
     head.push(['link', { rel: 'canonical', href: canonical }])
 
-    if (locale) {
-      const suffix = route.slice(locale.length)
-      const english = new URL(`en${suffix}`, 'https://zoowork.ai/docs/').href
-      const chinese = new URL(`zh${suffix}`, 'https://zoowork.ai/docs/').href
+    if (urls) {
       head.push(
-        ['link', { rel: 'alternate', hreflang: 'en-US', href: english }],
-        ['link', { rel: 'alternate', hreflang: 'zh-CN', href: chinese }],
-        ['link', { rel: 'alternate', hreflang: 'x-default', href: english }],
+        ...urls.alternates.map(({ lang, url }) => [
+          'link',
+          { rel: 'alternate', hreflang: lang, href: url },
+        ] as const),
       )
     }
 
