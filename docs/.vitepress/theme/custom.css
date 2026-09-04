@@ -1,116 +1,132 @@
 /* ZooWork docs theme.
  *
- * The palette is inherited from the ZooWork app (`web/app/src/app/globals.css`), not invented
- * here: near-black ink on near-white, GitHub-dark for the dark theme, Inter, a three-step
- * radius, and a three-layer shadow. The app's one brand accent — rewards orange #ff6b35 —
- * is the only chromatic colour on the site.
- *
- * Where the accent is allowed: links, the active nav and sidebar item, the home CTA, the
- * focus ring, the active code-group tab. Nowhere else. In particular inline code stays ink
- * (VitePress paints it with the brand by default, which on a reference site this dense would
- * turn roughly half the running text orange), and the tip container stays neutral so it stops
- * competing with the warning and danger blocks that carry real severity.
- *
- * #ff6b35 is only 2.84:1 on white, so it can never be link text. The accent is a ladder:
- * a darkened step for text and a full-strength step for fills. Contrast, measured:
- *   light  link #b8410f on #ffffff = 5.52:1   fill #ff6b35 with #18181b label = 6.00:1
- *   dark   link #ff8a5c on #0d1117 = 8.15:1   fill #ff6b35 with #0d1117 label = 6.67:1
+ * These tokens mirror ZooWork Design System 2.0. Brand and interaction colour are separate:
+ * purple identifies ZooWork, while controls, navigation, focus and selection remain neutral.
+ * Surfaces are opaque, borders carry structure, and elevation is reserved for raised content.
  */
 
 :root {
-  --zc-ink: #18181b;
-  --zc-accent: #ff6b35;
-  --zc-accent-ink: #b8410f;
+  --zc-ink: #181818;
+  --zc-ink-2: #666666;
+  --zc-ink-3: #8a8a8a;
+  --zc-brand: #5755c6;
+  --zc-success: #168a55;
+  --zc-warning: #b46808;
+  --zc-destructive: #d83a4a;
 
-  /* Three-step radius, from the app. */
+  --zc-canvas: #fafafa;
+  --zc-sidebar: #f5f5f5;
+  --zc-paper: #ffffff;
+  --zc-surface-subtle: #f3f3f3;
+  --zc-hover: #f6f6f6;
+  --zc-selected: #f6f6f6;
+  --zc-line-subtle: #eeeeee;
+  --zc-line: #e5e5e5;
+  --zc-line-strong: #d4d4d4;
+
+  --zc-action: #181818;
+  --zc-action-foreground: #ffffff;
+  --zc-focus: #b3b3b3;
+
+  --zc-radius-xs: 4px;
   --zc-radius-sm: 6px;
-  --zc-radius: 10px;
-  --zc-radius-lg: 16px;
+  --zc-radius-md: 8px;
+  --zc-radius-lg: 10px;
+  --zc-radius-xl: 12px;
 
-  /* Three layers: hairline ring, main depth, ambient. */
-  --zc-shadow: 0 0 0 1px rgb(0 0 0 / 0.03), 0 2px 4px rgb(0 0 0 / 0.05),
-    0 12px 24px rgb(0 0 0 / 0.05);
+  --zc-elevation-card: 0 1px 2px #0000000a;
+  --zc-elevation-overlay: 0 8px 24px #0000001a;
+  --zc-elevation-raised: 0 12px 32px #0000001f;
+  --zc-elevation-dialog: 0 20px 48px #00000029;
 
-  --vp-c-brand-1: var(--zc-accent-ink);
-  --vp-c-brand-2: #9c3a10;
-  --vp-c-brand-3: var(--zc-accent);
-  --vp-c-brand-soft: rgb(255 107 53 / 0.12);
+  --zc-motion-fast: 120ms;
+  --zc-motion-normal: 180ms;
+  --zc-motion-emphasis: 250ms;
+  --zc-motion-layout: 350ms;
+  --zc-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-  --vp-c-bg: #ffffff;
-  --vp-c-bg-alt: #f7f7f8;
-  --vp-c-bg-soft: #f5f5f5;
-  --vp-c-bg-elv: #ffffff;
+  /* VitePress calls every interactive accent "brand". Map those hooks to neutral action
+     tokens, then use --zc-brand directly only where the page is identifying ZooWork. */
+  --vp-c-brand-1: var(--zc-action);
+  --vp-c-brand-2: var(--zc-ink-2);
+  --vp-c-brand-3: var(--zc-action);
+  --vp-c-brand-soft: var(--zc-selected);
+
+  --vp-c-bg: var(--zc-canvas);
+  --vp-c-bg-alt: var(--zc-sidebar);
+  --vp-c-bg-soft: var(--zc-surface-subtle);
+  --vp-c-bg-elv: var(--zc-paper);
 
   --vp-c-text-1: var(--zc-ink);
-  --vp-c-text-2: #5b5b63;
-  --vp-c-text-3: #8b8b93;
+  --vp-c-text-2: var(--zc-ink-2);
+  --vp-c-text-3: var(--zc-ink-3);
 
-  --vp-c-divider: #e4e4e7;
-  --vp-c-border: #d4d4d8;
-  --vp-c-gutter: #e4e4e7;
+  --vp-c-divider: var(--zc-line-subtle);
+  --vp-c-border: var(--zc-line);
+  --vp-c-gutter: var(--zc-line-strong);
 
-  /* The one filled control on the site. Ink label on brand orange. */
-  --vp-button-brand-bg: var(--zc-accent);
-  --vp-button-brand-text: var(--zc-ink);
+  --vp-button-brand-bg: var(--zc-action);
+  --vp-button-brand-text: var(--zc-action-foreground);
   --vp-button-brand-border: transparent;
-  --vp-button-brand-hover-bg: #f2551a;
-  --vp-button-brand-hover-text: var(--zc-ink);
+  --vp-button-brand-hover-bg: #303030;
+  --vp-button-brand-hover-text: var(--zc-action-foreground);
   --vp-button-brand-hover-border: transparent;
-  --vp-button-brand-active-bg: #e04e18;
-  --vp-button-brand-active-text: var(--zc-ink);
+  --vp-button-brand-active-bg: #404040;
+  --vp-button-brand-active-text: var(--zc-action-foreground);
   --vp-button-brand-active-border: transparent;
+
+  --vp-font-family-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 
   /* Inline code is running text here, not an accent. */
   --vp-code-color: var(--vp-c-text-1);
-  --vp-code-bg: rgb(24 24 27 / 0.06);
+  --vp-code-bg: color-mix(in srgb, var(--zc-ink) 6%, transparent);
   --vp-code-link-color: var(--vp-c-brand-1);
   --vp-code-link-hover-color: var(--vp-c-brand-2);
 
-  /* Tip drops to neutral; warning moves to a true gold so it cannot be confused with the
-     brand orange sitting next to it; danger keeps red. Three severities, three hues. */
   --vp-custom-block-tip-border: var(--vp-c-divider);
   --vp-custom-block-tip-text: var(--vp-c-text-1);
-  --vp-custom-block-tip-bg: var(--vp-c-bg-alt);
-  --vp-custom-block-tip-code-bg: rgb(24 24 27 / 0.06);
+  --vp-custom-block-tip-bg: var(--zc-surface-subtle);
+  --vp-custom-block-tip-code-bg: color-mix(in srgb, var(--zc-ink) 6%, transparent);
 
-  --vp-c-yellow-1: #7a5300;
-  --vp-c-yellow-2: #8a6206;
-  --vp-c-yellow-3: #9a7010;
-  --vp-c-yellow-soft: rgb(234 179 8 / 0.13);
+  --vp-c-yellow-1: var(--zc-warning);
+  --vp-c-yellow-2: var(--zc-warning);
+  --vp-c-yellow-3: var(--zc-warning);
+  --vp-c-yellow-soft: color-mix(in srgb, var(--zc-warning) 12%, transparent);
+
+  --vp-c-danger-1: var(--zc-destructive);
+  --vp-c-danger-2: var(--zc-destructive);
+  --vp-c-danger-3: var(--zc-destructive);
 }
 
 .dark {
-  --zc-shadow: 0 0 0 1px rgb(255 255 255 / 0.05), 0 2px 4px rgb(0 0 0 / 0.3),
-    0 12px 24px rgb(0 0 0 / 0.28);
+  --zc-ink: #f4f4f4;
+  --zc-ink-2: #b5b5b5;
+  --zc-ink-3: #858585;
+  --zc-success: #4cc58a;
+  --zc-warning: #e6a34a;
+  --zc-destructive: #f06a76;
 
-  --vp-c-brand-1: #ff8a5c;
-  --vp-c-brand-2: #ffa07a;
-  --vp-c-brand-3: var(--zc-accent);
-  --vp-c-brand-soft: rgb(255 107 53 / 0.16);
+  --zc-canvas: #111111;
+  --zc-sidebar: #161616;
+  --zc-paper: #1a1a1a;
+  --zc-surface-subtle: #202020;
+  --zc-hover: #242424;
+  --zc-selected: #242424;
+  --zc-line-subtle: #242424;
+  --zc-line: #2e2e2e;
+  --zc-line-strong: #3b3b3b;
 
-  --vp-c-bg: #0d1117;
-  --vp-c-bg-alt: #161b22;
-  --vp-c-bg-soft: #161b22;
-  --vp-c-bg-elv: #161b22;
+  --zc-action: #f4f4f4;
+  --zc-action-foreground: #111111;
+  --zc-focus: #737373;
 
-  --vp-c-text-1: #e6edf3;
-  --vp-c-text-2: #9aa4af;
-  --vp-c-text-3: #6e7781;
+  --zc-elevation-card: 0 1px 2px #00000052;
+  --zc-elevation-overlay: 0 8px 24px #00000066;
+  --zc-elevation-raised: 0 12px 32px #00000073;
+  --zc-elevation-dialog: 0 20px 48px #00000080;
 
-  --vp-c-divider: #21262d;
-  --vp-c-border: #30363d;
-  --vp-c-gutter: #21262d;
-
-  --vp-button-brand-text: #0d1117;
-  --vp-button-brand-hover-text: #0d1117;
-  --vp-button-brand-active-text: #0d1117;
-
-  --vp-code-bg: rgb(230 237 243 / 0.08);
-  --vp-custom-block-tip-code-bg: rgb(230 237 243 / 0.08);
-
-  --vp-c-yellow-1: #f5c451;
-  --vp-c-yellow-2: #d9a323;
-  --vp-c-yellow-3: #a87d15;
+  --vp-button-brand-hover-bg: #dedede;
+  --vp-button-brand-active-bg: #cccccc;
 }
 
 /* --- Browser surfaces -------------------------------------------------------
@@ -118,23 +134,32 @@
    defaults they belong to no design system. */
 
 ::selection {
-  background: var(--vp-c-brand-soft);
+  background: var(--zc-selected);
 }
 
 :root {
-  caret-color: var(--zc-accent);
+  caret-color: var(--zc-action);
   scrollbar-color: var(--vp-c-border) transparent;
 }
 
 :where(a, button, input, select, summary, [tabindex]):focus-visible {
-  outline: 2px solid var(--zc-accent);
-  outline-offset: 2px;
+  outline: 1px solid var(--zc-focus);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zc-focus) 24%, transparent);
   border-radius: var(--zc-radius-sm);
 }
 
 .vp-doc a {
+  text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
+  text-decoration-color: var(--zc-line-strong);
+  transition: color var(--zc-motion-fast) ease, text-decoration-color var(--zc-motion-fast) ease;
+}
+
+.vp-doc a:hover {
+  color: var(--vp-c-text-1);
+  text-decoration-color: currentColor;
 }
 
 /* --- Reading surface -------------------------------------------------------- */
@@ -149,19 +174,34 @@
   color: var(--vp-c-text-1);
 }
 
-.vp-doc :is(h2, h3) {
+.vp-doc :is(h1, h2, h3, h4) {
+  font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.vp-doc h1 {
+  font-size: 36px;
+  line-height: 1.2;
 }
 
 .vp-doc h2 {
   /* More air above a heading than below it. */
   margin-top: 56px;
   padding-top: 24px;
+  font-size: 30px;
+}
+
+.vp-doc h3 {
+  font-size: 24px;
+}
+
+.vp-doc h4 {
+  font-size: 20px;
 }
 
 .vp-doc div[class*='language-'],
 .vp-doc .custom-block {
-  border-radius: var(--zc-radius);
+  border-radius: var(--zc-radius-md);
 }
 
 /* A code block and a callout both default to `--vp-c-bg-alt`, so a block inside a callout -
@@ -188,7 +228,76 @@
 }
 
 .vp-code-group .tabs input:checked + label {
-  color: var(--vp-c-brand-1);
+  color: var(--vp-c-text-1);
+}
+
+/* VitePress chrome follows the same opaque surface contract as the content. */
+.VPNavBar {
+  background: var(--zc-paper) !important;
+  border-bottom-color: var(--zc-line-subtle) !important;
+}
+
+.VPSidebar {
+  background: var(--zc-sidebar) !important;
+}
+
+.VPNavBarTitle .title {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-weight: 600;
+}
+
+.dark .VPNavBarTitle img {
+  filter: brightness(0) invert(1) !important;
+}
+
+.VPSidebarItem.is-active > .item .link {
+  margin-inline: -8px;
+  padding-inline: 8px;
+  border-radius: var(--zc-radius-sm);
+  background: var(--zc-selected);
+}
+
+.VPSidebarItem.level-1.is-active > .item > .indicator {
+  background: var(--zc-action);
+}
+
+.VPSidebarItem.is-active > .item .link > .text {
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+}
+
+.DocSearch-Button,
+.VPSwitchAppearance {
+  border-color: var(--zc-line) !important;
+  background: var(--zc-surface-subtle) !important;
+  box-shadow: none !important;
+}
+
+.VPSwitchAppearance {
+  border-radius: var(--zc-radius-lg) !important;
+  outline-color: var(--zc-focus) !important;
+  transition: border-color var(--zc-motion-normal) ease,
+    background-color var(--zc-motion-normal) ease !important;
+}
+
+.VPSwitchAppearance:focus:not(:focus-visible) {
+  outline: none !important;
+}
+
+.VPSwitchAppearance:focus-visible {
+  outline: 1px solid var(--zc-focus) !important;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zc-focus) 24%, transparent) !important;
+}
+
+.VPSwitchAppearance .check {
+  box-shadow: var(--zc-elevation-card) !important;
+  transition: transform var(--zc-motion-normal) var(--zc-ease-out) !important;
+}
+
+.DocSearch-Button:hover,
+.VPSwitchAppearance:hover {
+  background: var(--zc-hover) !important;
 }
 
 /* Chinese wraps between any two Han characters, so `text-wrap: balance` splits words down
@@ -268,6 +377,18 @@ html:lang(zh) :is(h1, h2, h3, h4) {
    plugin in config.mts — without them a stacked cell loses its column. */
 
 @media (max-width: 767px) {
+  .vp-doc h1 {
+    font-size: 32px;
+  }
+
+  .vp-doc h2 {
+    font-size: 24px;
+  }
+
+  .vp-doc h3 {
+    font-size: 20px;
+  }
+
   .vp-doc table[data-stackable] {
     display: block;
     border-collapse: separate;
@@ -293,8 +414,8 @@ html:lang(zh) :is(h1, h2, h3, h4) {
 
   .vp-doc table[data-stackable] tr {
     border: 1px solid var(--vp-c-divider);
-    border-radius: var(--zc-radius);
-    padding: 14px 16px;
+    border-radius: var(--zc-radius-md);
+    padding: 12px 16px;
     margin-bottom: 12px;
     background: var(--vp-c-bg);
   }

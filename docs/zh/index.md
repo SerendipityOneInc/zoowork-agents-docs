@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: c436b5ae0007543346a73344a2f4527d07c5d0b4fc32044917fea6042b81def3
+source_hash: 36e129c51008773ad59808eda968a84e33b6b0600b75a872282880ba28a4a64c
 hero:
   text: 创建一个 agent，流式拿回每个事件。
   tagline: 一个由你自己的代码驱动的托管 agent 运行时。可续传的持久事件流；skills、sessions
@@ -16,13 +16,15 @@ home:
     actions:
       - text: 快速开始
         link: /zh/get-started/quickstart
-        theme: brand
+        theme: primary
       - text: TypeScript SDK
         link: /zh/reference/typescript-sdk
-      - text: 能力矩阵
-        link: /zh/reference/capabilities
     note: 在 ZooWork App 的设置 → API Keys 里创建你的 key。
     noteLink: /zh/get-started/authentication
+    sampleMeta: 节选 · Node 20+ · ESM · ZOOWORK_API_KEY
+    sampleLinkText: 查看可直接运行的完整示例
+    sampleLink: /zh/get-started/quickstart
+    streamLabel: 示例 SESSION 事件
   nouns:
     title: 四个名词撑起整套 API
     intro: SDK 做的每一件事，都是作用在这四者之一上的动词。把它们学一遍，之后每一页参考文档都能自己读懂。
@@ -103,35 +105,20 @@ home:
 import {
   createZooworkClient, assistantText, isRunFinished,
 } from '@zoowork-ai/sdk'
-
 const zc = createZooworkClient() // reads ZOOWORK_API_KEY
-
-const { agent_id } = await zc.createAgent({
-  resource: {
-    name: 'quickstart-agent',
-    model: { primary: 'litellm/claude-sonnet-5' },
-  },
+const agent = await zc.createAgent({
+  resource: { name: 'quickstart-agent' },
 })
-await zc.startAgent(agent_id)
-await zc.waitUntilRunning(agent_id)
-
-const { session_id } = await zc.createSession(agent_id, {
-  initial_events: [{ type: 'user.message', content: 'Hi' }],
+await zc.startAgent(agent.agent_id)
+await zc.waitUntilRunning(agent.agent_id)
+const session = await zc.createSession(agent.agent_id, {
+  initial_events: [{ type: 'user.message', content: 'What can you do?' }],
 })
-
-for await (const ev of zc.streamEvents(agent_id, session_id)) {
+for await (const ev of zc.streamEvents(agent.agent_id, session.session_id)) {
   process.stdout.write(assistantText(ev))
   if (isRunFinished(ev)) break
 }
 ```
-
-<template v-slot:install>
-
-```bash
-npm i @zoowork-ai/sdk
-```
-
-</template>
 
 <template v-slot:edges>
 
