@@ -172,7 +172,7 @@ flow is its only path. See [Channels](../build/channels.md) for the platform tab
 |---|---|---|
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | Opens a session. Requires a running agent, else `409 agent_not_running`. |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | Reads a session, optionally with the at-rest transcript. |
-| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | One agent's sessions, newest first by `updated_at`, 50 per page, `page` 1-based. There is no cursor, and this is the surface that carries `run_status`. |
+| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | One agent's sessions, newest first by `updated_at`, 50 per page, `page` 1-based. There is no cursor; each row carries `run_status` and omits `status`. |
 | `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | Stamps `archived_at`. Afterwards writes are `409 session_archived` while reads keep working. Interrupt an in-flight run first. |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | Soft-deletes the session (204), cancelling an in-flight run first. Transcripts and events survive for audit. |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string \| null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>` | Writes user or system events into a session; accepted events echo back as full event objects. |
@@ -595,9 +595,14 @@ const session = await zc.createSession(
   `chat-${incomingMessageId}`,
 )
 
-console.log(session.session_id)  // "ses_example"
-console.log(session.session_key) // "api:ses_example"
+console.log(session.session_id)  // "0123456789abcdef0123456789abcdef"
+console.log(session.session_key) // "api:0123456789abcdef0123456789abcdef"
+console.log(session.status)      // "running"
 ```
+
+`session_id` is opaque. Do not require a resource prefix; `api:` belongs to `session_key`.
+The create receipt has `status: "running"` and no `run_status`. Read `run_status` from a later
+`getSession()` call or from a `listSessions()` row when you need the latest run state.
 
 The agent must be running. Against a stopped agent this throws
 `ZooworkError` with `status: 409` and `type: 'agent_not_running'`.
@@ -628,7 +633,7 @@ import { messageText } from '@zoowork-ai/sdk'
 const s = await zc.getSession(agentId, sessionId, { history: true, limit: 20 })
 
 console.log(s.run_status)  // 'succeeded'  <- the live field
-console.log(s.status)      // null         <- always
+console.log(s.status)      // null         <- observed on the current public read path
 
 for (const row of s.history ?? []) {
   if (row.entry_type !== 'message') continue
@@ -1001,9 +1006,12 @@ interface SessionRecord {
 `history` is present only when the read asked for `history: true`; it holds the most recent
 `limit` rows, in ascending `seq` order.
 
-`status` is always `null` in practice - `run_status` is the live field, and `listSessions` is
-the surface that carries it. **Code branching on `session.status` takes the same branch
-forever.** `session_key` is channel-qualified: sessions you create through
+The fields vary by response surface: `createSession()` returns `status: "running"` and no
+`run_status`; the current public `getSession()` path returns `status: null` alongside
+`run_status`; `listSessions()` rows carry `run_status` and omit `status`. The legacy `status`
+field may differ across deployments and is not the run outcome. Use `run_status` for the latest
+run state.
+`session_key` is channel-qualified: sessions you create through
 the API are `api:<session_id>`. `channel` is `api` for sessions you create and `cron` for ones
 a schedule fired.
 

@@ -270,13 +270,16 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 
 ```json
 {
-  "session_id": "ses_example",
-  "session_key": "api:ses_example",
-  "status": null
+  "session_id": "0123456789abcdef0123456789abcdef",
+  "session_key": "api:0123456789abcdef0123456789abcdef",
+  "status": "running"
 }
 ```
 
-`status` is always `null` - read `run_status` instead.
+This is a creation receipt. Its `status: "running"` means the session was created and the
+opening turn was started; it is not the run outcome. The receipt has no `run_status`. On a
+later `getSession()` response, `status` may be `null` and is not the run outcome; the latest
+run state is in `run_status`. `listSessions()` rows also carry `run_status` and omit `status`.
 
 `initial_events` starts the first turn as part of the create call, so you do not need a separate send. Use `user.message` with string content. For later turns in the same session, call `postEvents(agentId, sessionId, events)`.
 
@@ -492,7 +495,7 @@ Expected output:
 25 models available, using litellm/claude-sonnet-5
 created agent agt_example
 agent is running
-session ses_example
+session 0123456789abcdef0123456789abcdef
 
 I can research topics, run code, and work with documents.
 

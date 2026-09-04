@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 40037b1eb85b70b9280934419488df50af148009a07907347338cb425e8f38ef
+source_hash: d6afaff7db92a7f66b57275957010ac408a040c63242f4e4a224ad86d4fad0b5
 ---
 
 # TypeScript SDK 参考
@@ -172,7 +172,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 |---|---|---|
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | 开一个 session。要求 agent 处于运行状态，否则 `409 agent_not_running`。 |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | 读取一个 session，可选带上落盘的会话记录。 |
-| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | 一个 agent 的 session，按 `updated_at` 从新到旧，每页 50 条，`page` 从 1 开始。没有游标；`run_status` 就是在这个面上才拿得到。 |
+| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | 一个 agent 的 session，按 `updated_at` 从新到旧，每页 50 条，`page` 从 1 开始。没有游标；每一行都包含 `run_status`，但不包含 `status`。 |
 | `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | 盖上 `archived_at`。之后写入返回 `409 session_archived`，读取照常。先中断正在跑的回合。 |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | 软删除这个 session（204），会先取消正在跑的回合。会话记录和事件为审计保留。 |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string \| null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>` | 往 session 里写入 user 或 system 事件；被接受的事件以完整事件对象回显。 |
@@ -577,9 +577,14 @@ const session = await zc.createSession(
   `chat-${incomingMessageId}`,
 )
 
-console.log(session.session_id)  // "ses_example"
-console.log(session.session_key) // "api:ses_example"
+console.log(session.session_id)  // "0123456789abcdef0123456789abcdef"
+console.log(session.session_key) // "api:0123456789abcdef0123456789abcdef"
+console.log(session.status)      // "running"
 ```
+
+`session_id` 是 opaque string。不要要求它带资源前缀；`api:` 属于 `session_key`。
+创建回执包含 `status: "running"`，不包含 `run_status`。需要最近一次 run 的状态时，读取之后的
+`getSession()` 响应或 `listSessions()` 结果里的 `run_status`。
 
 agent 必须处于运行状态。对一个已停止的 agent 调用，会抛出 `ZooworkError`，`status: 409`，
 `type: 'agent_not_running'`。
@@ -609,7 +614,7 @@ import { messageText } from '@zoowork-ai/sdk'
 const s = await zc.getSession(agentId, sessionId, { history: true, limit: 20 })
 
 console.log(s.run_status)  // 'succeeded'  <- the live field
-console.log(s.status)      // null         <- always
+console.log(s.status)      // null         <- 当前公开读取路径上的实测值
 
 for (const row of s.history ?? []) {
   if (row.entry_type !== 'message') continue
@@ -961,8 +966,10 @@ interface SessionRecord {
 
 只有读取时带了 `history: true`，`history` 才会出现；它装的是最近的 `limit` 行，按 `seq` 升序排列。
 
-`status` 实际上永远是 `null`——真正在用的字段是 `run_status`，而 `listSessions` 是它拿得到的那个面。
-**基于 `session.status` 分支的代码，永远只会走同一个分支。**
+不同响应路径上的字段并不相同：`createSession()` 返回 `status: "running"`，不返回 `run_status`；
+当前公开 `getSession()` 路径返回 `status: null`，同时返回 `run_status`；`listSessions()` 的每一行包含
+`run_status`，不包含 `status`。旧的 `status` 字段不是 run 的结果，不同部署上的值可能不同。
+最近一次 run 的状态应读取 `run_status`。
 `session_key` 带频道前缀：你通过 API 创建的 session 是 `api:<session_id>`。`channel` 在你自己创建的
 session 上是 `api`，在定时任务触发出来的 session 上是 `cron`。
 

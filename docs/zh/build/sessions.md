@@ -2,7 +2,7 @@
 title: Sessions
 description: 创建、继续、列出、归档和删除 session，并读取 transcript。
 source: /en/build/sessions
-source_hash: dad35b406c904d944a19b11487481836daea2324130f3e220f1af3ee49483631
+source_hash: 8e5b21e6b042dafacb9f8532931e36068e36e57e53854f72558f73d4a1829583
 ---
 
 # Sessions
@@ -71,9 +71,11 @@ const session = await zc.createSession(agentId, {
   metadata: { source: 'my-app', tenant: 'acme' },
 })
 
-console.log(session.session_id)   // "ses_example"
-console.log(session.session_key)  // "api:ses_example"
+console.log(session.session_id)   // "0123456789abcdef0123456789abcdef"
+console.log(session.session_key)  // "api:0123456789abcdef0123456789abcdef"
 ```
+
+`session_id` 是 opaque string。不要要求它带资源前缀；`api:` 属于 `session_key`。
 
 带 `initial_events` 创建会立刻启动第一个回合 —— 开场消息没有单独的「发送」步骤。
 
@@ -135,8 +137,8 @@ const s = await zc.getSession(agentId, session.session_id)
 
 ```json
 {
-  "session_id": "ses_example",
-  "session_key": "api:ses_example",
+  "session_id": "0123456789abcdef0123456789abcdef",
+  "session_key": "api:0123456789abcdef0123456789abcdef",
   "channel": "api",
   "run_status": "succeeded",
   "updated_at": "2026-01-01T00:00:00.000Z",
@@ -157,10 +159,10 @@ const s = await zc.getSession(agentId, session.session_id)
 | `metadata` | 你传给 `createSession` 的东西，原样返回。 |
 | `archived` | 布尔值。 |
 | `pending_approvals` | 正在等待审批的工具调用数量。预期为 `0` —— 审批闭环未验证。 |
-| `status` | 永远是 `null`。见下面。 |
+| `status` | 旧的 Session 字段；当前公开 `getSession()` 路径上实测为 `null`。见下面。 |
 
-::: danger `status` 是 null —— 请读 `run_status`
-`status` 在每一次读取里都返回 `null`，包括最后一次 run 已经成功结束的 session。它不是一个你能轮询的状态机。真正带值的字段是 `run_status`（实测取值：`"succeeded"`）。用 `session.status` 做分支的代码，会永远走同一个分支。
+::: danger 不要把 `status` 当作 run 状态
+当前公开 `getSession()` 路径返回 `status: null`，最后一次 run 已经成功结束的 session 也是如此。这个旧的 Session 字段不是 run 状态，不同部署上的值可能不同。不要轮询它，也不要用它做分支。真正的状态字段是 `run_status`（实测取值：`"succeeded"`）。
 :::
 
 响应里可能带有上表之外的字段。遇到不认识的就忽略，不要因此报错。
