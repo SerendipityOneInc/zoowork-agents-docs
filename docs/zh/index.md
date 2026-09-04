@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: de4e464eff4e153412d3d09297b1f23981e3797d464552fadd18f208f35cc8da
+source_hash: c436b5ae0007543346a73344a2f4527d07c5d0b4fc32044917fea6042b81def3
 hero:
   text: 创建一个 agent，流式拿回每个事件。
   tagline: 一个由你自己的代码驱动的托管 agent 运行时。可续传的持久事件流；skills、sessions
@@ -34,7 +34,7 @@ home:
         linkText: Agents
         link: /zh/build/agents
       - name: Session
-        id: ses_
+        id: opaque id
         body: 一次对话，作为某个 agent 的子资源创建。它持有 transcript，
           并且是你写入或读取的每一个事件的作用域。
         linkText: Sessions

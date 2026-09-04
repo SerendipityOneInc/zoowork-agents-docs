@@ -140,9 +140,12 @@ const session = await zc.createSession(agentId, {
   metadata: { source: 'my-app' },
   initial_events: [{ type: 'user.message', content: 'Hello.' }],
 })
-session.session_id  // 'ses_...'
-session.session_key // 'api:...'
+session.session_id  // '0123456789abcdef0123456789abcdef'
+session.session_key // 'api:0123456789abcdef0123456789abcdef'
 ```
+
+Treat `session_id` as an opaque string. Do not validate or infer its resource type from a
+prefix. The `api:` prefix belongs to `session_key`, not `session_id`.
 
 `POST /agents/{agent_id}/sessions`. Every session call carries the agent id first:
 `createSession(agentId, input)`, `postEvents(agentId, sessionId, events)`,

@@ -33,7 +33,7 @@ home:
         linkText: Agents
         link: /en/build/agents
       - name: Session
-        id: ses_
+        id: opaque id
         body: One conversation, created as a sub-resource of an agent. It holds the transcript
           and scopes every event you write or read.
         linkText: Sessions

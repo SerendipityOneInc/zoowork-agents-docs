@@ -2,7 +2,7 @@
 title: 快速开始
 description: 在五分钟内创建并启动 agent、打开 session，然后流式读取第一条回复。
 source: /en/get-started/quickstart
-source_hash: 6d9a1df10442013690a4ec02cb08f6d2d327752656c8bf5c8a096dcfe7e0355e
+source_hash: fa7c32c0f49a5c54e6eac4e1c56d9b61c814de7daefa20f140e3a64ee61a9dc6
 ---
 
 # 快速开始
@@ -261,13 +261,15 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 
 ```json
 {
-  "session_id": "ses_example",
-  "session_key": "api:ses_example",
-  "status": null
+  "session_id": "0123456789abcdef0123456789abcdef",
+  "session_key": "api:0123456789abcdef0123456789abcdef",
+  "status": "running"
 }
 ```
 
-`status` 恒为 `null`——请改读 `run_status`。
+这是创建回执。`status: "running"` 表示 session 已创建，并且开场回合已经启动；它不是 run 的结果。
+创建回执不包含 `run_status`。之后调用 `getSession()` 时，`status` 可能是 `null`，而且它不是 run 的结果；
+最近一次 run 的状态在 `run_status`。`listSessions()` 的每一行也包含 `run_status`，但不包含 `status`。
 
 `initial_events` 会在这次创建调用里就把第一个回合起起来，所以你不需要再单独发一次。用 `user.message`，content 传字符串。同一个 session 里后续的回合，调 `postEvents(agentId, sessionId, events)`。
 
@@ -483,7 +485,7 @@ try {
 25 models available, using litellm/claude-sonnet-5
 created agent agt_example
 agent is running
-session ses_example
+session 0123456789abcdef0123456789abcdef
 
 I can research topics, run code, and work with documents.
 

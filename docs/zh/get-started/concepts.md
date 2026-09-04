@@ -2,7 +2,7 @@
 title: 核心概念
 description: 理解 Agent、Session、Event 三个原语及其生命周期。
 source: /en/get-started/concepts
-source_hash: be82fad051faa1c948c95fda403614d29ccb8b8e063aa9c3bee302df848bf54e
+source_hash: eacad2a46061f2d0d05edc2a4ebeab97e8e4a048371ee569dba523f8bc504b3b
 ---
 
 # 核心概念
@@ -113,9 +113,12 @@ const session = await zc.createSession(agentId, {
   metadata: { source: 'my-app' },
   initial_events: [{ type: 'user.message', content: 'Hello.' }],
 })
-session.session_id  // 'ses_...'
-session.session_key // 'api:...'
+session.session_id  // '0123456789abcdef0123456789abcdef'
+session.session_key // 'api:0123456789abcdef0123456789abcdef'
 ```
+
+把 `session_id` 当作 opaque string 使用。不要校验它的前缀，也不要根据前缀判断资源类型。
+`api:` 前缀属于 `session_key`，不属于 `session_id`。
 
 `POST /agents/{agent_id}/sessions`。每一个 session 调用的第一个参数都是 agent id：`createSession(agentId, input)`、`postEvents(agentId, sessionId, events)`、`listEvents(agentId, sessionId, opts)`、`streamEvents(agentId, sessionId, opts)`。
 

@@ -76,9 +76,11 @@ const session = await zc.createSession(agentId, {
   metadata: { source: 'my-app', tenant: 'acme' },
 })
 
-console.log(session.session_id)   // "ses_example"
-console.log(session.session_key)  // "api:ses_example"
+console.log(session.session_id)   // "0123456789abcdef0123456789abcdef"
+console.log(session.session_key)  // "api:0123456789abcdef0123456789abcdef"
 ```
+
+`session_id` is opaque. Do not require a resource prefix; `api:` belongs to `session_key`.
 
 Creating with `initial_events` starts the first turn immediately - there is no separate
 "send" step for the opening message.
@@ -157,8 +159,8 @@ Observed response:
 
 ```json
 {
-  "session_id": "ses_example",
-  "session_key": "api:ses_example",
+  "session_id": "0123456789abcdef0123456789abcdef",
+  "session_key": "api:0123456789abcdef0123456789abcdef",
   "channel": "api",
   "run_status": "succeeded",
   "updated_at": "2026-01-01T00:00:00.000Z",
@@ -179,13 +181,13 @@ Observed response:
 | `metadata` | Exactly what you passed to `createSession`. |
 | `archived` | Boolean. |
 | `pending_approvals` | Count of tool calls waiting on an approval. Expect `0` - the approval loop is not verified. |
-| `status` | Always `null`. See below. |
+| `status` | A legacy Session field, observed as `null` on the current public `getSession()` path. See below. |
 
-::: danger `status` is null - read `run_status`
-`status` comes back as `null` on every read, including sessions whose last run finished
-successfully. It is not a state machine you can poll. The live field is `run_status`
-(observed value: `"succeeded"`). Code that branches on `session.status` will take the same
-branch forever.
+::: danger Do not use `status` as the run state
+The current public `getSession()` path returns `status: null`, including for sessions whose
+last run finished successfully. This legacy Session field is not the run state and may differ
+across deployments. Do not poll or branch on it. The live field is `run_status` (observed value:
+`"succeeded"`).
 :::
 
 Responses may carry additional fields beyond those listed. Ignore what you do not recognize
