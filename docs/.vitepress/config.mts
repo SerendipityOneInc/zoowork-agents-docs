@@ -342,8 +342,8 @@ export default defineConfig({
   // Matches the page surface in each scheme, so the mobile browser chrome does not sit on
   // the page as a separate colour. The palette itself is in theme/custom.css.
   head: [
-    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#ffffff' }],
-    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#0d1117' }],
+    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#fafafa' }],
+    ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#111111' }],
   ],
   markdown: { config: stackableTables },
   transformPageData(pageData, { siteConfig }) {
@@ -411,6 +411,10 @@ export default defineConfig({
     },
   },
   themeConfig: {
+    logo: {
+      src: 'https://assets.yesy.site/f/images/2026/08/ngpc50cj.png',
+      alt: '',
+    },
     search: { provider: 'local' },
     outline: [2, 3],
     footer: {

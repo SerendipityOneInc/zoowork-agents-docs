@@ -14,13 +14,15 @@ home:
     actions:
       - text: Quickstart
         link: /en/get-started/quickstart
-        theme: brand
+        theme: primary
       - text: TypeScript SDK
         link: /en/reference/typescript-sdk
-      - text: Capability matrix
-        link: /en/reference/capabilities
     note: Create your key in the ZooWork App, under Settings → API Keys.
     noteLink: /en/get-started/authentication
+    sampleMeta: Abbreviated · Node 20+ · ESM · ZOOWORK_API_KEY
+    sampleLinkText: Full runnable example
+    sampleLink: /en/get-started/quickstart
+    streamLabel: EXAMPLE SESSION EVENTS
   nouns:
     title: Four nouns carry the whole API
     intro: Everything the SDK does is a verb on one of these. Learn them once and every
@@ -103,35 +105,20 @@ home:
 import {
   createZooworkClient, assistantText, isRunFinished,
 } from '@zoowork-ai/sdk'
-
 const zc = createZooworkClient() // reads ZOOWORK_API_KEY
-
-const { agent_id } = await zc.createAgent({
-  resource: {
-    name: 'quickstart-agent',
-    model: { primary: 'litellm/claude-sonnet-5' },
-  },
+const agent = await zc.createAgent({
+  resource: { name: 'quickstart-agent' },
 })
-await zc.startAgent(agent_id)
-await zc.waitUntilRunning(agent_id)
-
-const { session_id } = await zc.createSession(agent_id, {
-  initial_events: [{ type: 'user.message', content: 'Hi' }],
+await zc.startAgent(agent.agent_id)
+await zc.waitUntilRunning(agent.agent_id)
+const session = await zc.createSession(agent.agent_id, {
+  initial_events: [{ type: 'user.message', content: 'What can you do?' }],
 })
-
-for await (const ev of zc.streamEvents(agent_id, session_id)) {
+for await (const ev of zc.streamEvents(agent.agent_id, session.session_id)) {
   process.stdout.write(assistantText(ev))
   if (isRunFinished(ev)) break
 }
 ```
-
-<template v-slot:install>
-
-```bash
-npm i @zoowork-ai/sdk
-```
-
-</template>
 
 <template v-slot:edges>
 
