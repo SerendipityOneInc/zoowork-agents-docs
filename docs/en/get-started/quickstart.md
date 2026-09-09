@@ -202,7 +202,7 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
 { "warnings": ["channel_routes_reload_failed: routes reload returned 404"] }
 ```
 
-That warning is informational and shows up on every start and stop of an API-only agent. Do not retry on it - check `desired_state` instead.
+A warning in a successful response is informational and depends on the deployment; it is not guaranteed on every start/stop. HTTP or transport failures still throw. After an uncertain stop, read back desired state before retrying.
 
 ### Wait for readiness
 
@@ -331,7 +331,7 @@ try {
 ```bash [curl]
 # -N disables buffering so frames arrive as they are produced.
 # Resume after a drop by appending ?cursor=<the last id: line you saw>,
-# or by sending it as a Last-Event-ID request header.
+# The public gateway does not forward Last-Event-ID; use the cursor query parameter.
 curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Accept: text/event-stream"

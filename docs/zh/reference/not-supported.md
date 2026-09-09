@@ -2,7 +2,7 @@
 title: 不支持的能力
 description: 确认哪些能力不存在，以及每项能力最接近的可用替代方案。
 source: /en/reference/not-supported
-source_hash: 42803168dfb0643067d47f90f73c9c4dbc074e5d657a67c6095124068fec3daa
+source_hash: 039c3832de5edc5237b19ad7133a7ea085dae7b8d68ed8c81fdcdf058664cf7d
 ---
 
 # 不支持的能力
@@ -51,7 +51,7 @@ source_hash: 42803168dfb0643067d47f90f73c9c4dbc074e5d657a67c6095124068fec3daa
 
 **你想建的：** agent 提议一个危险动作，你的 UI 弹出一张同意或拒绝的卡片，run 根据这一次点击继续或停止。
 
-**实际发生的：** 零件是分开存在的——`agent.approval` 在事件词表里，`agent.tool` 有一个 `blocked` 阶段，`user.tool_confirmation` 是被接受的写入类型——但从没造出过一个真实的待处理审批，所以这个往返没有任何一环被证明过，而一个在等审批的 agent 会把这一回合耗在等待上。见[能力矩阵](./capabilities.md#tools)。
+**实际发生的：** 零件是分开存在的——`agent.approval` 在事件词表里，`agent.tool` 有一个 `blocked` 阶段，`user.tool_confirmation` 是被接受的写入类型——已有实测记录只有空审批列表，尚未验证 pending 到执行的闭环。源码已核对 requested_at、decision 等字段和 202/signaled 回执，但回执仍可能 pending；部署支持和回合预算行为必须单独核验。见[能力矩阵](./capabilities.md#tools)。
 
 **替代：** 在你这边做门控。把危险能力从 agent 的 `tool_policy` 里拿掉，让 agent 用文字描述它想做什么，在你自己的 UI 里做决定，再把结果作为 `user.message` 发回去。
 
@@ -77,7 +77,7 @@ source_hash: 42803168dfb0643067d47f90f73c9c4dbc074e5d657a67c6095124068fec3daa
 
 **实际发生的：** 没有 webhook 资源，没有签名密钥，也没有投递配置。定时任务的 `delivery` 字段只接受 `none` 和一种带类型的 `announce`；webhook 投递会被拒。
 
-**替代：** 挂住 SSE 流，或者用 `after` 轮询 `listEvents`——每一帧都带一个持久的 `seq`，服务端会从它开始重放，掉一次连接不花你任何代价。
+**替代：** 用 cursor 续传 SSE，或者以 `listEventsPage` 跟随 nextCursor。公共网关不转发 Last-Event-ID。处理成功后再保存不透明游标；应用副作用仍需自己的幂等保障。
 
 ## Agent 版本固定与回滚 {#agent-version-pinning-and-rollback}
 

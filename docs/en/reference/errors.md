@@ -170,21 +170,23 @@ Retry safety is per operation, not per error. Nothing in the SDK retries for you
 | Operation | Safe to retry? | Why |
 |---|---|---|
 | `listModels`, `getAgent`, `getSession`, `listEvents`, `listAgentSkills`, and the other `list*` / `get*` reads | **Yes** | Reads. Retry on network errors and 5xx with exponential backoff. |
-| `startAgent`, `stopAgent` | **Yes** | Each call re-runs its convergence actions against the same id. Check `warnings`, and remember `channel_routes_reload_failed` is expected noise on an API-only agent, not a failure. |
+| `startAgent`, `stopAgent` | **Reconcile first** | A failed stop can follow a desired-state change. Read back before retrying. Warnings belong to successful responses; non-2xx still throws. |
 | `deleteAgent` | **Yes** | Soft delete. Repeated calls succeed. |
-| `streamEvents` | **Yes** | Reconnect with the last event's resume token — `{ cursor: ev.cursor }`. Resume is server-side, so nothing between windows is lost. Do **not** reconnect with `{ after: lastSeq }`: that selects the deprecated engine-only lane, which drops your own input events (`user.message`, `user.interrupt`, `user.tool_confirmation`, `system.message`). |
-| `createAgent`, `createSession`, `createSchedule`, `createEnvironment`, `createEnvironmentVersion`, `uploadSkill`, `uploadSkillVersion` | **Only with an `Idempotency-Key`** | Without one, a retry after a timeout creates a second agent, or a second session that runs the opening turn again. |
+| `streamEvents` | **Yes** | Reconnect with the last event's resume token — `{ cursor: ev.cursor }`. The server resumes the log; checkpoint after successful processing. This does not make application side effects exactly-once. Do **not** reconnect with `{ after: lastSeq }`: that selects the deprecated engine-only lane, which drops your own input events (`user.message`, `user.interrupt`, `user.tool_confirmation`, `system.message`). |
+| `createAgent`, `createSession`, `createEnvironment`, `createEnvironmentVersion` | **Reuse the HTTP key** | Reuse the same stable `Idempotency-Key` and body. A new key means a new request. |
+| `createSchedule` | **Stable ID and definition** | Reuse `schedule_id` with the same definition; a different definition conflicts. The HTTP key is not its deduplication mechanism. |
+| `uploadSkill` | **Read back first** | A successful create retried under the same active scope/name can return `409 skill_exists`. An HTTP key does not promise response replay. |
+| `uploadSkillVersion` | **Same skill and content** | Identical content is deduplicated for that skill, not by the HTTP key. Confirm the resulting version; do not infer an exactly-once guarantee. |
 | `updateAgent`, `putAgentSkill`, `deleteAgentSkill` | **No** | Each success bumps `config_version`. After a timeout, `getAgent()` first and reconcile before you decide. |
 | `updateSchedule`, `deleteSchedule` | **No** | Neither carries a cross-timeout idempotency guarantee. After a timeout, reconcile by listing the agent's schedules and reading their runs rather than sending the write again. |
-| `postEvents` | **No** | There is no idempotency key on this route. A blind retry can deliver the same `user.message` twice and pollute the conversation. De-duplicate on your side. |
+| `postEvents` | **Reuse each event's key** | Retry the same message with its stable `idempotency_key` in the event body, not an HTTP header. Without it, a blind retry can deliver twice. |
 
 ### `Idempotency-Key` on the create calls
 
-Seven methods take an idempotency key, sent as the `Idempotency-Key` header: `createAgent`,
-`createSession`, `createSchedule`, `createEnvironment`, `createEnvironmentVersion`,
-`uploadSkill`, and `uploadSkillVersion`. The first five take it as a trailing argument; the two
-upload methods take it as `idempotencyKey` on their options object. The two you will reach for
-first:
+An SDK key argument does not prove every endpoint uses it for replay. The source-reviewed
+matrix separates HTTP keys, event keys, stable resource IDs and content deduplication; these
+are not an exactly-once SLA. Agent, Session and Environment create methods take an HTTP key
+as a trailing argument. Two common examples:
 
 ```ts
 const created = await zc.createAgent(

@@ -2,7 +2,7 @@
 title: Environments
 description: 定义可复用的沙箱模板，并把带版本的 Environment 绑定到 agent。
 source: /en/build/environments
-source_hash: 1188ae924b5e7780ef2f0c063864d5907c0f38e0d2f2b4eedc2cddc44e624ffa
+source_hash: f0580853a9f644ed9094e2318a5c4dcad2c16bca87650322627d568ad5136db9
 ---
 
 # Environments
@@ -63,7 +63,7 @@ config 对象只接受这四个 key。任何其他 key 都返回 `400 invalid_en
 - **三个包管理器，就只有三个。** apt、npm、pip。没有其他安装器钩子。
 - **自定义 Environment 永远继承同一个固定的平台基础镜像。** 不支持任意的继承链。你不能从自己的镜像出发。
 - **没有 secret，没有运行时凭证，没有自定义环境变量，也没有沙箱启动钩子。** Environment 是一件构建期产物。`build.script` 在镜像被构建时运行，绝不在沙箱启动时运行。如果你的依赖在运行时需要一个 API key，Environment 不是放它的地方。
-- **版本不可变。** 构建失败后的重试，重试的是同一个版本，并保留这次尝试和日志历史。
+- **版本配置不可变。** `createEnvironmentVersion` 创建新版本，不是重试旧版本。对失败版本执行专用 retry 操作才会保留同一版本的尝试与日志历史。
 - **skill、persona 和工作区文件不属于 Environment。** 你显式提交包、文件和构建脚本；不会从任何别处推断出什么。
 
 ## 把 Environment 固定到 agent 上
@@ -119,8 +119,8 @@ await zc.updateAgent(agentId, { environment_id: 'env_example', environment_versi
 | `getEnvironment(environmentId)` | 读一个 Environment。 |
 | `createEnvironment({ resource, ownership }, idempotencyKey?)` | 创建一个 Environment 和它的第一个版本。 |
 | `archiveEnvironment(environmentId)` | 归档它。 |
-| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | 追加一个不可变版本。构建失败后的重试，重试的是**那个**版本，并保留它的尝试记录。 |
-| `getEnvironmentVersion(environmentId, version)` | 读一个版本。这就是你要轮询的调用。 |
+| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | 创建一个新的不可变版本，不是重试旧版本。 |
+| `getEnvironmentVersion(environmentId, version, opts?)` | 读版本聚合状态；可传 `{ resourceClass: 'starter' }` 查询单个规格（也支持 `pro`、`ultra`）。该参数已核对源码，未在本轮线上验证。 |
 
 平台默认的那个 Environment——新建 agent 被钉上的那个——不出现在 `listEnvironments()` 里，`getEnvironment()` 对它返回 `404`。网关强制加了组织选择器，而默认 Environment 不属于任何组织，所以这是选择器不匹配，不是权限问题。
 
@@ -172,17 +172,44 @@ console.log(env.version?.status)  // 'queued'
 轮询**那个版本**，不是 Environment，而且字段叫 `status`——版本上没有 `state`，照着 `state` 写的循环会永远拿 `undefined` 和 `'ready'` 比。
 
 ```ts
-const version = env.version!.version!
-let v = await zc.getEnvironmentVersion(env.environment_id, version)
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-while (v.status !== 'ready' && v.status !== 'failed') {
-  await new Promise((r) => setTimeout(r, 2000))
-  v = await zc.getEnvironmentVersion(env.environment_id, version)
+const version = env.version!.version!
+const deadline = Date.now() + 5 * 60_000
+const cancel = new AbortController() // call cancel.abort() to stop this wait
+const bounded = createZooworkClient({
+  fetch: (url, init) => fetch(url, {
+    ...init,
+    signal: AbortSignal.any([
+      cancel.signal,
+      AbortSignal.timeout(Math.max(1, Math.min(10_000, deadline - Date.now()))),
+    ]),
+  }),
+})
+let v
+while (Date.now() < deadline && !cancel.signal.aborted) {
+  v = await bounded.getEnvironmentVersion(env.environment_id, version)
+  if (v.status === 'ready') break
+  if (v.status === 'failed') throw new Error(v.failure_message ?? 'Build failed')
+  if (v.status === 'partial_ready') {
+    const selected = await bounded.getEnvironmentVersion(env.environment_id, version, {
+      resourceClass: 'starter',
+    })
+    if (selected.status === 'failed') throw new Error('Selected class failed')
+    // This example waits for ALL classes, not just starter. Re-read the aggregate next.
+  }
+  await new Promise((resolve) => setTimeout(resolve, 2000))
 }
-if (v.status === 'failed') throw new Error(`${v.failure_stage}: ${v.failure_message}`)
+if (v?.status !== 'ready') throw new Error('Build wait cancelled or timed out; inspect class status')
 ```
 
-一个版本依次经过 `queued`、`submitting`、`building`、`verifying`、`ready`。任何一个阶段都可能以 `failed` 结束，`failure_stage` 会点名是哪一个。Environment 自己的 `status` 是 `active` 或 `archived`——那是生命周期，不是构建进度，构建跑着的整段时间里它都读作 `active`。
+::: warning 源码已核对，未实测
+版本状态包括 `queued`、`submitting`、`building`、`verifying`、`partial_ready`、`ready`、`failed`。`partial_ready` 表示部分规格就绪，其他规格可能仍在构建，也可能已经失败；它既可能是过渡状态，也可能是部分成功的终态。
+
+示例采用保守策略：等待全部规格 `ready`，以整体截止时间、单次请求超时和取消信号限制等待。查询单个 `resourceClass` 用于诊断，不把它的成功当成整体成功；不要无限等待 `partial_ready`。需要支持该可选参数的 SDK，并单独核验目标部署。
+:::
+
+Environment 自己的 `status` 是 `active` 或 `archived`，那是生命周期，不是构建进度。`failure_stage` 与 `failure_message` 用于解释版本失败。
 
 Environment 这一行带着两个版本号，它们不是同一个号。`latest_version` 是**创建**出来的最新版本：你刚创建完 Environment 的那一瞬间它就是 `1`，而那个版本还在 `queued`。`latest_ready_version` 是最新一个构建完成的版本，在有构建落地之前它是 `null`。**要 pin 的是 `latest_ready_version`。** pin 了 `latest_version`，agent 的 create 拿到的就是上面那个 `409 environment_not_ready`。
 

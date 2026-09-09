@@ -202,8 +202,8 @@ useful; expecting the API session to remember that chat is not.
 An event is the unit of everything that happens inside a session. The log is append-only and
 durably sequenced by `seq`, a monotonic per-session integer. Resuming a dropped stream uses a
 different value: every SSE frame carries an opaque resume token in its `id:` line, which the SDK
-hands you as `ev.cursor`. Send it back - `{ cursor }` through the SDK, `?cursor=` or a
-`Last-Event-ID` header over raw HTTP - and the server replays from there. `?after=<seq>` also
+hands you as `ev.cursor`. Send it back - `{ cursor }` through the SDK, `?cursor=` over raw HTTP (the public gateway does not forward
+`Last-Event-ID`) - and the server replays from there. `?after=<seq>` also
 replays, but on a deprecated engine-only lane that omits your own input events.
 
 Reach into `payload` as little as possible. The SDK ships typed readers for the shapes that
@@ -289,8 +289,8 @@ An `agent.tool` event with `isError: true` is still followed by `run.finished` w
 
 ### Two wire shapes
 
-REST spells the fields in snake_case (`event_type`, `run_id`, `created_at`) and SSE in camelCase
-(`eventType`, `runId`, `createdAt`); neither carries a top-level `type` field. The SDK
+Default unified REST and SSE both use snake_case (`event_type`, `run_id`, `created_at`);
+legacy SSE can use camelCase (`eventType`, `runId`, `createdAt`); neither carries a top-level `type` field. The SDK
 normalizes both into one `SessionEvent`, and exports `normalizeEvent` for the case where you
 call the HTTP API directly. See [Events and streaming](../build/events.md).
 

@@ -80,8 +80,8 @@ if (done.status === 'success') {
 
 `waitForChannelSetup` polls at the server's suggested interval and returns **every** terminal
 outcome instead of throwing on the human ones — "the person never scanned" is an outcome,
-not an exception. It throws only for a timeout you set (`408` / `type: 'timeout'`) or your
-own abort (`0` / `'aborted'`).
+not an exception. It can also throw for HTTP/transport failures, a timeout you set
+(`408` / `type: 'timeout'`) or your own abort (`0` / `'aborted'`).
 
 If you drive the loop yourself, use `pollChannelSetup(agentId, platform, sessionId)` and treat
 `status` values you do not recognize as still-in-flight:
@@ -162,7 +162,11 @@ await zc.addChannel(agentId, {
 Slack runs in socket mode, which is why it needs the app-level `xapp-` token as well as the
 bot token. Both come from the Slack app's own settings pages.
 
-`allow_from` is accepted **only at create** and cannot be edited later.
+::: warning An ignored field is not an access-control list
+Source review shows that the public gateway ignores `allow_from`, including on create.
+The SDK retains it for compatibility; sending it does not restrict access. Use supported
+`dm_policy` settings and verify the effective policy separately.
+:::
 
 ::: danger 201 means stored, not working
 Credentials are **not validated when you bind**. We bound a channel with deliberately bogus
@@ -255,10 +259,11 @@ Two things to design for before you bind:
 
 ::: danger Chat conversations and API sessions are separate
 A conversation in the chat app and a session you create over the API are **different
-sessions with different context** — binding a channel does not let your API calls read what
-the agent said in Feishu, or inject into that conversation. Expect chat traffic to show up
-as its own sessions, not inside yours. If your product needs one shared memory across both,
-that is an application-level design problem, not a flag.
+sessions with different context**. Chat traffic has its own sessions, not automatic context
+merging with an API-created session. This is **not API-key access isolation**: source review
+shows that authorized API calls can address an IM session by id. Your backend must enforce
+application-user access to each Agent/session. IM sessions reject `actor`; use their
+channel-native identity rules.
 :::
 
 ::: warning `actual_state` starts meaning something

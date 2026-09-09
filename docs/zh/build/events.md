@@ -2,7 +2,7 @@
 title: 事件与流式
 description: 写入事件、消费 SSE、通过 cursor 续传，并理解完整的事件词表。
 source: /en/build/events
-source_hash: 3bc0bc2364d7d0cedcd38e2d8a41e5a45a78454cf12f9a54714cf8c35248f0c4
+source_hash: 5cece4d40dbae78409799d78e0954cf748ebd71cbfcbdab2ae12526b88185b61
 ---
 
 # 事件与流式
@@ -108,7 +108,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 | `agent.command_output` | 某个执行命令的工具产生了 stdout/stderr，按结果粒度给出。 | `toolCallId`、`toolName`，以及抓取到的输出字段。 |
 | `agent.patch` | 一次 `apply_patch` 工具调用成功。 | `toolCallId`，以及这次 patch 的摘要。 |
 | `agent.compaction` | 历史被压缩以塞进上下文窗口。 | `firstKeptEntryId`、`tokensBefore`、`reason` |
-| `agent.error` | 回合内部发生了一个错误。 | `errorMessage`，有时还有 `kind`（例如 `mcp_connection_failed`）和 `server`。它本身不是对这个回合的判决；判决读 `run.finished`。 |
+| `agent.error` | 回合内部发生了一个错误。 | `errorMessage`，有时还有 `kind`（例如 `mcp_connection_failed`）和 `server`。它本身不是对这个回合的判决；判决读 `run.finished`。 源码已核对：MCP 错误还包括 `mcp_authentication_failed` 和可选 `reason`，保留未知 reason。 |
 
 ### 其他
 
@@ -158,11 +158,16 @@ const res = await zc.postEvents(agentId, sessionId, [
 | `content` | 是 | 必须是**非空字符串** 。其他任何形式都是 `400 invalid_event`。 |
 | `attachments` | 否 | 如果出现，必须是数组。 |
 | `idempotency_key` | 否 | 非空字符串。用作投递去重的 key，所以带同一个 key 的重试会收敛，而不是把消息发重。 |
+| `actor` | 否 | 源码已核对：仅 API session 接受 `{ ref: string }`。`ref` 为 1–200 个来自 `[A-Za-z0-9._:@+-]` 的 ASCII 字符。省略整个对象时归属 owner。 |
 
 `createSession(agentId, { initial_events })` 只接受 `user.message`，别的都不接受，最多 50 条。
 
 ::: warning 尚未验证
 我们只跑过纯字符串的 `content`。富内容块目前不被解析器接受，所以请发字符串。
+:::
+
+::: warning 记忆归属不等于访问控制
+actor 契约经过源码核对，尚未在这里做真实部署验证。你的后端须把已认证的应用用户映射到稳定、不透明的 `actor.ref`，并校验 session 归属。`metadata.user_id` 不会自动设置 actor。这个字段不隔离沙箱文件，也不删除原有对话上下文。IM session 拒绝 `actor`；`actor.token`、未知 actor 字段和非法 ref 返回 HTTP 400。不能把调用方提供的 actor 当作身份证明。
 :::
 
 ### `user.interrupt`
@@ -304,7 +309,7 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: saved })) {
 }
 ```
 
-如果你直接调 HTTP 端点，用 `?cursor=` 或标准的 `Last-Event-ID` 请求头都可以。浏览器的 `EventSource` 会自动发送 `Last-Event-ID`，因为服务端写了 `id:` 行。`{ after: seq }` 仍能续传废弃的 engine-only 通道——只留给旧存量游标用。
+直接调公共 HTTP 端点时使用 `?cursor=`。公共网关不转发 `Last-Event-ID`，不能只靠浏览器 EventSource 自动发送的续传请求头。`{ after: seq }` 仍能续传废弃的 engine-only 通道——只留给旧存量游标用。
 
 ### 一个扛得住断线的重连循环
 

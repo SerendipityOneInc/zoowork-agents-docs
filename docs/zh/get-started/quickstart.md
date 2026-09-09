@@ -2,7 +2,7 @@
 title: 快速开始
 description: 在五分钟内创建并启动 agent、打开 session，然后流式读取第一条回复。
 source: /en/get-started/quickstart
-source_hash: fa7c32c0f49a5c54e6eac4e1c56d9b61c814de7daefa20f140e3a64ee61a9dc6
+source_hash: e88b815ae45511be2fb577f6fed555f0b9d0bdc559e799868faac1a62597a432
 ---
 
 # 快速开始
@@ -195,7 +195,7 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
 { "warnings": ["channel_routes_reload_failed: routes reload returned 404"] }
 ```
 
-这条警告是提示性的，纯 API 的 agent 每次启动和停止都会报一次。不要在它上面重试——请改看 `desired_state`。
+成功回执中的警告是提示性的，是否出现取决于部署，不是每次启动和停止必有。HTTP 或网络失败仍会抛错；stop 的结果不确定时，先读回 desired state 再决定是否重试。
 
 ### 等待就绪
 
@@ -321,7 +321,7 @@ try {
 ```bash [curl]
 # -N disables buffering so frames arrive as they are produced.
 # Resume after a drop by appending ?cursor=<the last id: line you saw>,
-# or by sending it as a Last-Event-ID request header.
+# The public gateway does not forward Last-Event-ID; use the cursor query parameter.
 curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H "Accept: text/event-stream"

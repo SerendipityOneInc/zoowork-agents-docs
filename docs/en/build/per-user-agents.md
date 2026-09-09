@@ -23,14 +23,14 @@ the users must not share what lives **outside** the transcript:
 - **The sandbox.** An agent has one sandbox, and every session of that agent works in the same
   persistent `/workspace`. Files one session writes, another session reads. With one shared
   agent, that means files one *user* writes, another user's turn can read.
-- **Model-side memory.** Where the deployment enables the model's memory tools, they are
-  scoped to the agent, across sessions — and they are invisible over the API, so you cannot
-  partition them per user after the fact. See the
-  [capability matrix](../reference/capabilities.md) for their status.
+- **Model-side memory.** API messages can select memory attribution with
+  `actor: { ref: 'customer-42' }`; omitting it uses the owner. This source-reviewed contract
+  needs deployment verification. It does not repartition old memory, erase session context,
+  authorize users or isolate files. See [Events](./events.md#usermessage).
 
 There is no per-user sandbox inside a single agent, and no way to partition `/workspace` by
-end user. Isolation is drawn at the agent boundary, so per-user isolation means per-user
-agents.
+end user. File isolation is drawn at the agent boundary, so users who must not share sandbox files
+need separate agents. Your application must still authorize every Agent/session access.
 
 The cost is also real: each agent is a separate sandbox to provision and start, and
 agent-level configuration (persona, model, tool policy) now exists in N copies. The rest of

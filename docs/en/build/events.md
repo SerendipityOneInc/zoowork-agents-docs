@@ -123,7 +123,7 @@ of 19), plus the four input types under [Your inputs, echoed](#your-inputs-echoe
 | `agent.command_output` | A command-running tool produced stdout/stderr, at result granularity. | `toolCallId`, `toolName`, plus the captured output fields. |
 | `agent.patch` | An `apply_patch` tool call succeeded. | `toolCallId` plus the patch summary. |
 | `agent.compaction` | History was compacted to fit the context window. | `firstKeptEntryId`, `tokensBefore`, `reason` |
-| `agent.error` | An error occurred inside the turn. | `errorMessage`, sometimes `kind` (for example `mcp_connection_failed`) and `server`. Not by itself a verdict on the turn; read `run.finished`. |
+| `agent.error` | An error occurred inside the turn. | `errorMessage`, sometimes `kind` (for example `mcp_connection_failed`) and `server`. Not by itself a verdict on the turn; read `run.finished`. Source-reviewed MCP errors also include `mcp_authentication_failed` and optional `reason`; preserve unknown reasons. |
 
 ### Other
 
@@ -190,6 +190,7 @@ Appends a user turn and starts a run.
 | `content` | yes | Must be a **non-empty string**. Anything else is `400 invalid_event`. |
 | `attachments` | no | Must be an array if present. |
 | `idempotency_key` | no | Non-empty string. Used as the delivery dedup key, so a retry with the same key converges instead of duplicating the message. |
+| `actor` | no | Source-reviewed: `{ ref: string }` on API sessions only. `ref` is 1–200 ASCII characters from `[A-Za-z0-9._:@+-]`. Omit the whole object to use the owner. |
 
 `createSession(agentId, { initial_events })` accepts `user.message` and nothing else, up to 50
 entries.
@@ -197,6 +198,14 @@ entries.
 ::: warning Not yet verified
 Only a plain string `content` has been exercised. Rich content blocks are not accepted by the
 parser today, so send strings.
+:::
+
+::: warning Memory attribution is not access control
+The actor contract is source-reviewed, not live-verified here. Your backend must map an
+authenticated application user to a stable opaque `actor.ref` and authorize the session.
+`metadata.user_id` does not set the actor. It does not isolate sandbox files or remove prior
+context. IM sessions reject `actor`; `actor.token`, unknown actor keys and malformed refs
+return HTTP 400. Never accept a supplied actor as proof of identity.
 :::
 
 ### `user.interrupt`
@@ -354,9 +363,8 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: saved })) {
 }
 ```
 
-If you call the HTTP endpoint directly, either `?cursor=` or the standard `Last-Event-ID`
-request header works. Browser `EventSource` sends `Last-Event-ID` automatically because the
-server writes the `id:` line. `{ after: seq }` still resumes the deprecated engine-only lane —
+When calling the public HTTP endpoint, use `?cursor=`. The public gateway does not forward
+`Last-Event-ID`, so browser EventSource's automatic header replay is not sufficient. `{ after: seq }` still resumes the deprecated engine-only lane —
 keep it for old stored cursors only.
 
 ### A reconnect loop that survives a dropped connection

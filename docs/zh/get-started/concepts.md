@@ -2,7 +2,7 @@
 title: 核心概念
 description: 理解 Agent、Session、Event 三个原语及其生命周期。
 source: /en/get-started/concepts
-source_hash: eacad2a46061f2d0d05edc2a4ebeab97e8e4a048371ee569dba523f8bc504b3b
+source_hash: 46229b8fd89b1dd5f0fff474144e730da0079001a7d0ebb09ae8bb0fc929133a
 ---
 
 # 核心概念
@@ -155,7 +155,7 @@ session 被创建出来，只要你一直往里 post 就一直累积回合，之
 
 ## Event
 
-event 是 session 内发生的一切的最小单位。这份日志只追加，并按 `seq` 持久排序——`seq` 是每个 session 内单调递增的整数。续传用的是另一个值：每一个 SSE 帧都在 `id:` 行里带着一个不透明的续传令牌，SDK 把它放在 `ev.cursor` 上。把它发回去——走 SDK 就是 `{ cursor }`，直接调 HTTP 就是 `?cursor=` 或 `Last-Event-ID` 请求头——服务端就从那里重放。`?after=<seq>` 也能重放，但走的是废弃的 engine-only 通道，那条通道不含你自己发的 input 事件。
+event 是 session 内发生的一切的最小单位。这份日志只追加，并按 `seq` 持久排序——`seq` 是每个 session 内单调递增的整数。续传用的是另一个值：每一个 SSE 帧都在 `id:` 行里带着一个不透明的续传令牌，SDK 把它放在 `ev.cursor` 上。把它发回去——走 SDK 就是 `{ cursor }`，直接调 HTTP 就是 `?cursor=`（公共网关不转发 `Last-Event-ID`）——服务端就从那里重放。`?after=<seq>` 也能重放，但走的是废弃的 engine-only 通道，那条通道不含你自己发的 input 事件。
 
 尽量少直接读 `payload`。SDK 为重要的那几种结构提供了带类型的读取函数，遇到类型不匹配的事件它们返回空值：
 
@@ -225,7 +225,7 @@ res.events[0]?.accepted // true
 
 ### 两种线格式
 
-REST 把字段拼成 snake_case（`event_type`、`run_id`、`created_at`），SSE 拼成 camelCase（`eventType`、`runId`、`createdAt`）；两者都没有顶层的 `type` 字段。SDK 把两者归一成同一个 `SessionEvent`，并为直接调 HTTP API 的情况导出了 `normalizeEvent`。见[事件与流式](../build/events.md)。
+默认统一通道的 REST 和 SSE 都用 snake_case（`event_type`、`run_id`、`created_at`），旧 SSE 通道可用 camelCase（`eventType`、`runId`、`createdAt`）；两者都没有顶层的 `type` 字段。SDK 把两者归一成同一个 `SessionEvent`，并为直接调 HTTP API 的情况导出了 `normalizeEvent`。见[事件与流式](../build/events.md)。
 
 ::: warning listEvents 只返回一页
 服务端默认 100 条事件，最大 500 条。`listEvents` 只返回一页——长会话会静默截断，不报任何错。请用 `zc.listAllEvents(agentId, sessionId)`，它替你把页翻完。

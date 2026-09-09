@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 1701831120fdbdc3a11c3767008e8a3fe845d7d61ed400fbce951aea6cf6e0fb
+source_hash: ac9a2a5a3127272de02d095a7f479458529685b52e48c988ad4991535bb2be6c
 ---
 
 # 错误与重试
@@ -72,7 +72,7 @@ API 这一侧本身就分两族，不是一族。session、定时任务、enviro
 两种情况会让你完全拿不到 type：
 
 1. 任何非 JSON 的错误响应体——中间层返回的 HTML 错误页、空响应体、代理超时。SDK 会保留一条干净的 `HTTP <status>` 文本，没有 type。
-2. **所有 SSE 流的失败。** `streamEvents()` 只根据状态行构造错误，所以哪怕响应体里带了 type，那里的 `type` 也永远是 `undefined`。
+2. **SSE 建连时的非 JSON 错误。** `streamEvents()` 与普通 HTTP 共用错误解析器；JSON 信封中的 `type` 会保留，不是所有流错误都没有 type。响应还可能包含 `requestId`、`contentType`、`bodySnippet`、`cfRay` 和 `retryable` 取证信息。网络中断则可能直接抛运行时错误。
 
 所以除了 `type`，也要按 `status` 分支，并且永远留一条只看 `status` 的兜底分支。
 :::
@@ -140,17 +140,20 @@ if (e instanceof ZooworkError) {
 | 操作 | 能否安全重试 | 原因 |
 |---|---|---|
 | `listModels`、`getAgent`、`getSession`、`listEvents`、`listAgentSkills`，以及其余的 `list*` / `get*` 读操作 | **能** | 都是读。网络错误和 5xx 用指数退避重试。 |
-| `startAgent`、`stopAgent` | **能** | 每次调用都对同一个 id 重跑一遍它的收敛动作。检查 `warnings`，另外记住 `channel_routes_reload_failed` 在纯 API 的 agent 上是预期内的噪声，不是失败。 |
+| `startAgent`、`stopAgent` | **先核对结果** | 成功回执可能带 warnings，但非 2xx 仍然抛错；stop 可能在 desired state 已写入后才失败。先 `getAgent` 对账，再决定是否重试。 |
 | `deleteAgent` | **能** | 软删除。重复调用都会成功。 |
-| `streamEvents` | **能** | 用最后一个事件的续传令牌重连——`{ cursor: ev.cursor }`。续传发生在服务端，两个窗口之间什么都不会丢。**不要**用 `{ after: lastSeq }` 重连：那会切到废弃的 engine-only 通道，它会丢掉你自己发的 input 事件（`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`）。 |
-| `createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion` | **只在带 `Idempotency-Key` 时能** | 不带的话，超时之后的一次重试会创建出第二个 agent，或者第二个 session，并把开场那一回合再跑一遍。 |
+| `streamEvents` | **能** | 用最后一个事件的续传令牌重连——`{ cursor: ev.cursor }`。服务端续传日志；处理成功后再保存游标，应用副作用不因此获得 exactly-once 保证。**不要**用 `{ after: lastSeq }` 重连：那会切到废弃的 engine-only 通道，它会丢掉你自己发的 input 事件（`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`）。 |
+| `createAgent`、`createSession`、`createEnvironment`、`createEnvironmentVersion` | **复用 key 与 body** | HTTP `Idempotency-Key` 的创建契约；不要每次重试都换 key。 |
+| `createSchedule` | **稳定 ID 与相同定义** | 同 `schedule_id`、同定义可收敛，不同定义冲突；不是靠 key 创建唯一性。 |
+| `uploadSkill` | **先读回** | 同 scope、同 name 再创建为 409，不是 upsert。 |
+| `uploadSkillVersion` | **核对内容与版本** | 相同内容去重，不是 HTTP key 保证；读回版本确认结果。 |
 | `updateAgent`、`putAgentSkill`、`deleteAgentSkill` | **不能** | 每次成功都会 bump `config_version`。超时之后先 `getAgent()` 对账，再决定怎么办。 |
 | `updateSchedule`、`deleteSchedule` | **不能** | 这两条都不提供跨超时的幂等保证。超时之后请列出这个 agent 的定时任务、读它们的运行记录来对账，不要把这次写入再发一遍。 |
-| `postEvents` | **不能** | 这条路由上没有幂等 key。盲目重试可能把同一条 `user.message` 投递两次，污染对话。请在你这边做去重。 |
+| `postEvents` | **复用逐事件 key** | key 在每条事件 body 的 `idempotency_key`，不是 HTTP header。保持同 key、同内容；没有 key 的盲重试可能重复投递。 |
 
 ### create 调用上的 `Idempotency-Key`
 
-有七个方法接受幂等 key，都以 `Idempotency-Key` 请求头发出：`createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion`。前五个把它作为最后一个参数传，两个上传方法把它放在 options 对象的 `idempotencyKey` 字段里。你最先会用到的是这两个：
+源码已核对的去重方式按操作区分，不能统一承诺 exactly-once。SDK 有七个方法能发送 `Idempotency-Key` 请求头，但发送不等于每条路由都会使用它：`createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion`。前五个把它作为最后一个参数传，两个上传方法把它放在 options 对象的 `idempotencyKey` 字段里。你最先会用到的是这两个：
 
 ```ts
 const created = await zc.createAgent(
