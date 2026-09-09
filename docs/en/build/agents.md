@@ -180,16 +180,16 @@ call. It is fast - sub-second in practice.
 ```ts
 const { warnings } = await zc.startAgent(agent.agent_id)
 console.log(warnings)
-// [ 'channel_routes_reload_failed: routes reload returned 404' ]
+// A successful response may include warnings; inspect them in context.
 ```
 
-### The start/stop warning you will always see
+### Warnings and HTTP failures
 
-Both `startAgent()` and `stopAgent()` return `{ warnings: string[] }`. An API-only agent -
-one with no chat channel attached - reports
-`channel_routes_reload_failed` on **every** start and **every** stop, because there are no
-channel routes to reload. This is expected noise. Do not treat a non-empty `warnings` array as
-a failure, and do not retry on it. Log it and move on.
+Successful start/stop responses return `{ warnings: string[] }`; warnings are not guaranteed
+on every call. A non-2xx response throws `ZooworkError`, not a successful warning result.
+
+Source-reviewed stop behavior can reject after `desired_state` changes to `stopped`.
+Read back and reconcile before retrying; that field alone does not prove runtime cleanup.
 
 ### `desired_state` vs `actual_state`
 
@@ -276,10 +276,10 @@ projection.
 arrays and scalars inside them replace the old value.
 
 ```ts
-// The agent was created with name, model, persona and labels.
+// Before: labels are { tier: 'free', region: 'apac' }.
 // This PUT sends only `labels`.
 const updated = await zc.updateAgent(agent.agent_id, {
-  labels: { tier: 'paid', region: 'apac' },
+  labels: { tier: 'paid' },
 })
 
 console.log(Object.keys(updated.declared ?? {}))
@@ -287,15 +287,16 @@ console.log(Object.keys(updated.declared ?? {}))
 
 console.log(updated.declared?.name)   // 'research-agent'  - survived
 console.log(updated.declared?.model)  // { primary: 'litellm/claude-sonnet-5', ... } - survived
-console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - replaced wholesale
+console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - region survives
 ```
 
 `declared` is wider than what you sent. `imageModel`, `imageGenerationModel` and `pdfModel` are
 server-side defaults that appear there on every read; they are not members of `AgentResource`,
 and sending them is a type error.
 
-`name`, `model` and `persona` are untouched because they were not in the body. Note that
-`labels` itself was replaced, not merged key-by-key: the merge is per section, not recursive.
+`name`, `model` and `persona` are untouched because they were omitted. Plain-object sections
+merge one level: omitted label keys survive. It is not recursive deep merge: an explicitly
+supplied `persona.docs` array replaces the previous array.
 
 ### `tool_policy` and `system_prompt` are replaced wholesale
 
@@ -331,7 +332,7 @@ are managed through their own routes - see [Skills](./skills.md).
 
 ```ts
 const { warnings } = await zc.stopAgent(agentId)
-// desired_state -> 'stopped'; the same channel_routes_reload_failed warning appears here too.
+// HTTP failure throws; read back before deciding to retry.
 ```
 
 After a stop, `createSession()` on that agent returns `409 agent_not_running` again, stably.

@@ -235,10 +235,19 @@ await zc.putAgentSkill(agentId, skill.skill_id)
 `scope` must be `org` or `personal`; `global` and `pack` are refused on this route. One call
 creates the skill row **and** version 1.
 
-`uploadSkill` is create-only. To publish a new version of a skill that already exists, use
-`uploadSkillVersion(skillId, zip)` - the frontmatter `name` must match the target skill. Agents
-that installed it unpinned follow the new version by themselves: the registry bumps their
-`config_version` and you do **not** call `putAgentSkill` again.
+`uploadSkill` is create-only. Put the initial description in the zip's frontmatter: the
+public gateway drops the create call's `description` option. Other scopes than org/personal
+are rejected by the gateway with HTTP 400. Source-reviewed, not live-verified here.
+
+Use `uploadSkillVersion(skillId, zip)` to upload a new version; its frontmatter name must
+match the skill. It returns `SkillVersionRecord` with `skill_id`, `version` and `state`,
+not `SkillRecord.latest_version/status`. This version operation can use the description
+override. Unpinned installations follow updates without another `putAgentSkill`.
+
+Retry behavior differs: root create can return `409 skill_exists` after a successful
+same-name create; version upload deduplicates identical content for that skill. Neither
+promises HTTP-key replay. Read back to reconcile an uncertain outcome. These details and
+the version return type are source-reviewed; no live recording is claimed.
 
 `deleteSkill(skillId)` has no in-use guard. Agents holding the skill simply lose it.
 

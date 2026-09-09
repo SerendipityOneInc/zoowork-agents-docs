@@ -2,7 +2,7 @@
 title: Sessions
 description: 创建、继续、列出、归档和删除 session，并读取 transcript。
 source: /en/build/sessions
-source_hash: 8e5b21e6b042dafacb9f8532931e36068e36e57e53854f72558f73d4a1829583
+source_hash: c493b348855a62047cb9d0b3a4e38b9617f19a8a216e6b8ace88786f23296636
 ---
 
 # Sessions
@@ -45,6 +45,12 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 const agentId = process.env.AGENT_ID!
 ```
+
+::: warning 源码已核对，不是审批端到端实测
+没有最近 run 时，`run_status` 可为 null。`pending_approvals` 是可选数字，不是审批数组；记录从 `listApprovals` 读取。resolve 返回 202/`signaled` 时仍可能 pending，不证明工具已执行。
+
+初始 `user.message` 和后续消息一样可带 `actor: { ref }`。稳定 ref 应由已鉴权的后端选择，metadata 本身不选择 actor；归属标识不是权限或文件/session 隔离，IM session 拒绝调用方 actor。校验规则见[事件](./events.md)。
+:::
 
 ## 前置条件：agent 必须在运行
 

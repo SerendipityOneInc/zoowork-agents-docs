@@ -2,7 +2,7 @@
 title: 工具
 description: 控制内置工具、声明 MCP server，并通过事件观察工具调用。
 source: /en/build/tools
-source_hash: 7e43f217453a95c44b4f9f6bba88db2798ae2dc64634de8150ec7f0d021f7a66
+source_hash: 9fba2fcb1379dfa868b934b0d1cffa2531b7d44ad42db60efdc3d780fa4e3f7b
 ---
 
 # 工具
@@ -169,8 +169,8 @@ await zc.updateAgent(agentId, {
 - 只涵盖**远程 HTTP** server。沙箱里没有 stdio server，也没有 OAuth 流程。
 - `url` 必须是绝对地址且公网可达：回环地址、私网段、云元数据地址和重定向都会被拒。
 - MCP 工具以 `mcp__<server>__<tool>` 这个名字呈现给模型，也呈现给你。`toolCall(ev).toolName` 里出现这个前缀，就是你确认 server 真的被访问到的方式。
-- 目录按 `config_version` 固定，所以改动声明在下一个回合生效，不是当前这个回合。
-- 一个目录探测失败的 server 不会让 run 失败。它会钉住一份空目录，并发出 `kind: 'mcp_connection_failed'` 的 `agent.error`，回合照常进行，只是没有那些工具。
+- 健康目录仍按 `config_version` 固定。源码核对显示，短暂失败的目录可以过期，下次解析目录时才可能重新探测。过期策略由部署配置，不是周期重试或自动恢复保证。
+- 探测失败可能让这个回合缺少该 server 的工具，并发出 `agent.error`：`kind` 为 `mcp_connection_failed` 或 `mcp_authentication_failed`，带 `server`、`errorMessage` 和可选 `reason`。未知 reason 应保留。这些新增细节尚未做真实部署验证，也不构成自动重试业务工具调用的理由。
 - 它只声明在 agent 上：没有自己的 MCP 资源，也没有 session 级覆盖。
 
 ::: danger 只能用免鉴权的 server
@@ -179,12 +179,12 @@ await zc.updateAgent(agentId, {
 
 这条路径是服务端托管、只支持免鉴权、按 `config_version` 钉住的。不要把它当成客户端执行工具的直接替代品来规划产品。
 
-## 人工审批无法端到端使用
+## 人工审批需要部署验证
 
 `agent.tool` 有第三种 phase，`blocked`：这次调用正在等待审批，还没有执行；审批一旦有结果，`end` 事件照样会跟上来。
 
 ::: warning 尚未验证
-一次 run 卡在没人回应的审批上，它不会等你。这个回合会超时。
+审批闭环及 turn 预算行为尚未在这里验证。不要假设未经验证的审批流程能保护危险能力。源码核对的字段包括 `requested_at`、`arguments_preview`、`allowed_decisions` 和可选超时/处理人字段。202 响应带 `signaled: true` 时仍可能为 `pending`；接受信号不代表工具已经执行完成。
 
 `ZooworkClient` 上确实有 `listApprovals` 和 `resolveApproval`，但它们调的是另外那套 approvals REST 资源，不是 `user.tool_confirmation` 事件闭环。
 
@@ -193,7 +193,7 @@ await zc.updateAgent(agentId, {
 
 ## 相关
 
-- [事件与流式](./events.md)——事件词汇表、`seq` 续传游标，以及 `run.finished`。
+- [事件与流式](./events.md)——事件词汇表、不透明续传游标，以及 `run.finished`。
 - [Skills](./skills.md)——挂在 agent 上的打包能力，和工具是两套不同的机制。
 - [Environments](./environments.md)——工具运行所在的那个沙箱里装了什么。
 - [不支持的能力](../reference/not-supported.md)——完整的缺口清单，包括这一条。

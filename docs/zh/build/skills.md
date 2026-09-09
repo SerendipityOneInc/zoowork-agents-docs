@@ -2,7 +2,7 @@
 title: Skills
 description: 打包、上传、绑定、检查、更新和移除 agent 的 skill。
 source: /en/build/skills
-source_hash: 0be9d6342b07d2ed14fc7c2d1ed9e74b7cb8cfeefd9b942b5c0f039701755dd7
+source_hash: 082550b65b60a005ba17260195f7624d0bd81a9dfca22ce2c1f65b27d1e6f485
 ---
 
 # Skills
@@ -187,9 +187,13 @@ const skill = await zc.uploadSkill(zip, { scope: 'org' })
 await zc.putAgentSkill(agentId, skill.skill_id)
 ```
 
-`scope` 必须是 `org` 或 `personal`；这条路由拒绝 `global` 和 `pack`。一次调用同时创建 skill 记录**和**版本 1。
+`scope` 必须是 `org` 或 `personal`；公共网关以 `400` 拒绝其他值。一次调用同时创建 skill 记录**和**版本 1。创建时的 description 来自 ZIP 的 frontmatter，网关不会转发 `uploadSkill` options 中的 `description`。这两点已核对源码，未在本轮线上验证。
 
-`uploadSkill` 是 create-only。要给一个已存在的 skill 发新版本，用 `uploadSkillVersion(skillId, zip)`——frontmatter 的 `name` 必须和目标 skill 一致。未 pin 版本的 agent 会自己跟随新版本：registry 会 bump 它们的 `config_version`，你**不需要**再调一次 `putAgentSkill`。
+已核对源码：`uploadSkill` 是 create-only，同 scope、同 name 再次创建会返回 `409`，不是 upsert。超时后先用 `listSkills` 核对结果。版本上传按相同内容去重；不要把 SDK 接受 `idempotencyKey` 理解为这两种上传都保证 HTTP 请求头幂等或 exactly-once。
+
+要给已有 skill 发版本，用 `uploadSkillVersion(skillId, zip)`。它返回 `SkillVersionRecord`：`skill_id`、`version`（string 或 number）、`state`，不是带 `latest_version` 和 `status` 的根记录。`description` option 在版本上传时可以覆盖 frontmatter；frontmatter 的 `name` 必须与目标 skill 一致。
+
+未 pin 版本的 agent 会跟随新版本，registry 会 bump 它们的 `config_version`；不需要再调一次 `putAgentSkill`。版本返回类型依赖对应 SDK，仍需单独验证部署。
 
 `deleteSkill(skillId)` 没有在用保护。持有该 skill 的 agent 就是直接失去它。
 

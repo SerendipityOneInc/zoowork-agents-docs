@@ -48,6 +48,17 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 const agentId = process.env.AGENT_ID!
 ```
 
+::: warning Source-reviewed fields, not an end-to-end approval test
+`run_status` can be null when there is no latest run. `pending_approvals` is an optional
+number, not a list; use `listApprovals` for records. A resolve receipt with 202/`signaled`
+can remain pending and does not prove a tool executed.
+
+Initial `user.message` events can carry `actor: { ref }`, just like later messages.
+Choose a stable ref from authenticated backend state; metadata alone does not select it.
+Attribution is not authorization or file/session isolation, and IM sessions reject caller actor.
+See [Events](./events.md) for validation rules.
+:::
+
 ## Precondition: the agent must be running
 
 `createSession` fails on an agent that is not running:

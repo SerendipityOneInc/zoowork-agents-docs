@@ -2,7 +2,7 @@
 title: 每用户一个 agent
 description: 为每个用户创建隔离的 agent，并安全地批量更新配置。
 source: /en/build/per-user-agents
-source_hash: cbb25b2d194f8e1fd18b897c2965eff4a10033af62f9dd500f56c53be0d82ca0
+source_hash: e640267eda9b5fb1acb4f21251e40579bc27af41ae9313c679b5c5cd0c3ec673
 ---
 
 # 每用户一个 agent
@@ -16,9 +16,9 @@ source_hash: cbb25b2d194f8e1fd18b897c2965eff4a10033af62f9dd500f56c53be0d82ca0
 如果只是要按用户隔离*对话*状态，一个 agent、每个会话一个 session 就够了，而且更便宜——见 [Sessions](./sessions.md)。当用户之间不能共享 transcript **之外**的东西时，才需要每用户一个 agent：
 
 - **沙箱。** 一个 agent 只有一个沙箱，它的每个 session 都工作在同一个持久的 `/workspace` 里。一个 session 写的文件，另一个 session 读得到。如果多个用户共享一个 agent，就意味着一个*用户*写的文件，另一个用户的 turn 读得到。
-- **模型侧记忆。** 在部署启用了模型记忆工具的情况下，这些记忆的作用域是 agent 级、跨 session 的——而且它们对 API 不可见，你没有办法事后按用户切分。其状态见[能力矩阵](../reference/capabilities.md)。
+- **模型侧记忆。** API 消息可以用 `actor: { ref: 'customer-42' }` 选择用户记忆归属，省略时归属 owner。这是源码核对过、仍需验证部署的契约。它不会重新划分历史记忆、清空 session 上下文、认证用户或隔离文件。见[事件](./events.md#usermessage)。
 
-单个 agent 内部没有按用户的沙箱，也没有办法按终端用户切分 `/workspace`。隔离的边界画在 agent 上，所以按用户隔离就等于按用户建 agent。
+单个 agent 内部没有按用户的沙箱，也没有办法按终端用户切分 `/workspace`。文件隔离的边界在 agent 上；不能共享沙箱文件的用户需要独立 agent。应用仍须逐次校验用户对 Agent/session 的访问权限。
 
 代价也是真实的：每个 agent 都是一个要单独开通和启动的沙箱，agent 级配置（persona、模型、tool policy）现在存在 N 份。这一页余下的部分，就是讲怎么让这 N 份副本不变成 N 个维护负担。
 

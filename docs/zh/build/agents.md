@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: f11acd11a8e48884f39fbcdb210c8ac22888e6af86997f884f89318d3cac3b2a
+source_hash: c6692e707ad7aef1302b690dcdbb56996b3314f3f74084f80c83c602cdfd0822
 ---
 
 # Agents
@@ -158,12 +158,14 @@ console.log(agent.declared?.name, agent.status?.desired_state, configVersion(age
 ```ts
 const { warnings } = await zc.startAgent(agent.agent_id)
 console.log(warnings)
-// [ 'channel_routes_reload_failed: routes reload returned 404' ]
+// 成功响应可能包含 warnings；结合具体情况检查。
 ```
 
-### 启停时你一定会看到的那条 warning
+### 警告与 HTTP 失败
 
-`startAgent()` 和 `stopAgent()` 都返回 `{ warnings: string[] }`。纯 API 的 agent —— 也就是没有挂任何聊天渠道的 agent —— 在**每一次** 启动和**每一次** 停止都会报 `channel_routes_reload_failed`，因为根本没有渠道路由可以重载。这是预期内的噪音。不要把非空的 `warnings` 数组当成失败，也不要因此重试。记一条日志然后继续。
+成功的 start/stop 响应返回 `{ warnings: string[] }`，但不保证每次都有警告。非 2xx 响应会抛出 `ZooworkError`，不能把失败调用当作仅含警告的成功。
+
+源码核对显示，stop 可能先把 `desired_state` 改为 `stopped` 再失败。先读回状态并核对结果，再决定是否重试；仅凭这个字段不能证明运行资源已经清理完成。
 
 ### `desired_state` 与 `actual_state`
 
@@ -233,10 +235,10 @@ try {
 **你没写进 body 的小节会被保留。** 顶层的对象小节只合并一层；小节内部的数组和标量整个替换掉旧值。
 
 ```ts
-// The agent was created with name, model, persona and labels.
+// 修改前 labels 是 { tier: 'free', region: 'apac' }。
 // This PUT sends only `labels`.
 const updated = await zc.updateAgent(agent.agent_id, {
-  labels: { tier: 'paid', region: 'apac' },
+  labels: { tier: 'paid' },
 })
 
 console.log(Object.keys(updated.declared ?? {}))
@@ -244,12 +246,12 @@ console.log(Object.keys(updated.declared ?? {}))
 
 console.log(updated.declared?.name)   // 'research-agent'  - survived
 console.log(updated.declared?.model)  // { primary: 'litellm/claude-sonnet-5', ... } - survived
-console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - replaced wholesale
+console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - region 保留
 ```
 
 `declared` 比你发出去的宽。`imageModel`、`imageGenerationModel` 和 `pdfModel` 是服务端默认值，每次读都会出现在里面；它们不是 `AgentResource` 的成员，发送它们是类型错误。
 
-`name`、`model` 和 `persona` 没被动，因为它们不在 body 里。但 `labels` 本身是被整个替换的，不是逐键合并：合并的粒度是小节，不是递归。
+`name`、`model` 和 `persona` 因为没有传入而保持不变。普通对象小节做一层浅合并，所以未指定的 label 键保留。这不是递归深合并：显式传入的 `persona.docs` 数组会替换旧数组。
 
 ### `tool_policy` 和 `system_prompt` 是整体替换
 
@@ -279,7 +281,7 @@ PUT body 里的 `skills`、`credentials`，以及任何未知字段，都返回 
 
 ```ts
 const { warnings } = await zc.stopAgent(agentId)
-// desired_state -> 'stopped'; the same channel_routes_reload_failed warning appears here too.
+// HTTP 失败会抛错；先读回结果，再决定是否重试。
 ```
 
 停止之后，对这个 agent 调 `createSession()` 会稳定地重新返回 `409 agent_not_running`。

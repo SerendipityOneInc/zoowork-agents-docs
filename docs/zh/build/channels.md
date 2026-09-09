@@ -2,7 +2,7 @@
 title: 渠道
 description: 把 agent 接入聊天平台，并管理各渠道的配置流程与生命周期。
 source: /en/build/channels
-source_hash: 983ec749c157740108fd8a37e786e6b40c4702414cff87d8e310eea4e39a6618
+source_hash: 246fa4fd7b80e02cca46c56836dd1e96b58f004be52ba2c404d56179cd952cf1
 ---
 
 # 渠道
@@ -62,7 +62,7 @@ if (done.status === 'success') {
 }
 ```
 
-`waitForChannelSetup` 按服务端建议的间隔轮询，并且把**每一种**终态都当返回值交回来，而不是对「人为结果」抛异常——「对方一直没扫码」是一种结果，不是一个 exception。它只在两种情况下抛错：你设的超时到了（`408` / `type: 'timeout'`），或你自己 abort 了（`0` / `'aborted'`）。
+`waitForChannelSetup` 按服务端建议的间隔轮询，并且把**每一种**终态都当返回值交回来，而不是对「人为结果」抛异常——「对方一直没扫码」是一种结果，不是一个 exception。它也会因 HTTP/传输失败抛错；本地超时是 `408` / `type: 'timeout'`，自己取消是 `0` / `'aborted'`。
 
 如果你自己驱动轮询，用 `pollChannelSetup(agentId, platform, sessionId)`，并把不认识的 `status` 一律当作仍在进行中：
 
@@ -120,7 +120,9 @@ await zc.addChannel(agentId, {
 
 Slack 跑在 socket mode 下，所以除了 bot token 还需要那个 app 级的 `xapp-` token。两个都在 Slack 应用自己的设置页里拿。
 
-`allow_from` **只在创建时**接受，之后不能再编辑。
+::: warning 被忽略的字段不是访问白名单
+源码核对显示，公共网关会忽略 `allow_from`，创建时也一样。SDK 为兼容保留这个字段，传入它并不能限制访问。请使用受支持的 `dm_policy` 设置，并单独验证实际生效的策略。
+:::
 
 ::: danger 201 的含义是「存下了」，不是「能用」
 绑定时**不校验凭证**。我们用一组故意编造的凭证去绑，拿回来的是 `201`，带着 `health: 'unknown'`、`status: 'configured'`——和一个正常绑定返回的形状一模一样。几秒之后，同一个渠道在列表里的状态变成了 `health: 'unhealthy'`、`status: 'error'`。
@@ -181,7 +183,7 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 动手绑之前，有两件事要先设计好：
 
 ::: danger 聊天对话和 API session 是分开的
-聊天软件里的对话，和你通过 API 创建的 session，是**两个 session、两份上下文**——绑定渠道不会让你的 API 调用读到 agent 在飞书里说了什么，也不能往那段对话里插话。聊天流量会以它自己的 session 出现，不会混进你的 session。如果你的产品需要两边共享一份记忆，那是应用层的设计问题，不是一个开关。
+聊天软件里的对话，和你通过 API 创建的 session，是**两个 session、两份上下文**，不会自动合并。这**不等于 API key 的访问隔离**：源码核对显示，有权限的 API 调用可以按 id 访问 IM session。你的后端必须校验应用用户对每个 Agent/session 的权限。IM session 拒绝 `actor`，应使用渠道原生身份规则。
 :::
 
 ::: warning `actual_state` 开始有含义了

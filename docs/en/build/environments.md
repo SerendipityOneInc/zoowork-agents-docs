@@ -79,8 +79,8 @@ These are properties of the platform, not defaults you can change.
   start hooks.** An Environment is a build-time artifact. `build.script` runs when the image
   is built, never when a sandbox starts. If your dependency needs an API key at runtime,
   an Environment is not where it goes.
-- **Versions are immutable.** A retry after a failed build retries that same version and
-  keeps the attempt and log history.
+- **Version configuration is immutable.** Creating a version adds a new one. Retrying an
+  existing failed build is a separate operation; `createEnvironmentVersion` is not retry.
 - **Skills, personas, and workspace files are not part of an Environment.** You submit
   packages, files, and a build script explicitly; nothing is inferred from anywhere else.
 
@@ -146,8 +146,8 @@ A cross-tenant `environment_id` is hidden as `404`, not `403`.
 | `getEnvironment(environmentId)` | Reads one Environment. |
 | `createEnvironment({ resource, ownership }, idempotencyKey?)` | Creates an Environment and its first version. |
 | `archiveEnvironment(environmentId)` | Archives it. |
-| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | Adds an immutable version. A retry after a failed build retries **that** version and keeps its attempt log. |
-| `getEnvironmentVersion(environmentId, version)` | Reads one version. This is the call you poll. |
+| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | Adds a new immutable configuration version, not a retry of the old one. |
+| `getEnvironmentVersion(environmentId, version, opts?)` | Reads aggregate build state; optional `opts.resourceClass` selects `starter`, `pro` or `ultra`. Source-reviewed, not live-verified here. |
 
 The platform default Environment - the one a fresh agent is pinned to - is not in
 `listEnvironments()`, and `getEnvironment()` on it answers `404`. The gateway forces an org
@@ -214,20 +214,47 @@ Poll the **version**, not the Environment, and the field is `status` - there is 
 version, and a loop written against one compares `undefined` to `'ready'` forever.
 
 ```ts
-const version = env.version!.version!
-let v = await zc.getEnvironmentVersion(env.environment_id, version)
+import { createZooworkClient } from '@zoowork-ai/sdk'
 
-while (v.status !== 'ready' && v.status !== 'failed') {
-  await new Promise((r) => setTimeout(r, 2000))
-  v = await zc.getEnvironmentVersion(env.environment_id, version)
+const version = env.version!.version!
+const deadline = Date.now() + 5 * 60_000
+const cancel = new AbortController() // call cancel.abort() to stop this wait
+const bounded = createZooworkClient({
+  fetch: (url, init) => fetch(url, {
+    ...init,
+    signal: AbortSignal.any([
+      cancel.signal,
+      AbortSignal.timeout(Math.max(1, Math.min(10_000, deadline - Date.now()))),
+    ]),
+  }),
+})
+let v
+while (Date.now() < deadline && !cancel.signal.aborted) {
+  v = await bounded.getEnvironmentVersion(env.environment_id, version)
+  if (v.status === 'ready') break
+  if (v.status === 'failed') throw new Error(v.failure_message ?? 'Build failed')
+  if (v.status === 'partial_ready') {
+    const selected = await bounded.getEnvironmentVersion(env.environment_id, version, {
+      resourceClass: 'starter',
+    })
+    if (selected.status === 'failed') throw new Error('Selected class failed')
+    // This example waits for ALL classes, not just starter. Re-read the aggregate next.
+  }
+  await new Promise((resolve) => setTimeout(resolve, 2000))
 }
-if (v.status === 'failed') throw new Error(`${v.failure_stage}: ${v.failure_message}`)
+if (v?.status !== 'ready') throw new Error('Build wait cancelled or timed out; inspect class status')
 ```
 
-A version walks `queued`, `submitting`, `building`, `verifying`, `ready`. Any phase can end in
-`failed`, and `failure_stage` names which one. The Environment's own `status` is `active` or
-`archived` - it is lifecycle, not build progress, and it reads `active` the whole time a build
-is running.
+::: warning Source-reviewed build behavior
+A version can be `queued`, `submitting`, `building`, `verifying`, `partial_ready`, `ready`
+or `failed`. `partial_ready` means some classes are ready while others may be building or
+failed; it can be transient or a partial terminal result. It is not itself a verdict for your
+chosen class. This conservative example waits for aggregate ready with bounded requests;
+a terminal partial build exits by timeout rather than waiting forever. The resource-class
+selector requires the SDK contract shown here; verify deployment behavior before relying on it.
+:::
+
+The Environment's top-level `status` is `active` or `archived`, not build progress.
 
 The Environment row carries two version numbers and they are not the same number.
 `latest_version` is the newest version *created*: it is `1` the instant you create an

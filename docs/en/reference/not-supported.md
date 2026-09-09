@@ -85,8 +85,9 @@ card, and the run continues or stops based on the click.
 
 **What happens:** the pieces exist separately - `agent.approval` in the event vocabulary, a
 `blocked` phase on `agent.tool`, `user.tool_confirmation` as an accepted write type - but no
-real pending approval has ever been produced, so nothing about the round trip is proven, and
-an agent waiting on one spends the turn waiting. See the
+real pending approval is covered by the existing recordings, so the round trip and
+turn-budget behavior remain unverified here. A 202 resolution receipt can still say
+`status: 'pending'`; acceptance does not establish completion. See the
 [capability matrix](./capabilities.md#tools).
 
 **Instead:** gate on your side. Keep the dangerous capability out of the agent's tool policy,
@@ -131,8 +132,9 @@ signature on the delivery.
 configuration. A schedule's `delivery` field accepts `none` and a typed `announce`; webhook
 delivery is rejected.
 
-**Instead:** hold the SSE stream, or poll `listEvents` with `after` - every frame carries a
-durable `seq` and the server replays from it, so a dropped connection costs you nothing.
+**Instead:** hold the SSE stream and resume with its opaque `cursor`, or page
+`listEventsPage` with `nextCursor`. Keep tokens unchanged. `after` selects the legacy lane
+and omits user-input events.
 
 ## Agent version pinning and rollback
 

@@ -149,7 +149,7 @@ flow is its only path. See [Channels](../build/channels.md) for the platform tab
 |---|---|---|
 | `listChannels(agentId)` | `Promise<AgentChannel[]>` | The platform accounts bound to this agent, with their `health` and `status`. Empty for a pure API agent. |
 | `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from `health`/`status` on a follow-up `listChannels`. |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, or `enabled` on one binding and returns it in its new state. `allow_from` is write-once at create. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, or `enabled` on one binding and returns it in its new state. The public gateway ignores `allow_from`; it is not a working allowlist. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
 | `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Unbinds one `platform` + `account` (`account` defaults to `'default'`). Idempotent, unlike `updateChannel` - removing a binding that is not there answers `200 { ok: true }`. |
 | `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts a QR registration on `'feishu'`, `'wecom'` or `'weixin'`. Feishu answers `verification_uri_complete` and a `poll_interval`, with `expires_in: 600`; WeCom and WeChat answer `qrcode_url` with no interval and `expires_in: 300`, and WeChat's may be an inline `data:image/…` payload. You own the UI: render whichever one came back, usually as a QR code. `brand: 'lark'` (Feishu only) switches the URI host to `open.larksuite.com` and must match the workspace the person approves it in. |
 | `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | Polls that session once. A cancelled or vanished session answers `404 channel.{platform}_session_not_found` rather than a terminal status, so a hand-rolled loop must treat that 404 as an end condition, not a transport error to retry. |
@@ -161,8 +161,8 @@ flow is its only path. See [Channels](../build/channels.md) for the platform tab
 
 | Method | Returns | What it does |
 |---|---|---|
-| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | Uploads a skill package as a zip; one call creates the skill row **and** version 1. `opts.scope` is `org` or `personal` - `global` and `pack` are 403. The zip's single top-level directory name must equal the `name` in `SKILL.md`'s frontmatter. |
-| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillRecord>` | Publishes a new version of an existing skill from a zip. Agents that installed it unpinned follow the new version on their own. |
+| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | Creates the skill and version 1. Scope is `org` or `personal`; other values get HTTP 400. Put description in ZIP frontmatter: this create option is not forwarded. Read back on uncertain outcomes; HTTP keys do not guarantee replay. |
+| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | Source-reviewed version row: `skill_id`, `version`, `state`. Description override is supported here. Same-skill identical content is deduplicated; unpinned agents follow the version. |
 | `listSkills(opts?)` | `Promise<SkillRecord[]>` | The registry catalog visible to your key: global skills plus your org and personal ones. `q` matches on name, `page` is 1-based, page size fixed at 100. |
 | `deleteSkill(skillId)` | `Promise<void>` | Deletes a registry skill (204). No in-use guard for org and personal scopes: agents holding it simply lose it. |
 
@@ -186,7 +186,7 @@ flow is its only path. See [Channels](../build/channels.md) for the platform tab
 | Method | Returns | What it does |
 |---|---|---|
 | `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | Tool calls parked on a human decision. `opts.status` may only be omitted or `'pending'`, so resolved ones cannot be listed. This is the platform's separate approvals resource, not the `user.tool_confirmation` event loop; where its backend is not wired the route answers `501 not_configured`. |
-| `resolveApproval(agentId, approvalId, input)` | `Promise<Record<string, unknown>>` | Resolves one approval with `decision` of `allow-once`, `allow-always`, or `deny`; anything else is a 400. An optional `resolvedBy` records who decided. Same route family, same `501`. |
+| `resolveApproval(agentId, approvalId, input)` | `Promise<ApprovalRecord>` | Sends an allowed `decision` and optional `resolvedBy`. A 202 receipt with `signaled: true` can still be `pending`; it is not completed execution. Response fields are source-reviewed, not live-verified. |
 
 **System prompt**
 
@@ -275,7 +275,7 @@ command comes back looking like a short one.
 | `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | Creates an Environment and its first version. `resource.config` takes exactly `packages`, `files`, `build`, and `networking`; anything else is `400 invalid_environment_config`. |
 | `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Archives it. The SDK percent-encodes the colon in `{id}:archive` for you - a raw `:` makes the engine miss the route and answer 404. |
 | `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | Adds an immutable version to an existing Environment. The SDK wraps your `config` as `{ resource: { config } }`, mirroring create. |
-| `getEnvironmentVersion(environmentId, version)` | `Promise<EnvironmentVersionRecord>` | Reads one version. Poll **this**, on `status`, to decide whether a version is usable; there is no `state` field here, and a loop written against one never terminates. |
+| `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | Reads aggregate status or optional `opts.resourceClass` (`starter`, `pro`, `ultra`). Handle `partial_ready` and enforce a deadline; see [Environments](../build/environments.md#build-states). Selector is source-reviewed, not live-verified here. |
 
 Only the methods with a section below carry behaviour beyond their signature; the rest are
 one call each. A method being on the client is not a claim that its route has been exercised -
@@ -401,14 +401,14 @@ updateAgent(agentId: string, sections: Record<string, unknown>): Promise<AgentRe
 
 PUTs the declared sections you name and returns the read projection.
 
-**Sections you omit are preserved.** The merge is per section and one level deep: a section
-you do send replaces the old value of that section wholesale.
+**Sections you omit are preserved.** Plain-object sections shallow-merge one level; arrays
+and scalars replace. For example, with existing labels `{ tier: 'free', region: 'apac' }`:
 
 ```ts
 const updated = await zc.updateAgent(agentId, { labels: { tier: 'paid' } })
 
 console.log(updated.declared?.name)   // unchanged - `name` was not in the body
-console.log(updated.declared?.labels) // { tier: 'paid' } - replaced, not merged key-by-key
+console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - omitted key preserved
 ```
 
 `tool_policy` and `system_prompt` are the exceptions even to that: every PUT naming one
@@ -450,9 +450,9 @@ console.log(warnings)
 // [ 'channel_routes_reload_failed: routes reload returned 404' ]
 ```
 
-**`warnings` is informational, not a failure.** An API-only agent reports
-`channel_routes_reload_failed` on every start and every stop; do not retry on it. See
-[Agents](../build/agents.md).
+Successful responses can contain warnings; they are not guaranteed on every call.
+HTTP failures still throw. Do not treat a rejected call as a warning-only success.
+See [Agents](../build/agents.md).
 
 Then wait for `status.desired_state === 'running'`, and never for `status.actual_state`. That
 wait is a method - do not write the loop yourself:
@@ -495,8 +495,8 @@ a stop, `createSession()` on that agent returns `409 agent_not_running`.
 const { warnings } = await zc.stopAgent(agentId)
 ```
 
-Both start and stop re-run their convergence actions on every call, so they are safe to call
-against the same id again.
+Source-reviewed stop behavior can fail after desired state changes. Read back and reconcile
+before retrying; `desired_state: 'stopped'` alone does not prove cleanup completed.
 
 ---
 
@@ -782,11 +782,11 @@ const ctl = new AbortController()
 const budget = setTimeout(() => ctl.abort(), 120_000)
 
 let text = ''
-let lastSeq = 0
+let cursor: string | undefined
 let outcome: string | undefined
 
 for await (const ev of zc.streamEvents(agentId, sessionId, { signal: ctl.signal })) {
-  lastSeq = ev.seq
+  cursor = ev.cursor ?? cursor
   text += assistantText(ev)
   if (isRunFinished(ev)) {
     outcome = runOutcome(ev)
@@ -816,8 +816,27 @@ Four behaviours worth knowing:
   reconnect does not reach you twice. A frame that normalizes to `seq: -1` carries no usable
   cursor and is passed through rather than dropped.
 
-A non-2xx response throws a `ZooworkError`. That particular error is built from the status
-line alone, so **`type` is always `undefined` on a stream failure** - branch on `status`.
+A non-2xx stream-open response uses the same `ZooworkError` parser as other calls.
+Structured responses can provide `type` and `requestId`; `contentType`, `bodySnippet`,
+`cfRay` and `retryable` provide context when present. HTML failures may have no type.
+Match status and an available type; never assume every stream failure lacks one.
+
+## Source-reviewed contract details
+
+These additions are reflected in SDK types and offline tests, not new live recordings:
+
+- `OutboundEvent.actor`: `{ ref: string }` for API-session user messages. See the identity and
+  isolation limits in [Events](../build/events.md#usermessage).
+- Interval cadence: `{ kind: 'every', everyMs: 60_000, anchorMs: 0 }`. The obsolete `every`
+  field is not converted; migrate explicitly. `ScheduleRun.session_id` is optional.
+- `SkillVersionRecord`: `skill_id: string`, `version: string | number`, `state: string`.
+  Do not read the create record's `latest_version/status` from a version upload.
+- `SessionRecord.run_status` can be null, and `pending_approvals` is an optional count.
+- `ApprovalRecord`: optional `requested_at`, `arguments_preview`, `allowed_decisions`,
+  `timeout_at`, `resolved_by`, `resolved_at`, `signaled` and `decision`. Legacy
+  `created_at` remains type-compatible but is not promised on current responses.
+- Environment builds include `partial_ready`; use bounded polling and, if needed, the
+  existing GET's optional `resourceClass`. Configuration creation and build retry differ.
 
 ## Types
 
@@ -841,6 +860,9 @@ the write shape and the read shape of a schedule are different documents.
 
 ```ts
 interface SessionEvent {
+  cursor?: string
+  id?: string
+  processedAt?: string | null
   seq: number
   eventType: SessionEventType | string
   payload: Record<string, unknown>
@@ -852,7 +874,8 @@ interface SessionEvent {
 
 | Field | Notes |
 |---|---|
-| `seq` | Durable per-session sequence. This is the `after` cursor for both `listEvents` and `streamEvents`. `-1` when the wire carried neither a `seq` field nor a numeric SSE `id:`. |
+| `seq` | Durable sequence; not the recommended resume token. Resume SSE with its opaque `cursor`. `after` is the legacy engine-only lane. `-1` means no usable sequence was supplied. |
+| `cursor` | Opaque SSE resume token. Pass it unchanged as `{ cursor }`; do not derive it from `seq`. |
 | `eventType` | One of `SESSION_EVENT_TYPES`, or an unknown string that passed through. `''` if the wire carried no type at all. |
 | `payload` | The event body. Shape varies by type; use the helpers below rather than reaching in blind. |
 | `runId` | The run this event belongs to. |
@@ -861,8 +884,8 @@ interface SessionEvent {
 
 `SessionEvent` is camelCase while `SessionRecord` and `AgentRecord` next to it are
 snake_case - that is the wire, not a typo, so do not "fix" `eventType` into `event_type`.
-REST spells the same event in snake_case and SSE in camelCase; `normalizeEvent()` absorbs
-both, which is why every SDK read hands you one shape. See [Events](../build/events.md).
+The default unified REST/SSE wire uses snake_case on both transports; the legacy SSE lane
+uses camelCase. `normalizeEvent()` gives callers one SDK shape. See [Events](../build/events.md).
 
 ### `AgentRecord`
 
@@ -993,7 +1016,8 @@ interface SessionRecord {
   session_id: string
   session_key?: string
   channel?: string
-  run_status?: string
+  run_status?: string | null
+  pending_approvals?: number
   status?: string | null
   metadata?: Record<string, unknown>
   archived?: boolean
@@ -1040,6 +1064,7 @@ stream.
 interface OutboundEvent {
   type: string
   content?: unknown
+  actor?: { ref: string; token?: never }
   [k: string]: unknown
 }
 ```
@@ -1118,6 +1143,11 @@ async function reply(zc: ZooworkClient, agentId: string, text: string) { /* ... 
 class ZooworkError extends Error {
   status: number
   type?: string
+  contentType?: string
+  bodySnippet?: string
+  cfRay?: string
+  requestId?: string
+  retryable: boolean
 }
 ```
 
@@ -1168,7 +1198,7 @@ for (const row of s.history ?? []) {
 function normalizeEvent(raw: unknown, sseId?: string): SessionEvent
 ```
 
-Accepts either wire shape and never throws. `sseId` is the SSE `id:` line, used as the `seq`
+Accepts either wire shape and never throws. `sseId` is the SSE `id:` line; only a numeric legacy ID can be a `seq`
 fallback when the JSON body does not carry one. The SDK calls it for you in `listEvents` and
 `streamEvents`; call it directly only when you are parsing the wire yourself.
 
@@ -1280,6 +1310,7 @@ import {
   // more resource types
   type McpServerDeclaration,
   type SkillRecord,
+  type SkillVersionRecord,
   type SessionRecord,
   type SessionHistoryEntry,
   type SessionEvent,
@@ -1343,7 +1374,7 @@ import {
 } from '@zoowork-ai/sdk'
 ```
 
-Thirteen values and fifty-seven types, pinned by a test that asserts the entry point's exports as
+Thirteen values and fifty-eight types, pinned by a test that asserts the entry point's exports as
 a set - a missing symbol and an accidental extra one both fail it. `DEFAULT_BASE_URL` is the
 public gateway base that `ZOOWORK_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.

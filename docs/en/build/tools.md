@@ -211,11 +211,13 @@ await zc.updateAgent(agentId, {
   metadata addresses and redirects are refused.
 - MCP tools surface to the model, and to you, under the name `mcp__<server>__<tool>`. That
   prefix in a `toolCall(ev).toolName` is how you confirm the server was actually reached.
-- The catalog is pinned per `config_version`, so changing the declaration takes effect on the
-  next turn, not the current one.
-- A server that fails its catalog probe does not fail the run. It pins an empty catalog and
-  emits `agent.error` with `kind: 'mcp_connection_failed'`, so the turn proceeds without those
-  tools.
+- Healthy catalogs remain pinned per `config_version`. Source-reviewed failure behavior:
+  transient failed catalogs can expire, allowing a later catalog resolution to probe again.
+  Expiry is deployment-configured, not a periodic retry or recovery guarantee.
+- A failed probe can leave the turn without that server's tools and emit `agent.error` with
+  `kind: 'mcp_connection_failed'` or `'mcp_authentication_failed'`, `server`, `errorMessage`
+  and optional `reason`. Preserve unknown reasons. These additions are not live-verified
+  here and do not justify automatic retries of business tool calls.
 - It is declared on the agent and nowhere else: there is no MCP resource of its own, and no
   session-level override.
 
@@ -228,13 +230,17 @@ cannot be made to work today. Declare unauthenticated servers only.
 This path is server-hosted, unauthenticated, and pinned per `config_version`. Do not design a
 product around it as a drop-in replacement for client-executed tools.
 
-## Human approval is not usable end to end
+## Human approval needs deployment verification
 
 `agent.tool` has a third phase, `blocked`: the call is waiting on an approval and has not run,
 and an `end` event still follows once the approval resolves.
 
 ::: warning Not yet verified
-A run that blocks on an approval nobody answers does not wait for you. The turn times out.
+The approval round trip and turn-budget behavior have not been verified here. Do not enable
+a dangerous capability assuming an untested approval flow will gate it. Source-reviewed
+fields include `requested_at`, `arguments_preview`, `allowed_decisions` and optional
+timeout/resolution fields. A 202 receipt with `signaled: true` can still be `pending`;
+acceptance is not completed tool execution.
 
 `ZooworkClient` does have `listApprovals` and `resolveApproval`, but they drive the separate
 approvals REST resource, not the `user.tool_confirmation` event loop.
@@ -244,7 +250,7 @@ See the [capability matrix](../reference/capabilities.md) for the current status
 
 ## Related
 
-- [Events and streaming](./events.md) - the event vocabulary, the `seq` resume cursor, and
+- [Events and streaming](./events.md) - the event vocabulary, the opaque resume cursor, and
   `run.finished`.
 - [Skills](./skills.md) - packaged capabilities attached to an agent, which are a different
   mechanism from tools.
