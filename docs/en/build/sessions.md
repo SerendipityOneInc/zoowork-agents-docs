@@ -69,8 +69,9 @@ See [Events](./events.md) for validation rules.
 
 A newly created agent comes back stopped, so you have to call `startAgent` yourself. Gate on
 `status.desired_state === 'running'`; `status.actual_state` reports chat-channel connectivity,
-and an API-only agent has no channels, so it stays at `activating` forever and polling it
-never returns.
+not API readiness. It can be `active` when route-status is unsupported or `activating` after a
+transient health-query failure; it never becomes `running`, so polling it for readiness never
+returns.
 
 ```ts
 const agent = await zc.getAgent(agentId)
@@ -237,7 +238,7 @@ An observed assistant row:
     "type": "message",
     "message": {
       "role": "assistant",
-      "model": "litellm/claude-sonnet-5",
+      "model": "litellm/gpt-5.6-terra",
       "responseModel": "qwen35-122B",
       "usage": {
         "input": 15212,

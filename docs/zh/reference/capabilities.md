@@ -2,7 +2,7 @@
 title: 能力矩阵
 description: 查看每项 managed-agent 能力是已验证、未验证，还是不存在。
 source: /en/reference/capabilities
-source_hash: 6dd7a8608b0482fcec128d30579c8b9be5c2e2e80649e6cfd222c484eb85d06a
+source_hash: 42881955384c585644c60a1fe31dc35493eb0259aec7670054256fc3f804a670
 ---
 
 # 能力矩阵
@@ -33,7 +33,7 @@ source_hash: 6dd7a8608b0482fcec128d30579c8b9be5c2e2e80649e6cfd222c484eb85d06a
 | `startAgent()` | 已实测 | 停止状态的 agent 必须先启动。成功响应可能带提示性 warnings；HTTP 或网络失败仍会抛错。 |
 | `stopAgent()` | 已实测 | 停止后不能继续写 API session。源码已核对：desired state 可能先写入、后续步骤才失败，结果不确定时先读回再重试。 |
 | 用 `status.desired_state` 把关就绪 | 已实测 | 唯一正确的就绪信号。轮询到它是 `running` 为止。 |
-| 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 报的是聊天渠道的连通性，不是 API 是否就绪。没绑渠道的 agent 永远停在 `activating`，`active` 到不了；绑定[渠道](../build/channels.md)之后它报告的是渠道健康——无论哪种情况，`running` 都根本不在它的枚举里，等它的循环永远不会返回。 |
+| 用 `status.actual_state` 把关就绪 | 不存在 | `actual_state` 是尽力而为的聊天渠道健康投影，不是 API 就绪状态。route-status 不受支持时可能投影为 `active`、零渠道计数和健康度未经验证的消息；短暂查询失败仍可能显示 `activating`，列表与 GET 也可能短时不同。`running` 不在它的枚举里，请等待 `desired_state`。 |
 | `updateAgent()` | 已实测 | 省略的小节保留。源码已核对：普通对象合并一层；嵌套值、数组和标量替换；tool_policy 和 system_prompt 整节替换。 |
 | `tool_policy` / `system_prompt` 整体替换 | 可用，未实测 | 合并规则的两个例外：每一次 PUT 都整体替换这两个小节。`{}` 会恢复完整的工具清单。我们只在其他小节上跑过合并行为。 |
 | `system_prompt` pin | 已实测 | 新建 agent 会自动 pin 创建那一刻 active 的平台模板版本——2026-08-14 观察到 `{source:'platform',version:1}`——而且这个 pin **自己永远不跟随**之后的平台 activation。`{source:'custom',base_version,template}` 整体覆盖模板（13 个功能 slot 各出现一次，64 KiB 上限）。要挪 pin 只有一个显式调用——见下一行。 |
@@ -116,7 +116,7 @@ source_hash: 6dd7a8608b0482fcec128d30579c8b9be5c2e2e80649e6cfd222c484eb85d06a
 | 模型可用的内置工具 | 已实测 | 一个正常回合会产生成对的 `agent.tool` 事件。确切的工具名在运行时随这些事件到达；没有公开的目录路由让你先枚举它们。 |
 | `tool_policy` 的 allow 和 deny | 可用，未实测 | `{}` 表示完整清单。非空对象会被读成一份收窄可用工具面的 allow/deny 策略。我们没有跑过收窄后的策略，所以请通过观察 `agent.tool` 里出现哪些工具，来确认你的策略生效了。 |
 | 客户端执行的自定义工具 | 不存在 | 没有自定义工具类型，也没有 `user.custom_tool_result` 事件。这是最大的一个缺口。围绕它做设计之前，先[读一下替代方案](./not-supported.md#client-executed-custom-tools)。 |
-| 远程 HTTP MCP server | 已实测 | 声明在 agent 上（`resource.mcp[]`），不是独立资源；传输是 `streamable-http`（默认）和 `sse`。工具在模型清单里以 `mcp__<server>__<tool>` 出现——server 名不能带下划线——并且对公开 server **真的会执行**。健康目录与配置绑定。源码已核对：失败可发 mcp_connection_failed 或 mcp_authentication_failed，附可选 reason；瞬时失败缓存到期后可在后续解析时重探，不是定时恢复保证。这是唯一一条能让你自己的代码撑起一个 agent 工具的路径，但**只支持无鉴权**：`credential` slug 能声明进去，其背后的存储过网关是 404，所以需要鉴权的 server 今天做不起来。 |
+| 远程 HTTP MCP server | 已实测 | 声明在 agent 上（`resource.mcp[]`），不是独立资源；传输是 `streamable-http`（默认）和 `sse`。可选 `exposure` 只能是 `deferred`（也是省略时的默认）或 `direct`，没有 `auto`。延迟工具通过 search/describe 加载，并在同一个 Session 的后续回合继续可用；`direct` 从首个请求开始声明（源码已核对）。工具以 `mcp__<server>__<tool>` 出现——server 名不能带下划线——并且对公开 server **真的会执行**。健康目录与配置绑定。源码已核对：失败可发 mcp_connection_failed 或 mcp_authentication_failed，附可选 reason；瞬时失败缓存到期后可在后续解析时重探，不是定时恢复保证。这是唯一一条能让你自己的代码撑起一个 agent 工具的路径，但**只支持无鉴权**：`credential` slug 能声明进去，其背后的存储过网关是 404，所以需要鉴权的 server 今天做不起来。 |
 | stdio MCP server、MCP OAuth | 不存在 | 就只有远程 HTTP。 |
 | 端到端的审批门控工具执行 | 源码已核对，未实测 | REST 方法与 requested_at/decision 等字段存在；resolve 返回 202/signaled 时仍可能 pending。部署支持、REST/事件往返、回合预算处理未实测。危险动作保持门控，不支持的部署返回 501。 |
 | `POST /agents/{id}/exec` | 可用，未实测 | 一个运维扩展，在 agent 的沙箱里跑一条命令，不是给 agent 用工具的通路。`exec(agentId, args)` 调的就是它，`args` 是 argv：要 shell 语义就写 `['bash', '-lc', 'pwd']`。它要求 agent 级的沙箱：session 级的 agent 拿到 `409 exec_requires_agent_scope`，没有沙箱后端的部署拿到 `501 not_configured`。 |

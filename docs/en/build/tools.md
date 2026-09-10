@@ -122,7 +122,7 @@ narrows the surface.
 await zc.createAgent({
   resource: {
     name: 'research-bot',
-    model: { primary: 'litellm/claude-sonnet-5' },
+    model: { primary: 'litellm/gpt-5.6-terra' },
     tool_policy: { allow: ['read', 'web_search'] },
   },
 })
@@ -200,6 +200,7 @@ await zc.updateAgent(agentId, {
       url: 'https://mcp.example.com/pricing',
       transport: 'streamable-http', // or 'sse'; this is the default
       toolFilter: ['quote'],        // omit to expose all of the server's tools
+      exposure: 'deferred',         // default; use 'direct' for the first model request
     },
   ],
 })
@@ -211,6 +212,11 @@ await zc.updateAgent(agentId, {
   metadata addresses and redirects are refused.
 - MCP tools surface to the model, and to you, under the name `mcp__<server>__<tool>`. That
   prefix in a `toolCall(ev).toolName` is how you confirm the server was actually reached.
+- `exposure` controls when those tools enter the model context. Omit it or set `deferred` to
+  keep them behind `tool_search` / `tool_describe` until loaded. Set `direct` to declare them
+  on the first model request. There is no `auto` value. Once a deferred tool is loaded, it
+  remains available on later turns in that same Session. These loading details are
+  source-reviewed, not deployment-verified here.
 - Healthy catalogs remain pinned per `config_version`. Source-reviewed failure behavior:
   transient failed catalogs can expire, allowing a later catalog resolution to probe again.
   Expiry is deployment-configured, not a periodic retry or recovery guarantee.

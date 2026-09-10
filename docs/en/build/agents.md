@@ -15,8 +15,8 @@ Read these before you write code.
 1. A newly created agent is **stopped**. You must call `startAgent()`, or `createSession()`
    fails with `409 agent_not_running`.
 2. Wait for `status.desired_state === 'running'`. **Never** wait for `status.actual_state`:
-   it reports chat-channel connectivity, and an API-only agent has no channels, so it stays
-   at `activating` forever and your poll loop never returns.
+   it is a best-effort chat-channel health projection, not API readiness, and it never has a
+   `running` value.
 3. The same agent comes back in **two different shapes**. `createAgent()` returns a flat
    receipt; `getAgent()` and `updateAgent()` return a projection. The version lives in a
    different place in each.
@@ -39,11 +39,15 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_.
 ```ts
 import type { AgentRecord } from '@zoowork-ai/sdk'
 
+const models = await zc.listModels()
+const primary = models.find((model) => model.model === 'litellm/gpt-5.6-terra')?.model
+if (!primary) throw new Error('Choose a model returned by listModels()')
+
 const created: AgentRecord = await zc.createAgent(
   {
     resource: {
       name: 'research-agent',
-      model: { primary: 'litellm/claude-sonnet-5' },
+      model: { primary },
       labels: { app: 'my-app' },
     },
   },
@@ -64,20 +68,25 @@ The onboarding interview is always skipped, so the agent answers your first mess
 | Field | Type | Notes |
 |---|---|---|
 | `name` | string | Required, non-empty. |
-| `model.primary` | string | Model alias in `provider/model-id` form, e.g. `litellm/claude-sonnet-5`. A bare name is normalized to `litellm/<model-id>`. Get the list from `listModels()`. |
+| `model.primary` | string | Model alias in `provider/model-id` form, e.g. `litellm/gpt-5.6-terra`. A bare name is normalized to `litellm/<model-id>`. Get the list from `listModels()`. |
 | `model.input` | `string[]` | `text` and/or `image`. Declaring `image` says the primary model reads images itself. |
 | `model.max_tokens` | integer | Output-token cap per model request. Omit to use the platform default; invalid values are rejected at create. |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | Guidance documents. Only inline `content` is stored. Only the canonical names are read when the prompt is assembled: `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`. Other names are saved but never reach the model. `MEMORY.md` and the `memory/` namespace are reserved and return `400 invalid_persona_doc_name`. |
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
 | `tool_policy` | object | `{}` means the full tool manifest. A non-empty object is an allow/deny policy, e.g. `{ allow: ['read', 'web_search'] }`. See [Tools](./tools.md). |
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
-| `mcp` | array | Remote MCP server declarations. See [Tools](./tools.md). |
+| `mcp` | array | Remote MCP server declarations, including optional `exposure: 'deferred' \| 'direct'`. See [Tools](./tools.md). |
+
+The whole `model` section is optional. If you omit it, create pins the platform defaults current
+at that moment. The current source default is `litellm/gpt-5.6-terra`, but that is not deployment
+verification and future defaults can rotate.
+Use `listModels()` and persist an explicit selection when repeatable provisioning matters.
 
 ```ts
 const agent = await zc.createAgent({
   resource: {
     name: 'support-triage',
-    model: { primary: 'litellm/claude-sonnet-5', input: ['text', 'image'] },
+    model: { primary, input: ['text', 'image'] },
     persona: {
       docs: [
         { name: 'AGENTS.md', content: 'You triage inbound support tickets. Be terse.' },
@@ -128,7 +137,7 @@ object.
   computer_id: 'cmp_...',
   declared: {                   // <- the configuration lives here
     name: 'research-agent',
-    model: { primary: 'litellm/claude-sonnet-5', input: ['text', 'image'] },
+    model: { primary: 'litellm/gpt-5.6-terra', input: ['text', 'image'] },
     labels: { app: 'my-app' },
     sandbox: { scope: 'agent' }
   },
@@ -200,13 +209,14 @@ Read back and reconcile before retrying; that field alone does not prove runtime
 | `desired_state` | The lifecycle intent. **This is what gates the API.** | `running`, `stopped`, `deleted` |
 | `actual_state` | Chat-channel route health. Nothing to do with API readiness. | `activating`, `active`, `degraded`, `error`, `stopped`, `deleting` |
 
-An API-only agent has zero channels (`status.channels.expected === 0`), so nothing ever
-connects, so `actual_state` sits at `activating` indefinitely and `active` is unreachable.
-`running` is not even a member of the `actual_state` enum, so polling for it never returns.
-Sessions work perfectly while `actual_state` is `activating` - full turns in that state are
-verified. Binding a [channel](./channels.md) is the one thing that makes `actual_state`
-move: it then reports that channel's connectivity - and it is still not an API-readiness
-signal.
+This field is a best-effort channel-health projection. When route-status is unsupported, GET can
+report `active` with `status.channels.expected === 0`, `connected === 0`, and a `status_message`
+that says channel health was not verified. A transient query failure remains `activating`.
+`listAgents()` does not run the same foreground health query, so list and GET can briefly differ.
+`running` is not a member of the `actual_state` enum, so polling it for `running` never returns.
+Sessions work regardless of whether the projection is `active` or `activating`; binding a
+[channel](./channels.md) can make it reflect that channel's connectivity, but never API readiness.
+The fallback behavior is source-reviewed, not deployment-verified here.
 
 Poll `desired_state`, with a timeout. `waitUntilRunning()` is that loop, already written:
 
@@ -239,7 +249,7 @@ Full provisioning path:
 
 ```ts
 const created = await zc.createAgent({
-  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' } },
+  resource: { name: 'research-agent', model: { primary } },
 })
 
 await zc.startAgent(created.agent_id)      // warnings are informational
@@ -286,7 +296,7 @@ console.log(Object.keys(updated.declared ?? {}))
 // [ 'name', 'model', 'imageModel', 'imageGenerationModel', 'pdfModel', 'persona', 'labels', 'sandbox', ... ]
 
 console.log(updated.declared?.name)   // 'research-agent'  - survived
-console.log(updated.declared?.model)  // { primary: 'litellm/claude-sonnet-5', ... } - survived
+console.log(updated.declared?.model)  // { primary: 'litellm/gpt-5.6-terra', ... } - survived
 console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - region survives
 ```
 

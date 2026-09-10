@@ -2,7 +2,7 @@
 title: 渠道
 description: 把 agent 接入聊天平台，并管理各渠道的配置流程与生命周期。
 source: /en/build/channels
-source_hash: 246fa4fd7b80e02cca46c56836dd1e96b58f004be52ba2c404d56179cd952cf1
+source_hash: cd937ec5a1efb472bd52e460094c813f22ea9f49abe5735e1e2d3a73ed4b6a9c
 ---
 
 # 渠道
@@ -186,8 +186,8 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 聊天软件里的对话，和你通过 API 创建的 session，是**两个 session、两份上下文**，不会自动合并。这**不等于 API key 的访问隔离**：源码核对显示，有权限的 API 调用可以按 id 访问 IM session。你的后端必须校验应用用户对每个 Agent/session 的权限。IM session 拒绝 `actor`，应使用渠道原生身份规则。
 :::
 
-::: warning `actual_state` 开始有含义了
-对纯 API agent，`status.actual_state` 永远停在 `activating`，[Agents](./agents.md) 页教你无视它。绑定渠道之后，`actual_state` 报告的是渠道的连通性——它的值会真的变化，仪表盘可以拿它看**渠道健康**。但它仍然不是 API 就绪信号：判断能不能开 session，依旧看 `desired_state === 'running'`（或用 `waitUntilRunning`）。
+::: warning `actual_state` 只是健康投影
+纯 API agent 上也会出现 `status.actual_state`：route-status 不受支持时可以投影为 `active` 和零渠道计数，短暂健康查询失败时也可以投影为 `activating`。绑定渠道后，它可能反映该渠道的连通性，仪表盘可以把它当作**尽力而为的渠道健康度**。但它仍然不是 API 就绪信号：判断能不能开 session，依旧看 `desired_state === 'running'`（或用 `waitUntilRunning`）。
 :::
 
 还有一条生命周期备注：删除 agent 会 best-effort 停用它的渠道。这个清理永远不会把一次成功的删除变成报错，所以坏运气的时候，一个聊天绑定可能比它的 agent 活得久——如果某个绑定必须消失，先 `removeChannel` 再 `deleteAgent`。

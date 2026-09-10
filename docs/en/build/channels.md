@@ -266,12 +266,12 @@ application-user access to each Agent/session. IM sessions reject `actor`; use t
 channel-native identity rules.
 :::
 
-::: warning `actual_state` starts meaning something
-For a pure API agent, `status.actual_state` parks at `activating` forever and the
-[Agents](./agents.md) page tells you to ignore it. Once a channel is bound,
-`actual_state` reports that channel's connectivity — so its value will now move, and
-dashboards can read it for **channel health**. It is still not an API-readiness signal:
-keep gating on `desired_state === 'running'` (or `waitUntilRunning`).
+::: warning `actual_state` is only a health projection
+`status.actual_state` is already present on a pure API agent: unsupported route-status can
+project `active` with zero channel counts, while transient health-query failure can project
+`activating`. Once a channel is bound it may report that channel's connectivity, so dashboards
+can treat it as **best-effort channel health**. It is still not an API-readiness signal: keep
+gating on `desired_state === 'running'` (or `waitUntilRunning`).
 :::
 
 And one lifecycle note: deleting an agent best-effort disables its channels. That cleanup

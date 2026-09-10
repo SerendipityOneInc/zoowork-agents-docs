@@ -2,7 +2,7 @@
 title: Sessions
 description: 创建、继续、列出、归档和删除 session，并读取 transcript。
 source: /en/build/sessions
-source_hash: c493b348855a62047cb9d0b3a4e38b9617f19a8a216e6b8ace88786f23296636
+source_hash: 35d3ab12281183da901c16cf589558ea8cdda259f3ac9ec7d779447e390cb45a
 ---
 
 # Sessions
@@ -60,7 +60,7 @@ const agentId = process.env.AGENT_ID!
 409  error.type = "agent_not_running"
 ```
 
-新创建的 agent 返回时是停止状态，所以你得自己调 `startAgent`。用 `status.desired_state === 'running'` 把关；`status.actual_state` 报的是聊天渠道的连通性，而纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，轮询它永远不会返回。
+新创建的 agent 返回时是停止状态，所以你得自己调 `startAgent`。用 `status.desired_state === 'running'` 把关；`status.actual_state` 报的是聊天渠道健康度，不是 API 就绪状态。route-status 不受支持时它可以是 `active`，短暂健康查询失败后也可能是 `activating`；它永远不会变成 `running`，所以不能轮询它判断就绪。
 
 ```ts
 const agent = await zc.getAgent(agentId)
@@ -201,7 +201,7 @@ for (const row of s.history ?? []) {
     "type": "message",
     "message": {
       "role": "assistant",
-      "model": "litellm/claude-sonnet-5",
+      "model": "litellm/gpt-5.6-terra",
       "responseModel": "qwen35-122B",
       "usage": {
         "input": 15212,

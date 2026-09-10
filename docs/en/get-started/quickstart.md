@@ -88,6 +88,9 @@ The cheapest check that your key works is `listModels()` - it needs no agent and
 ```ts [TypeScript]
 const models = await zc.listModels()
 console.log(models.length, models[0]?.model)
+
+const primary = models.find((model) => model.model === 'litellm/gpt-5.6-terra')?.model
+if (!primary) throw new Error('Choose a model returned by listModels()')
 ```
 
 ```bash [curl]
@@ -99,15 +102,21 @@ curl "$ZOOWORK_BASE_URL/models" \
 
 ```json
 [
-  { "model": "litellm/claude-sonnet-5", "display_name": "Claude Sonnet 5", "family": "anthropic", "api": "anthropic-messages" }
+  { "model": "litellm/gpt-5.6-terra", "display_name": "GPT-5.6 Terra", "family": "openai", "api": "openai-responses" }
 ]
 ```
+
+The exact catalog is deployment-specific. The example selects the current source default only
+when this deployment returns it; choose another returned alias if it does not. Do not silently
+fall back to `models[0]`, because catalog order is not a stability contract.
 
 A bad key returns `401`. The SDK throws `ZooworkError` with `.status` and `.type` - never match on the message text. Match on `.type` when you know which family answered; for `401` branch on `.status`, because the gateway and the core API spell that type differently.
 
 ## 1. Create an agent
 
-An agent is a persistent, versioned configuration object. `name` and `model.primary` are enough.
+An agent is a persistent, versioned configuration object. `name` is required. Omitting `model`
+pins the platform defaults current at creation time; those defaults can rotate, so deterministic
+provisioning should send a `model.primary` returned by `listModels()`.
 
 ::: code-group
 
@@ -115,7 +124,7 @@ An agent is a persistent, versioned configuration object. `name` and `model.prim
 const created = await zc.createAgent({
   resource: {
     name: 'quickstart-agent',
-    model: { primary: models[0]?.model ?? 'litellm/claude-sonnet-5' },
+    model: { primary },
   },
 })
 
@@ -129,7 +138,7 @@ curl -X POST "$ZOOWORK_BASE_URL/agents" \
   -d '{
     "resource": {
       "name": "quickstart-agent",
-      "model": { "primary": "litellm/claude-sonnet-5" }
+      "model": { "primary": "litellm/gpt-5.6-terra" }
     }
   }'
 ```
@@ -157,7 +166,7 @@ Pass an idempotency key as the second argument if you want a create you can safe
 ```ts
 const agent = await zc.createAgent(
   {
-    resource: { name: 'quickstart-agent', model: { primary: 'litellm/claude-sonnet-5' } },
+    resource: { name: 'quickstart-agent', model: { primary } },
   },
   'quickstart-run-01', // your idempotency key
 )
@@ -207,9 +216,14 @@ A warning in a successful response is informational and depends on the deploymen
 ### Wait for readiness
 
 ::: danger Poll `desired_state`, never `actual_state`
-`actual_state` reports **chat-channel connectivity**, not API readiness. An API-only agent has zero channels, so it sits at `activating` forever and `active` is never reached. `running` is not even a member of the `actual_state` enum (`activating | active | degraded | error | stopped | deleting`). A loop that waits for `actual_state` never returns.
+`actual_state` is a best-effort **chat-channel health projection**, not API readiness. When the
+route-status capability is unsupported, a GET can report `active` with zero channel counts and a
+`status_message` saying channel health was not verified; a transient lookup failure remains
+`activating`. `listAgents()` does not perform the same foreground health query, so list and GET
+can briefly disagree. `running` is not even a member of the `actual_state` enum
+(`activating | active | degraded | error | stopped | deleting`).
 
-Wait on `status.desired_state === 'running'`. It flips in well under a second.
+Wait on `status.desired_state === 'running'`. Do not use any `actual_state` value as readiness.
 :::
 
 The SDK ships that loop, so you do not write one:
@@ -227,7 +241,7 @@ A `getAgent()` read right after start looks like this (other fields omitted):
 ```json
 {
   "agent_id": "agt_example",
-  "declared": { "name": "quickstart-agent", "model": { "primary": "litellm/claude-sonnet-5" } },
+  "declared": { "name": "quickstart-agent", "model": { "primary": "litellm/gpt-5.6-terra" } },
   "status": {
     "desired_state": "running",
     "actual_state": "activating",
@@ -237,7 +251,9 @@ A `getAgent()` read right after start looks like this (other fields omitted):
 }
 ```
 
-`actual_state: "activating"` with `channels.expected: 0` is the steady state for an API-only agent. Sessions work fine in it.
+This is one possible channel-health projection. With route-status unsupported, the same GET can
+instead show `actual_state: "active"`, zero channel counts, and a health-unverified
+`status_message`. Sessions work in either case because readiness comes from `desired_state`.
 
 ## 3. Create a session with an opening message
 
@@ -417,7 +433,8 @@ const zc = createZooworkClient({ apiKey })
 
 // 0. Confirm the key works and pick a model.
 const models = await zc.listModels()
-const model = models[0]?.model ?? 'litellm/claude-sonnet-5'
+const model = models.find((candidate) => candidate.model === 'litellm/gpt-5.6-terra')?.model
+if (!model) throw new Error('Choose a model returned by listModels()')
 console.log(`${models.length} models available, using ${model}`)
 
 // 1. Create the agent.
@@ -433,7 +450,7 @@ console.log(`created agent ${agentId}`)
 try {
   // 2. Start it. Without this, createSession returns 409 agent_not_running.
   const { warnings } = await zc.startAgent(agentId)
-  if (warnings.length) console.log(`start warnings (expected for API-only agents): ${warnings.join(', ')}`)
+  if (warnings.length) console.log(`start warnings: ${warnings.join(', ')}`)
   // Readiness is desired_state. waitUntilRunning polls that, never actual_state.
   await zc.waitUntilRunning(agentId)
   console.log('agent is running')
@@ -492,7 +509,7 @@ try {
 Expected output:
 
 ```
-25 models available, using litellm/claude-sonnet-5
+25 models available, using litellm/gpt-5.6-terra
 created agent agt_example
 agent is running
 session 0123456789abcdef0123456789abcdef

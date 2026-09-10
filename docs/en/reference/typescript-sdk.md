@@ -309,10 +309,10 @@ console.log(models.length, models[0]?.model)
 ```json
 [
   {
-    "model": "litellm/claude-sonnet-5",
-    "display_name": "Claude Sonnet 5",
-    "family": "anthropic",
-    "api": "anthropic-messages"
+    "model": "litellm/gpt-5.6-terra",
+    "display_name": "GPT-5.6 Terra",
+    "family": "openai",
+    "api": "openai-responses"
   }
 ]
 ```
@@ -345,7 +345,7 @@ const created = await zc.createAgent(
   {
     resource: {
       name: 'research-agent',
-      model: { primary: 'litellm/claude-sonnet-5' },
+      model: { primary: 'litellm/gpt-5.6-terra' },
     },
   },
   'provision-research-agent-1',
@@ -951,9 +951,11 @@ interface AgentStatus {
 `desired_state` is the one that gates the API: `running` is the precondition for
 `createSession()` and `postEvents()`, and anything else is `409 agent_not_running`.
 
-`actual_state` is chat-channel health, not API readiness. `running` is not even a member of
-its enum, so a loop polling for it never returns. Poll `status.desired_state`. See
-[Agents](../build/agents.md).
+`actual_state` is a best-effort chat-channel health projection, not API readiness. A GET can
+report `active` with zero channel counts and a health-unverified `status_message` when
+route-status is unsupported; a transient lookup failure remains `activating`, and list and GET
+can briefly disagree. `running` is not even a member of its enum, so a loop polling for it never
+returns. Poll `status.desired_state`. See [Agents](../build/agents.md).
 :::
 
 `config_version` here is the authoritative version on the read path.
@@ -983,6 +985,10 @@ version (omitted on create means "the platform version active right now", pinned
 on; replace-on-write on PUT like `tool_policy`), and `outcome` is the agent-level default
 gate for unattended cron fires.
 
+Omitting `model` pins the platform defaults current at creation time. The source default is
+currently `litellm/gpt-5.6-terra`, but deployments may differ and defaults can rotate. For
+deterministic provisioning, call `listModels()` and set `primary` explicitly.
+
 **`AgentResource` is closed.** It carries no index signature, so one extra key is a
 TypeScript error rather than a field that reaches the server. A field a newer server accepts
 has to reach it through `updateAgent(agentId, sections)`, which is typed
@@ -991,6 +997,26 @@ has to reach it through `updateAgent(agentId, sections)`, which is typed
 `skills` at create time works but is echoed by no read surface - confirm the install with
 `listAgentSkills()`, not the create receipt. See
 [Agents](../build/agents.md) for the field-by-field notes.
+
+### `McpServerDeclaration`
+
+```ts
+interface McpServerDeclaration {
+  name: string
+  url: string
+  transport?: 'streamable-http' | 'sse'
+  credential?: string
+  toolFilter?: string[]
+  exposure?: 'deferred' | 'direct'
+  [k: string]: unknown
+}
+```
+
+Omitted `exposure` defaults to `deferred`: tools stay behind `tool_search` / `tool_describe`
+until loaded. `direct` declares them on the first model request. There is no `auto` value, and
+a loaded deferred tool remains available on later turns in the same Session. Public API keys
+still cannot populate `credential`; use public, unauthenticated MCP servers only. See
+[Tools](../build/tools.md).
 
 ### `AgentSkill`
 
@@ -1088,7 +1114,8 @@ interface ModelInfo {
 ```
 
 `model` is the stable alias to submit as `resource.model.primary`. `family` is display
-metadata; `api` is the protocol face (`anthropic-messages` or `openai-completions`).
+metadata; `api` is the protocol face (`anthropic-messages`, `openai-completions`, or
+`openai-responses`). Preserve unknown future values.
 
 ### `Ownership`
 
