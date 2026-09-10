@@ -2,7 +2,7 @@
 title: 快速开始
 description: 在五分钟内创建并启动 agent、打开 session，然后流式读取第一条回复。
 source: /en/get-started/quickstart
-source_hash: e88b815ae45511be2fb577f6fed555f0b9d0bdc559e799868faac1a62597a432
+source_hash: c559fa502d56e4630c79ea646906914adaee16f49bb412a3d31cbabdc9b01b3d
 ---
 
 # 快速开始
@@ -82,6 +82,9 @@ key 缺失会在构造时就抛错，而不是等你第一次调用时才以 401
 ```ts [TypeScript]
 const models = await zc.listModels()
 console.log(models.length, models[0]?.model)
+
+const primary = models.find((model) => model.model === 'litellm/gpt-5.6-terra')?.model
+if (!primary) throw new Error('请从 listModels() 返回的模型中选择一个')
 ```
 
 ```bash [curl]
@@ -93,15 +96,17 @@ curl "$ZOOWORK_BASE_URL/models" \
 
 ```json
 [
-  { "model": "litellm/claude-sonnet-5", "display_name": "Claude Sonnet 5", "family": "anthropic", "api": "anthropic-messages" }
+  { "model": "litellm/gpt-5.6-terra", "display_name": "GPT-5.6 Terra", "family": "openai", "api": "openai-responses" }
 ]
 ```
+
+实际目录由部署决定。示例只在当前部署确实返回源码当前默认值时选择它；若没有，请从返回的别名中明确选择另一个。不要静默回退到 `models[0]`，因为目录顺序不是稳定性契约。
 
 无效的 key 返回 `401`。SDK 抛出的 `ZooworkError` 带 `.status` 和 `.type`——绝不要匹配报错文本。在你清楚是哪个家族回的错时匹配 `.type`；`401` 请按 `.status` 分支，因为网关和核心 API 对这个 type 的拼法不一样。
 
 ## 1. 创建 agent
 
-agent 是一个持久化、带版本的配置对象。给出 `name` 和 `model.primary` 就够了。
+agent 是一个持久化、带版本的配置对象。`name` 是必填项。省略 `model` 会把创建时的平台默认值写入 agent；默认值可能轮换，因此需要确定性部署时，应发送一个由 `listModels()` 返回的 `model.primary`。
 
 ::: code-group
 
@@ -109,7 +114,7 @@ agent 是一个持久化、带版本的配置对象。给出 `name` 和 `model.p
 const created = await zc.createAgent({
   resource: {
     name: 'quickstart-agent',
-    model: { primary: models[0]?.model ?? 'litellm/claude-sonnet-5' },
+    model: { primary },
   },
 })
 
@@ -123,7 +128,7 @@ curl -X POST "$ZOOWORK_BASE_URL/agents" \
   -d '{
     "resource": {
       "name": "quickstart-agent",
-      "model": { "primary": "litellm/claude-sonnet-5" }
+      "model": { "primary": "litellm/gpt-5.6-terra" }
     }
   }'
 ```
@@ -151,7 +156,7 @@ curl -X POST "$ZOOWORK_BASE_URL/agents" \
 ```ts
 const agent = await zc.createAgent(
   {
-    resource: { name: 'quickstart-agent', model: { primary: 'litellm/claude-sonnet-5' } },
+    resource: { name: 'quickstart-agent', model: { primary } },
   },
   'quickstart-run-01', // 你的幂等 key
 )
@@ -200,9 +205,9 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
 ### 等待就绪
 
 ::: danger 轮询 `desired_state`，绝不要轮询 `actual_state`
-`actual_state` 反映的是**聊天渠道的连通性** ，不是 API 的就绪状态。纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，永远到不了 `active`。`running` 甚至不在 `actual_state` 的枚举里（`activating | active | degraded | error | stopped | deleting`）。**等 `actual_state` 的循环永远不会返回。**
+`actual_state` 是尽力而为的**聊天渠道健康投影**，不是 API 的就绪状态。当 route-status 能力不受支持时，GET 可能返回 `active`、零渠道计数，并在 `status_message` 中说明渠道健康度未经验证；短暂的健康查询失败仍会显示 `activating`。`listAgents()` 不执行同一套前台健康查询，因此列表与 GET 还可能短时不同。`running` 甚至不在 `actual_state` 的枚举里（`activating | active | degraded | error | stopped | deleting`）。
 
-请等 `status.desired_state === 'running'`。它翻转所需的时间远不到一秒。
+请等 `status.desired_state === 'running'`。任何 `actual_state` 值都不能用作 API 就绪信号。
 :::
 
 这个循环 SDK 已经写好了，你不用自己写：
@@ -218,7 +223,7 @@ const agent = await zc.waitUntilRunning(agentId)
 ```json
 {
   "agent_id": "agt_example",
-  "declared": { "name": "quickstart-agent", "model": { "primary": "litellm/claude-sonnet-5" } },
+  "declared": { "name": "quickstart-agent", "model": { "primary": "litellm/gpt-5.6-terra" } },
   "status": {
     "desired_state": "running",
     "actual_state": "activating",
@@ -228,7 +233,7 @@ const agent = await zc.waitUntilRunning(agentId)
 }
 ```
 
-对纯 API 的 agent 来说，`actual_state: "activating"` 配上 `channels.expected: 0` 就是它的稳态。在这个状态下 session 完全正常。
+这是渠道健康投影的一种可能结果。当 route-status 不受支持时，同一个 GET 也可以返回 `actual_state: "active"`、零渠道计数，并在 `status_message` 中说明健康度未经验证。两种情况下 session 都能正常工作，因为就绪状态由 `desired_state` 决定。
 
 ## 3. 创建 session 并带上首条消息
 
@@ -407,7 +412,8 @@ const zc = createZooworkClient({ apiKey })
 
 // 0. Confirm the key works and pick a model.
 const models = await zc.listModels()
-const model = models[0]?.model ?? 'litellm/claude-sonnet-5'
+const model = models.find((candidate) => candidate.model === 'litellm/gpt-5.6-terra')?.model
+if (!model) throw new Error('请从 listModels() 返回的模型中选择一个')
 console.log(`${models.length} models available, using ${model}`)
 
 // 1. Create the agent.
@@ -423,7 +429,7 @@ console.log(`created agent ${agentId}`)
 try {
   // 2. Start it. Without this, createSession returns 409 agent_not_running.
   const { warnings } = await zc.startAgent(agentId)
-  if (warnings.length) console.log(`start warnings (expected for API-only agents): ${warnings.join(', ')}`)
+  if (warnings.length) console.log(`start warnings: ${warnings.join(', ')}`)
   // Readiness is desired_state. waitUntilRunning polls that, never actual_state.
   await zc.waitUntilRunning(agentId)
   console.log('agent is running')
@@ -482,7 +488,7 @@ try {
 预期输出：
 
 ```
-25 models available, using litellm/claude-sonnet-5
+25 models available, using litellm/gpt-5.6-terra
 created agent agt_example
 agent is running
 session 0123456789abcdef0123456789abcdef

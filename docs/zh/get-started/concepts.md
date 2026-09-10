@@ -2,7 +2,7 @@
 title: 核心概念
 description: 理解 Agent、Session、Event 三个原语及其生命周期。
 source: /en/get-started/concepts
-source_hash: 46229b8fd89b1dd5f0fff474144e730da0079001a7d0ebb09ae8bb0fc929133a
+source_hash: 8f91bd85a004ace2e94d407c5d6457d487462e18cbda775bdc855e73c0546f07
 ---
 
 # 核心概念
@@ -75,10 +75,10 @@ const { warnings } = await zc.startAgent(agentId)
 | `desired_state` | `running` \| `stopped` \| `deleted` | API 会不会接受 session 相关的调用。**你要等的是这一个。** |
 | `actual_state` | `activating` \| `active` \| `degraded` \| `error` \| `stopped` \| `deleting` | 聊天渠道的连通性。与 API 是否就绪无关。 |
 
-`actual_state` 报告的是 agent 的聊天渠道路由有没有连上。只通过 API 驱动的 agent 没有任何渠道，所以它永远停在 `activating`。而且 `running` 根本不在 `actual_state` 的枚举里——所以下面这个看起来很自然的循环永远不会返回：
+`actual_state` 是聊天渠道路由健康度的尽力投影。当 route-status 不受支持时，GET 可能返回 `active`、零渠道计数，并在 `status_message` 中说明健康度未经验证；短暂的查询失败仍会显示 `activating`。`listAgents()` 不执行同一套前台查询，因此列表与 GET 可能短时不一致。`running` 根本不在 `actual_state` 的枚举里——所以下面这个看起来很自然的循环永远不会返回：
 
 ```ts
-// WRONG - hangs forever on an API-only agent
+// 错误——actual_state 永远不会变成 "running"
 while ((await zc.getAgent(agentId)).status?.actual_state !== 'running') {
   await new Promise((r) => setTimeout(r, 1000))
 }
@@ -92,7 +92,7 @@ await zc.waitUntilRunning(agentId)
 
 `waitUntilRunning()` 按 30 秒的总预算、每 500 毫秒轮询一次 `desired_state`；如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooworkError`。见 [Agents](../build/agents.md)。
 
-在一个 `actual_state` 始终没离开过 `activating` 的 agent 上，一个完整的回合照样正常跑完。
+无论这个投影当前是 `active` 还是 `activating`，完整回合都可以正常完成。上面的 fallback 行为来自源码核对，尚未在部署环境中验证。
 
 ### `config_version`
 

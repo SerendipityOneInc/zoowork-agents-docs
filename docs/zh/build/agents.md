@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: c6692e707ad7aef1302b690dcdbb56996b3314f3f74084f80c83c602cdfd0822
+source_hash: cac415623b3a18acd8edd1742e770ab629cb0b0deebfecd89311f80ee16eec46
 ---
 
 # Agents
@@ -12,7 +12,7 @@ agent 是一个持久化的配置对象：一个名字、一个模型、若干 p
 从别的 managed-agent API 过来的人，会在 ZooWork 的 agent 上被三件事绊住。写代码之前先读这三条。
 
 1. 新创建的 agent 是**停止状态** 。你必须调 `startAgent()`，否则 `createSession()` 会失败并返回 `409 agent_not_running`。
-2. 等 `status.desired_state === 'running'`。**永远不要** 等 `status.actual_state` —— 它报的是聊天渠道的连通性，而纯 API 的 agent 没有任何渠道，所以它永远停在 `activating`，你的轮询循环永远不会返回。
+2. 等 `status.desired_state === 'running'`。**永远不要** 等 `status.actual_state`——它是尽力而为的聊天渠道健康投影，不是 API 就绪状态，而且它没有 `running` 这个值。
 3. 同一个 agent 会以**两种不同的结构** 返回。`createAgent()` 返回一份扁平的创建回执；`getAgent()` 和 `updateAgent()` 返回一份读取投影。版本号在这两种结构里的位置不一样。
 
 ## 准备
@@ -32,11 +32,15 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_.
 ```ts
 import type { AgentRecord } from '@zoowork-ai/sdk'
 
+const models = await zc.listModels()
+const primary = models.find((model) => model.model === 'litellm/gpt-5.6-terra')?.model
+if (!primary) throw new Error('请从 listModels() 返回的模型中选择一个')
+
 const created: AgentRecord = await zc.createAgent(
   {
     resource: {
       name: 'research-agent',
-      model: { primary: 'litellm/claude-sonnet-5' },
+      model: { primary },
       labels: { app: 'my-app' },
     },
   },
@@ -55,20 +59,22 @@ onboarding 面试总是被跳过——agent 会直接回答你的第一条消息
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `name` | string | 必填，不能为空。 |
-| `model.primary` | string | `provider/model-id` 形式的模型别名，例如 `litellm/claude-sonnet-5`。只写模型名会被归一成 `litellm/<model-id>`。列表从 `listModels()` 拿。 |
+| `model.primary` | string | `provider/model-id` 形式的模型别名，例如 `litellm/gpt-5.6-terra`。只写模型名会被归一成 `litellm/<model-id>`。列表从 `listModels()` 拿。 |
 | `model.input` | `string[]` | `text` 和/或 `image`。声明 `image` 表示主模型自己读图。 |
 | `model.max_tokens` | integer | 单次模型请求的输出 token 上限。不设走平台默认；非法值创建时报 400。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
 | `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools.md)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
-| `mcp` | array | 远程 MCP server 声明。见[工具](./tools.md)。 |
+| `mcp` | array | 远程 MCP server 声明，可带 `exposure: 'deferred' \| 'direct'`。见[工具](./tools.md)。 |
+
+整个 `model` 段都可以省略。省略时，创建操作会把当时的平台默认值写入 agent。源码当前默认是 `litellm/gpt-5.6-terra`，但这不代表部署环境已经验证，未来默认值也仍可能轮换。需要可重复部署时，请先调用 `listModels()`，再持久化一个明确选择。
 
 ```ts
 const agent = await zc.createAgent({
   resource: {
     name: 'support-triage',
-    model: { primary: 'litellm/claude-sonnet-5', input: ['text', 'image'] },
+    model: { primary, input: ['text', 'image'] },
     persona: {
       docs: [
         { name: 'AGENTS.md', content: 'You triage inbound support tickets. Be terse.' },
@@ -111,7 +117,7 @@ const agent = await zc.createAgent({
   computer_id: 'cmp_...',
   declared: {                   // <- the configuration lives here
     name: 'research-agent',
-    model: { primary: 'litellm/claude-sonnet-5', input: ['text', 'image'] },
+    model: { primary: 'litellm/gpt-5.6-terra', input: ['text', 'image'] },
     labels: { app: 'my-app' },
     sandbox: { scope: 'agent' }
   },
@@ -176,7 +182,7 @@ console.log(warnings)
 | `desired_state` | 生命周期意图。**API 由它把关。** | `running`、`stopped`、`deleted` |
 | `actual_state` | 聊天渠道路由的健康度。与 API 是否就绪无关。 | `activating`、`active`、`degraded`、`error`、`stopped`、`deleting` |
 
-纯 API 的 agent 有零个渠道（`status.channels.expected === 0`），所以永远不会有东西连上来，所以 `actual_state` 无限期停在 `activating`，`active` 永远到不了。`running` 甚至根本不在 `actual_state` 的枚举里，所以轮询它永远不会返回。`actual_state` 是 `activating` 的时候 session 工作得完全正常 —— 在这个状态下驱动完整的回合已经验证过。唯一能让 `actual_state` 动起来的事是绑定[渠道](./channels.md)：那之后它报告的是渠道的连通性 —— 依然不是 API 就绪信号。
+这个字段是尽力而为的渠道健康投影。当 route-status 不受支持时，GET 可以返回 `active`、`status.channels.expected === 0`、`connected === 0`，并通过 `status_message` 说明渠道健康度未经验证；短暂查询失败仍显示 `activating`。`listAgents()` 不执行同一套前台健康查询，因此列表与 GET 可能短时不同。`running` 不在 `actual_state` 的枚举里，所以轮询它等待 `running` 永远不会返回。无论投影是 `active` 还是 `activating`，session 都能正常工作；绑定[渠道](./channels.md)后它可能反映渠道连通性，但始终不是 API 就绪信号。上述 fallback 行为来自源码核对，尚未在部署环境验证。
 
 轮询 `desired_state`，并带上超时。`waitUntilRunning()` 就是这个循环，已经写好了：
 
@@ -200,7 +206,7 @@ await zc.waitUntilRunning(agentId, { timeoutMs: 60_000, intervalMs: 1_000, signa
 
 ```ts
 const created = await zc.createAgent({
-  resource: { name: 'research-agent', model: { primary: 'litellm/claude-sonnet-5' } },
+  resource: { name: 'research-agent', model: { primary } },
 })
 
 await zc.startAgent(created.agent_id)      // warnings are informational
@@ -245,7 +251,7 @@ console.log(Object.keys(updated.declared ?? {}))
 // [ 'name', 'model', 'imageModel', 'imageGenerationModel', 'pdfModel', 'persona', 'labels', 'sandbox', ... ]
 
 console.log(updated.declared?.name)   // 'research-agent'  - survived
-console.log(updated.declared?.model)  // { primary: 'litellm/claude-sonnet-5', ... } - survived
+console.log(updated.declared?.model)  // { primary: 'litellm/gpt-5.6-terra', ... } - survived
 console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - region 保留
 ```
 

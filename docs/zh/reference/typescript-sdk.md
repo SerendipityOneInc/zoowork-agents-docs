@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: ceb13280d324c5e26d99acd596d23680638e5689a8e4acbc4344dd9e0729834a
+source_hash: 84ae322fff4d64981d7e87336912947c58f2d9effd259865885824a0599c7bf6
 ---
 
 # TypeScript SDK 参考
@@ -302,10 +302,10 @@ console.log(models.length, models[0]?.model)
 ```json
 [
   {
-    "model": "litellm/claude-sonnet-5",
-    "display_name": "Claude Sonnet 5",
-    "family": "anthropic",
-    "api": "anthropic-messages"
+    "model": "litellm/gpt-5.6-terra",
+    "display_name": "GPT-5.6 Terra",
+    "family": "openai",
+    "api": "openai-responses"
   }
 ]
 ```
@@ -337,7 +337,7 @@ const created = await zc.createAgent(
   {
     resource: {
       name: 'research-agent',
-      model: { primary: 'litellm/claude-sonnet-5' },
+      model: { primary: 'litellm/gpt-5.6-terra' },
     },
   },
   'provision-research-agent-1',
@@ -907,8 +907,7 @@ interface AgentStatus {
 `desired_state` 才是决定 API 能不能用的那个：`running` 是 `createSession()` 和 `postEvents()`
 的前置条件，不是 `running` 就是 `409 agent_not_running`。
 
-`actual_state` 是聊天频道的健康度，不是 API 就绪状态。`running` 甚至不在它的枚举里，
-所以轮询它的循环永远不会返回。轮询 `status.desired_state`。见 [Agents](../build/agents.md)。
+`actual_state` 是尽力而为的聊天频道健康投影，不是 API 就绪状态。当 route-status 不受支持时，GET 可以返回 `active`、零渠道计数，并通过 `status_message` 说明健康度未经验证；短暂查询失败仍显示 `activating`，列表与 GET 还可能短时不同。`running` 甚至不在它的枚举里，所以轮询它的循环永远不会返回。请轮询 `status.desired_state`。见 [Agents](../build/agents.md)。
 :::
 
 这里的 `config_version` 是读取路径上的权威版本号。
@@ -937,12 +936,30 @@ interface AgentResource {
 从此定住；PUT 时和 `tool_policy` 一样整体替换），`outcome` 是无人值守 cron 触发的 agent 级
 默认门。
 
+省略 `model` 会把创建时的平台默认值写入 agent。源码当前默认是 `litellm/gpt-5.6-terra`，但部署可能不同，默认值也会轮换。需要确定性部署时，请调用 `listModels()` 并明确设置 `primary`。
+
 **`AgentResource` 是封闭的。** 它没有索引签名，所以多写一个键是 TypeScript 错误，
 而不是一个能发到服务端的字段。更新的服务端所接受的新字段，只能走
 `updateAgent(agentId, sections)`——那个参数的类型是 `Record<string, unknown>`，什么都不检查。
 
 创建时的 `skills` 会生效但不被任何读取面回显——确认安装用 `listAgentSkills()`，不要看创建回执。
 逐字段的说明见 [Agents](../build/agents.md)。
+
+### `McpServerDeclaration`
+
+```ts
+interface McpServerDeclaration {
+  name: string
+  url: string
+  transport?: 'streamable-http' | 'sse'
+  credential?: string
+  toolFilter?: string[]
+  exposure?: 'deferred' | 'direct'
+  [k: string]: unknown
+}
+```
+
+省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 目前仍无法写入 `credential` 指向的密钥；只使用公开、免鉴权的 MCP server。见[工具](../build/tools.md)。
 
 ### `AgentSkill`
 
@@ -1034,7 +1051,7 @@ interface ModelInfo {
 ```
 
 `model` 是稳定的别名，作为 `resource.model.primary` 提交。`family` 是展示用的元数据；`api`
-是协议面（`anthropic-messages` 或 `openai-completions`）。
+是协议面（`anthropic-messages`、`openai-completions` 或 `openai-responses`）。请保留未来出现的未知值。
 
 ### `Ownership`
 

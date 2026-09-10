@@ -86,13 +86,14 @@ one of them gates the API.
 | `desired_state` | `running` \| `stopped` \| `deleted` | Whether the API will accept session calls. **This is the one you wait on.** |
 | `actual_state` | `activating` \| `active` \| `degraded` \| `error` \| `stopped` \| `deleting` | Chat-channel connectivity. Nothing to do with API readiness. |
 
-`actual_state` reports whether the agent's chat-channel routes are connected. An agent you
-drive only through the API has no channels, so it stays at `activating` forever. And `running`
-is not a member of the `actual_state` enum at all - so the natural-looking loop below never
-returns:
+`actual_state` is a best-effort projection of chat-channel route health. When route-status is
+unsupported, a GET can report `active` with zero channel counts and a `status_message` saying
+health was not verified. A transient lookup failure remains `activating`; `listAgents()` does
+not perform the same foreground query, so list and GET may briefly disagree. `running` is not
+a member of the `actual_state` enum at all, so the natural-looking loop below never returns:
 
 ```ts
-// WRONG - hangs forever on an API-only agent
+// WRONG - actual_state never becomes "running"
 while ((await zc.getAgent(agentId)).status?.actual_state !== 'running') {
   await new Promise((r) => setTimeout(r, 1000))
 }
@@ -109,7 +110,8 @@ await zc.waitUntilRunning(agentId)
 `ZooworkError` with `status === 408` and `type === 'timeout'` if the agent never gets there.
 See [Agents](../build/agents.md).
 
-A full turn completes normally on an agent whose `actual_state` never leaves `activating`.
+A full turn completes normally regardless of whether this projection is `active` or `activating`.
+The fallback behavior above is source-reviewed, not deployment-verified here.
 
 ### `config_version`
 

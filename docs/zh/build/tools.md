@@ -2,7 +2,7 @@
 title: 工具
 description: 控制内置工具、声明 MCP server，并通过事件观察工具调用。
 source: /en/build/tools
-source_hash: 9fba2fcb1379dfa868b934b0d1cffa2531b7d44ad42db60efdc3d780fa4e3f7b
+source_hash: 8dbc23fa0a94ebef3a6872494dd592c24572d06ff8f98af3ae9b8d899f15c413
 ---
 
 # 工具
@@ -102,7 +102,7 @@ const toolEvents = await zc.listAllEvents(agentId, sessionId, { types: ['agent.t
 await zc.createAgent({
   resource: {
     name: 'research-bot',
-    model: { primary: 'litellm/claude-sonnet-5' },
+    model: { primary: 'litellm/gpt-5.6-terra' },
     tool_policy: { allow: ['read', 'web_search'] },
   },
 })
@@ -161,6 +161,7 @@ await zc.updateAgent(agentId, {
       url: 'https://mcp.example.com/pricing',
       transport: 'streamable-http', // 或 'sse'；这个是默认值
       toolFilter: ['quote'],        // 省略则暴露该 server 的全部工具
+      exposure: 'deferred',         // 默认值；首个模型请求就声明则用 'direct'
     },
   ],
 })
@@ -169,6 +170,7 @@ await zc.updateAgent(agentId, {
 - 只涵盖**远程 HTTP** server。沙箱里没有 stdio server，也没有 OAuth 流程。
 - `url` 必须是绝对地址且公网可达：回环地址、私网段、云元数据地址和重定向都会被拒。
 - MCP 工具以 `mcp__<server>__<tool>` 这个名字呈现给模型，也呈现给你。`toolCall(ev).toolName` 里出现这个前缀，就是你确认 server 真的被访问到的方式。
+- `exposure` 决定这些工具何时进入模型上下文。省略或设为 `deferred` 时，工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用；设为 `direct` 时，首个模型请求就直接声明。没有 `auto` 这个值。延迟工具一旦加载，会在同一个 Session 的后续回合继续可用。这些加载细节来自源码核对，尚未在部署环境验证。
 - 健康目录仍按 `config_version` 固定。源码核对显示，短暂失败的目录可以过期，下次解析目录时才可能重新探测。过期策略由部署配置，不是周期重试或自动恢复保证。
 - 探测失败可能让这个回合缺少该 server 的工具，并发出 `agent.error`：`kind` 为 `mcp_connection_failed` 或 `mcp_authentication_failed`，带 `server`、`errorMessage` 和可选 `reason`。未知 reason 应保留。这些新增细节尚未做真实部署验证，也不构成自动重试业务工具调用的理由。
 - 它只声明在 agent 上：没有自己的 MCP 资源，也没有 session 级覆盖。
