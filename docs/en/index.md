@@ -1,12 +1,12 @@
 ---
 title: ZooWork Managed Agents
-description: Create agents, delegate tasks, and stream results from your application. ZooWork manages the agent loop, tool execution, and sandbox.
+description: Put agents to work in your application. ZooWork runs their tasks and captures execution history, so you can understand results and improve how your agents perform.
 layout: page
 sidebar: false
 aside: false
 hero:
   text: Build with agents. We handle the runtime.
-  tagline: Create agents, delegate tasks, and stream results from your application. ZooWork manages the agent loop, tool execution, and sandbox.
+  tagline: Put agents to work in your application. ZooWork runs their tasks and captures execution history, so you can understand results and improve how your agents perform.
 home:
   hero:
     accent: We handle the runtime.
@@ -97,7 +97,7 @@ home:
 
 <template v-slot:intro>
 
-Create agents, delegate tasks, and stream results from your application. ZooWork manages the agent loop, tool execution, and sandbox.
+Put agents to work in your application. ZooWork runs their tasks and captures execution history, so you can understand results and improve how your agents perform.
 
 </template>
 

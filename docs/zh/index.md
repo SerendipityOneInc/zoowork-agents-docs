@@ -1,14 +1,14 @@
 ---
 title: ZooWork Managed Agents
-description: 在你的应用中创建 Agent、分配任务并实时获取结果。ZooWork 负责 Agent 循环、工具执行和沙箱管理。
+description: 让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
 layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: 3e096f31c09cc6f48545ca20027bb04d2aa4601d3a85259782bb2a4ea1cc3676
+source_hash: 00a3d0c4baeba510abc41528b5c78327e0264df17839f9309f03da810c00642e
 hero:
   text: 用 Agent 构建应用。运行交给 ZooWork。
-  tagline: 在你的应用中创建 Agent、分配任务并实时获取结果。ZooWork 负责 Agent 循环、工具执行和沙箱管理。
+  tagline: 让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
 home:
   hero:
     accent: 运行交给 ZooWork。
@@ -97,7 +97,7 @@ home:
 
 <template v-slot:intro>
 
-在你的应用中创建 Agent、分配任务并实时获取结果。ZooWork 负责 Agent 循环、工具执行和沙箱管理。
+让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
 
 </template>
 
