@@ -10,7 +10,6 @@ console.log(`Agent ID: ${agent.agent_id}`)
 
 // #region start
 await client.startAgent(agent.agent_id)
-await client.waitUntilRunning(agent.agent_id)
 // #endregion start
 
 // #region session

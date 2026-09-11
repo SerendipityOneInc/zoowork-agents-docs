@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 1f768e721912616d23c31fde034294615d29fb30014f86eb9f9d1fae86c9a224
+source_hash: 4eee99e2e288363e48f0059951f10379042d7e1c3ccde0608926ab054a8d693e
 ---
 
 # 快速开始
@@ -80,8 +80,7 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 ### 2. 启动 Agent
 
-创建 Session 前，先启动 Agent。SDK 会等到 `status.desired_state` 为 `running`；
-curl 示例在启动请求后打印这个字段。
+创建 Session 前，先启动 Agent。
 
 ::: code-group
 
@@ -91,7 +90,6 @@ curl 示例在启动请求后打印这个字段。
 
 :::
 
-**curl：** 输出为 `running` 后再继续。如果还不是，重复最后一条 GET 请求检查状态。
 启动错误的处理见 [Agent 生命周期](../build/agents.md)。
 
 ### 3. 创建 Session
@@ -165,7 +163,7 @@ data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
 收到消息后，ZooWork 会：
 
 1. 运行 Agent，由它决定使用哪些工具完成任务。
-2. 在托管沙箱里执行工具，`report.md` 也保存在这里。
+2. 按需创建或复用托管沙箱，在其中执行工具并保存 `report.md`。
 3. 保存并流式返回执行事件。
 4. 通过 `run.finished` 返回回合结果，Session 保留，可继续发送消息。
 

@@ -77,8 +77,7 @@ The curl request sets `onboarding: false`, which the SDK supplies automatically.
 
 ### 2. Start the agent
 
-Start the agent before creating a session. The SDK waits until `status.desired_state` is
-`running`; the curl example prints that field after the start request.
+Start the agent before creating a session.
 
 ::: code-group
 
@@ -88,8 +87,7 @@ Start the agent before creating a session. The SDK waits until `status.desired_s
 
 :::
 
-**curl:** Continue when the output is `running`. If it is not, repeat the last GET request
-to check again. See [Agent lifecycle](../build/agents.md) for startup errors.
+See [Agent lifecycle](../build/agents.md) for startup errors.
 
 ### 3. Create a session
 
@@ -165,7 +163,7 @@ For `failed`, `aborted`, or a connection that closes before `run.finished`, insp
 When you send the message, ZooWork:
 
 1. Runs the agent, which decides which tools to use for the task.
-2. Executes those tools in the managed sandbox, where `report.md` is saved.
+2. Creates or reuses a managed sandbox as needed to execute tools and save `report.md`.
 3. Saves and streams events as the agent works.
 4. Emits `run.finished` with the turn's result. The session remains available for a follow-up message.
 

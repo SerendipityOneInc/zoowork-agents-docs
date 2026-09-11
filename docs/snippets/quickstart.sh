@@ -16,10 +16,6 @@ echo "Agent ID: $AGENT_ID"
 #region start
 curl -sS --fail-with-body -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY"
-
-curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  | jq -r '.status.desired_state'
 #endregion start
 
 #region session
