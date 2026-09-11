@@ -4,10 +4,12 @@ import '@fontsource/source-serif-4/600.css'
 import '@fontsource-variable/jetbrains-mono'
 import { syncCodeGroups } from './code-group-sync'
 import ZcHome from './components/ZcHome.vue'
+import DocsLayout from './components/DocsLayout.vue'
 import './custom.css'
 
 export default {
   extends: DefaultTheme,
+  Layout: DocsLayout,
   enhanceApp({ app, router }) {
     // The home page is a component rather than the stock hero-and-features layout; both
     // locales' `index.md` carry its content as frontmatter and mount it from their body.

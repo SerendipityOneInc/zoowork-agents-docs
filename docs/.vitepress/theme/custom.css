@@ -56,6 +56,7 @@
   --vp-c-bg-alt: var(--zc-sidebar);
   --vp-c-bg-soft: var(--zc-surface-subtle);
   --vp-c-bg-elv: var(--zc-paper);
+  --vp-nav-bg-color: var(--zc-paper);
 
   --vp-c-text-1: var(--zc-ink);
   --vp-c-text-2: var(--zc-ink-2);
@@ -233,8 +234,16 @@
 
 /* VitePress chrome follows the same opaque surface contract as the content. */
 .VPNavBar {
-  background: var(--zc-paper) !important;
-  border-bottom-color: var(--zc-line-subtle) !important;
+  background: var(--vp-nav-bg-color) !important;
+}
+
+/* One continuous divider across the title, search, and navigation columns. */
+.VPNavBar .divider {
+  padding-left: 0 !important;
+}
+
+.VPNavBar .divider-line {
+  background-color: var(--zc-line-subtle) !important;
 }
 
 .VPSidebar {
@@ -242,12 +251,34 @@
 }
 
 .VPNavBarTitle .title {
-  font-family: 'Source Serif 4', Georgia, serif;
+  font-family: var(--vp-font-family-base);
   font-weight: 600;
+  white-space: nowrap;
 }
 
-.dark .VPNavBarTitle img {
-  filter: brightness(0) invert(1) !important;
+.VPNavBar .VPNavBarTitle.has-sidebar .title {
+  border-bottom-color: transparent;
+}
+
+.zc-sidebar-search {
+  display: none;
+}
+
+@media (min-width: 960px) {
+  .VPNavBar.has-sidebar .VPNavBarSearch {
+    display: none;
+  }
+
+  .zc-sidebar-search {
+    display: block;
+    padding: 24px 0 8px;
+  }
+
+  .zc-sidebar-search .DocSearch-Button {
+    justify-content: space-between;
+    width: 100%;
+    background: var(--zc-paper);
+  }
 }
 
 .VPSidebarItem.is-active > .item .link {
