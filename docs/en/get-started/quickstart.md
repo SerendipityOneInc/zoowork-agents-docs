@@ -190,6 +190,7 @@ For curl, run cleanup after pressing Ctrl+C to close the stream.
 
 ## Next steps
 
+- [Architecture](./architecture.md): managed execution, persistent state, and on-demand compute.
 - [Agents](../build/agents.md): choose a model, tools, and skills.
 - [Sessions](../build/sessions.md): continue the conversation and read its history.
 - [Events and streaming](../build/events.md): handle events, timeouts, and reconnection.
