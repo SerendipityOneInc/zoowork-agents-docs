@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: cac415623b3a18acd8edd1742e770ab629cb0b0deebfecd89311f80ee16eec46
+source_hash: a74ca1cb29d0939c4f8bdffe1cd06955ea690bdfef08eefd6394f98833ab2a7f
 ---
 
 # Agents
@@ -317,12 +317,39 @@ await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
 
 `listAgents({ labels, page })` 枚举你的 key 所绑定的那个用户拥有的 agent。
 
+::: warning SDK 版本与验证状态
+以下分页示例对应 [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26) 中的改动。
+SDK 0.5.2 返回单页数组；使用 `.data` 或异步迭代前，需要安装包含该改动的发布版本。
+新的 SDK 行为已核对源码并通过离线测试；此处尚未在真实部署中验证 agent 列表。
+:::
+
+使用 `for await` 读取所有匹配的 agent。SDK 随着遍历按需请求下一页；`break` 后不再请求后续页面：
+
 ```ts
-const mine = await zc.listAgents()
-const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example' } })
+for await (const agent of zc.listAgents({ labels: { workspace_id: 'wsp_example' } })) {
+  console.log(agent.agent_id)
+}
 ```
 
-列表的作用域是你这把 key，不是你所在的组织。同一组织内由同事创建的 agent，只要你知道它的 id 就能用 `getAgent()` 读到，但它永远不会出现在你的列表里 —— 所以凡是跨 key 的场景，还是要自己记录 id。每页的条数固定成 100，所以想拿到前一百条之外的东西，只能靠 `page`。
+只读一页时，`await` 请求后读取 `page.data`。到达末页时，`next_page` 为 `null`：
+
+```ts
+const page = await zc.listAgents()
+console.log(page.data, page.total, page.next_page)
+
+if (page.hasNextPage()) {
+  const next = await page.getNextPage()
+  console.log(next.data)
+}
+```
+
+分页对象保留 `page`、`page_size` 和 `total`。`getNextPage()` 保留原来的 label 筛选条件；没有下一页时会抛错。后续页面请求失败会使迭代抛错；分页信息缺失或无效也会报错，不会悄悄返回不完整的列表。已经获取的分页对象同样支持 `for await`；也可用 `page.iterPages()` 逐页处理。
+
+API 仍使用从 1 开始的数字页码，每页固定 100 条，没有 `limit` 选项。SDK 根据响应中的分页信息计算 `next_page`，它是下一个数字页码。手动续读时，将它作为 `page` 并保留相同的 `labels`。遍历期间新增或删除记录可能使页面内容移动；分页读取不提供快照保证。
+
+**迁移旧数组调用：**将 `const agents = await zc.listAgents(opts)` 改为 `const { data: agents } = await zc.listAgents(opts)`，即可继续读取单页；读取所有匹配项则改用 `for await`。详见 [SDK 分页参考](../reference/typescript-sdk.md#listagentsopts)。
+
+列表的作用域是你这把 key，不是你所在的组织。同一组织内由同事创建的 agent，只要你知道它的 id 就能用 `getAgent()` 读到，但它永远不会出现在你的列表里 —— 所以凡是跨 key 的场景，还是要自己记录 id。
 
 `labels` 按你在创建时声明的 label 过滤，每一项对应一个 `label.<key>` 选择器。`{ labels: { workspace_id: '...' } }` 是最值得记住的一种：它能把 ZooWork 聊天 URL 里的 workspace id —— 也就是路径的第一段 —— 换回它背后的那个 agent。
 

@@ -2,7 +2,7 @@
 title: 能力矩阵
 description: 查看每项 managed-agent 能力是已验证、未验证，还是不存在。
 source: /en/reference/capabilities
-source_hash: 42881955384c585644c60a1fe31dc35493eb0259aec7670054256fc3f804a670
+source_hash: b31fbb3b4e42be5b17d633efe5c14d52f3bd6ecc7d4371b2e083826a0faa6aaf
 ---
 
 # 能力矩阵
@@ -42,6 +42,7 @@ source_hash: 42881955384c585644c60a1fe31dc35493eb0259aec7670054256fc3f804a670
 | 把 `config_version` 当幂等回执 | 不存在 | 每一次成功的 PUT 都会 bump 它，值完全相同的 PUT 也一样，而且不是你发起的写入同样会 bump 它。它是一个变更计数器，不是内容哈希。见[错误与重试](./errors.md)。 |
 | `deleteAgent()` | 已实测 | 软删除不代表定时任务或沙箱已经清理。先停止，显式删除所属定时任务，单独核实清理结果。 |
 | 列出 agent | 可用，未实测 | `listAgents(opts?)` 调的就是它。线协议上的路由把 `owner_uid` 加 `org_id` 当成精确 AND 选择器，所以同一组织内由另一个 key 创建的 agent，能按 id 读到，却永远不会出现在你的列表里；这类 id 自己记一份。`labels` 按声明的 label 过滤，`page` 从 1 开始，每页大小固定为 100。`{ labels: { workspace_id: '...' } }` 能把一个聊天 URL 里的 workspace id 解析成它对应的 agent。 |
+| Agent 列表的 SDK 分页 | 源码已核对，未实测 | [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26) 中的改动保留分页信息，并支持 `for await`、`hasNextPage()` 和 `getNextPage()`。已通过离线测试，尚未在真实部署中验证。SDK 0.5.2 返回单页数组；这些辅助能力需要包含该改动的发布版本。见[分页参考](./typescript-sdk.md#listagentsopts)。 |
 | 其他组织的 agent id | 已实测 | 返回 **404** ，不是 403。存在性被隐藏，所以 404 不代表「已删除」。 |
 | key 无效或缺失 | 已实测 | `401`，`error.type` 是 `service_token.invalid`。匹配 `ZooworkError.status` 和 `.type`，永远不要匹配报错文本。 |
 | `persona.docs[]` | 可用，未实测 | 只有带内联 `content` 的条目会被存下来。`MEMORY.md` 和任何 `memory/` 名字会被 `400 invalid_persona_doc_name` 拒绝。规范名字集合之外的文档会被保存，但不会被组装进提示词。 |

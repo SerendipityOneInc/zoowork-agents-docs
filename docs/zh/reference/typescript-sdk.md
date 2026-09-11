@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 84ae322fff4d64981d7e87336912947c58f2d9effd259865885824a0599c7bf6
+source_hash: caecb7ea8093742f9e0e774a65c9c1e2e5404677a5ba461d3fb374aafd0c3a80
 ---
 
 # TypeScript SDK 参考
@@ -127,7 +127,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | 创建一个 agent。返回的是**扁平的创建回执** ，不是读取投影。返回的 agent 处于停止状态。 |
-| `listAgents(opts?)` | `Promise<AgentRecord[]>` | 列出你的 key 所绑定的那个用户拥有的 agent。`opts.labels` 按 declared 里的 label 过滤，`opts.page` 从 1 开始，页大小固定为 100。作用域是 `owner_uid` **且** `org_id`，所以同事在你组织里建的 agent，按 id 读得到，却不会出现在这个列表里。 |
+| `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | 列出你的 key 所绑定的那个用户拥有的 agent。`opts.labels` 按 declared 里的 label 过滤，`opts.page` 从 1 开始，页大小固定为 100。作用域是 `owner_uid` **且** `org_id`，所以同事在你组织里建的 agent，按 id 读得到，却不会出现在这个列表里。 |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | 读取一个 agent。返回的是**投影** ：配置在 `declared` 下，版本号在 `status.config_version`。 |
 | `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUT 你点名的 declared section，按 section 合并。每次调用都会 bump `config_version`。 |
 | `deleteAgent(agentId)` | `Promise<void>` | 软删除该 agent。不会停止它。 |
@@ -351,6 +351,62 @@ console.log(created.agent_id, created.config_version) // "agt_...", 1
 
 这份回执上的 `config_version` 立刻就会过期——回执写着 `1`，紧接着一次 `getAgent()` 常常已经是
 `3` 了。见[错误处理](./errors.md)。
+
+---
+
+### `listAgents(opts?)` {#listagentsopts}
+
+::: warning SDK 版本与验证状态
+此返回结构实现于 [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26)。
+SDK 0.5.2 返回 `Promise<AgentRecord[]>`；使用以下示例前，需要安装包含该分页改动的发布版本。
+实现与离线测试已经核对，不代表已在真实部署中验证。
+:::
+
+```ts
+listAgents(opts?: AgentListParams): AgentPagePromise
+
+interface AgentListParams {
+  labels?: Record<string, string>
+  page?: number
+}
+interface AgentPage extends AsyncIterable<AgentRecord> {
+  readonly data: AgentRecord[]
+  readonly page: number
+  readonly page_size: number
+  readonly total: number
+  readonly next_page: number | null
+  hasNextPage(): boolean
+  getNextPage(): Promise<AgentPage>
+  iterPages(): AsyncIterableIterator<AgentPage>
+}
+interface AgentPagePromise extends Promise<AgentPage>, AsyncIterable<AgentRecord> {}
+```
+
+`await` 请求得到一页；直接对请求使用 `for await` 则按需读取所有匹配的 agent。
+已经获取的分页对象也支持异步迭代和 `iterPages()`。
+
+```ts
+const page = await zc.listAgents({ labels: { app: 'support' } })
+console.log(page.data, page.total, page.next_page)
+if (page.hasNextPage()) {
+  const next = await page.getNextPage()
+  console.log(next.data)
+}
+
+for await (const agent of zc.listAgents({ labels: { app: 'support' } })) {
+  console.log(agent.agent_id)
+}
+```
+
+`data` 只包含当前页。`page`、`page_size` 和 `total` 来自 API；SDK 根据它们计算 `next_page`，
+它是数字页码，末页为 `null`。页码从 1 开始，每页固定 100 条，没有 `limit` 选项或字符串游标。
+`getNextPage()` 保留 label 筛选条件，没有下一页时会抛错。退出循环后不再请求后续页面。
+HTTP 失败、分页信息无效或响应页码未前进都会使操作抛错。并发新增或删除可能使页面内容移动；
+遍历不提供快照保证。
+
+**迁移：**只读一页时，将 `const agents = await zc.listAgents(opts)` 改成
+`const { data: agents } = await zc.listAgents(opts)`。读取所有匹配项则使用 `for await`。
+完整示例见[列出你的 agent](../build/agents.md#列出你的-agent)。
 
 ---
 
@@ -1242,6 +1298,9 @@ import {
   type ModelInfo,
   type AgentResource,
   type AgentRecord,
+  type AgentListParams,
+  type AgentPage,
+  type AgentPagePromise,
   type AgentStatus,
   type AgentSkill,
 

@@ -127,7 +127,7 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 | Method | Returns | What it does |
 |---|---|---|
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | Creates an agent. Returns the **flat create receipt**, not the read projection. The agent comes back stopped. |
-| `listAgents(opts?)` | `Promise<AgentRecord[]>` | Lists the agents owned by your key's bound user. `opts.labels` filters on declared labels, `opts.page` is 1-based, page size is fixed at 100. The scope is `owner_uid` **and** `org_id`, so an agent a colleague created in your org is fetchable by id and absent from this list. |
+| `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | Lists the agents owned by your key's bound user. `opts.labels` filters on declared labels, `opts.page` is 1-based, page size is fixed at 100. The scope is `owner_uid` **and** `org_id`, so an agent a colleague created in your org is fetchable by id and absent from this list. |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | Reads an agent. Returns the **projection**: config under `declared`, version at `status.config_version`. |
 | `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUTs the named declared sections, merging per section. Bumps `config_version` on every call. |
 | `deleteAgent(agentId)` | `Promise<void>` | Soft-deletes the agent. Does not stop it. |
@@ -359,6 +359,64 @@ The new agent is **stopped**: `createSession()` before `startAgent()` is
 
 The `config_version` on this receipt goes stale immediately - a receipt saying `1` is commonly
 followed by a `getAgent()` saying `3`. See [Errors and retries](./errors.md).
+
+---
+
+### `listAgents(opts?)` {#listagentsopts}
+
+::: warning SDK version and verification
+This return shape is implemented in [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26).
+SDK 0.5.2 returns `Promise<AgentRecord[]>`; use a package release containing the pagination
+change for these examples. The implementation and offline tests have been reviewed; this
+is not live deployment verification.
+:::
+
+```ts
+listAgents(opts?: AgentListParams): AgentPagePromise
+
+interface AgentListParams {
+  labels?: Record<string, string>
+  page?: number
+}
+interface AgentPage extends AsyncIterable<AgentRecord> {
+  readonly data: AgentRecord[]
+  readonly page: number
+  readonly page_size: number
+  readonly total: number
+  readonly next_page: number | null
+  hasNextPage(): boolean
+  getNextPage(): Promise<AgentPage>
+  iterPages(): AsyncIterableIterator<AgentPage>
+}
+interface AgentPagePromise extends Promise<AgentPage>, AsyncIterable<AgentRecord> {}
+```
+
+Await the request to get one page, or use `for await` directly on it to fetch all matching
+agents. The resolved page also supports async iteration and `iterPages()`.
+
+```ts
+const page = await zc.listAgents({ labels: { app: 'support' } })
+console.log(page.data, page.total, page.next_page)
+if (page.hasNextPage()) {
+  const next = await page.getNextPage()
+  console.log(next.data)
+}
+
+for await (const agent of zc.listAgents({ labels: { app: 'support' } })) {
+  console.log(agent.agent_id)
+}
+```
+
+`data` contains only the current page. `page`, `page_size`, and `total` come from the API;
+the SDK derives `next_page`, a number or `null` at the end. Page numbers start at 1 and page
+size is fixed at 100; there is no `limit` option or string cursor. `getNextPage()` preserves
+label filters and rejects when there is no next page. Breaking iteration stops further
+requests. HTTP errors and invalid or non-advancing pagination metadata reject the operation.
+Concurrent additions or deletions can shift page contents; iteration is not a snapshot.
+
+**Migration:** change `const agents = await zc.listAgents(opts)` to
+`const { data: agents } = await zc.listAgents(opts)` for one page. Use `for await` for all
+matches. See [List your agents](../build/agents.md#list-your-agents) for the full example.
 
 ---
 
@@ -1317,6 +1375,9 @@ import {
   type ModelInfo,
   type AgentResource,
   type AgentRecord,
+  type AgentListParams,
+  type AgentPage,
+  type AgentPagePromise,
   type AgentStatus,
   type AgentSkill,
 
