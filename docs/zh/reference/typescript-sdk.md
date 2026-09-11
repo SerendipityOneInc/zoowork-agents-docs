@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: caecb7ea8093742f9e0e774a65c9c1e2e5404677a5ba461d3fb374aafd0c3a80
+source_hash: 429a082b3c750d181c238ad117c1cca57694f00768809cb53e1f8c53a5068cb7
 ---
 
 # TypeScript SDK 参考
@@ -34,7 +34,7 @@ npm install @zoowork-ai/sdk
 |---|---|
 | Node 20 及以上 | 主要目标。`fetch` 和 `ReadableStream` 是内置的。 |
 | Cloudflare Workers、Deno、Bun 及其他边缘运行时 | 从构造上就支持。SSE 解析器是照着 Web Streams 写的，不是 Node streams。 |
-| 浏览器 | 技术上能跑，但你的 API key 认证的是整个组织。不要把它发到客户端。见[鉴权](../get-started/authentication.md)。 |
+| 浏览器 | API Key 可访问你组织内的 Agent 和 Session。将 Key 保存在服务端，通过你自己的后端调用 ZooWork。 |
 
 ### 注入 `fetch`
 
@@ -73,6 +73,8 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 客户端很轻。一个进程建一个，然后共用。
+
+API Key 没有按用户授权或只读的版本。你的后端需要认证终端用户，并检查他们对每个 Agent 和 Session 的访问权限。
 
 ### `ZooworkConfig`
 

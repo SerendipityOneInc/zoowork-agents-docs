@@ -23,6 +23,10 @@ Because it lives on a path rather than its own host, two settings in
 
 Change one and you must change the other, or the site will 404 on its own assets.
 
+`pnpm build` copies the root `_redirects` file into `dist/`, the Worker's static asset root.
+Use it for retired documentation URLs. Redirects are applied by Cloudflare and the local
+`pnpm preview:worker` runtime; the VitePress preview does not apply them.
+
 `main` deploys automatically via Workers Builds (Cloudflare's Git integration).
 To deploy by hand:
 

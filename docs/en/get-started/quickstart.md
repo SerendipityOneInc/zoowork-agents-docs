@@ -20,8 +20,7 @@ when you need a custom sandbox; no separate Environment is required here.
 
 ## Prerequisites
 
-- A ZooWork organization API key (`zct_...`). Create one in **Settings → API Keys** in the
-  [ZooWork App](https://zoowork.ai), or ask your organization administrator. See [Authentication](./authentication.md).
+- A ZooWork organization API key (`zct_...`). [Get an API key](https://zoowork.ai/identity?tab=account-api-keys).
 - **TypeScript:** Node.js **22.20+** and npm.
 - **curl:** Bash, curl **7.76+**, and `jq` **1.6+**.
 

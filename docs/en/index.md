@@ -17,8 +17,6 @@ home:
         theme: primary
       - text: TypeScript SDK
         link: /en/reference/typescript-sdk
-    note: Create your key in the ZooWork App, under Settings → API Keys.
-    noteLink: /en/get-started/authentication
     sampleMeta: Abbreviated · Node 20+ · ESM · ZOOWORK_API_KEY
     sampleLinkText: Full runnable example
     sampleLink: /en/get-started/quickstart
@@ -60,7 +58,6 @@ home:
         hint: Key to first streamed reply
         chips:
           - { text: Quickstart, link: /en/get-started/quickstart, icon: play }
-          - { text: Authentication, link: /en/get-started/authentication, icon: key }
           - { text: Core concepts, link: /en/get-started/concepts, icon: compass }
       - name: Build
         hint: The loop, surface by surface

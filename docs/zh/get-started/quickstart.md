@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 4eee99e2e288363e48f0059951f10379042d7e1c3ccde0608926ab054a8d693e
+source_hash: 7de504f04db35da0aa4e385cc0d640328e48c3a3c7f0ff98a938d74caccf8288
 ---
 
 # 快速开始
@@ -23,8 +23,7 @@ source_hash: 4eee99e2e288363e48f0059951f10379042d7e1c3ccde0608926ab054a8d693e
 
 ## 前置条件
 
-- 一个 ZooWork 组织 API Key（`zct_...`）。在 [ZooWork App](https://zoowork.ai) 的
-  **设置 → API Keys** 中创建，或向组织管理员申请。详见[鉴权](./authentication.md)。
+- 一个 ZooWork 组织 API Key（`zct_...`）。[获取 API Key](https://zoowork.ai/identity?tab=account-api-keys)。
 - **TypeScript：** Node.js **22.20+** 和 npm。
 - **curl：** Bash、curl **7.76+** 和 `jq` **1.6+**。
 

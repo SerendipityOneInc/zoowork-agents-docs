@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: ac9a2a5a3127272de02d095a7f479458529685b52e48c988ad4991535bb2be6c
+source_hash: f6cd0d7048cf4bada92d75f28cb74e06f276390f27f18480b467dd83069e90f8
 ---
 
 # 错误与重试
@@ -95,7 +95,7 @@ if (e instanceof ZooworkError) {
 | `type` | HTTP | 原因 | 怎么办 |
 |---|---:|---|---|
 | `agent_not_running` | 409 | 对一个 `status.desired_state` 不是 `running` 的 agent 调 `createSession()` 或 `postEvents()`。新创建的 agent 是停止的，你自己停掉的也一样。 | 调 `startAgent()`，轮询 `status.desired_state` 直到它是 `running`，再重试。永远不要轮询 `actual_state`。 |
-| `not_found` / `service_api.not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。两种拼写都存在：agent 这一族返回 `service_api.not_found`，session、定时任务、environment 这一族返回不带点的 `not_found`。 | 两种拼写都匹配，或者干脆按 `status === 404` 分支。不要把它读成「已删除」。见[鉴权](../get-started/authentication.md)——跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
+| `not_found` / `service_api.not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。两种拼写都存在：agent 这一族返回 `service_api.not_found`，session、定时任务、environment 这一族返回不带点的 `not_found`。 | 两种拼写都匹配，或者干脆按 `status === 404` 分支。不要把它读成「已删除」：跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
 | `service_token.invalid` | 401 | key 缺失、格式不对、已吊销，或者它绑定的用户离开了组织。由网关发出，用网关的信封。 | 修凭证。不要重试——重试会一模一样地失败。用 `listModels()` 验证。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
 | `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本。 | 改请求。原样重试会一模一样地失败。 |
@@ -245,5 +245,4 @@ async function openSession(agentId: string, text: string, jobId: string) {
 ## 下一步
 
 - [TypeScript SDK 参考](./typescript-sdk.md) —— 每个方法、类型和辅助函数。
-- [鉴权](../get-started/authentication.md) —— 为什么跨租户的 id 是 404。
 - [Agents](../build/agents.md) —— 启动、停止，以及这一页背后的 `config_version` 语义。

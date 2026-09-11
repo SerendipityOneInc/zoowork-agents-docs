@@ -7,7 +7,7 @@
   "packageManager": "pnpm@10.12.4",
   "scripts": {
     "dev": "vitepress dev docs --port ${DOCS_PORT:-5175}",
-    "build": "vitepress build docs && node scripts/check-ai-docs.mjs",
+    "build": "vitepress build docs && cp _redirects dist/_redirects && node scripts/check-ai-docs.mjs",
     "check:ai-docs": "node scripts/check-ai-docs.mjs",
     "preview": "vitepress preview docs --port ${DOCS_PORT:-5175}",
     "preview:worker": "wrangler dev",

@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: 36e129c51008773ad59808eda968a84e33b6b0600b75a872282880ba28a4a64c
+source_hash: cc0775014d482447bf010eaacdeb9f59cbef02db5754d5e6ff29a2eb8835dd05
 hero:
   text: 创建一个 agent，流式拿回每个事件。
   tagline: 一个由你自己的代码驱动的托管 agent 运行时。可续传的持久事件流；skills、sessions
@@ -19,8 +19,6 @@ home:
         theme: primary
       - text: TypeScript SDK
         link: /zh/reference/typescript-sdk
-    note: 在 ZooWork App 的设置 → API Keys 里创建你的 key。
-    noteLink: /zh/get-started/authentication
     sampleMeta: 节选 · Node 20+ · ESM · ZOOWORK_API_KEY
     sampleLinkText: 查看可直接运行的完整示例
     sampleLink: /zh/get-started/quickstart
@@ -61,7 +59,6 @@ home:
         hint: 从 key 到第一条流式回复
         chips:
           - { text: 快速开始, link: /zh/get-started/quickstart, icon: play }
-          - { text: 鉴权, link: /zh/get-started/authentication, icon: key }
           - { text: 核心概念, link: /zh/get-started/concepts, icon: compass }
       - name: 构建
         hint: 一个面一个面地过
