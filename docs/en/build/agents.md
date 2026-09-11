@@ -377,15 +377,51 @@ A freshly created agent already has the entire global skill catalog attached, so
 
 `listAgents({ labels, page })` enumerates the agents owned by the user your key is bound to.
 
+::: warning SDK version and verification
+These pagination examples target the SDK change in [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26).
+SDK 0.5.2 returns a single-page array. Use a package release containing that change before
+using `.data` or async iteration. The new SDK behavior is source-reviewed and covered by
+offline tests; agent listing has not been verified against a live deployment here.
+:::
+
+Use `for await` to read all matching agents. Subsequent pages are requested only as you
+consume the results; `break` stops further requests:
+
 ```ts
-const mine = await zc.listAgents()
-const forWorkspace = await zc.listAgents({ labels: { workspace_id: 'wsp_example' } })
+for await (const agent of zc.listAgents({ labels: { workspace_id: 'wsp_example' } })) {
+  console.log(agent.agent_id)
+}
 ```
+
+For one page, await the request and read `page.data`. `next_page` is `null` at the end:
+
+```ts
+const page = await zc.listAgents()
+console.log(page.data, page.total, page.next_page)
+
+if (page.hasNextPage()) {
+  const next = await page.getNextPage()
+  console.log(next.data)
+}
+```
+
+Pages preserve `page`, `page_size`, and `total`. `getNextPage()` keeps the original label
+filters and rejects when there is no next page. A failed page request rejects iteration;
+missing or invalid pagination metadata raises an error rather than hiding an incomplete list.
+Resolved pages can also be iterated with `for await`, or page-by-page with `page.iterPages()`.
+
+The API still uses numeric pages starting at 1, with 100 items per page and no `limit`
+option. `next_page` is the next numeric page, derived by the SDK from the response metadata.
+For explicit continuation, pass it as `page` with the same `labels`. Concurrent additions or
+deletions can shift results between pages; a walk is not a snapshot.
+
+**Migrating array callers:** replace `const agents = await zc.listAgents(opts)` with
+`const { data: agents } = await zc.listAgents(opts)` to retain one-page behavior, or switch to
+`for await` for all matches. See the [SDK pagination reference](../reference/typescript-sdk.md#listagentsopts).
 
 The listing is scoped to your key, not to your organization. An agent a colleague created in
 the same org is readable by `getAgent()` if you know its id, but it never appears in your
-listing - so for anything that spans keys, keep your own record of the ids. Page size is fixed
-at 100, so `page` is the only way past the first hundred.
+listing - so for anything that spans keys, keep your own record of the ids.
 
 `labels` filters on the labels you declared at create time, one `label.<key>` selector per
 entry. `{ labels: { workspace_id: '...' } }` is the one worth remembering: it turns the
