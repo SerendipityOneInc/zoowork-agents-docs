@@ -314,7 +314,7 @@ function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
 }
 
 export default defineConfig({
-  title: 'ZooWork Managed Agents',
+  title: 'ZooWork Docs',
   description: 'Build agent products on ZooWork. TypeScript SDK, sessions, and streaming events.',
   // The site does not own a host of its own: it is served from a path on the main
   // domain, at zoowork.ai/docs, next to /blog and /industry. `base` puts that prefix
@@ -411,10 +411,6 @@ export default defineConfig({
     },
   },
   themeConfig: {
-    logo: {
-      src: 'https://assets.yesy.site/f/images/2026/08/ngpc50cj.png',
-      alt: '',
-    },
     search: { provider: 'local' },
     outline: [2, 3],
     footer: {
