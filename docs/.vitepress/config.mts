@@ -197,6 +197,7 @@ function stackableTables(md: MarkdownRenderer): void {
 
 interface PageSet {
   getStarted: string
+  overview: string
   quickstart: string
   architecture: string
   concepts: string
@@ -220,6 +221,7 @@ interface PageSet {
 
 const EN: PageSet = {
   getStarted: 'Get started',
+  overview: 'Overview',
   quickstart: 'Quickstart',
   architecture: 'Architecture',
   concepts: 'Core concepts',
@@ -247,6 +249,7 @@ const EN: PageSet = {
 
 const ZH: PageSet = {
   getStarted: '开始使用',
+  overview: '概览',
   quickstart: '快速开始',
   architecture: '架构',
   concepts: '核心概念',
@@ -273,7 +276,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
     {
       text: t.getStarted,
       items: [
-        { text: t === EN ? 'Overview' : '概览', link: `${base}/` },
+        { text: t.overview, link: `${base}/get-started/overview` },
         { text: t.quickstart, link: `${base}/get-started/quickstart` },
         { text: t.architecture, link: `${base}/get-started/architecture` },
         { text: t.concepts, link: `${base}/get-started/concepts` },
@@ -306,7 +309,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
 
 function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
   return [
-    { text: t.getStarted, link: `${base}/get-started/quickstart` },
+    { text: t.getStarted, link: `${base}/get-started/overview` },
     { text: t.build, link: `${base}/build/agents` },
     { text: t.reference, link: `${base}/reference/typescript-sdk` },
     { text: t.capabilitiesNav, link: `${base}/reference/capabilities` },
@@ -428,8 +431,8 @@ export default defineConfig({
   // contributes changed when the home page moved its layout into frontmatter: the plugin
   // emits the markdown BODY only, so llms.txt now takes its title and description from
   // `hero.text` / `hero.tagline`, and the index's own entry carries the canonical
-  // create-start-session-stream snippet plus the paragraph naming what the API does not do.
-  // The longer orientation lives in get-started/concepts and reference/not-supported, both
+  // introduction, abbreviated example, and links to the overview and full Quickstart.
+  // The longer orientation lives in get-started/overview and reference/not-supported, both
   // of which are in the same bundle. Keep `hero.text` and `hero.tagline` where they are —
   // renaming them silently falls back to the site description and drops the tagline line.
   // The root docs/index.md stays out — it is only a redirect stub.

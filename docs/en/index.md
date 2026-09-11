@@ -1,30 +1,32 @@
 ---
 title: ZooWork Managed Agents
-description: Build agent products with the ZooWork TypeScript SDK, sessions, and streaming events.
+description: Put agents to work in your application. ZooWork runs their tasks and captures execution history, so you can understand results and improve how your agents perform.
 layout: page
 sidebar: false
 aside: false
 hero:
-  text: Create an agent, stream every event.
-  tagline: A hosted runtime for agents you drive from your own code. Durable, resumable
-    event streams; skills, sessions and chat channels; one API key and one TypeScript SDK.
+  text: Build with agents. We handle the runtime.
+  tagline: Put agents to work in your application. ZooWork runs their tasks and captures execution history, so you can understand results and improve how your agents perform.
 home:
   hero:
-    accent: stream every event.
+    accent: We handle the runtime.
     actions:
       - text: Quickstart
         link: /en/get-started/quickstart
         theme: primary
+      - text: Overview
+        link: /en/get-started/overview
       - text: TypeScript SDK
         link: /en/reference/typescript-sdk
-    sampleMeta: Abbreviated · Node 20+ · ESM · ZOOWORK_API_KEY
-    sampleLinkText: Full runnable example
+        theme: text
+    sampleMeta: Create an agent and session · Node 22.20+
+    sampleLinkText: Full Quickstart
     sampleLink: /en/get-started/quickstart
     streamLabel: EXAMPLE SESSION EVENTS
   nouns:
-    title: Four nouns carry the whole API
-    intro: Everything the SDK does is a verb on one of these. Learn them once and every
-      reference page reads itself.
+    title: Agent, Session, Event
+    intro: Configure an Agent, start a Session, and follow its Events. These three concepts
+      connect your application to the managed runtime.
     items:
       - name: Agent
         id: agt_
@@ -44,12 +46,6 @@ home:
           sequence-numbered log that resumes from the last cursor you saw.
         linkText: Events and streaming
         link: /en/build/events
-      - name: Skill
-        id: skl_
-        body: A packaged capability in the registry, versioned independently of any agent.
-          Install it unpinned and one publish reaches every agent that has it.
-        linkText: Skills
-        link: /en/build/skills
   journey:
     title: From key to production
     intro: The lifecycle in order — or jump straight to the page you need.
@@ -57,6 +53,7 @@ home:
       - name: Get started
         hint: Key to first streamed reply
         chips:
+          - { text: Overview, link: /en/get-started/overview, icon: compass }
           - { text: Quickstart, link: /en/get-started/quickstart, icon: play }
           - { text: Core concepts, link: /en/get-started/concepts, icon: compass }
       - name: Build
@@ -98,26 +95,33 @@ home:
 
 <ZcHome>
 
+<template v-slot:intro>
+
+Put agents to work in your application. ZooWork runs their tasks and captures execution history, so you can understand results and improve how your agents perform.
+
+</template>
+
 ```ts
-import {
-  createZooworkClient, assistantText, isRunFinished,
-} from '@zoowork-ai/sdk'
-const zc = createZooworkClient() // reads ZOOWORK_API_KEY
-const agent = await zc.createAgent({
+import { createZooworkClient } from '@zoowork-ai/sdk'
+
+const client = createZooworkClient()
+const agent = await client.createAgent({
   resource: { name: 'quickstart-agent' },
 })
-await zc.startAgent(agent.agent_id)
-await zc.waitUntilRunning(agent.agent_id)
-const session = await zc.createSession(agent.agent_id, {
-  initial_events: [{ type: 'user.message', content: 'What can you do?' }],
+await client.startAgent(agent.agent_id)
+
+const session = await client.createSession(agent.agent_id, {
+  initial_events: [{
+    type: 'user.message',
+    content: 'What can you do?',
+  }],
 })
-for await (const ev of zc.streamEvents(agent.agent_id, session.session_id)) {
-  process.stdout.write(assistantText(ev))
-  if (isRunFinished(ev)) break
-}
 ```
 
 <template v-slot:edges>
+
+Start with the [Overview](./get-started/overview.md) to learn how ZooWork works, or follow the
+[Quickstart](./get-started/quickstart.md) for a complete task, outcome checks, and cleanup.
 
 **Client-executed custom tools do not exist**: there is no `{type: "custom"}` tool definition
 and no `user.custom_tool_result` event, so the agent never calls back into your process.
