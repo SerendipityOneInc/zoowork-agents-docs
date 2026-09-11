@@ -22,16 +22,23 @@ function select(group: Element, name: string): boolean {
   const label = tabLabels(group).find((l) => l.textContent?.trim() === name)
   if (!label) return false
   const input = group.querySelector<HTMLInputElement>(`#${CSS.escape(label.htmlFor)}`)
-  // Only act when it is not already the active tab: clicking a checked radio is a
-  // no-op, but writing `checked` directly skips VitePress's own class bookkeeping.
-  if (!input || input.checked) return false
-  label.click()
+  const inputs = Array.from(group.querySelectorAll('.tabs input[type=radio]'))
+  const blocks = group.querySelector('.blocks')
+  const index = input ? inputs.indexOf(input) : -1
+  if (!input || !blocks?.children[index]) return false
+
+  // Restore both halves of VitePress's tab state. The radio may already be checked
+  // while the first code block is still active during initial page hydration.
+  // Updating the DOM directly also avoids recursively clicking other labels.
+  input.checked = true
+  Array.from(blocks.children).forEach((block, i) => {
+    block.classList.toggle('active', i === index)
+  })
   return true
 }
 
-function applyToAll(name: string, except?: Element): void {
+function applyToAll(name: string): void {
   for (const group of document.querySelectorAll('.vp-code-group')) {
-    if (group === except) continue
     select(group, name)
   }
 }
@@ -47,14 +54,17 @@ export function syncCodeGroups(): void {
     installed = true
 
     // One delegated listener survives every page swap, so it is installed once.
-    document.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement | null
-      const label = target?.closest<HTMLLabelElement>('.vp-code-group .tabs label')
-      if (!label) return
-      const name = label.textContent?.trim()
+    document.addEventListener('change', (e) => {
+      const input = e.target
+      if (!(input instanceof HTMLInputElement) ||
+          !input.matches('.vp-code-group .tabs input[type=radio]') || !input.checked) return
+      const group = input.closest('.vp-code-group')
+      if (!group) return
+      const label = tabLabels(group).find((l) => l.htmlFor === input.id)
+      const name = label?.textContent?.trim()
       if (!name) return
       localStorage.setItem(STORAGE_KEY, name)
-      applyToAll(name, label.closest('.vp-code-group') ?? undefined)
+      applyToAll(name)
     })
   }
 

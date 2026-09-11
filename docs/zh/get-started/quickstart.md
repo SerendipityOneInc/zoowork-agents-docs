@@ -1,518 +1,200 @@
 ---
 title: 快速开始
-description: 在五分钟内创建并启动 agent、打开 session，然后流式读取第一条回复。
+description: 使用 TypeScript 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: c559fa502d56e4630c79ea646906914adaee16f49bb412a3d31cbabdc9b01b3d
+source_hash: 1f768e721912616d23c31fde034294615d29fb30014f86eb9f9d1fae86c9a224
 ---
 
 # 快速开始
 
-建一个 agent、启动它、开一个 session、把回复流式读回来。整个流程大约五分钟。
+创建一个 Agent、启动会话，并流式读取回复。本例让 Agent 把三个月的销售数据整理成报告，
+保存为 `report.md`，再读回文件确认合计金额。
 
-::: tip 先把你的编码助手教会
-```bash
-npx skills add SerendipityOneInc/zoowork-sdk-skills
-```
-装完之后，你的助手在写第一行代码之前就已经懂这套 API——哪些调用存在、哪些不存在，以及那几个「看着对、运行时才炸」的地方。它会装进你有的各种助手：Claude Code、Codex、Cursor 等 70 多个，每个都装进它自己真正会读的目录。需要 Node 22.20 或更高。
+## 核心概念
 
-更想从一个已经能跑的东西开始？三个模板在 [zoowork-quickstarts](https://github.com/SerendipityOneInc/zoowork-quickstarts)：`chat/` 跟你已有的 agent 对话，`skill-lab/` 从零建一个 agent 并给它上传 skill，`app-kit/` 是带鉴权和持久化的生产参考。
-:::
+| 概念 | 含义 |
+|---|---|
+| Agent | 你创建并启动的配置，包括模型、工具和 Skills。 |
+| Session | 与 Agent 的一段会话，保存你的消息和它的工作过程。 |
+| Events | 通过 Session 交换的消息、工具调用、回复和回合结果。 |
+
+本例使用默认模型和沙箱，无需单独创建 Environment。
+需要自定义沙箱时，可以[配置 Environment](../build/environments.md)。
 
 ## 前置条件
 
-- **Node 20 或更高。** `@zoowork-ai/sdk` 是一个 ES module，没有任何运行时依赖，用的是平台自带的 `fetch`。
-- **一个 API key** ，形如 `zct_...`。你自己就能在 ZooWork App 的 **设置 → API Keys** 里建。企业组织里这个标签页只有 admin 能看到，而且 Developer Preview 期间它只对已进入分批开放范围的账号出现——看不到就找你的组织管理员要一把。完整说明见[鉴权](./authentication.md)。
+- 一个 ZooWork 组织 API Key（`zct_...`）。在 [ZooWork App](https://zoowork.ai) 的
+  **设置 → API Keys** 中创建，或向组织管理员申请。详见[鉴权](./authentication.md)。
+- **TypeScript：** Node.js **22.20+** 和 npm。
+- **curl：** Bash、curl **7.76+** 和 `jq` **1.6+**。
 
-这个 key 只能放在服务端。它认证的是你的整个组织，不是某一个终端用户。
+## 准备
+
+选择 TypeScript 或 curl，按同一个标签完成本页操作。
+
+::: code-group
+
+```bash [TypeScript]
+npm install @zoowork-ai/sdk
+```
+
+```bash [curl]
+curl --version
+jq --version
+```
+
+:::
+
+在终端中设置 API Key：
 
 ```bash
 export ZOOWORK_API_KEY='zct_...'
 ```
 
-下面每一步都同时给出 TypeScript 和 `curl` 两种写法。`curl` 这一栏的存在是为了让你用任何语言都能跟着走：它发出的 HTTP 和 SDK 发的是同一份。它需要把端点显式写出来，所以跑这些示例还要额外 export：
+::: warning 保护 API Key
+在服务端或本地开发电脑上运行示例。不要把 Key 放进浏览器代码或 Agent 的沙箱。
+:::
+
+**TypeScript：** 将下方 TypeScript 代码块按顺序复制到 `quickstart.mts`，包括清理代码，
+最后使用页面末尾的命令运行。
+
+**curl：** 在同一个 Bash 终端里逐块执行。确认每次请求成功后再继续，
+命令会保存返回的 ID，供下一步使用。
+
+## 创建第一个 Session
+
+### 1. 创建 Agent
+
+创建 Agent 并保存它的 ID。SDK 读取 `ZOOWORK_API_KEY`，默认使用公开 API 地址。
+curl 示例显式设置这个地址。
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#create [TypeScript]
+
+<<< ../../snippets/quickstart.sh#create [curl]
+
+:::
+
+curl 请求中的 `onboarding: false` 由 SDK 自动补充。
+
+### 2. 启动 Agent
+
+创建 Session 前，先启动 Agent。SDK 会等到 `status.desired_state` 为 `running`；
+curl 示例在启动请求后打印这个字段。
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#start [TypeScript]
+
+<<< ../../snippets/quickstart.sh#start [curl]
+
+:::
+
+**curl：** 输出为 `running` 后再继续。如果还不是，重复最后一条 GET 请求检查状态。
+启动错误的处理见 [Agent 生命周期](../build/agents.md)。
+
+### 3. 创建 Session
+
+为这次任务创建 Session，并保存返回的 `session_id`。
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#session [TypeScript]
+
+<<< ../../snippets/quickstart.sh#session [curl]
+
+:::
+
+### 4. 发送消息并读取回复
+
+让 Agent 生成销售报告。消息里已经包含全部数据，无需准备输入文件或外部服务。
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#send [TypeScript]
+
+<<< ../../snippets/quickstart.sh#send [curl]
+
+:::
+
+响应中的 `events[0].accepted` 应为 `true`，表示消息已被接受。
+接下来读取事件流，查看 Agent 的执行过程和结果。事件会被保存，所以即使 Agent 在你连接前
+就开始工作，仍然可以读回这些进度。
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#stream [TypeScript]
+
+<<< ../../snippets/quickstart.sh#stream [curl]
+
+:::
+
+**TypeScript** 打印回复和工具调用，在收到 `run.finished` 后关闭连接。
+**curl** 显示原始事件流。看到 `event_type: "run.finished"` 后，检查 `payload.status`，
+再按 **Ctrl+C** 回到终端。事件连接会等待后续回合，直到你主动关闭它。
+
+成功回合的状态为 `succeeded`。同时，Agent 的回复应确认报告已保存，合计销售额为 **300 美元**。
+工具名称和措辞可能不同，下面是示意输出；curl 仅展示部分事件字段：
+
+::: code-group
+
+```text [TypeScript]
+[tool] exec
+I saved report.md and read it back to verify the three monthly sales and the $300 total.
+Turn: succeeded
+```
+
+```text [curl]
+event: event
+data: {"event_type":"agent.assistant","payload":{"message":{"content":[{"type":"text","text":"I saved report.md and verified total sales of $300."}]}}}
+
+event: event
+data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
+```
+
+:::
+
+::: tip 回合未成功时
+如果结果为 `failed`、`aborted`，或连接在收到 `run.finished` 前关闭，
+请先检查[会话历史](../build/sessions.md)再重试。仍可使用下方请求清理 Agent。
+:::
+
+## 执行过程中发生了什么
+
+收到消息后，ZooWork 会：
+
+1. 运行 Agent，由它决定使用哪些工具完成任务。
+2. 在托管沙箱里执行工具，`report.md` 也保存在这里。
+3. 保存并流式返回执行事件。
+4. 通过 `run.finished` 返回回合结果，Session 保留，可继续发送消息。
+
+## 清理
+
+完成示例后，先停止 Agent 以释放沙箱，再删除 Agent。请先保存需要保留的内容。
+如果停止失败，解决错误后再删除。
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#cleanup [TypeScript]
+
+<<< ../../snippets/quickstart.sh#cleanup [curl]
+
+:::
+
+使用以下命令运行拼接好的 TypeScript 示例：
 
 ```bash
-export ZOOWORK_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
+node quickstart.mts
 ```
 
-选一次栏目，本页所有代码块都会跟着切。
-
-## 安装
-
-::: code-group
-
-```bash [pnpm]
-pnpm add @zoowork-ai/sdk
-```
-
-```bash [npm]
-npm install @zoowork-ai/sdk
-```
-
-```bash [yarn]
-yarn add @zoowork-ai/sdk
-```
-
-:::
-
-要直接跑本页的 TypeScript：
-
-```bash
-pnpm add -D typescript tsx @types/node
-```
-
-SDK 只发 ESM。在 `package.json` 里设 `"type": "module"`，这样 `import` 才能用，顶层 `await` 也才可用。
-
-## 创建客户端
-
-```ts
-import { createZooworkClient } from '@zoowork-ai/sdk'
-
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
-```
-
-只要 export 了 `ZOOWORK_API_KEY`，这个参数可以整个省掉——`createZooworkClient()` 会自己读。剩下的选项只有两个：`baseUrl`（默认指向公开网关，也可由 `ZOOWORK_BASE_URL` 指定），以及一个注入的 `fetch`，供边缘运行时和测试使用。
-
-key 缺失会在构造时就抛错，而不是等你第一次调用时才以 401 的形式冒出来。
-
-验证 key 是否可用最便宜的方式是 `listModels()`——它不需要 agent，也不需要 session：
-
-::: code-group
-
-```ts [TypeScript]
-const models = await zc.listModels()
-console.log(models.length, models[0]?.model)
-
-const primary = models.find((model) => model.model === 'litellm/gpt-5.6-terra')?.model
-if (!primary) throw new Error('请从 listModels() 返回的模型中选择一个')
-```
-
-```bash [curl]
-curl "$ZOOWORK_BASE_URL/models" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-```
-
-:::
-
-```json
-[
-  { "model": "litellm/gpt-5.6-terra", "display_name": "GPT-5.6 Terra", "family": "openai", "api": "openai-responses" }
-]
-```
-
-实际目录由部署决定。示例只在当前部署确实返回源码当前默认值时选择它；若没有，请从返回的别名中明确选择另一个。不要静默回退到 `models[0]`，因为目录顺序不是稳定性契约。
-
-无效的 key 返回 `401`。SDK 抛出的 `ZooworkError` 带 `.status` 和 `.type`——绝不要匹配报错文本。在你清楚是哪个家族回的错时匹配 `.type`；`401` 请按 `.status` 分支，因为网关和核心 API 对这个 type 的拼法不一样。
-
-## 1. 创建 agent
-
-agent 是一个持久化、带版本的配置对象。`name` 是必填项。省略 `model` 会把创建时的平台默认值写入 agent；默认值可能轮换，因此需要确定性部署时，应发送一个由 `listModels()` 返回的 `model.primary`。
-
-::: code-group
-
-```ts [TypeScript]
-const created = await zc.createAgent({
-  resource: {
-    name: 'quickstart-agent',
-    model: { primary },
-  },
-})
-
-const agentId = created.agent_id
-```
-
-```bash [curl]
-curl -X POST "$ZOOWORK_BASE_URL/agents" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "resource": {
-      "name": "quickstart-agent",
-      "model": { "primary": "litellm/gpt-5.6-terra" }
-    }
-  }'
-```
-
-:::
-
-响应是一个扁平的**创建回执** ：
-
-```json
-{
-  "agent_id": "agt_example",
-  "computer_id": "cmp_example",
-  "config_version": 1,
-  "resolved_skills": []
-}
-```
-
-关于这个结构，有两点要知道：
-
-- 回执和读取返回的不是同一个结构。`getAgent()` 返回的是一个投影：配置在 `declared` 下面，版本号在 `status.config_version`——读取路径上没有顶层的 `config_version` 和 `name`。要这样读：`agent.status?.config_version ?? agent.config_version`。
-- 回执里的 `config_version`，等你读到它的时候就已经过期了：创建之后的每一次写入都会 bump 一次版本号，所以一秒后再 `getAgent()` 通常报的是 `3`。不要把版本号当幂等回执用。
-
-如果你想要一个可以安全重试的创建，把幂等 key 作为第二个参数传进去：
-
-```ts
-const agent = await zc.createAgent(
-  {
-    resource: { name: 'quickstart-agent', model: { primary } },
-  },
-  'quickstart-run-01', // 你的幂等 key
-)
-```
-
-## 2. 启动 agent
-
-::: warning 别跳过这一步
-新建出来的 agent 是 `status.desired_state === 'stopped'`。所有 session 调用都要求它是 `running`。如果你直接去调 `createSession()`，SDK 会抛出 `ZooworkError`，其中 `status === 409`、`type === 'agent_not_running'`：
-
-```ts
-import { ZooworkError } from '@zoowork-ai/sdk'
-
-try {
-  await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
-} catch (e) {
-  if (e instanceof ZooworkError && e.type === 'agent_not_running') {
-    // You forgot startAgent(). Match on e.type, not on e.message.
-  }
-}
-```
-
-创建与启动是刻意分开的两步；假设「建完就能用」的代码会在这里失败。
-:::
-
-::: code-group
-
-```ts [TypeScript]
-const { warnings } = await zc.startAgent(agentId)
-console.log(warnings)
-```
-
-```bash [curl]
-curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-```
-
-:::
-
-```json
-{ "warnings": ["channel_routes_reload_failed: routes reload returned 404"] }
-```
-
-成功回执中的警告是提示性的，是否出现取决于部署，不是每次启动和停止必有。HTTP 或网络失败仍会抛错；stop 的结果不确定时，先读回 desired state 再决定是否重试。
-
-### 等待就绪
-
-::: danger 轮询 `desired_state`，绝不要轮询 `actual_state`
-`actual_state` 是尽力而为的**聊天渠道健康投影**，不是 API 的就绪状态。当 route-status 能力不受支持时，GET 可能返回 `active`、零渠道计数，并在 `status_message` 中说明渠道健康度未经验证；短暂的健康查询失败仍会显示 `activating`。`listAgents()` 不执行同一套前台健康查询，因此列表与 GET 还可能短时不同。`running` 甚至不在 `actual_state` 的枚举里（`activating | active | degraded | error | stopped | deleting`）。
-
-请等 `status.desired_state === 'running'`。任何 `actual_state` 值都不能用作 API 就绪信号。
-:::
-
-这个循环 SDK 已经写好了，你不用自己写：
-
-```ts
-const agent = await zc.waitUntilRunning(agentId)
-```
-
-它按 30 秒的总预算、每 500 毫秒轮询一次 `status.desired_state`，返回的就是 `getAgent()` 会给你的那份投影。如果 agent 始终没到 `running`，它抛出 `status === 408`、`type === 'timeout'` 的 `ZooworkError`。
-
-启动之后立刻 `getAgent()` 读一次，长这样（省略了其他字段）：
-
-```json
-{
-  "agent_id": "agt_example",
-  "declared": { "name": "quickstart-agent", "model": { "primary": "litellm/gpt-5.6-terra" } },
-  "status": {
-    "desired_state": "running",
-    "actual_state": "activating",
-    "config_version": 3,
-    "channels": { "expected": 0, "connected": 0 }
-  }
-}
-```
-
-这是渠道健康投影的一种可能结果。当 route-status 不受支持时，同一个 GET 也可以返回 `actual_state: "active"`、零渠道计数，并在 `status_message` 中说明健康度未经验证。两种情况下 session 都能正常工作，因为就绪状态由 `desired_state` 决定。
-
-## 3. 创建 session 并带上首条消息
-
-session 挂在 agent 下面：`createSession(agentId, input)`。没有顶层的 sessions 资源，agent id 也不放在 body 里。
-
-::: code-group
-
-```ts [TypeScript]
-const session = await zc.createSession(agentId, {
-  metadata: { source: 'quickstart' },
-  initial_events: [{ type: 'user.message', content: 'In one sentence, what can you do?' }],
-})
-
-const sessionId = session.session_id
-```
-
-```bash [curl]
-curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "metadata": { "source": "quickstart" },
-    "initial_events": [
-      { "type": "user.message", "content": "In one sentence, what can you do?" }
-    ]
-  }'
-```
-
-:::
-
-```json
-{
-  "session_id": "0123456789abcdef0123456789abcdef",
-  "session_key": "api:0123456789abcdef0123456789abcdef",
-  "status": "running"
-}
-```
-
-这是创建回执。`status: "running"` 表示 session 已创建，并且开场回合已经启动；它不是 run 的结果。
-创建回执不包含 `run_status`。之后调用 `getSession()` 时，`status` 可能是 `null`，而且它不是 run 的结果；
-最近一次 run 的状态在 `run_status`。`listSessions()` 的每一行也包含 `run_status`，但不包含 `status`。
-
-`initial_events` 会在这次创建调用里就把第一个回合起起来，所以你不需要再单独发一次。用 `user.message`，content 传字符串。同一个 session 里后续的回合，调 `postEvents(agentId, sessionId, events)`。
-
-`session_key` 上的 `api:` 前缀标明这是一个 API session。通过聊天渠道创建的 session 带的是另一种前缀，属于另一段对话，记忆也是分开的。
-
-这里同样可以传一个幂等 key：
-
-```ts
-const session = await zc.createSession(agentId, input, 'quickstart-session-01')
-```
-
-## 4. 流式读取，直到本回合结束
-
-`streamEvents()` 是一个 async generator，遍历这个 session 的持久事件日志。
-
-::: code-group
-
-```ts [TypeScript]
-import { assistantText, isRunFinished, runOutcome, toolCall } from '@zoowork-ai/sdk'
-
-const ctl = new AbortController()
-const budget = setTimeout(() => ctl.abort(), 120_000)
-
-let text = ''
-let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
-
-try {
-  for await (const ev of zc.streamEvents(agentId, sessionId, { signal: ctl.signal })) {
-    const call = toolCall(ev)
-    if (call?.phase === 'start') console.log(`\n[tool] ${call.toolName}`)
-
-    const chunk = assistantText(ev)
-    if (chunk) {
-      text += chunk
-      process.stdout.write(chunk)
-    }
-
-    if (isRunFinished(ev)) {
-      outcome = runOutcome(ev)
-      break
-    }
-  }
-} finally {
-  clearTimeout(budget)
-  ctl.abort()
-}
-```
-
-```bash [curl]
-# -N disables buffering so frames arrive as they are produced.
-# Resume after a drop by appending ?cursor=<the last id: line you saw>,
-# The public gateway does not forward Last-Event-ID; use the cursor query parameter.
-curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -H "Accept: text/event-stream"
-```
-
-:::
-
-每一次迭代吐出一个归一化后的 `SessionEvent`：
-
-```json
-{
-  "seq": 5,
-  "eventType": "agent.assistant",
-  "runId": "run_example",
-  "turn": 1,
-  "payload": {
-    "message": { "role": "assistant", "content": [{ "type": "text", "text": "I can research topics and write code." }] }
-  },
-  "createdAt": "2026-08-06T08:00:00.000Z"
-}
-```
-
-一个回合产生的事件大致是这样一条弧线：`run.started` -> `agent.lifecycle` -> `agent.item` -> `agent.thinking` -> `agent.assistant` -> `agent.tool`（start/end 成对）-> `agent.lifecycle` -> `run.finished`。
-
-有四件事最容易把人绊住：
-
-- **`run.finished` 结束的是回合，不是流。** `isRunFinished(ev)` 为真时请自己跳出循环，否则你会一直阻塞到服务端的空闲超时。
-- **`runOutcome(ev)` 的取值是 `succeeded | failed | aborted`。** 即使个别工具调用出了错，这次 run 依然可能以 `succeeded` 结束——`toolCall(ev).isError === true` 不会让 run 失败。不要用「没有工具报错」来推断成功。
-- **对每一个不是 `agent.assistant` 的事件，`assistantText(ev)` 都返回 `''`** ，所以在整个循环里一路拼接是安全的，拼出来就是完整回复。
-- **用 `cursor` 续传。** 每一个流出来的帧都带一个 `cursor` 续传令牌。连接断了，就拿你看到的最后一个重新起这个 generator，服务端从那里开始重放——不丢，也不重。`{ after: seq }` 也能续传，但会切到废弃的 engine-only 通道，那条通道不含你自己发的 input 事件；它只留给 `cursor` 出现之前存下来的旧游标。
-
-```ts
-let cursor: string | undefined
-for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
-  cursor = ev.cursor ?? cursor
-  /* ... */
-}
-```
-
-如果你更想用轮询，`listEvents(agentId, sessionId)` 走 REST 读的是同一批事件。它只返回一页——服务端默认 100 条，最多 500 条——而且整页会被静默截断：没有 `has_more`，没有总数，也没有游标。用 `listAllEvents(agentId, sessionId)` 一次把所有页走完，不要自己写这个循环。
-
-## 5. 清理
-
-::: code-group
-
-```ts [TypeScript]
-await zc.stopAgent(agentId)
-await zc.deleteAgent(agentId)
-```
-
-```bash [curl]
-curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/stop" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-
-curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-```
-
-:::
-
-先停。`deleteAgent()` 只是一次软删除：它不会停掉 agent，不会取消调度，也不会释放沙箱，所以删掉但没停的 agent 会继续跑着。详见 [Agents](../build/agents.md)。
-
-`stopAgent()` 返回和启动时一样的 `channel_routes_reload_failed` 提示性警告。停掉之后，对这个 agent 调 `createSession()` 会重新返回 `409 agent_not_running`。
-
-## 完整程序
-
-存成 `quickstart.ts`，然后运行 `ZOOWORK_API_KEY='zct_...' pnpm exec tsx quickstart.ts`。
-
-```ts
-import {
-  createZooworkClient,
-  ZooworkError,
-  assistantText,
-  isRunFinished,
-  runOutcome,
-  toolCall,
-} from '@zoowork-ai/sdk'
-
-const apiKey = process.env.ZOOWORK_API_KEY
-if (!apiKey) throw new Error('set ZOOWORK_API_KEY')
-
-const zc = createZooworkClient({ apiKey })
-
-// 0. Confirm the key works and pick a model.
-const models = await zc.listModels()
-const model = models.find((candidate) => candidate.model === 'litellm/gpt-5.6-terra')?.model
-if (!model) throw new Error('请从 listModels() 返回的模型中选择一个')
-console.log(`${models.length} models available, using ${model}`)
-
-// 1. Create the agent.
-const created = await zc.createAgent({
-  resource: {
-    name: `quickstart-${Date.now()}`,
-    model: { primary: model },
-  },
-})
-const agentId = created.agent_id
-console.log(`created agent ${agentId}`)
-
-try {
-  // 2. Start it. Without this, createSession returns 409 agent_not_running.
-  const { warnings } = await zc.startAgent(agentId)
-  if (warnings.length) console.log(`start warnings: ${warnings.join(', ')}`)
-  // Readiness is desired_state. waitUntilRunning polls that, never actual_state.
-  await zc.waitUntilRunning(agentId)
-  console.log('agent is running')
-
-  // 3. Open a session with the first user message already in it.
-  const session = await zc.createSession(agentId, {
-    metadata: { source: 'quickstart' },
-    initial_events: [{ type: 'user.message', content: 'In one sentence, what can you do?' }],
-  })
-  console.log(`session ${session.session_id}\n`)
-
-  // 4. Stream until run.finished. The stream does not close on its own.
-  const ctl = new AbortController()
-  const budget = setTimeout(() => ctl.abort(), 120_000)
-  let text = ''
-  let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
-
-  try {
-    for await (const ev of zc.streamEvents(agentId, session.session_id, { signal: ctl.signal })) {
-      const call = toolCall(ev)
-      if (call?.phase === 'start') console.log(`\n[tool] ${call.toolName}`)
-
-      const chunk = assistantText(ev)
-      if (chunk) {
-        text += chunk
-        process.stdout.write(chunk)
-      }
-
-      if (isRunFinished(ev)) {
-        outcome = runOutcome(ev)
-        break
-      }
-    }
-  } finally {
-    clearTimeout(budget)
-    ctl.abort()
-  }
-
-  console.log(`\n\nrun ${outcome}, ${text.trim().length} characters`)
-  if (outcome !== 'succeeded') process.exitCode = 1
-} catch (e) {
-  if (e instanceof ZooworkError) {
-    console.error(`ZooWork error ${e.status} ${e.type ?? ''}: ${e.message}`)
-    process.exitCode = 1
-  } else {
-    throw e
-  }
-} finally {
-  // 5. Stop before delete. DELETE is a soft delete and does not stop the agent.
-  await zc.stopAgent(agentId)
-  await zc.deleteAgent(agentId)
-  console.log(`cleaned up agent ${agentId}`)
-}
-```
-
-预期输出：
-
-```
-25 models available, using litellm/gpt-5.6-terra
-created agent agt_example
-agent is running
-session 0123456789abcdef0123456789abcdef
-
-I can research topics, run code, and work with documents.
-
-run succeeded, 57 characters
-cleaned up agent agt_example
-```
-
-## 排查
-
-| 现象 | 原因 | 处理 |
-|---|---|---|
-| 每次调用都返回 `401` | key 缺失或无效 | 检查 `ZOOWORK_API_KEY` 是否以 `zct_` 开头，以及是否以 `apiKey` 传入。网关和核心 API 在这件事上用的 `error.type` 字符串不一样，所以请按 `e.status` 分支，不要按 type |
-| `createSession` 返回 `409 agent_not_running` | agent 从未启动，或已被停止 | 调 `startAgent()`，并等到 `desired_state === 'running'` |
-| 就绪轮询循环永远不返回 | 在轮询 `status.actual_state` | 改成轮询 `status.desired_state`，或者直接交给 `zc.waitUntilRunning()` |
-| 流永远不结束 | 在等连接自己关闭 | 在 `isRunFinished(ev)` 处跳出 |
-| 手上的 agent id 却返回 `404 not_found` | 这个 id 属于另一个组织 | 跨租户的 id 是被隐藏，而不是用 403 拒绝 |
-| `409 idempotency_conflict` | 同一个 `Idempotency-Key`，body 不同 | 换一个新 key，或者发送逐字节一致的请求体 |
+如果程序提前退出，使用已打印的 Agent ID 执行上面的清理请求。
+curl 用户在按 Ctrl+C 关闭事件流后执行清理。
 
 ## 下一步
 
-- [Agents](../build/agents.md) —— 配置分区、`updateAgent()` 的合并语义，以及两种响应结构。
-- [Sessions](../build/sessions.md) —— 多回合对话、`postEvents()`、`system.message` 和 `user.interrupt`。
-- [事件与流式](../build/events.md) —— 完整的事件词表、断线续传，以及走 REST 读历史。
-- [不支持的能力](../reference/not-supported.md) —— 这里不存在的东西，包括客户端执行的自定义工具。在你围绕某个能力做设计之前，先读这一页。
+- [Agents](../build/agents.md)：选择模型、工具和 Skills。
+- [Sessions](../build/sessions.md)：继续对话、读取历史。
+- [事件与流式](../build/events.md)：处理事件、超时和重新连接。
+- [示例应用](https://github.com/SerendipityOneInc/zoowork-quickstarts)：构建完整应用。
+- [编码助手 Skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills)：为编码助手提供 ZooWork SDK 使用说明。
