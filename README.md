@@ -51,6 +51,17 @@ Where a capability does not exist, the page still exists and says so — see
 
 ## Rules
 
+### Documentation images
+
+Upload final public images through the company [asset uploader](https://assets.yesy.site)
+or its `POST https://assets.yesy.site/api/upload` endpoint (multipart field `file`).
+The [upload API docs](https://assets.yesy.site/docs) describe the response; use the returned
+`data.url` in both language pages, with descriptive alt text and a link to the full-size image.
+Keep internal drafts and generation notes out of uploads. After updating English copy,
+refresh the Chinese page's `source_hash` and review the generated AI docs.
+
+### Content and validation
+
 - **Every claim is verified or labelled.** A capability is documented as working
   only if it has been exercised against a live deployment. Anything else carries
   an explicit status note. See the capability matrix for the levels.

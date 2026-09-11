@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 7de504f04db35da0aa4e385cc0d640328e48c3a3c7f0ff98a938d74caccf8288
+source_hash: c859b83851e696ded47992dd0b41b5b4302bbdb86120c664d3daef9e7d7c7986
 ---
 
 # 快速开始
@@ -190,6 +190,7 @@ curl 用户在按 Ctrl+C 关闭事件流后执行清理。
 
 ## 下一步
 
+- [架构](./architecture.md)：了解托管执行、状态持久保存和计算按需启停。
 - [Agents](../build/agents.md)：选择模型、工具和 Skills。
 - [Sessions](../build/sessions.md)：继续对话、读取历史。
 - [事件与流式](../build/events.md)：处理事件、超时和重新连接。

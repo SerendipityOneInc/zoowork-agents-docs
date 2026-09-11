@@ -198,6 +198,7 @@ function stackableTables(md: MarkdownRenderer): void {
 interface PageSet {
   getStarted: string
   quickstart: string
+  architecture: string
   concepts: string
   build: string
   agents: string
@@ -220,6 +221,7 @@ interface PageSet {
 const EN: PageSet = {
   getStarted: 'Get started',
   quickstart: 'Quickstart',
+  architecture: 'Architecture',
   concepts: 'Core concepts',
   build: 'Build',
   agents: 'Agents',
@@ -246,6 +248,7 @@ const EN: PageSet = {
 const ZH: PageSet = {
   getStarted: '开始使用',
   quickstart: '快速开始',
+  architecture: '架构',
   concepts: '核心概念',
   build: '构建',
   agents: 'Agents',
@@ -272,6 +275,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: t === EN ? 'Overview' : '概览', link: `${base}/` },
         { text: t.quickstart, link: `${base}/get-started/quickstart` },
+        { text: t.architecture, link: `${base}/get-started/architecture` },
         { text: t.concepts, link: `${base}/get-started/concepts` },
       ],
     },
@@ -434,6 +438,8 @@ export default defineConfig({
       llmstxt({
         workDir: 'en',
         excludeIndexPage: false,
+        // AI pages are emitted relative to workDir, without the HTML locale prefix.
+        sidebar: sidebar(EN, ''),
       }),
     ],
   },
