@@ -1,31 +1,33 @@
 ---
 title: ZooWork Managed Agents
-description: 使用 ZooWork TypeScript SDK、Session 和流式事件构建 agent 产品。
+description: 全托管的 Agent 基础设施。在持久会话中创建并运行 Agent，实时获取结果，并保留事件历史。
 layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: cc0775014d482447bf010eaacdeb9f59cbef02db5754d5e6ff29a2eb8835dd05
+source_hash: 2072e7432be36b6930cb6c1487af39ba55edea5ed9731f07e43c8b67c1b20b32
 hero:
-  text: 创建一个 agent，流式拿回每个事件。
-  tagline: 一个由你自己的代码驱动的托管 agent 运行时。可续传的持久事件流；skills、sessions
-    与聊天渠道；一个 API key，一个 TypeScript SDK。
+  text: 用 Agent 构建应用。运行交给 ZooWork。
+  tagline: 全托管的 Agent 基础设施。在持久会话中创建并运行 Agent，实时获取结果，并保留事件历史。
 home:
   hero:
-    accent: 流式拿回每个事件。
+    accent: 运行交给 ZooWork。
     actions:
       - text: 快速开始
         link: /zh/get-started/quickstart
         theme: primary
+      - text: 概览
+        link: /zh/get-started/overview
       - text: TypeScript SDK
         link: /zh/reference/typescript-sdk
-    sampleMeta: 节选 · Node 20+ · ESM · ZOOWORK_API_KEY
-    sampleLinkText: 查看可直接运行的完整示例
+        theme: text
+    sampleMeta: 创建 Agent 和 Session · Node 22.20+
+    sampleLinkText: 查看完整 Quickstart
     sampleLink: /zh/get-started/quickstart
     streamLabel: 示例 SESSION 事件
   nouns:
-    title: 四个名词撑起整套 API
-    intro: SDK 做的每一件事，都是作用在这四者之一上的动词。把它们学一遍，之后每一页参考文档都能自己读懂。
+    title: Agent、Session、Event
+    intro: 配置 Agent，创建 Session，通过 Event 跟踪执行。这三个概念将你的应用连接到托管运行时。
     items:
       - name: Agent
         id: agt_
@@ -45,12 +47,6 @@ home:
           可以从你见过的最后一个 cursor 续传。
         linkText: 事件与流式
         link: /zh/build/events
-      - name: Skill
-        id: skl_
-        body: registry 里的一份打包能力，版本独立于任何 agent。
-          不钉版本地安装它，一次发布就会到达每一个装了它的 agent。
-        linkText: Skills
-        link: /zh/build/skills
   journey:
     title: 从一把 key 到上线
     intro: 按生命周期顺序排列 —— 或者直接跳到你需要的那一页。
@@ -58,6 +54,7 @@ home:
       - name: 开始使用
         hint: 从 key 到第一条流式回复
         chips:
+          - { text: 概览, link: /zh/get-started/overview, icon: compass }
           - { text: 快速开始, link: /zh/get-started/quickstart, icon: play }
           - { text: 核心概念, link: /zh/get-started/concepts, icon: compass }
       - name: 构建
@@ -98,26 +95,33 @@ home:
 
 <ZcHome>
 
+<template v-slot:intro>
+
+全托管的 Agent 基础设施。在持久会话中创建并运行 Agent，实时获取结果，并保留事件历史。
+
+</template>
+
 ```ts
-import {
-  createZooworkClient, assistantText, isRunFinished,
-} from '@zoowork-ai/sdk'
-const zc = createZooworkClient() // reads ZOOWORK_API_KEY
-const agent = await zc.createAgent({
+import { createZooworkClient } from '@zoowork-ai/sdk'
+
+const client = createZooworkClient()
+const agent = await client.createAgent({
   resource: { name: 'quickstart-agent' },
 })
-await zc.startAgent(agent.agent_id)
-await zc.waitUntilRunning(agent.agent_id)
-const session = await zc.createSession(agent.agent_id, {
-  initial_events: [{ type: 'user.message', content: 'What can you do?' }],
+await client.startAgent(agent.agent_id)
+
+const session = await client.createSession(agent.agent_id, {
+  initial_events: [{
+    type: 'user.message',
+    content: 'What can you do?',
+  }],
 })
-for await (const ev of zc.streamEvents(agent.agent_id, session.session_id)) {
-  process.stdout.write(assistantText(ev))
-  if (isRunFinished(ev)) break
-}
 ```
 
 <template v-slot:edges>
+
+通过[概览](./get-started/overview.md)了解 ZooWork 的工作方式，或跟随[快速开始](./get-started/quickstart.md)
+完成一个任务，包括结果检查与资源清理。
 
 **客户端执行的自定义工具不存在**：没有 `{type: "custom"}` 这种工具定义，也没有
 `user.custom_tool_result` 事件，所以 agent 永远不会回调进你的进程。session 级的 outcome

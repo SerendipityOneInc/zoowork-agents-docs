@@ -2,6 +2,7 @@
 import { computed, type Component } from 'vue'
 import { useData, withBase } from 'vitepress'
 import {
+  ArrowRightIcon,
   ChatBubbleLeftRightIcon,
   ChatBubbleOvalLeftEllipsisIcon,
   CodeBracketIcon,
@@ -31,7 +32,7 @@ interface Action {
   text: string
   link: string
   /* Primary describes action hierarchy. Brand colour is deliberately not a button variant. */
-  theme?: 'primary'
+  theme?: 'primary' | 'text'
 }
 
 interface Noun {
@@ -132,18 +133,34 @@ const ICONS: Record<string, Component> = {
     <!-- Hero: the claim on the left, the loop it names running on the right. -->
     <header class="hero">
       <div class="inner hero-grid">
-      <div>
-        <span class="dot" aria-hidden="true" />
-        <h1>{{ heroLead }}<span class="accent">{{ heroAccent }}</span></h1>
-        <p class="tagline">{{ heroTagline }}</p>
+      <div class="hero-copy">
+        <h1>
+          <span class="hero-lead">{{ heroLead }}</span>
+          <span class="accent">{{ heroAccent }}</span>
+        </h1>
+        <div class="tagline"><slot name="intro">{{ heroTagline }}</slot></div>
         <div class="actions">
           <a
             v-for="action in home.hero.actions"
             :key="action.link"
             class="btn"
-            :class="action.theme === 'primary' ? 'btn-primary' : 'btn-alt'"
+            :class="{
+              'btn-primary': action.theme === 'primary',
+              'btn-text': action.theme === 'text',
+              'btn-alt': !action.theme,
+            }"
             :href="withBase(action.link)"
-          >{{ action.text }}</a>
+          >
+            {{ action.text }}
+            <ArrowRightIcon v-if="action.theme === 'text'" class="btn-icon" aria-hidden="true" />
+          </a>
+        </div>
+        <div class="hero-flow" aria-label="Agent, Session, Event">
+          <span>Agent</span>
+          <ArrowRightIcon aria-hidden="true" />
+          <span>Session</span>
+          <ArrowRightIcon aria-hidden="true" />
+          <span>Event</span>
         </div>
         <p v-if="home.hero.note" class="note">
           <a v-if="home.hero.noteLink" :href="withBase(home.hero.noteLink)">{{ home.hero.note }}</a>
@@ -153,7 +170,7 @@ const ICONS: Record<string, Component> = {
 
       <div class="panel">
         <div class="panel-bar">
-          <span class="panel-file">quickstart.ts</span>
+          <span class="panel-file">quickstart.mts</span>
           <code class="install-command"><span aria-hidden="true">$</span> npm i @zoowork-ai/sdk</code>
         </div>
         <div class="panel-code"><slot /></div>
@@ -175,7 +192,7 @@ const ICONS: Record<string, Component> = {
       </div>
     </header>
 
-    <!-- The four objects every reference page is written against. -->
+    <!-- The three core resources used throughout the documentation. -->
     <section class="nouns-section">
       <div class="inner">
       <div class="sec-head">
@@ -272,52 +289,57 @@ h3 {
 /* --- Hero ------------------------------------------------------------------ */
 
 .hero {
-  padding: 40px 0;
+  padding: 56px 0;
 }
 
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: 40px;
-  /* Start, not centre: the code panel is much taller than the copy, and centring split the
-     difference into a hole above the headline. */
-  align-items: start;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 56px;
+  align-items: center;
 }
 
-.dot {
-  display: block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--zc-brand);
-  margin-bottom: 20px;
+.hero-copy {
+  min-width: 0;
+  padding-block: 24px;
 }
 
 .hero h1 {
-  font-size: clamp(32px, 3.4vw, 36px);
-  line-height: 1.15;
-  letter-spacing: -0.03em;
+  max-width: 10em;
+  font-size: clamp(42px, 4vw, 50px);
+  line-height: 1.04;
+  letter-spacing: -0.04em;
 }
 
-/* Chinese wraps between any two Han characters, so balancing splits words down the middle. */
+.hero-lead,
 .accent {
+  display: block;
+}
+
+.accent {
+  margin-top: 0.08em;
   color: var(--zc-brand);
 }
 
 .tagline {
-  margin: 20px 0 0;
-  max-width: 46ch;
+  margin: 24px 0 0;
+  max-width: 42ch;
   color: var(--vp-c-text-2);
   font-size: 16px;
-  line-height: 1.6;
+  line-height: 1.65;
   text-wrap: pretty;
+}
+
+.tagline :deep(p) {
+  margin: 0;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 28px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
 }
 
 .btn {
@@ -325,9 +347,9 @@ h3 {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 40px;
+  height: 44px;
   border-radius: var(--zc-radius-md);
-  padding: 0 16px;
+  padding: 0 18px;
   font-size: 14px;
   font-weight: 600;
   border: 1px solid transparent;
@@ -358,6 +380,48 @@ h3 {
   background: var(--zc-hover);
   border-color: var(--zc-line);
   color: var(--vp-c-text-1);
+}
+
+.btn-text {
+  gap: 6px;
+  padding-inline: 4px;
+  color: var(--zc-link);
+}
+
+.btn-text:hover {
+  color: var(--zc-link-hover);
+}
+
+.btn-icon {
+  width: 15px;
+  height: 15px;
+  transition: transform var(--zc-motion-fast) ease;
+}
+
+.btn-text:hover .btn-icon {
+  transform: translateX(2px);
+}
+
+.hero-flow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 360px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--vp-c-divider);
+  color: var(--vp-c-text-3);
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-flow svg {
+  width: 14px;
+  height: 14px;
+  color: var(--zc-line-strong);
 }
 
 .note a {
@@ -603,11 +667,11 @@ h3 {
 
 .nouns {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
 }
 
-/* The four nouns and the band's two columns are one card: a quiet rule, a title, a
+/* The core concepts and the band's two columns are one card: a quiet rule, a title, a
    paragraph, a link. Only the heading size and the nouns' bottom-alignment differ. */
 .noun,
 .band-col {
@@ -824,7 +888,7 @@ h3 {
 
 /* --- Narrow ---------------------------------------------------------------- */
 
-@media (max-width: 1000px) {
+@media (max-width: 1080px) {
   .hero {
     padding: 40px 0;
   }
@@ -832,6 +896,11 @@ h3 {
   .hero-grid {
     grid-template-columns: 1fr;
     gap: 32px;
+  }
+
+  .hero-copy {
+    max-width: 680px;
+    padding-block: 8px 16px;
   }
 
   .nouns {
@@ -858,6 +927,24 @@ h3 {
 @media (max-width: 600px) {
   .inner {
     padding-inline: 20px;
+  }
+
+  .hero h1 {
+    font-size: clamp(36px, 11vw, 44px);
+  }
+
+  .actions {
+    gap: 10px;
+  }
+
+  .btn-text {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    height: 32px;
+  }
+
+  .hero-flow {
+    margin-top: 28px;
   }
 
   .panel-bar {
