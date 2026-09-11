@@ -66,7 +66,7 @@ interface HomeData {
   hero: {
     accent: string
     actions: Action[]
-    note: string
+    note?: string
     noteLink?: string
     sampleMeta: string
     sampleLinkText: string
@@ -145,7 +145,7 @@ const ICONS: Record<string, Component> = {
             :href="withBase(action.link)"
           >{{ action.text }}</a>
         </div>
-        <p class="note">
+        <p v-if="home.hero.note" class="note">
           <a v-if="home.hero.noteLink" :href="withBase(home.hero.noteLink)">{{ home.hero.note }}</a>
           <template v-else>{{ home.hero.note }}</template>
         </p>
@@ -247,8 +247,8 @@ const ICONS: Record<string, Component> = {
 </template>
 
 <style scoped>
-/* Brand purple is reserved for the ZooWork identity in the hero. Controls, links, selection,
-   borders and focus all use the neutral interaction tokens defined in custom.css. */
+/* Text links share the brand-purple Docs link tokens. Buttons, navigation chips,
+   selection and borders keep the neutral interaction tokens from custom.css. */
 
 /* One measure, shared by every block. The band gets a full-width ground simply by not having
    one — no `50vw` arithmetic, which is off by half a scrollbar wherever scrollbars take space. */
@@ -361,15 +361,15 @@ h3 {
 }
 
 .note a {
-  color: inherit;
+  color: var(--zc-link);
   text-decoration: underline;
-  text-decoration-color: var(--vp-c-divider);
+  text-decoration-color: currentColor;
   text-underline-offset: 3px;
   transition: color var(--zc-motion-fast) ease, text-decoration-color var(--zc-motion-fast) ease;
 }
 
 .note a:hover {
-  color: var(--vp-c-text-1);
+  color: var(--zc-link-hover);
   text-decoration-color: currentColor;
 }
 
@@ -485,14 +485,15 @@ h3 {
 
 .panel-meta a {
   flex: none;
-  color: var(--vp-c-text-1);
+  color: var(--zc-link);
   font-weight: 600;
   text-decoration: underline;
-  text-decoration-color: var(--zc-line-strong);
+  text-decoration-color: currentColor;
   text-underline-offset: 3px;
 }
 
 .panel-meta a:hover {
+  color: var(--zc-link-hover);
   text-decoration-color: currentColor;
 }
 
@@ -626,7 +627,9 @@ h3 {
 .band-col a {
   font-size: 13px;
   font-weight: 600;
-  color: var(--vp-c-text-1);
+  color: var(--zc-link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .noun {
@@ -638,8 +641,7 @@ h3 {
 
 .noun a:hover,
 .band-col a:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--zc-link-hover);
 }
 
 .noun a {
@@ -798,13 +800,14 @@ h3 {
 }
 
 .band-prose :deep(a) {
-  color: var(--vp-c-text-1);
+  color: var(--zc-link);
   font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .band-prose :deep(a:hover) {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  color: var(--zc-link-hover);
 }
 
 .band-prose :deep(code) {

@@ -27,7 +27,7 @@ import { createZooworkClient } from '@zoowork-ai/sdk'
 const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 ```
 
-See [Authentication](./authentication.md) for where the key comes from.
+For the API key and SDK setup, follow the [Quickstart](./quickstart.md#prerequisites).
 
 ## Agent
 

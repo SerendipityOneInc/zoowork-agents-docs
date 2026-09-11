@@ -31,7 +31,7 @@ The SDK has **zero runtime dependencies**. It uses the platform `fetch`, Web Str
 |---|---|
 | Node 20 or later | The main target. `fetch` and `ReadableStream` are built in. |
 | Cloudflare Workers, Deno, Bun, other edge runtimes | Supported by construction. The SSE parser is written against Web Streams, not Node streams. |
-| Browsers | Technically works, but your API key authenticates your whole organization. Do not ship it to a client. See [Authentication](../get-started/authentication.md). |
+| Browsers | The API key authorizes access to your organization's agents and sessions. Keep it on your server; call ZooWork through your own backend. |
 
 ### Injecting `fetch`
 
@@ -72,6 +72,9 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 Clients are cheap. Create one per process and share it.
+
+API keys have no per-user or read-only scope. Your backend must authenticate end users and
+authorize their access to each agent and session.
 
 ### `ZooworkConfig`
 

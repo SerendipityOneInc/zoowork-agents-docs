@@ -1,0 +1,8 @@
+# Authentication guidance now lives alongside the Quickstart and API reference.
+/docs/en/get-started/authentication /docs/en/get-started/quickstart#prerequisites 301
+/docs/en/get-started/authentication.html /docs/en/get-started/quickstart#prerequisites 301
+/docs/en/get-started/authentication/ /docs/en/get-started/quickstart#prerequisites 301
+/docs/zh/get-started/authentication /docs/zh/get-started/quickstart#%E5%89%8D%E7%BD%AE%E6%9D%A1%E4%BB%B6 301
+/docs/zh/get-started/authentication.html /docs/zh/get-started/quickstart#%E5%89%8D%E7%BD%AE%E6%9D%A1%E4%BB%B6 301
+/docs/zh/get-started/authentication/ /docs/zh/get-started/quickstart#%E5%89%8D%E7%BD%AE%E6%9D%A1%E4%BB%B6 301
+/docs/get-started/authentication.md /docs/get-started/quickstart.md 301

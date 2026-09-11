@@ -112,7 +112,7 @@ Observed on the public gateway against a live deployment, unless a row says othe
 | `type` | HTTP | Cause | What to do |
 |---|---:|---|---|
 | `agent_not_running` | 409 | `createSession()` or `postEvents()` on an agent whose `status.desired_state` is not `running`. A newly created agent is stopped, and so is one you stopped yourself. | Call `startAgent()`, poll `status.desired_state` until it reads `running`, then retry. Never poll `actual_state`. |
-| `not_found` / `service_api.not_found` | 404 | Unknown agent or session id, a soft-deleted one, **or one that belongs to another organization**. Both spellings exist: the agents family answers `service_api.not_found`, the sessions, schedules, and environments family answers a bare `not_found`. | Match on both spellings, or prefer `status === 404`. Do not read this as "deleted". See [Authentication](../get-started/authentication.md) - cross-tenant reads are hidden as 404, never rejected as 403. Keep your own record of the ids you create. |
+| `not_found` / `service_api.not_found` | 404 | Unknown agent or session id, a soft-deleted one, **or one that belongs to another organization**. Both spellings exist: the agents family answers `service_api.not_found`, the sessions, schedules, and environments family answers a bare `not_found`. | Match on both spellings, or prefer `status === 404`. Do not read this as "deleted": cross-tenant reads are hidden as 404, never rejected as 403. Keep your own record of the ids you create. |
 | `service_token.invalid` | 401 | The key is missing, malformed, revoked, or its bound user left the organization. Emitted by the gateway, in the gateway's envelope. | Fix the credential. Do not retry - it will fail identically. Verify with `listModels()`. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
 | `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
@@ -291,5 +291,4 @@ Three things this does on purpose:
 ## Next
 
 - [TypeScript SDK reference](./typescript-sdk.md) - every method, type, and helper.
-- [Authentication](../get-started/authentication.md) - why a cross-tenant id is a 404.
 - [Agents](../build/agents.md) - start, stop, and the `config_version` semantics behind this page.

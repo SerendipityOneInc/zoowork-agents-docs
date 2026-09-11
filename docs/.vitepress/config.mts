@@ -198,7 +198,6 @@ function stackableTables(md: MarkdownRenderer): void {
 interface PageSet {
   getStarted: string
   quickstart: string
-  authentication: string
   concepts: string
   build: string
   agents: string
@@ -221,7 +220,6 @@ interface PageSet {
 const EN: PageSet = {
   getStarted: 'Get started',
   quickstart: 'Quickstart',
-  authentication: 'Authentication',
   concepts: 'Core concepts',
   build: 'Build',
   agents: 'Agents',
@@ -248,7 +246,6 @@ const EN: PageSet = {
 const ZH: PageSet = {
   getStarted: '开始使用',
   quickstart: '快速开始',
-  authentication: '鉴权',
   concepts: '核心概念',
   build: '构建',
   agents: 'Agents',
@@ -275,7 +272,6 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: t === EN ? 'Overview' : '概览', link: `${base}/` },
         { text: t.quickstart, link: `${base}/get-started/quickstart` },
-        { text: t.authentication, link: `${base}/get-started/authentication` },
         { text: t.concepts, link: `${base}/get-started/concepts` },
       ],
     },

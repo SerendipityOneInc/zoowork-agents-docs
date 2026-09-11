@@ -2,7 +2,7 @@
 title: 核心概念
 description: 理解 Agent、Session、Event 三个原语及其生命周期。
 source: /en/get-started/concepts
-source_hash: 8f91bd85a004ace2e94d407c5d6457d487462e18cbda775bdc855e73c0546f07
+source_hash: f6965668172182d502598906e3ec6c9419b3d8bab611925f595183a099ea90f4
 ---
 
 # 核心概念
@@ -27,7 +27,7 @@ import { createZooworkClient } from '@zoowork-ai/sdk'
 const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
 ```
 
-key 从哪来见[鉴权](./authentication.md)。
+获取 API Key 和配置 SDK，见[快速开始](./quickstart.md#前置条件)。
 
 ## Agent
 

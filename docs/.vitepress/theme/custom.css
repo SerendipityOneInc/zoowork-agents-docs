@@ -1,7 +1,7 @@
 /* ZooWork docs theme.
  *
- * These tokens mirror ZooWork Design System 2.0. Brand and interaction colour are separate:
- * purple identifies ZooWork, while controls, navigation, focus and selection remain neutral.
+ * These tokens follow ZooWork Design System 2.0. Docs text links use brand purple for
+ * discoverability; controls, navigation and selection retain neutral interaction colours.
  * Surfaces are opaque, borders carry structure, and elevation is reserved for raised content.
  */
 
@@ -10,6 +10,8 @@
   --zc-ink-2: #666666;
   --zc-ink-3: #8a8a8a;
   --zc-brand: #5755c6;
+  --zc-link: var(--zc-brand);
+  --zc-link-hover: color-mix(in srgb, var(--zc-brand) 80%, black);
   --zc-success: #168a55;
   --zc-warning: #b46808;
   --zc-destructive: #d83a4a;
@@ -45,8 +47,8 @@
   --zc-motion-layout: 350ms;
   --zc-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
-  /* VitePress calls every interactive accent "brand". Map those hooks to neutral action
-     tokens, then use --zc-brand directly only where the page is identifying ZooWork. */
+  /* Keep VitePress's shared control accents neutral. Text links have dedicated tokens
+     so their brand colour does not also recolour buttons and navigation. */
   --vp-c-brand-1: var(--zc-action);
   --vp-c-brand-2: var(--zc-ink-2);
   --vp-c-brand-3: var(--zc-action);
@@ -81,8 +83,8 @@
   /* Inline code is running text here, not an accent. */
   --vp-code-color: var(--vp-c-text-1);
   --vp-code-bg: color-mix(in srgb, var(--zc-ink) 6%, transparent);
-  --vp-code-link-color: var(--vp-c-brand-1);
-  --vp-code-link-hover-color: var(--vp-c-brand-2);
+  --vp-code-link-color: var(--zc-link);
+  --vp-code-link-hover-color: var(--zc-link-hover);
 
   --vp-custom-block-tip-border: var(--vp-c-divider);
   --vp-custom-block-tip-text: var(--vp-c-text-1);
@@ -100,6 +102,8 @@
 }
 
 .dark {
+  --zc-link: color-mix(in srgb, var(--zc-brand) 55%, white);
+  --zc-link-hover: color-mix(in srgb, var(--zc-brand) 35%, white);
   --zc-ink: #f4f4f4;
   --zc-ink-2: #b5b5b5;
   --zc-ink-3: #858585;
@@ -150,17 +154,23 @@
   border-radius: var(--zc-radius-sm);
 }
 
-.vp-doc a {
+.vp-doc a:not(.header-anchor) {
+  color: var(--zc-link);
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
-  text-decoration-color: var(--zc-line-strong);
+  text-decoration-color: currentColor;
   transition: color var(--zc-motion-fast) ease, text-decoration-color var(--zc-motion-fast) ease;
 }
 
-.vp-doc a:hover {
-  color: var(--vp-c-text-1);
+.vp-doc a:not(.header-anchor):hover {
+  color: var(--zc-link-hover);
   text-decoration-color: currentColor;
+}
+
+.vp-doc a:not(.header-anchor):focus-visible {
+  outline: 2px solid var(--zc-link);
+  outline-offset: 3px;
 }
 
 /* --- Reading surface -------------------------------------------------------- */
