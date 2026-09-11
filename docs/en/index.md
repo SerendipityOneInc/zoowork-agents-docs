@@ -1,12 +1,12 @@
 ---
 title: ZooWork Managed Agents
-description: Fully managed agent infrastructure. Create and run agents in stateful sessions, with streaming results and persistent event history.
+description: Create agents, delegate tasks, and stream results from your application. ZooWork manages the agent loop, tool execution, and sandbox.
 layout: page
 sidebar: false
 aside: false
 hero:
   text: Build with agents. We handle the runtime.
-  tagline: Fully managed agent infrastructure. Create and run agents in stateful sessions, with streaming results and persistent event history.
+  tagline: Create agents, delegate tasks, and stream results from your application. ZooWork manages the agent loop, tool execution, and sandbox.
 home:
   hero:
     accent: We handle the runtime.
@@ -97,7 +97,7 @@ home:
 
 <template v-slot:intro>
 
-Fully managed agent infrastructure. Create and run agents in stateful sessions, with streaming results and persistent event history.
+Create agents, delegate tasks, and stream results from your application. ZooWork manages the agent loop, tool execution, and sandbox.
 
 </template>
 

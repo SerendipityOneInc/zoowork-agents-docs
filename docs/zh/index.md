@@ -1,14 +1,14 @@
 ---
 title: ZooWork Managed Agents
-description: 全托管的 Agent 基础设施。在持久会话中创建并运行 Agent，实时获取结果，并保留事件历史。
+description: 在你的应用中创建 Agent、分配任务并实时获取结果。ZooWork 负责 Agent 循环、工具执行和沙箱管理。
 layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: 2072e7432be36b6930cb6c1487af39ba55edea5ed9731f07e43c8b67c1b20b32
+source_hash: 3e096f31c09cc6f48545ca20027bb04d2aa4601d3a85259782bb2a4ea1cc3676
 hero:
   text: 用 Agent 构建应用。运行交给 ZooWork。
-  tagline: 全托管的 Agent 基础设施。在持久会话中创建并运行 Agent，实时获取结果，并保留事件历史。
+  tagline: 在你的应用中创建 Agent、分配任务并实时获取结果。ZooWork 负责 Agent 循环、工具执行和沙箱管理。
 home:
   hero:
     accent: 运行交给 ZooWork。
@@ -97,7 +97,7 @@ home:
 
 <template v-slot:intro>
 
-全托管的 Agent 基础设施。在持久会话中创建并运行 Agent，实时获取结果，并保留事件历史。
+在你的应用中创建 Agent、分配任务并实时获取结果。ZooWork 负责 Agent 循环、工具执行和沙箱管理。
 
 </template>
 
