@@ -1,539 +1,198 @@
 ---
-description: Create and start an agent, open a session, and stream its first reply in five minutes.
+description: Create your first agent, start a session, and stream its response using TypeScript or curl.
 ---
 
 # Quickstart
 
-Create an agent, start it, open a session, and stream the reply. About five minutes end to end.
+Create an agent, start a session, and stream its response. In this guide, the agent turns
+three months of sales data into a report, saves it as `report.md`, and reads it back to verify the total.
 
-::: tip Teach your coding assistant first
-```bash
-npx skills add SerendipityOneInc/zoowork-sdk-skills
-```
-Your assistant then knows this API before it writes a line — which calls exist, which do not,
-and the places where code that looks right fails at runtime. It installs into Claude Code,
-Codex, Cursor and 70-odd others, each in the directory it reads. Needs Node 22.20 or later.
+## Core concepts
 
-Would you rather start from something that already runs? Three templates live in
-[zoowork-quickstarts](https://github.com/SerendipityOneInc/zoowork-quickstarts): `chat/` talks
-to an agent you already have, `skill-lab/` builds one and uploads a skill to it, and `app-kit/`
-is the production reference with auth and persistence.
-:::
+| Concept | Description |
+|---|---|
+| Agent | The configuration you create and start, including the model, tools, and skills. |
+| Session | A conversation with an agent, containing your messages and its work. |
+| Events | Messages, tool activity, replies, and turn results exchanged through a session. |
+
+This guide uses the default model and sandbox. You can [configure an Environment](../build/environments.md)
+when you need a custom sandbox; no separate Environment is required here.
 
 ## Prerequisites
 
-- **Node 20 or later.** `@zoowork-ai/sdk` is an ES module with no runtime dependencies; it uses the platform `fetch`.
-- **An API key** that looks like `zct_...`. You create it yourself in the ZooWork App under **Settings → API Keys**. On an enterprise organization that tab is admin-only, and during the Developer Preview it appears only for accounts already in the rollout — if it is not there, ask your org admin for a key. [Authentication](./authentication.md) has the whole story.
+- A ZooWork organization API key (`zct_...`). Create one in **Settings → API Keys** in the
+  [ZooWork App](https://zoowork.ai), or ask your organization administrator. See [Authentication](./authentication.md).
+- **TypeScript:** Node.js **22.20+** and npm.
+- **curl:** Bash, curl **7.76+**, and `jq` **1.6+**.
 
-Keep the key server-side. It authenticates as your whole organization, not as one end user.
+## Set up
+
+Choose TypeScript or curl and use that tab throughout the guide.
+
+::: code-group
+
+```bash [TypeScript]
+npm install @zoowork-ai/sdk
+```
+
+```bash [curl]
+curl --version
+jq --version
+```
+
+:::
+
+Set your API key in the terminal:
 
 ```bash
 export ZOOWORK_API_KEY='zct_...'
 ```
 
-Every step below is shown in both TypeScript and `curl`. The `curl` tab exists so you can
-follow along from any language: it is the same HTTP the SDK makes. It needs the endpoint
-spelled out, so for those examples also export:
+::: warning Keep your key private
+Run these examples on your server or local development machine. Do not put the key in browser code or the agent's sandbox.
+:::
+
+**TypeScript:** Copy the TypeScript blocks below into `quickstart.mts` in order, including
+cleanup. Run the file with the command at the end of the guide.
+
+**curl:** Run each block in the same Bash terminal. Check that each request succeeds before
+continuing. The commands save the returned IDs for the next step.
+
+## Create your first session
+
+### 1. Create an agent
+
+Create an agent and save its ID. The SDK reads `ZOOWORK_API_KEY` and uses the public API URL
+by default. The curl example sets the URL explicitly.
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#create [TypeScript]
+
+<<< ../../snippets/quickstart.sh#create [curl]
+
+:::
+
+The curl request sets `onboarding: false`, which the SDK supplies automatically.
+
+### 2. Start the agent
+
+Start the agent before creating a session.
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#start [TypeScript]
+
+<<< ../../snippets/quickstart.sh#start [curl]
+
+:::
+
+See [Agent lifecycle](../build/agents.md) for startup errors.
+
+### 3. Create a session
+
+Create a session for this task and save its `session_id`.
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#session [TypeScript]
+
+<<< ../../snippets/quickstart.sh#session [curl]
+
+:::
+
+### 4. Send a message and stream the response
+
+Ask the agent to create a sales report. The message contains all the data, so no input file
+or external service is needed.
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#send [TypeScript]
+
+<<< ../../snippets/quickstart.sh#send [curl]
+
+:::
+
+The response's `events[0].accepted` should be `true`. This means the message was accepted;
+read the event stream to see the agent's work and result. Events are saved, so you can read
+them even if the agent starts working before you connect.
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#stream [TypeScript]
+
+<<< ../../snippets/quickstart.sh#stream [curl]
+
+:::
+
+**TypeScript** prints the reply and tool activity, then closes the connection at `run.finished`.
+**curl** displays the raw event stream. When you see `event_type: "run.finished"`, check
+`payload.status`, then press **Ctrl+C** to return to your terminal. The stream stays open
+for future turns until you close it.
+
+A successful turn has status `succeeded`. The agent's reply should also confirm that it
+saved the report and verified total sales of **$300**. Tool names and wording vary;
+the following output is illustrative, with only selected fields shown for curl:
+
+::: code-group
+
+```text [TypeScript]
+[tool] exec
+I saved report.md and read it back to verify the three monthly sales and the $300 total.
+Turn: succeeded
+```
+
+```text [curl]
+event: event
+data: {"event_type":"agent.assistant","payload":{"message":{"content":[{"type":"text","text":"I saved report.md and verified total sales of $300."}]}}}
+
+event: event
+data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
+```
+
+:::
+
+::: tip If the turn does not succeed
+For `failed`, `aborted`, or a connection that closes before `run.finished`, inspect the
+[session history](../build/sessions.md) before retrying. You can still use the cleanup requests below.
+:::
+
+## What's happening
+
+When you send the message, ZooWork:
+
+1. Runs the agent, which decides which tools to use for the task.
+2. Creates or reuses a managed sandbox as needed to execute tools and save `report.md`.
+3. Saves and streams events as the agent works.
+4. Emits `run.finished` with the turn's result. The session remains available for a follow-up message.
+
+## Clean up
+
+When you finish the example, stop the agent to release its sandbox, then delete the agent.
+Save anything you want to keep first. If stopping fails, resolve the error before deleting.
+
+::: code-group
+
+<<< ../../snippets/quickstart.ts#cleanup [TypeScript]
+
+<<< ../../snippets/quickstart.sh#cleanup [curl]
+
+:::
+
+Run the assembled TypeScript example with:
 
 ```bash
-export ZOOWORK_BASE_URL='https://clawapi.ecap.gsmo.ai/service/v1'
+node quickstart.mts
 ```
 
-Pick a tab once and every code block on the page follows.
-
-## Install
-
-::: code-group
-
-```bash [pnpm]
-pnpm add @zoowork-ai/sdk
-```
-
-```bash [npm]
-npm install @zoowork-ai/sdk
-```
-
-```bash [yarn]
-yarn add @zoowork-ai/sdk
-```
-
-:::
-
-To run the TypeScript in this page directly:
-
-```bash
-pnpm add -D typescript tsx @types/node
-```
-
-The SDK ships ESM only. Set `"type": "module"` in your `package.json` so `import` works and top-level `await` is available.
-
-## Create a client
-
-```ts
-import { createZooworkClient } from '@zoowork-ai/sdk'
-
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
-```
-
-With `ZOOWORK_API_KEY` exported you can drop the argument entirely — `createZooworkClient()`
-reads it. The only other options are `baseUrl` (defaults to the public gateway, or
-`ZOOWORK_BASE_URL`) and an injected `fetch` for edge runtimes and tests.
-
-A missing key throws at construction rather than surfacing as a 401 on your first call.
-
-The cheapest check that your key works is `listModels()` - it needs no agent and no session:
-
-::: code-group
-
-```ts [TypeScript]
-const models = await zc.listModels()
-console.log(models.length, models[0]?.model)
-
-const primary = models.find((model) => model.model === 'litellm/gpt-5.6-terra')?.model
-if (!primary) throw new Error('Choose a model returned by listModels()')
-```
-
-```bash [curl]
-curl "$ZOOWORK_BASE_URL/models" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-```
-
-:::
-
-```json
-[
-  { "model": "litellm/gpt-5.6-terra", "display_name": "GPT-5.6 Terra", "family": "openai", "api": "openai-responses" }
-]
-```
-
-The exact catalog is deployment-specific. The example selects the current source default only
-when this deployment returns it; choose another returned alias if it does not. Do not silently
-fall back to `models[0]`, because catalog order is not a stability contract.
-
-A bad key returns `401`. The SDK throws `ZooworkError` with `.status` and `.type` - never match on the message text. Match on `.type` when you know which family answered; for `401` branch on `.status`, because the gateway and the core API spell that type differently.
-
-## 1. Create an agent
-
-An agent is a persistent, versioned configuration object. `name` is required. Omitting `model`
-pins the platform defaults current at creation time; those defaults can rotate, so deterministic
-provisioning should send a `model.primary` returned by `listModels()`.
-
-::: code-group
-
-```ts [TypeScript]
-const created = await zc.createAgent({
-  resource: {
-    name: 'quickstart-agent',
-    model: { primary },
-  },
-})
-
-const agentId = created.agent_id
-```
-
-```bash [curl]
-curl -X POST "$ZOOWORK_BASE_URL/agents" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "resource": {
-      "name": "quickstart-agent",
-      "model": { "primary": "litellm/gpt-5.6-terra" }
-    }
-  }'
-```
-
-:::
-
-The response is a flat **create receipt**:
-
-```json
-{
-  "agent_id": "agt_example",
-  "computer_id": "cmp_example",
-  "config_version": 1,
-  "resolved_skills": []
-}
-```
-
-Two things to know about this shape:
-
-- The receipt is not the same shape as a read. `getAgent()` returns a projection where the configuration lives under `declared` and the version lives at `status.config_version` - there is no top-level `config_version` or `name` on the read path. Read it as `agent.status?.config_version ?? agent.config_version`.
-- `config_version` in the receipt is already stale by the time you read it back: every write after create bumps it, so a `getAgent()` one second later typically reports `3`. Do not use the version as an idempotency receipt.
-
-Pass an idempotency key as the second argument if you want a create you can safely retry:
-
-```ts
-const agent = await zc.createAgent(
-  {
-    resource: { name: 'quickstart-agent', model: { primary } },
-  },
-  'quickstart-run-01', // your idempotency key
-)
-```
-
-## 2. Start the agent
-
-::: warning Do not skip this step
-A newly created agent has `status.desired_state === 'stopped'`. Every session call requires `running`. If you go straight to `createSession()`, the SDK throws a `ZooworkError` with `status === 409` and `type === 'agent_not_running'`:
-
-```ts
-import { ZooworkError } from '@zoowork-ai/sdk'
-
-try {
-  await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
-} catch (e) {
-  if (e instanceof ZooworkError && e.type === 'agent_not_running') {
-    // You forgot startAgent(). Match on e.type, not on e.message.
-  }
-}
-```
-
-Creation and starting are separate on purpose; code that assumes a created agent is live
-fails here.
-:::
-
-::: code-group
-
-```ts [TypeScript]
-const { warnings } = await zc.startAgent(agentId)
-console.log(warnings)
-```
-
-```bash [curl]
-curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-```
-
-:::
-
-```json
-{ "warnings": ["channel_routes_reload_failed: routes reload returned 404"] }
-```
-
-A warning in a successful response is informational and depends on the deployment; it is not guaranteed on every start/stop. HTTP or transport failures still throw. After an uncertain stop, read back desired state before retrying.
-
-### Wait for readiness
-
-::: danger Poll `desired_state`, never `actual_state`
-`actual_state` is a best-effort **chat-channel health projection**, not API readiness. When the
-route-status capability is unsupported, a GET can report `active` with zero channel counts and a
-`status_message` saying channel health was not verified; a transient lookup failure remains
-`activating`. `listAgents()` does not perform the same foreground health query, so list and GET
-can briefly disagree. `running` is not even a member of the `actual_state` enum
-(`activating | active | degraded | error | stopped | deleting`).
-
-Wait on `status.desired_state === 'running'`. Do not use any `actual_state` value as readiness.
-:::
-
-The SDK ships that loop, so you do not write one:
-
-```ts
-const agent = await zc.waitUntilRunning(agentId)
-```
-
-It polls `status.desired_state` on a 30-second budget, 500 ms apart, and hands back the same
-projection `getAgent()` would. An agent that never gets there throws a `ZooworkError` with
-`status === 408` and `type === 'timeout'`.
-
-A `getAgent()` read right after start looks like this (other fields omitted):
-
-```json
-{
-  "agent_id": "agt_example",
-  "declared": { "name": "quickstart-agent", "model": { "primary": "litellm/gpt-5.6-terra" } },
-  "status": {
-    "desired_state": "running",
-    "actual_state": "activating",
-    "config_version": 3,
-    "channels": { "expected": 0, "connected": 0 }
-  }
-}
-```
-
-This is one possible channel-health projection. With route-status unsupported, the same GET can
-instead show `actual_state: "active"`, zero channel counts, and a health-unverified
-`status_message`. Sessions work in either case because readiness comes from `desired_state`.
-
-## 3. Create a session with an opening message
-
-Sessions hang off an agent: `createSession(agentId, input)`. There is no top-level sessions resource, and the agent id is not in the body.
-
-::: code-group
-
-```ts [TypeScript]
-const session = await zc.createSession(agentId, {
-  metadata: { source: 'quickstart' },
-  initial_events: [{ type: 'user.message', content: 'In one sentence, what can you do?' }],
-})
-
-const sessionId = session.session_id
-```
-
-```bash [curl]
-curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "metadata": { "source": "quickstart" },
-    "initial_events": [
-      { "type": "user.message", "content": "In one sentence, what can you do?" }
-    ]
-  }'
-```
-
-:::
-
-```json
-{
-  "session_id": "0123456789abcdef0123456789abcdef",
-  "session_key": "api:0123456789abcdef0123456789abcdef",
-  "status": "running"
-}
-```
-
-This is a creation receipt. Its `status: "running"` means the session was created and the
-opening turn was started; it is not the run outcome. The receipt has no `run_status`. On a
-later `getSession()` response, `status` may be `null` and is not the run outcome; the latest
-run state is in `run_status`. `listSessions()` rows also carry `run_status` and omit `status`.
-
-`initial_events` starts the first turn as part of the create call, so you do not need a separate send. Use `user.message` with string content. For later turns in the same session, call `postEvents(agentId, sessionId, events)`.
-
-The `api:` prefix on `session_key` marks this as an API session. Sessions created through a chat channel carry a different prefix and are a separate conversation with separate memory.
-
-You can pass an idempotency key here too:
-
-```ts
-const session = await zc.createSession(agentId, input, 'quickstart-session-01')
-```
-
-## 4. Stream until the turn ends
-
-`streamEvents()` is an async generator over the session's durable event log.
-
-::: code-group
-
-```ts [TypeScript]
-import { assistantText, isRunFinished, runOutcome, toolCall } from '@zoowork-ai/sdk'
-
-const ctl = new AbortController()
-const budget = setTimeout(() => ctl.abort(), 120_000)
-
-let text = ''
-let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
-
-try {
-  for await (const ev of zc.streamEvents(agentId, sessionId, { signal: ctl.signal })) {
-    const call = toolCall(ev)
-    if (call?.phase === 'start') console.log(`\n[tool] ${call.toolName}`)
-
-    const chunk = assistantText(ev)
-    if (chunk) {
-      text += chunk
-      process.stdout.write(chunk)
-    }
-
-    if (isRunFinished(ev)) {
-      outcome = runOutcome(ev)
-      break
-    }
-  }
-} finally {
-  clearTimeout(budget)
-  ctl.abort()
-}
-```
-
-```bash [curl]
-# -N disables buffering so frames arrive as they are produced.
-# Resume after a drop by appending ?cursor=<the last id: line you saw>,
-# The public gateway does not forward Last-Event-ID; use the cursor query parameter.
-curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -H "Accept: text/event-stream"
-```
-
-:::
-
-Each iteration yields a normalized `SessionEvent`:
-
-```json
-{
-  "seq": 5,
-  "eventType": "agent.assistant",
-  "runId": "run_example",
-  "turn": 1,
-  "payload": {
-    "message": { "role": "assistant", "content": [{ "type": "text", "text": "I can research topics and write code." }] }
-  },
-  "createdAt": "2026-08-06T08:00:00.000Z"
-}
-```
-
-A single turn produces an arc like `run.started` -> `agent.lifecycle` -> `agent.item` -> `agent.thinking` -> `agent.assistant` -> `agent.tool` (start/end pairs) -> `agent.lifecycle` -> `run.finished`.
-
-Four things that trip people up:
-
-- **`run.finished` ends the turn, not the stream.** Break out of the loop yourself when `isRunFinished(ev)` is true, or you will block until the server's idle timeout.
-- **`runOutcome(ev)` is `succeeded | failed | aborted`.** A run can finish `succeeded` even when individual tool calls errored - `toolCall(ev).isError === true` does not fail the run. Do not infer success from the absence of tool errors.
-- **`assistantText(ev)` returns `''` for every event that is not `agent.assistant`**, so concatenating it over the whole loop is safe and gives you the full reply.
-- **Resume with `cursor`.** Every streamed frame carries a `cursor` resume token. If the connection drops, restart the generator with the last one you saw and the server replays from there - nothing lost, nothing duplicated. `{ after: seq }` also resumes, but it selects a deprecated engine-only lane that omits your own input events; keep it for cursors stored before `cursor` existed.
-
-```ts
-let cursor: string | undefined
-for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
-  cursor = ev.cursor ?? cursor
-  /* ... */
-}
-```
-
-`listEvents(agentId, sessionId)` reads the same events over REST if you prefer polling. It returns one page - server default 100, maximum 500 - and a full page is truncated silently: no `has_more`, no total, no next cursor. Use `listAllEvents(agentId, sessionId)` to walk every page in one call rather than writing the loop yourself.
-
-## 5. Clean up
-
-::: code-group
-
-```ts [TypeScript]
-await zc.stopAgent(agentId)
-await zc.deleteAgent(agentId)
-```
-
-```bash [curl]
-curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/stop" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-
-curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-```
-
-:::
-
-Stop first. `deleteAgent()` is a soft delete: it does not stop the agent, cancel schedules, or release the sandbox, so an agent you delete without stopping stays running. See [Agents](../build/agents.md).
-
-`stopAgent()` returns the same informational `channel_routes_reload_failed` warning as start. After a stop, `createSession()` on that agent returns `409 agent_not_running` again.
-
-## The complete program
-
-Save as `quickstart.ts`, then run `ZOOWORK_API_KEY='zct_...' pnpm exec tsx quickstart.ts`.
-
-```ts
-import {
-  createZooworkClient,
-  ZooworkError,
-  assistantText,
-  isRunFinished,
-  runOutcome,
-  toolCall,
-} from '@zoowork-ai/sdk'
-
-const apiKey = process.env.ZOOWORK_API_KEY
-if (!apiKey) throw new Error('set ZOOWORK_API_KEY')
-
-const zc = createZooworkClient({ apiKey })
-
-// 0. Confirm the key works and pick a model.
-const models = await zc.listModels()
-const model = models.find((candidate) => candidate.model === 'litellm/gpt-5.6-terra')?.model
-if (!model) throw new Error('Choose a model returned by listModels()')
-console.log(`${models.length} models available, using ${model}`)
-
-// 1. Create the agent.
-const created = await zc.createAgent({
-  resource: {
-    name: `quickstart-${Date.now()}`,
-    model: { primary: model },
-  },
-})
-const agentId = created.agent_id
-console.log(`created agent ${agentId}`)
-
-try {
-  // 2. Start it. Without this, createSession returns 409 agent_not_running.
-  const { warnings } = await zc.startAgent(agentId)
-  if (warnings.length) console.log(`start warnings: ${warnings.join(', ')}`)
-  // Readiness is desired_state. waitUntilRunning polls that, never actual_state.
-  await zc.waitUntilRunning(agentId)
-  console.log('agent is running')
-
-  // 3. Open a session with the first user message already in it.
-  const session = await zc.createSession(agentId, {
-    metadata: { source: 'quickstart' },
-    initial_events: [{ type: 'user.message', content: 'In one sentence, what can you do?' }],
-  })
-  console.log(`session ${session.session_id}\n`)
-
-  // 4. Stream until run.finished. The stream does not close on its own.
-  const ctl = new AbortController()
-  const budget = setTimeout(() => ctl.abort(), 120_000)
-  let text = ''
-  let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
-
-  try {
-    for await (const ev of zc.streamEvents(agentId, session.session_id, { signal: ctl.signal })) {
-      const call = toolCall(ev)
-      if (call?.phase === 'start') console.log(`\n[tool] ${call.toolName}`)
-
-      const chunk = assistantText(ev)
-      if (chunk) {
-        text += chunk
-        process.stdout.write(chunk)
-      }
-
-      if (isRunFinished(ev)) {
-        outcome = runOutcome(ev)
-        break
-      }
-    }
-  } finally {
-    clearTimeout(budget)
-    ctl.abort()
-  }
-
-  console.log(`\n\nrun ${outcome}, ${text.trim().length} characters`)
-  if (outcome !== 'succeeded') process.exitCode = 1
-} catch (e) {
-  if (e instanceof ZooworkError) {
-    console.error(`ZooWork error ${e.status} ${e.type ?? ''}: ${e.message}`)
-    process.exitCode = 1
-  } else {
-    throw e
-  }
-} finally {
-  // 5. Stop before delete. DELETE is a soft delete and does not stop the agent.
-  await zc.stopAgent(agentId)
-  await zc.deleteAgent(agentId)
-  console.log(`cleaned up agent ${agentId}`)
-}
-```
-
-Expected output:
-
-```
-25 models available, using litellm/gpt-5.6-terra
-created agent agt_example
-agent is running
-session 0123456789abcdef0123456789abcdef
-
-I can research topics, run code, and work with documents.
-
-run succeeded, 57 characters
-cleaned up agent agt_example
-```
-
-## Troubleshooting
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| `401` on every call | Missing or invalid key | Check `ZOOWORK_API_KEY` starts with `zct_` and reaches the client as `apiKey`. The gateway and the core API use different `error.type` strings for this, so branch on `e.status`, not on the type |
-| `409 agent_not_running` on `createSession` | The agent was never started, or was stopped | Call `startAgent()` and wait for `desired_state === 'running'` |
-| Readiness loop never returns | Polling `status.actual_state` | Poll `status.desired_state` instead, or let `zc.waitUntilRunning()` do it |
-| Stream never ends | Waiting for the connection to close | Break on `isRunFinished(ev)` |
-| `404 not_found` on an agent id you have | The id belongs to another organization | Ids are hidden across tenants rather than rejected with 403 |
-| `409 idempotency_conflict` | Same `Idempotency-Key`, different body | Use a new key, or send a byte-identical body |
+If the program exits early, use the printed agent ID with the cleanup requests above.
+For curl, run cleanup after pressing Ctrl+C to close the stream.
 
 ## Next steps
 
-- [Agents](../build/agents.md) - configuration sections, `updateAgent()` merge semantics, and the two response shapes.
-- [Sessions](../build/sessions.md) - multi-turn conversations, `postEvents()`, `system.message`, and `user.interrupt`.
-- [Events and streaming](../build/events.md) - the full event vocabulary, resuming a dropped stream, and reading history over REST.
-- [Not supported](../reference/not-supported.md) - what does not exist here, including client-executed custom tools. Read this before you design around a capability.
+- [Agents](../build/agents.md): choose a model, tools, and skills.
+- [Sessions](../build/sessions.md): continue the conversation and read its history.
+- [Events and streaming](../build/events.md): handle events, timeouts, and reconnection.
+- [Example apps](https://github.com/SerendipityOneInc/zoowork-quickstarts): build a complete application.
+- [Coding assistant skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills): give your coding assistant ZooWork SDK guidance.

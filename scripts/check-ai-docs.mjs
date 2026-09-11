@@ -121,6 +121,9 @@ for (const [, title, url, description] of tocEntries) {
 const markdownFiles = filesUnder(outputRoot, '.md')
 for (const file of markdownFiles) {
   const content = readFileSync(file, 'utf8')
+  if (/^<<<\s+\S/m.test(content)) {
+    fail(`${relative(outputRoot, file)} contains an unresolved code snippet`)
+  }
   for (const match of content.matchAll(/\[[^\]]*]\(([^)]+)\)/g)) {
     const rawTarget = match[1].trim()
     if (
