@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: c859b83851e696ded47992dd0b41b5b4302bbdb86120c664d3daef9e7d7c7986
+source_hash: b71cf048f6e6f7b38e3a07bbe815c2eee8c6c422eefc9891c119a592c4539563
 ---
 
 # 快速开始
@@ -10,9 +10,9 @@ source_hash: c859b83851e696ded47992dd0b41b5b4302bbdb86120c664d3daef9e7d7c7986
 创建一个 Agent、启动会话，并流式读取回复。本例让 Agent 把三个月的销售数据整理成报告，
 保存为 `report.md`，再读回文件确认合计金额。
 
-## 核心概念
+## 本例会用到的资源
 
-| 概念 | 含义 |
+| 资源 | 含义 |
 |---|---|
 | Agent | 你创建并启动的配置，包括模型、工具和 Skills。 |
 | Session | 与 Agent 的一段会话，保存你的消息和它的工作过程。 |

@@ -28,7 +28,7 @@ Use Managed Agents when your application needs to:
 - **Run code and file operations in a managed sandbox.** Configure the agent without building
   your own tool execution infrastructure.
 
-## Core concepts
+## Runtime primitives
 
 | Concept | What it represents |
 |---|---|
@@ -38,7 +38,8 @@ Use Managed Agents when your application needs to:
 
 For example, an Agent configured to prepare reports can have a Session for a sales report.
 Your request, its tool activity, and its response appear as Events in that Session.
-See [Core concepts](./concepts.md) for resource details and lifecycles.
+See [Agents](../build/agents.md), [Sessions](../build/sessions.md), and
+[Events and streaming](../build/events.md) for each resource's lifecycle and wire shape.
 
 ## How it works
 
@@ -46,12 +47,14 @@ See [Core concepts](./concepts.md) for resource details and lifecycles.
 2. **Create a Session.** Start a conversation with that Agent.
 3. **Send a message.** Describe the task you want it to complete.
 4. **Read the event stream.** ZooWork runs the model and tools; your application receives
-   responses, tool activity, and a `run.finished` event with the turn's outcome.
+   responses, tool activity, and a `run.finished` event with the turn's termination status.
 5. **Continue the conversation.** Send the next message to the same Session. Its history
    remains available after a turn finishes.
 
 The default sandbox is managed on demand. You do not need to create an Environment for your
 first task. For a closer look at execution and persistent state, see [Architecture](./architecture.md).
+To see how that execution history becomes useful for evaluation and model improvement, see
+[Agent trajectories](./trajectories.md).
 
 ## Configure your agent
 
@@ -66,5 +69,7 @@ follow [An agent per user](../build/per-user-agents.md).
 ## Next steps
 
 - [Quickstart](./quickstart.md): create an Agent and complete a report task.
+- [Architecture](./architecture.md): understand the managed runtime and sandbox lifecycle.
+- [Agent trajectories](./trajectories.md): connect production execution to evaluation and post-training.
 - [TypeScript SDK](../reference/typescript-sdk.md): look up client methods and options.
 - [Capability matrix](../reference/capabilities.md): check support and verification status.
