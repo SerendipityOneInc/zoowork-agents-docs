@@ -200,7 +200,7 @@ interface PageSet {
   overview: string
   quickstart: string
   architecture: string
-  concepts: string
+  trajectories: string
   build: string
   agents: string
   sessions: string
@@ -224,7 +224,7 @@ const EN: PageSet = {
   overview: 'Overview',
   quickstart: 'Quickstart',
   architecture: 'Architecture',
-  concepts: 'Core concepts',
+  trajectories: 'Agent trajectories',
   build: 'Build',
   agents: 'Agents',
   sessions: 'Sessions',
@@ -252,7 +252,7 @@ const ZH: PageSet = {
   overview: '概览',
   quickstart: '快速开始',
   architecture: '架构',
-  concepts: '核心概念',
+  trajectories: 'Agent 轨迹',
   build: '构建',
   agents: 'Agents',
   sessions: 'Sessions',
@@ -279,7 +279,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
         { text: t.overview, link: `${base}/get-started/overview` },
         { text: t.quickstart, link: `${base}/get-started/quickstart` },
         { text: t.architecture, link: `${base}/get-started/architecture` },
-        { text: t.concepts, link: `${base}/get-started/concepts` },
+        { text: t.trajectories, link: `${base}/get-started/trajectories` },
       ],
     },
     {

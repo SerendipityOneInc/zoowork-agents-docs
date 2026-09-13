@@ -2,7 +2,7 @@
 title: 架构
 description: 了解 Managed Agents API 如何连接应用、模型、工具与隔离执行环境，以及状态持久保存、计算按需启停的工作方式。
 source: /en/get-started/architecture
-source_hash: 044357d986e25131456a18e7f7d2f6c089c27952a7cd329f2dd7a2353378643b
+source_hash: eec5286ec23c2730d3bff0c314e1c7c58b4eb5aec9684c3e34f47f785772ab9c
 ---
 
 # 架构
@@ -66,16 +66,20 @@ Agent 生成 `report.md` 后，可以等待你的下一条消息。当你让它�
 
 [能力矩阵](../reference/capabilities.md)记录各项能力的验证状态；公共 API 缺口单独列在[不支持的能力](../reference/not-supported.md)中。
 
+本页介绍托管执行在工程上如何运作。[Agent 轨迹](./trajectories.md)介绍为什么保留这些执行历史对评估和后训练很重要。
+
 ## 下一步
 
-- [核心概念](./concepts.md)：Agent、Session、Event 资源及其生命周期。
+- [Agent 轨迹](./trajectories.md)：把生产执行连接到评估和后训练。
+- [Agents](../build/agents.md)：配置可复用的 Agent 资源及其生命周期。
+- [Sessions](../build/sessions.md)：创建并继续持久化对话。
 - [工具](../build/tools.md)：配置 Agent 可以执行或访问的能力。
 - [Environments](../build/environments.md)：准备自定义依赖和网络规则。
 
 ## 检查你的理解
 
 ::: details 回合结束后，Session 也结束了吗？
-没有。`run.finished` 记录一个回合的结果。你可以发送新消息继续同一个 Session，也可以稍后读取已保存的历史。
+没有。`run.finished` 记录一个回合的结束状态。你可以发送新消息继续同一个 Session，也可以稍后读取已保存的历史。
 :::
 
 ::: details 沙箱暂停后，会丢失会话或工作区文件吗？

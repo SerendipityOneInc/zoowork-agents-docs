@@ -7,9 +7,9 @@ description: Create your first agent, start a session, and stream its response u
 Create an agent, start a session, and stream its response. In this guide, the agent turns
 three months of sales data into a report, saves it as `report.md`, and reads it back to verify the total.
 
-## Core concepts
+## The resources you will use
 
-| Concept | Description |
+| Resource | Description |
 |---|---|
 | Agent | The configuration you create and start, including the model, tools, and skills. |
 | Session | A conversation with an agent, containing your messages and its work. |

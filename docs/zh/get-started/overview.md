@@ -1,7 +1,7 @@
 ---
 description: 了解 ZooWork Managed Agents 提供什么、适用于哪些任务，以及 Agent、Session 和 Event 如何协作。
 source: /en/get-started/overview
-source_hash: 9ff8757a8f63c44f4c75b5e15e0d3a0a8059b9d3156e6e700837f536784653ba
+source_hash: 417dbc56abf4bab45f5a242adea5321166aedae1637ae0dcfe8a6408f4394b78
 ---
 
 # ZooWork Managed Agents 概览
@@ -24,7 +24,7 @@ ZooWork 负责模型与工具调用循环、对话历史、沙箱执行和事件
 - **跟踪执行过程。** 展示回复和工具执行进度，读取已保存的事件，并重新连接事件流。
 - **在托管沙箱中运行代码和操作文件。** 配置 Agent，无需自行搭建工具执行基础设施。
 
-## 核心概念
+## 运行时原语
 
 | 概念 | 含义 |
 |---|---|
@@ -34,18 +34,20 @@ ZooWork 负责模型与工具调用循环、对话历史、沙箱执行和事件
 
 例如，一个配置为编写报告的 Agent，可以在一个 Session 中处理销售报告。
 你的请求、它的工具执行过程和回复，都会作为 Event 出现在这个 Session 中。
-资源细节和生命周期见[核心概念](./concepts.md)。
+各资源的生命周期和线上结构见 [Agents](../build/agents.md)、[Sessions](../build/sessions.md)
+和[事件与流式](../build/events.md)。
 
 ## 工作流程
 
 1. **创建并启动 Agent。** 定义配置，然后启动 Agent，使它可以接受 Session。
 2. **创建 Session。** 与这个 Agent 开始一次对话。
 3. **发送消息。** 描述你希望它完成的任务。
-4. **读取事件流。** ZooWork 执行模型与工具调用；你的应用收到回复、工具活动，以及携带本回合结果的 `run.finished` 事件。
+4. **读取事件流。** ZooWork 执行模型与工具调用；你的应用收到回复、工具活动，以及携带本回合结束状态的 `run.finished` 事件。
 5. **继续对话。** 向同一个 Session 发送下一条消息。回合结束后，对话历史仍然可用。
 
 默认沙箱由平台按需管理。完成第一个任务不需要单独创建 Environment。
 执行过程与持久状态的详细说明见[架构](./architecture.md)。
+要了解这些执行历史如何用于评估和改进模型，见 [Agent 轨迹](./trajectories.md)。
 
 ## 配置 Agent
 
@@ -60,5 +62,7 @@ ZooWork 负责模型与工具调用循环、对话历史、沙箱执行和事件
 ## 下一步
 
 - [快速开始](./quickstart.md)：创建 Agent 并完成一个报告任务。
+- [架构](./architecture.md)：了解托管运行时和沙箱生命周期。
+- [Agent 轨迹](./trajectories.md)：把生产执行连接到评估和后训练。
 - [TypeScript SDK](../reference/typescript-sdk.md)：查阅客户端方法和选项。
 - [能力矩阵](../reference/capabilities.md)：确认支持范围与验证状态。

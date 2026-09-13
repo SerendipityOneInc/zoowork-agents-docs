@@ -72,16 +72,21 @@ application that needs separate user workspaces, create [an Agent per user](../b
 The [capability matrix](../reference/capabilities.md) records verification status. Public API
 gaps are listed separately under [Not supported](../reference/not-supported.md).
 
+This page describes how managed execution works. [Agent trajectories](./trajectories.md)
+explains why preserving that execution history matters for evaluation and post-training.
+
 ## Next steps
 
-- [Core concepts](./concepts.md): Agent, Session, and Event resources and their lifecycles.
+- [Agent trajectories](./trajectories.md): connect production execution to evaluation and post-training.
+- [Agents](../build/agents.md): configure the reusable Agent resource and its lifecycle.
+- [Sessions](../build/sessions.md): create and continue persistent conversations.
 - [Tools](../build/tools.md): configure what the agent can execute or access.
 - [Environments](../build/environments.md): prepare custom dependencies and network rules.
 
 ## Check your understanding
 
 ::: details Does a finished turn end the Session?
-No. `run.finished` records the outcome of one turn. Send another message to continue the
+No. `run.finished` records the termination status of one turn. Send another message to continue the
 same Session, or read its saved history later.
 :::
 

@@ -55,7 +55,8 @@ home:
         chips:
           - { text: Overview, link: /en/get-started/overview, icon: compass }
           - { text: Quickstart, link: /en/get-started/quickstart, icon: play }
-          - { text: Core concepts, link: /en/get-started/concepts, icon: compass }
+          - { text: Architecture, link: /en/get-started/architecture, icon: layers }
+          - { text: Agent trajectories, link: /en/get-started/trajectories, icon: pulse, badge: NEW }
       - name: Build
         hint: The loop, surface by surface
         chips:
