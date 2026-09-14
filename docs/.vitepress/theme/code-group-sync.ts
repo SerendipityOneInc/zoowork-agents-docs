@@ -12,7 +12,7 @@
  * The label text is the tab name, so labels are matched by their text content.
  */
 
-const STORAGE_KEY = 'zooclaw-docs:code-tab'
+export const CODE_TAB_STORAGE_KEY = 'zooclaw-docs:code-tab'
 
 function tabLabels(group: Element): HTMLLabelElement[] {
   return Array.from(group.querySelectorAll<HTMLLabelElement>('.tabs label'))
@@ -47,7 +47,7 @@ let installed = false
 
 export function syncCodeGroups(): void {
   const run = (): void => {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(CODE_TAB_STORAGE_KEY)
     if (stored) applyToAll(stored)
 
     if (installed) return
@@ -63,7 +63,7 @@ export function syncCodeGroups(): void {
       const label = tabLabels(group).find((l) => l.htmlFor === input.id)
       const name = label?.textContent?.trim()
       if (!name) return
-      localStorage.setItem(STORAGE_KEY, name)
+      localStorage.setItem(CODE_TAB_STORAGE_KEY, name)
       applyToAll(name)
     })
   }

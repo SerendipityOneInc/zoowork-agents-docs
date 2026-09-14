@@ -1,12 +1,12 @@
 ---
 description: 了解 ZooWork Managed Agents 提供什么、适用于哪些任务，以及 Agent、Session 和 Event 如何协作。
 source: /en/get-started/overview
-source_hash: 417dbc56abf4bab45f5a242adea5321166aedae1637ae0dcfe8a6408f4394b78
+source_hash: 5d51028825e4c59c5b913c88e76d2431abf388c6096a9ef52da8330638df77fe
 ---
 
 # ZooWork Managed Agents 概览
 
-ZooWork Managed Agents 让你通过 TypeScript SDK 或 HTTP API，在自己的应用中运行 Agent。
+ZooWork Managed Agents 让你通过 TypeScript SDK、Python SDK 或 HTTP API，在自己的应用中运行 Agent。
 Agent 可以使用工具完成任务，例如写入文件、运行命令，或调用已配置的外部服务。
 
 你定义 Agent 的指令和可用工具、发送任务，并向用户展示结果。
@@ -64,5 +64,6 @@ ZooWork 负责模型与工具调用循环、对话历史、沙箱执行和事件
 - [快速开始](./quickstart.md)：创建 Agent 并完成一个报告任务。
 - [架构](./architecture.md)：了解托管运行时和沙箱生命周期。
 - [Agent 轨迹](./trajectories.md)：把生产执行连接到评估和后训练。
-- [TypeScript SDK](../reference/typescript-sdk.md)：查阅客户端方法和选项。
+- [TypeScript SDK](../reference/typescript-sdk.md)：查阅 TypeScript client method 和选项。
+- [Python SDK](https://github.com/SerendipityOneInc/zoowork-sdk-python)：安装 async Python client，并查看 package guide。
 - [能力矩阵](../reference/capabilities.md)：确认支持范围与验证状态。

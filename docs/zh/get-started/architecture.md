@@ -2,7 +2,7 @@
 title: 架构
 description: 了解 Managed Agents API 如何连接应用、模型、工具与隔离执行环境，以及状态持久保存、计算按需启停的工作方式。
 source: /en/get-started/architecture
-source_hash: eec5286ec23c2730d3bff0c314e1c7c58b4eb5aec9684c3e34f47f785772ab9c
+source_hash: aadfc766d2590ea48d4151b83969642c2786dd1b6bfd6ed4930eda03c45294d8
 ---
 
 # 架构
@@ -16,7 +16,8 @@ source_hash: eec5286ec23c2730d3bff0c314e1c7c58b4eb5aec9684c3e34f47f785772ab9c
 
 [查看架构图原图](https://assets.yesy.site/f/images/2026/09/qdvtaf6e.png)
 
-应用通过 TypeScript SDK 或 HTTP 接入。两者使用相同的 API，以及相同的 Agent、Session 和 Event 资源。
+应用通过 TypeScript SDK、Python SDK 或 HTTP 接入。三种方式使用相同的 API，
+以及相同的 Agent、Session 和 Event 资源。
 
 | 组件 | 职责 |
 |---|---|

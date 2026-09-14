@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, onMounted, ref, type Component } from 'vue'
 import { useData, withBase } from 'vitepress'
+import { CODE_TAB_STORAGE_KEY } from '../code-group-sync'
 import {
   ArrowRightIcon,
   ChatBubbleLeftRightIcon,
@@ -24,9 +25,9 @@ import {
    English and Chinese versions stay ordinary translated markdown with the `source_hash`
    convention intact. This component only decides how that data is drawn.
 
-   The one exception is the code sample: it is the page's markdown body, passed through the
-   default slot, so it gets the same shiki highlighting as every other block on the site
-   instead of hand-written spans that would drift from the SDK. */
+   The one exception is the code sample: each language is a named slot in the page's markdown
+   body, so both get the same shiki highlighting as every other block on the site instead of
+   hand-written spans that would drift from either SDK. */
 
 interface Action {
   text: string
@@ -63,13 +64,21 @@ interface BandColumn {
   link: string
 }
 
+interface HeroSample {
+  id: string
+  label: string
+  install: string
+  meta: string
+}
+
 interface HomeData {
   hero: {
     accent: string
     actions: Action[]
     note?: string
     noteLink?: string
-    sampleMeta: string
+    sampleTabsLabel: string
+    samples: HeroSample[]
     sampleLinkText: string
     sampleLink: string
     streamLabel: string
@@ -94,6 +103,30 @@ const heroLead = computed(() => {
   /* `slice(0, length - accent.length)`, not `slice(0, -accent.length)`: an empty accent
      would make the negative form return an empty string. */
   return text.slice(0, text.length - heroAccent.value.length)
+})
+
+const selectedSampleId = ref('typescript')
+const selectedSample = computed(() => {
+  const samples = home.value?.hero?.samples ?? []
+  return samples.find((sample) => sample.id === selectedSampleId.value) ?? samples[0]
+})
+
+function selectSample(sample: HeroSample, focus = false): void {
+  selectedSampleId.value = sample.id
+  localStorage.setItem(CODE_TAB_STORAGE_KEY, sample.label)
+  if (focus) document.getElementById(`zc-home-tab-${sample.id}`)?.focus()
+}
+
+function selectAdjacentSample(index: number, offset: number): void {
+  const samples = home.value.hero.samples
+  const target = samples[(index + offset + samples.length) % samples.length]
+  if (target) selectSample(target, true)
+}
+
+onMounted(() => {
+  const stored = localStorage.getItem(CODE_TAB_STORAGE_KEY)
+  const sample = home.value?.hero?.samples.find((candidate) => candidate.label === stored)
+  if (sample) selectedSampleId.value = sample.id
 })
 
 /* The event rows are deliberately abbreviated and are labelled as an example in frontmatter.
@@ -168,14 +201,43 @@ const ICONS: Record<string, Component> = {
         </p>
       </div>
 
-      <div class="panel">
+      <div class="panel" v-if="selectedSample">
         <div class="panel-bar">
-          <span class="panel-file">quickstart.mts</span>
-          <code class="install-command"><span aria-hidden="true">$</span> npm i @zoowork-ai/sdk</code>
+          <div class="panel-tabs" role="tablist" :aria-label="home.hero.sampleTabsLabel">
+            <button
+              v-for="(sample, index) in home.hero.samples"
+              :id="`zc-home-tab-${sample.id}`"
+              :key="sample.id"
+              class="panel-tab"
+              type="button"
+              role="tab"
+              :aria-controls="`zc-home-panel-${sample.id}`"
+              :aria-selected="sample.id === selectedSample.id"
+              :tabindex="sample.id === selectedSample.id ? 0 : -1"
+              @click="selectSample(sample)"
+              @keydown.left.prevent="selectAdjacentSample(index, -1)"
+              @keydown.right.prevent="selectAdjacentSample(index, 1)"
+              @keydown.home.prevent="selectSample(home.hero.samples[0]!, true)"
+              @keydown.end.prevent="selectSample(home.hero.samples.at(-1)!, true)"
+            >
+              {{ sample.label }}
+            </button>
+          </div>
+          <code class="install-command"><span aria-hidden="true">$</span> {{ selectedSample.install }}</code>
         </div>
-        <div class="panel-code"><slot /></div>
+        <div
+          v-for="sample in home.hero.samples"
+          v-show="sample.id === selectedSample.id"
+          :id="`zc-home-panel-${sample.id}`"
+          :key="sample.id"
+          class="panel-code"
+          role="tabpanel"
+          :aria-labelledby="`zc-home-tab-${sample.id}`"
+        >
+          <slot :name="`sample-${sample.id}`" />
+        </div>
         <div class="panel-meta">
-          <span>{{ home.hero.sampleMeta }}</span>
+          <span>{{ selectedSample.meta }}</span>
           <a :href="withBase(home.hero.sampleLink)">{{ home.hero.sampleLinkText }} <span aria-hidden="true">→</span></a>
         </div>
         <div class="stream">
@@ -481,7 +543,7 @@ h3 {
   border-bottom: 1px solid var(--vp-c-divider);
 }
 
-.panel-file,
+.panel-tab,
 .install-command {
   display: flex;
   align-items: center;
@@ -489,11 +551,30 @@ h3 {
   font-size: 12px;
 }
 
-.panel-file {
+.panel-tabs {
+  display: flex;
+  min-width: 0;
+}
+
+.panel-tab {
+  appearance: none;
+  border: 0;
+  border-right: 1px solid var(--vp-c-divider);
   padding: 8px 16px;
+  background: transparent;
+  color: var(--vp-c-text-2);
+  cursor: pointer;
+}
+
+.panel-tab[aria-selected='true'] {
   background: var(--zc-selected);
   color: var(--vp-c-text-1);
   box-shadow: inset 0 -2px 0 var(--zc-action);
+}
+
+.panel-tab:hover:not([aria-selected='true']) {
+  background: var(--zc-hover);
+  color: var(--vp-c-text-1);
 }
 
 .install-command {
@@ -512,10 +593,51 @@ h3 {
    `.vp-doc`, and every code-block rule the default theme ships is scoped under it — including
    `overflow-x: auto`. Unscrolled, `.panel`'s clip removes the tail of every long line. */
 .panel-code :deep(div[class*='language-'] pre) {
-  overflow-x: auto;
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
   /* Padding on the code, not the pre, so it survives a horizontal scroll at both ends. */
   padding: 16px 0;
   margin: 0;
+}
+
+/* Both SDK examples occupy the same viewport. Without this fixed block, the longer Python
+   syntax changes the whole hero's height and vertically re-centres the copy beside it. */
+.panel-code {
+  height: 368px;
+  overflow: hidden;
+}
+
+.panel-code :deep(div[class*='language-']) {
+  height: 100%;
+  position: relative;
+}
+
+/* `layout: page` also leaves VitePress's copy button outside its usual `.vp-doc` styles.
+   Positioning it restores the control and, importantly, removes its empty inline line box
+   from the code height calculation. */
+.panel-code :deep(div[class*='language-'] > button.copy) {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--vp-code-copy-code-border-color);
+  border-radius: var(--zc-radius-sm);
+  background: var(--vp-code-copy-code-bg) var(--vp-icon-copy) center / 18px no-repeat;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--zc-motion-fast) ease, background-color var(--zc-motion-fast) ease;
+}
+
+.panel-code :deep(div[class*='language-']:hover > button.copy),
+.panel-code :deep(div[class*='language-'] > button.copy:focus-visible) {
+  opacity: 1;
+}
+
+.panel-code :deep(div[class*='language-'] > button.copy.copied) {
+  background-image: var(--vp-icon-copied);
 }
 
 .panel-code :deep(code) {
@@ -951,7 +1073,12 @@ h3 {
     flex-direction: column;
   }
 
-  .panel-file {
+  .panel-tabs {
+    width: 100%;
+  }
+
+  .panel-tab {
+    flex: 1;
     min-height: 38px;
   }
 
@@ -965,6 +1092,10 @@ h3 {
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .panel-code :deep(div[class*='language-'] > button.copy) {
+    opacity: 1;
   }
 
   .nouns {

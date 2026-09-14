@@ -1,8 +1,8 @@
 ---
 title: 快速开始
-description: 使用 TypeScript 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
+description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: b71cf048f6e6f7b38e3a07bbe815c2eee8c6c422eefc9891c119a592c4539563
+source_hash: bb6406c4a8ad825f66b49084d30be6e2269b09423217f1b72156f743673e941d
 ---
 
 # 快速开始
@@ -25,16 +25,21 @@ source_hash: b71cf048f6e6f7b38e3a07bbe815c2eee8c6c422eefc9891c119a592c4539563
 
 - 一个 ZooWork 组织 API Key（`zct_...`）。[获取 API Key](https://zoowork.ai/identity?tab=account-api-keys)。
 - **TypeScript：** Node.js **22.20+** 和 npm。
+- **Python：** Python **3.10+** 和 pip。
 - **curl：** Bash、curl **7.76+** 和 `jq` **1.6+**。
 
 ## 准备
 
-选择 TypeScript 或 curl，按同一个标签完成本页操作。
+选择 TypeScript、Python 或 curl，按同一个标签完成本页操作。
 
 ::: code-group
 
 ```bash [TypeScript]
 npm install @zoowork-ai/sdk
+```
+
+```bash [Python]
+python -m pip install zoowork
 ```
 
 ```bash [curl]
@@ -57,6 +62,9 @@ export ZOOWORK_API_KEY='zct_...'
 **TypeScript：** 将下方 TypeScript 代码块按顺序复制到 `quickstart.mts`，包括清理代码，
 最后使用页面末尾的命令运行。
 
+**Python：** 将下方 Python 代码块按顺序复制到 `quickstart.py`。代码块已经保留所需缩进，
+最后使用页面末尾的命令运行。
+
 **curl：** 在同一个 Bash 终端里逐块执行。确认每次请求成功后再继续，
 命令会保存返回的 ID，供下一步使用。
 
@@ -70,6 +78,8 @@ curl 示例显式设置这个地址。
 ::: code-group
 
 <<< ../../snippets/quickstart.ts#create [TypeScript]
+
+<<< ../../snippets/quickstart.py#create [Python]
 
 <<< ../../snippets/quickstart.sh#create [curl]
 
@@ -85,6 +95,8 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 <<< ../../snippets/quickstart.ts#start [TypeScript]
 
+<<< ../../snippets/quickstart.py#start [Python]
+
 <<< ../../snippets/quickstart.sh#start [curl]
 
 :::
@@ -99,6 +111,8 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 <<< ../../snippets/quickstart.ts#session [TypeScript]
 
+<<< ../../snippets/quickstart.py#session [Python]
+
 <<< ../../snippets/quickstart.sh#session [curl]
 
 :::
@@ -111,23 +125,27 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 <<< ../../snippets/quickstart.ts#send [TypeScript]
 
+<<< ../../snippets/quickstart.py#send [Python]
+
 <<< ../../snippets/quickstart.sh#send [curl]
 
 :::
 
-响应中的 `events[0].accepted` 应为 `true`，表示消息已被接受。
-接下来读取事件流，查看 Agent 的执行过程和结果。事件会被保存，所以即使 Agent 在你连接前
-就开始工作，仍然可以读回这些进度。
+SDK 示例会检查回执中的消息是否已被接受，否则直接停止。使用 curl 时，确认响应中的
+`events[0].accepted` 为 `true`。然后读取事件流，查看 Agent 的执行过程和结果。
+事件会被保存，所以即使 Agent 在你连接前就开始工作，仍然可以读回这些进度。
 
 ::: code-group
 
 <<< ../../snippets/quickstart.ts#stream [TypeScript]
 
+<<< ../../snippets/quickstart.py#stream [Python]
+
 <<< ../../snippets/quickstart.sh#stream [curl]
 
 :::
 
-**TypeScript** 打印回复和工具调用，在收到 `run.finished` 后关闭连接。
+**TypeScript 和 Python** 打印回复和工具调用，在收到 `run.finished` 后关闭连接。
 **curl** 显示原始事件流。看到 `event_type: "run.finished"` 后，检查 `payload.status`，
 再按 **Ctrl+C** 回到终端。事件连接会等待后续回合，直到你主动关闭它。
 
@@ -137,6 +155,12 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 ::: code-group
 
 ```text [TypeScript]
+[tool] exec
+I saved report.md and read it back to verify the three monthly sales and the $300 total.
+Turn: succeeded
+```
+
+```text [Python]
 [tool] exec
 I saved report.md and read it back to verify the three monthly sales and the $300 total.
 Turn: succeeded
@@ -175,6 +199,8 @@ data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
 
 <<< ../../snippets/quickstart.ts#cleanup [TypeScript]
 
+<<< ../../snippets/quickstart.py#cleanup [Python]
+
 <<< ../../snippets/quickstart.sh#cleanup [curl]
 
 :::
@@ -185,8 +211,14 @@ data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
 node quickstart.mts
 ```
 
+使用以下命令运行拼接好的 Python 示例：
+
+```bash
+python quickstart.py
+```
+
 如果程序提前退出，使用已打印的 Agent ID 执行上面的清理请求。
-curl 用户在按 Ctrl+C 关闭事件流后执行清理。
+curl 用户在按 Ctrl+C 关闭事件流后执行清理。两个 SDK 程序退出时都会关闭 HTTP client。
 
 ## 下一步
 

@@ -2,7 +2,7 @@
 title: Agent 轨迹
 description: 了解托管执行如何形成 Agent 轨迹、outcome 如何标注轨迹，以及两者如何支持评估和后训练。
 source: /en/get-started/trajectories
-source_hash: fbe350a2528f10289d92fb530ea21a9c872285d543f3d73cefb5214ce6d6fb15
+source_hash: 9e943d19cb58635e4aff2e3a75d66bd2d3526401e2b82e41ba093441cf9b29fc
 ---
 
 # Agent 轨迹
@@ -59,8 +59,14 @@ Managed Agents 不只返回最终答案。它会保留 Agent 工作时经历的�
 Trace 用于检查执行如何运作；轨迹用于把这次行为作为一条任务级路径进行分析。关联 outcome 后，
 它可以成为评估样本、偏好信号或强化信号。同一次执行可以同时贡献给这两个视图，但两个术语不能互换。
 
-当前，使用 `listAllEvents(agentId, sessionId)` 获取完整、有序的事件历史，使用
-`getSession(agentId, sessionId, { history: true })` 获取持久保存的对话记录。请将你自己的任务标识、产出引用和 outcome 与这些记录一起保存。
+当前，可以通过任一个 SDK 读取完整、有序的事件历史和持久保存的对话记录：
+
+- **TypeScript：**`listAllEvents(agentId, sessionId)` 和
+  `getSession(agentId, sessionId, { history: true })`。
+- **Python：**`list_all_events(agent_id, session_id)` 和
+  `get_session(agent_id, session_id, history=True)`。
+
+请将你自己的任务标识、产出引用和 outcome 与这些记录一起保存。
 
 ::: warning 当前 API 边界
 Managed Agents 记录这个闭环的运行时一侧。公共 API 当前不提供 trajectory export 资源、Session 级 outcome 定义

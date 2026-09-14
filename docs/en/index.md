@@ -19,7 +19,16 @@ home:
       - text: TypeScript SDK
         link: /en/reference/typescript-sdk
         theme: text
-    sampleMeta: Create an agent and session · Node 22.20+
+    sampleTabsLabel: SDK language
+    samples:
+      - id: typescript
+        label: TypeScript
+        install: npm i @zoowork-ai/sdk
+        meta: Create an agent and session · Node.js 22.20+
+      - id: python
+        label: Python
+        install: python -m pip install zoowork
+        meta: Create an agent and session · Python 3.10+
     sampleLinkText: Full Quickstart
     sampleLink: /en/get-started/quickstart
     streamLabel: EXAMPLE SESSION EVENTS
@@ -102,6 +111,8 @@ Put agents to work in your application. ZooWork runs their tasks and captures ex
 
 </template>
 
+<template v-slot:sample-typescript>
+
 ```ts
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
@@ -118,6 +129,30 @@ const session = await client.createSession(agent.agent_id, {
   }],
 })
 ```
+
+</template>
+
+<template v-slot:sample-python>
+
+```python
+import asyncio
+from zoowork import create_zoowork_client
+
+async def main() -> None:
+    async with create_zoowork_client() as client:
+        agent = await client.create_agent({"name": "quickstart-agent"})
+        await client.start_agent(agent["agent_id"])
+        await client.create_session(agent["agent_id"], {
+            "initial_events": [{
+                "type": "user.message",
+                "content": "What can you do?",
+            }],
+        })
+
+asyncio.run(main())
+```
+
+</template>
 
 <template v-slot:edges>
 

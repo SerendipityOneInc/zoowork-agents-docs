@@ -5,8 +5,8 @@ description: Learn what ZooWork Managed Agents provides, when to use it, and how
 # ZooWork Managed Agents overview
 
 ZooWork Managed Agents lets you run agents from your own application through the TypeScript
-SDK or HTTP API. An agent can work through a task using tools, such as writing a file,
-running a command, or calling a configured external service.
+SDK, Python SDK, or HTTP API. An agent can work through a task using tools, such as writing
+a file, running a command, or calling a configured external service.
 
 You define the agent's instructions and available tools, send tasks, and present the results
 to your users. ZooWork manages the model and tool loop, conversation history, sandbox
@@ -71,5 +71,6 @@ follow [An agent per user](../build/per-user-agents.md).
 - [Quickstart](./quickstart.md): create an Agent and complete a report task.
 - [Architecture](./architecture.md): understand the managed runtime and sandbox lifecycle.
 - [Agent trajectories](./trajectories.md): connect production execution to evaluation and post-training.
-- [TypeScript SDK](../reference/typescript-sdk.md): look up client methods and options.
+- [TypeScript SDK](../reference/typescript-sdk.md): look up TypeScript client methods and options.
+- [Python SDK](https://github.com/SerendipityOneInc/zoowork-sdk-python): install the async Python client and read its package guide.
 - [Capability matrix](../reference/capabilities.md): check support and verification status.

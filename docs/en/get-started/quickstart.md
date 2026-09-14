@@ -1,5 +1,5 @@
 ---
-description: Create your first agent, start a session, and stream its response using TypeScript or curl.
+description: Create your first agent, start a session, and stream its response using TypeScript, Python, or curl.
 ---
 
 # Quickstart
@@ -22,16 +22,21 @@ when you need a custom sandbox; no separate Environment is required here.
 
 - A ZooWork organization API key (`zct_...`). [Get an API key](https://zoowork.ai/identity?tab=account-api-keys).
 - **TypeScript:** Node.js **22.20+** and npm.
+- **Python:** Python **3.10+** and pip.
 - **curl:** Bash, curl **7.76+**, and `jq` **1.6+**.
 
 ## Set up
 
-Choose TypeScript or curl and use that tab throughout the guide.
+Choose TypeScript, Python, or curl and use that tab throughout the guide.
 
 ::: code-group
 
 ```bash [TypeScript]
 npm install @zoowork-ai/sdk
+```
+
+```bash [Python]
+python -m pip install zoowork
 ```
 
 ```bash [curl]
@@ -54,6 +59,9 @@ Run these examples on your server or local development machine. Do not put the k
 **TypeScript:** Copy the TypeScript blocks below into `quickstart.mts` in order, including
 cleanup. Run the file with the command at the end of the guide.
 
+**Python:** Copy the Python blocks below into `quickstart.py` in order. The blocks include
+their required indentation. Run the file with the command at the end of the guide.
+
 **curl:** Run each block in the same Bash terminal. Check that each request succeeds before
 continuing. The commands save the returned IDs for the next step.
 
@@ -67,6 +75,8 @@ by default. The curl example sets the URL explicitly.
 ::: code-group
 
 <<< ../../snippets/quickstart.ts#create [TypeScript]
+
+<<< ../../snippets/quickstart.py#create [Python]
 
 <<< ../../snippets/quickstart.sh#create [curl]
 
@@ -82,6 +92,8 @@ Start the agent before creating a session.
 
 <<< ../../snippets/quickstart.ts#start [TypeScript]
 
+<<< ../../snippets/quickstart.py#start [Python]
+
 <<< ../../snippets/quickstart.sh#start [curl]
 
 :::
@@ -96,6 +108,8 @@ Create a session for this task and save its `session_id`.
 
 <<< ../../snippets/quickstart.ts#session [TypeScript]
 
+<<< ../../snippets/quickstart.py#session [Python]
+
 <<< ../../snippets/quickstart.sh#session [curl]
 
 :::
@@ -109,23 +123,29 @@ or external service is needed.
 
 <<< ../../snippets/quickstart.ts#send [TypeScript]
 
+<<< ../../snippets/quickstart.py#send [Python]
+
 <<< ../../snippets/quickstart.sh#send [curl]
 
 :::
 
-The response's `events[0].accepted` should be `true`. This means the message was accepted;
-read the event stream to see the agent's work and result. Events are saved, so you can read
-them even if the agent starts working before you connect.
+The SDK examples stop if the receipt does not mark the message as accepted. With curl,
+confirm that the response's `events[0].accepted` is `true`. Then read the event stream to see
+the agent's work and result. Events are saved, so you can read them even if the agent starts
+working before you connect.
 
 ::: code-group
 
 <<< ../../snippets/quickstart.ts#stream [TypeScript]
 
+<<< ../../snippets/quickstart.py#stream [Python]
+
 <<< ../../snippets/quickstart.sh#stream [curl]
 
 :::
 
-**TypeScript** prints the reply and tool activity, then closes the connection at `run.finished`.
+**TypeScript and Python** print the reply and tool activity, then close the connection at
+`run.finished`.
 **curl** displays the raw event stream. When you see `event_type: "run.finished"`, check
 `payload.status`, then press **Ctrl+C** to return to your terminal. The stream stays open
 for future turns until you close it.
@@ -137,6 +157,12 @@ the following output is illustrative, with only selected fields shown for curl:
 ::: code-group
 
 ```text [TypeScript]
+[tool] exec
+I saved report.md and read it back to verify the three monthly sales and the $300 total.
+Turn: succeeded
+```
+
+```text [Python]
 [tool] exec
 I saved report.md and read it back to verify the three monthly sales and the $300 total.
 Turn: succeeded
@@ -175,6 +201,8 @@ Save anything you want to keep first. If stopping fails, resolve the error befor
 
 <<< ../../snippets/quickstart.ts#cleanup [TypeScript]
 
+<<< ../../snippets/quickstart.py#cleanup [Python]
+
 <<< ../../snippets/quickstart.sh#cleanup [curl]
 
 :::
@@ -185,8 +213,15 @@ Run the assembled TypeScript example with:
 node quickstart.mts
 ```
 
+Run the assembled Python example with:
+
+```bash
+python quickstart.py
+```
+
 If the program exits early, use the printed agent ID with the cleanup requests above.
-For curl, run cleanup after pressing Ctrl+C to close the stream.
+For curl, run cleanup after pressing Ctrl+C to close the stream. Both SDK programs close their
+HTTP client when they exit.
 
 ## Next steps
 
