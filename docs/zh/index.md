@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: af390328c81db65b9d65a4ba51a819e5c5df9a1e21b9c3910bd73ee06ea54abd
+source_hash: fbd97a535fbe2b0bf5c23c7cc3f21b5cd450e2be4f5a1883adbfbd6eefe6321f
 hero:
   text: 用 Agent 构建应用。运行交给 ZooWork。
   tagline: 让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
@@ -159,10 +159,10 @@ asyncio.run(main())
 通过[概览](./get-started/overview.md)了解 ZooWork 的工作方式，或跟随[快速开始](./get-started/quickstart.md)
 完成一个任务，包括结果检查与资源清理。
 
-**客户端执行的自定义工具不存在**：没有 `{type: "custom"}` 这种工具定义，也没有
-`user.custom_tool_result` 事件，所以 agent 永远不会回调进你的进程。session 级的 outcome
-定义、vault、session 的 `resources[]` 挂载、平台 webhook，同样都不存在。在围绕它们做设计之前，
-先读[不支持的能力](./reference/not-supported.md)。
+**应用执行的 custom tools 已做源码核对，部署未验证**：声明 `resource.custom_tools`，处理
+`agent.custom_tool_use`，再通过任一 SDK 返回结果。session 级 outcome、vault、session 的
+`resources[]` 挂载和平台 webhook 仍然不存在。custom tools 见[工具](./build/tools.md)，其余边界见
+[不支持的能力](./reference/not-supported.md)。
 
 </template>
 </ZcHome>

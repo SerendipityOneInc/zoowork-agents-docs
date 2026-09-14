@@ -2,7 +2,7 @@
 title: 不支持的能力
 description: 确认哪些能力不存在，以及每项能力最接近的可用替代方案。
 source: /en/reference/not-supported
-source_hash: 8fcbc52f60c8f805434e5734a1a4731f237f225a28e81d8f235e75cd1e539820
+source_hash: 623080a84fc8be54deade202a4505105b6225778509b8d025912131e95b9c124
 ---
 
 # 不支持的能力
@@ -14,14 +14,6 @@ source_hash: 8fcbc52f60c8f805434e5734a1a4731f237f225a28e81d8f235e75cd1e539820
 :::
 
 按你在上面建起一整个产品的可能性排序。就算后面的你只是扫一眼，前三条也要读完。存在的东西见[能力矩阵](./capabilities.md)。
-
-## 客户端执行的自定义工具 {#client-executed-custom-tools}
-
-**你想建的：** agent 调用一个你定义的工具，你的进程去查你的数据库或你的 API，你把结果交回去，agent 接着把这一回合走完。
-
-**实际发生的：** 没有可以在 agent 上声明的自定义工具类型，也没有 `user.custom_tool_result` 事件可以用来回答。写入侧只接受四种事件类型：`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`。
-
-**替代：** 把决策留在你自己的进程里：等 `run.finished`，把活干完，下一个回合再把答案作为 `user.message` 发回去。这条路慢一个回合。唯一另一种能把你的代码放到一个 agent 工具背后的形态是在 agent 上声明**远程 HTTP MCP server**——见[工具](../build/tools.md)。
 
 ## 保险库式的终端用户凭证托管 {#vault-style-end-user-credential-storage}
 
@@ -59,7 +51,7 @@ source_hash: 8fcbc52f60c8f805434e5734a1a4731f237f225a28e81d8f235e75cd1e539820
 
 **你想建的：** 一个收件箱，按时间倒序列出你所有 agent 下的每一段对话。
 
-**实际发生的：** 没有顶层的 session 集合可调。`listSessions(agentId)` 能读一个 agent 下的 session——按 `updated_at` 最新在前，每页 50，`page` 从 1 开始，没有游标——而我们没有驱动过它。它仍然要求你跨 agent 扇出再手动合并。
+**实际发生的：** 没有顶层的 session 集合可调。`listSessions(agentId)` 保留旧的数字分页通道；`listSessionPage(agentId)` 增加带 filter 的 cursor 分页。两者仍然都只读一个 agent。构建全局收件箱时，你还是要跨 agent 扇出再手动合并。
 
 **替代：** 把你自己的代码创建的 `session_id` 记下来，连同 `agent_id` 和它属于哪个用户。你的数据库就是索引。这件事第一天就该做，因为事后没有任何办法把它重建出来。
 
@@ -87,13 +79,13 @@ source_hash: 8fcbc52f60c8f805434e5734a1a4731f237f225a28e81d8f235e75cd1e539820
 
 **替代：** 你 PUT 过的每一份配置自己留一份，这样回滚就是把上一份 body 再 PUT 一次。要做灰度，就跑两个配置不同的 agent，在你自己的代码里分流。
 
-## 自托管的工具执行 {#self-hosted-tool-execution}
+## Worker 注册与托管队列 {#worker-registration-and-hosted-queues}
 
-**你想建的：** 工具跑在你自己的机器上，平台把活派发给你运维的 worker。
+**你想建的：** 注册一组由你运维的 worker，再由平台的持久队列独立分发任务，不依赖某个等待中的 agent run。
 
-**实际发生的：** 没有 worker 注册，没有任务队列，也没有 environment key。工具只在托管沙箱里跑。Environment 能让你预装包、设一份网络白名单，但执行仍然留在平台上。
+**实际发生的：** 没有 worker 注册、持久任务队列或 environment key。内置工具和 environment 执行仍留在托管沙箱里。
 
-**替代：** 远程 HTTP MCP server 是唯一能把执行挪到你这边的形态——已实测，但只支持无鉴权的 server。你的代码要做的其他一切，都属于你自己的进程，在 session 外围，不在 session 里面。
+**替代：** 如果 run 可以等待你的进程返回结果，用应用执行的 custom tool。如果平台应直接调用一个服务端托管的能力，用远程 HTTP MCP；当前部署验证只覆盖免鉴权 server。两者都不是通用的 worker 注册或后台队列 API。
 
 ## 其他同样不存在的 {#also-absent}
 
@@ -101,7 +93,7 @@ source_hash: 8fcbc52f60c8f805434e5734a1a4731f237f225a28e81d8f235e75cd1e539820
 
 | 缺什么 | 要知道的 |
 |---|---|
-| 命令行工具 | 只有 TypeScript SDK。 |
+| 命令行工具 | 没有 CLI。使用 TypeScript SDK、Python SDK 或 HTTP API。 |
 | 按 session 覆盖工具或 MCP、session 创建时的 `agent_with_overrides` | `createSession` 只收 `initial_events` 和 `metadata`，没别的。session 上的 PATCH 通过网关返回 `405`。所以既没有覆盖的通路，也没有 `patchSession`。 |
 | `session.status_*`、`span.*`、`stop_reason` 事件 | 不在词表里。用 `run.finished` 和它的 `payload.status`。 |
 | 从全局目录安装 skill | `404`。全局 skill 在 agent 创建时就已经挂上了。 |

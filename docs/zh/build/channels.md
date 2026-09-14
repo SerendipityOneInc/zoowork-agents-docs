@@ -2,7 +2,7 @@
 title: 渠道
 description: 把 agent 接入聊天平台，并管理各渠道的配置流程与生命周期。
 source: /en/build/channels
-source_hash: cd937ec5a1efb472bd52e460094c813f22ea9f49abe5735e1e2d3a73ed4b6a9c
+source_hash: 58a6c0ee88610211c5866f1b5a78a64a0d4acae6dc93b49a1fbcd11e8deb9fc1
 ---
 
 # 渠道
@@ -17,7 +17,7 @@ source_hash: cd937ec5a1efb472bd52e460094c813f22ea9f49abe5735e1e2d3a73ed4b6a9c
 
 ## 能绑哪些平台
 
-2026-08-28 对一套真实部署实测。表外的平台名一律返回 `400 channel.invalid_request`。
+前四行已在 2026-08-28 对真实部署实测。钉钉的直接绑定来自源码核对，尚未在部署环境验证。
 
 | 平台 | `addChannel` | 服务端扫码流 | 你要提供什么 |
 |---|---|---|---|
@@ -25,12 +25,15 @@ source_hash: cd937ec5a1efb472bd52e460094c813f22ea9f49abe5735e1e2d3a73ed4b6a9c
 | `slack` | ✅ | ❌ 永远不会有 | bot token + app token |
 | `wecom` | ✅ | ✅ | 什么都不用，或 bot id + secret |
 | `weixin` / `wechat` | ❌ | ✅ —— 唯一的路径 | 什么都不用 |
+| `dingtalk-connector` | ✅ —— 源码已核对 | ❌ 公共 API | client id + client secret |
 
-四个平台里三个有扫码流，表里这两个 ❌ 才是需要解释的。
+三个平台有扫码流。Slack 和钉钉使用显式凭证，微信只支持扫码。
 
 **Slack 不会有。** 服务端驱动的扫码流，前提是聊天平台愿意把凭证交回给发起请求的服务端。Slack 没有这种东西：Slack 应用只能由人在 `api.slack.com/apps` 上创建，它的 `xoxb-` / `xapp-` token 只会出现在那个人的浏览器里。所以 Slack 永远是「`addChannel` + 把两个 token 放进 `config`」。如果你在 ZooWork App 里见过 Slack 的引导式配置，那个引导做的正是这件事：帮人把应用建出来，然后让他粘贴那两个 token——和你在这里传的是同两个。
 
 **微信正好相反：扫码流是它唯一的路径。** 用 `platform: 'weixin'`（或 `'wechat'`）调 `addChannel` 会返回 `400 channel.weixin_setup_required`，这句报错说的就是字面意思——改用 `startChannelSetup(agentId, 'weixin')`。微信这边没有需要你自己准备的凭证。
+
+**公共 API 中，钉钉只支持显式配置。** 调用 `addChannel` 时传 `platform: 'dingtalk-connector'`、`config: { clientId, clientSecret }` 和 `dm_policy: 'open'`。公共扫码配置路由不接受钉钉。这个契约来自源码核对，尚未在部署环境验证。
 
 ## 扫码流
 
@@ -99,9 +102,9 @@ pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: fa
 
 **在把二维码显示出去之前，先把 `account` 定下来**（飞书和企业微信）。命名规则和显式绑定那条路径完全一样，见下面的「给绑定命名：`account`」。在扫码这条路径上它更要紧：对方批准扫码会在那个飞书工作区里注册出一个**新应用**，之后才轮到写绑定记录，所以名字撞了是在**有人已经扫过之后**才以 `409 channel.conflict` 的形式暴露出来，而那个刚注册出来的应用就留在对方的工作区里了。用同一个名字重试，这两件事会再发生一遍。
 
-## 显式配置 —— Slack 走这条
+## 显式配置 —— Slack、钉钉、飞书和企业微信
 
-`addChannel` 是非交互路径：它是 Slack 唯一的路径，是飞书和企业微信在扫码流之外的另一条路，微信则完全不接受它。凭证由你提供，放进 `config` 传入。
+`addChannel` 是非交互路径：它是 Slack 和钉钉在公共 API 中唯一的路径，是飞书和企业微信在扫码流之外的另一条路，微信则完全不接受它。凭证由你提供，放进 `config` 传入。
 
 **`config` 的字段是平台相关的，而且是 camelCase。** 下面这些是渠道服务真正读取的字段；`config` 里的其他键会被存下来但不生效。
 
@@ -110,6 +113,7 @@ pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: fa
 | `slack` | `{ botToken: 'xoxb-…', appToken: 'xapp-…' }` —— 两个都必需 |
 | `wecom` | `{ botId: '…', secret: '…' }` —— 两个都必需 |
 | `feishu` | `{ appId: '…', appSecret: '…', domain: '…' }` —— 只在你跳过扫码流时才需要 |
+| `dingtalk-connector` | `{ clientId: '…', clientSecret: '…' }` —— 两个都必需；同时使用 `dm_policy: 'open'` |
 
 ```ts
 await zc.addChannel(agentId, {
@@ -119,6 +123,26 @@ await zc.addChannel(agentId, {
 ```
 
 Slack 跑在 socket mode 下，所以除了 bot token 还需要那个 app 级的 `xapp-` token。两个都在 Slack 应用自己的设置页里拿。
+
+### 飞书文档权限
+
+飞书绑定在直接添加、更新和扫码配置时都接受 `permission_admin_enabled: true`。这个字段表示开启文档权限管理；省略时默认关闭。
+
+```ts
+await zc.addChannel(agentId, {
+  platform: 'feishu',
+  config: { appId, appSecret, domain: 'feishu' },
+  permission_admin_enabled: true,
+})
+```
+
+渠道响应可以在 `capabilities.feishu_documents` 下返回生效状态：
+
+- `sync` 是 `pending`、`applied`、`retry` 或 `error`。
+- `provider` 是 `ready` 或 `degraded`，还可能带 `missing_scopes`。
+- `approval_state: 'pending_admin'` 表示仍需管理员批准平台权限。
+
+这些请求和响应字段来自源码核对，尚未在部署环境验证。不要把 `permission_admin_enabled: true` 当作文档操作已经就绪的证明；应读取返回的 capability 状态。
 
 ::: warning 被忽略的字段不是访问白名单
 源码核对显示，公共网关会忽略 `allow_from`，创建时也一样。SDK 为兼容保留这个字段，传入它并不能限制访问。请使用受支持的 `dm_policy` 设置，并单独验证实际生效的策略。

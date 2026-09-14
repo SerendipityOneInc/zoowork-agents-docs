@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: f6cd0d7048cf4bada92d75f28cb74e06f276390f27f18480b467dd83069e90f8
+source_hash: fdbfd2f9eaa4de4415ba157e50d96b52836c449f457964ae5952b73501ef9196
 ---
 
 # 错误与重试
@@ -142,7 +142,7 @@ if (e instanceof ZooworkError) {
 | `listModels`、`getAgent`、`getSession`、`listEvents`、`listAgentSkills`，以及其余的 `list*` / `get*` 读操作 | **能** | 都是读。网络错误和 5xx 用指数退避重试。 |
 | `startAgent`、`stopAgent` | **先核对结果** | 成功回执可能带 warnings，但非 2xx 仍然抛错；stop 可能在 desired state 已写入后才失败。先 `getAgent` 对账，再决定是否重试。 |
 | `deleteAgent` | **能** | 软删除。重复调用都会成功。 |
-| `streamEvents` | **能** | 用最后一个事件的续传令牌重连——`{ cursor: ev.cursor }`。服务端续传日志；处理成功后再保存游标，应用副作用不因此获得 exactly-once 保证。**不要**用 `{ after: lastSeq }` 重连：那会切到废弃的 engine-only 通道，它会丢掉你自己发的 input 事件（`user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message`）。 |
+| `streamEvents` | **能** | 用最后一个事件的续传令牌重连——`{ cursor: ev.cursor }`。服务端续传日志；处理成功后再保存游标，应用副作用不因此获得 exactly-once 保证。**不要**用 `{ after: lastSeq }` 重连：那会切到废弃的 engine-only 通道，它会丢掉你自己发的 input 事件（`user.message`、`user.interrupt`、`user.tool_confirmation`、`user.custom_tool_result`、`system.message`）。 |
 | `createAgent`、`createSession`、`createEnvironment`、`createEnvironmentVersion` | **复用 key 与 body** | HTTP `Idempotency-Key` 的创建契约；不要每次重试都换 key。 |
 | `createSchedule` | **稳定 ID 与相同定义** | 同 `schedule_id`、同定义可收敛，不同定义冲突；不是靠 key 创建唯一性。 |
 | `uploadSkill` | **先读回** | 同 scope、同 name 再创建为 409，不是 upsert。 |

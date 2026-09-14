@@ -98,7 +98,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 ## The event vocabulary
 
 These are the outbound event types, the full contents of `SESSION_EVENT_TYPES` (a fixed list
-of 19), plus the four input types under [Your inputs, echoed](#your-inputs-echoed). The
+of 20), plus the five input types under [Your inputs, echoed](#your-inputs-echoed). The
 `types=` filter on history accepts both sets and rejects anything else with
 `400 invalid_request`.
 
@@ -120,6 +120,7 @@ of 19), plus the four input types under [Your inputs, echoed](#your-inputs-echoe
 | `agent.item` | Internal loop markers, not conversation. | `kind`: `assistant_segment` (with `phase`, `segment`) or `llm_request` (captured provider request/response). Safe to ignore when rendering a chat. |
 | `agent.plan` | Reserved in the vocabulary. The core loop does not emit it. | - |
 | `agent.approval` | A tool call needs approval, or that approval resolved. | `phase`: `requested` \| `resolved`; `approvalId`, `toolCallId`, `toolName`, `arguments`, optional `stake`, `timeoutAt`; on `resolved`, `resolution` plus optional `resolvedBy`, `resolutionChannel`. |
+| `agent.custom_tool_use` | An application-executed custom tool is requested or resolved. | `phase`: `requested` \| `resolved`; `callId`; request fields include `toolCallId`, `name`, `input`, `timeoutAt`; resolved fields include `outcome`, optional `isError`, `resolvedBy`, `resolutionChannel`. Use `customToolUse()`. |
 | `agent.command_output` | A command-running tool produced stdout/stderr, at result granularity. | `toolCallId`, `toolName`, plus the captured output fields. |
 | `agent.patch` | An `apply_patch` tool call succeeded. | `toolCallId` plus the patch summary. |
 | `agent.compaction` | History was compacted to fit the context window. | `firstKeptEntryId`, `tokensBefore`, `reason` |
@@ -135,10 +136,11 @@ of 19), plus the four input types under [Your inputs, echoed](#your-inputs-echoe
 ### Your inputs, echoed
 
 Your own inputs come back on the same log as `user.message`, `user.interrupt`,
-`user.tool_confirmation`, and `system.message` (exported as `PUBLIC_INPUT_EVENT_TYPES`). A
+`user.tool_confirmation`, `user.custom_tool_result`, and `system.message` (exported as
+`PUBLIC_INPUT_EVENT_TYPES`). A
 `user.message` payload is `{ content: [...] }` — text blocks plus
 `{ type: 'attachment', mime, name, size }` stubs — and its `processedAt` flips from `null` to
-a timestamp once the agent has consumed it. The write-side rules for all four are under
+a timestamp once the agent has consumed it. The write-side rules for all five are under
 [Inbound events](#inbound-events).
 
 ### `chat.*` - not on the durable log
@@ -154,7 +156,7 @@ The arc we have observed repeatedly on live sessions is `run.started`, `agent.li
 `agent.item`, `agent.thinking`, `agent.assistant`, `agent.tool` (start/end), `agent.lifecycle`,
 `run.finished`.
 
-`agent.approval`, `agent.command_output`, `agent.patch`, `agent.compaction`,
+`agent.approval`, `agent.custom_tool_use`, `agent.command_output`, `agent.patch`, `agent.compaction`,
 `attachment.created`, and `message.outbound` are in the vocabulary and the engine emits them,
 but we have not driven one end to end through this API. Treat their payload fields as a guide,
 not a contract, and code defensively. (The echoed input events are verified: posting, echo,
@@ -163,8 +165,8 @@ not a contract, and code defensively. (The echoed input events are verified: pos
 
 ## Inbound events
 
-There are exactly four event types you can post. Anything else is rejected with
-`400 invalid_event` and a message naming the four.
+There are exactly five event types you can post. Anything else is rejected with
+`400 invalid_event` and a message naming the five.
 
 ```ts
 const res = await zc.postEvents(agentId, sessionId, [
@@ -248,6 +250,15 @@ The accepted body above is read from the request parser; no live pending approva
 created and resolved through this route. The [capability matrix](../reference/capabilities.md)
 records the state of the approval loop.
 :::
+
+### `user.custom_tool_result`
+
+Returns the result of an application-executed custom tool. Identify the call with
+`custom_tool_use_id` or `call_id`, include 1–16 text, JSON, or base64 image blocks in
+`content`, and send a stable `idempotency_key` when retry is possible. Optional `is_error`
+marks a tool failure. The same operation is available through `resolveCustomToolCall()`;
+the complete size, image, lifecycle, and error rules are in
+[Tools](./tools.md#application-executed-custom-tools).
 
 ### `system.message`
 
