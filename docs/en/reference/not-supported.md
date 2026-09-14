@@ -17,20 +17,6 @@ Ordered by how likely you are to build a whole product on top of it. Read the fi
 even if you skim the rest. For what does exist, see the
 [capability matrix](./capabilities.md).
 
-## Client-executed custom tools
-
-**You would build:** the agent calls a tool you defined, your process queries your database
-or your API, and you hand the result back so the agent continues the same turn.
-
-**What happens:** there is no custom tool type to declare on an agent, and no
-`user.custom_tool_result` event to answer with. The write side accepts exactly four event
-types: `user.message`, `user.interrupt`, `user.tool_confirmation`, `system.message`.
-
-**Instead:** keep the decision in your own process: wait for `run.finished`, do the work, and
-post the answer back as a `user.message` on the next turn. That path is slower by one turn.
-The only other shape that puts your code behind an agent tool is a **remote HTTP MCP server**
-declared on the agent - see [Tools](../build/tools.md).
-
 ## Vault-style end-user credential storage
 
 **You would build:** each of your users connects their own Notion, GitHub, or Slack account,
@@ -100,9 +86,9 @@ send the outcome back as a `user.message`.
 recency.
 
 **What happens:** there is no top-level session collection to call. `listSessions(agentId)`
-reads one agent's sessions - newest first by `updated_at`, 50 per page, 1-based `page`, no
-cursor - and we have not driven it. It still leaves you fanning out across agents and merging
-by hand.
+keeps the old numeric-page lane; `listSessionPage(agentId)` adds filtered cursor pagination.
+Both still read only one agent. Building a global inbox leaves you fanning out across agents
+and merging by hand.
 
 **Instead:** record the `session_id` your own code creates, along with the `agent_id` and
 whatever user it belongs to. Your database is the index. This is worth doing on day one,
@@ -148,18 +134,18 @@ but no route lists versions, fetches an old one, or pins a session to one.
 re-PUTting the previous body. For a canary, run two agents with different configurations and
 split traffic in your own code.
 
-## Self-hosted tool execution
+## Worker registration and hosted queues
 
-**You would build:** tools that run on your own machines, with the platform dispatching work
-to a worker you operate.
+**You would build:** a registered worker fleet and a durable platform queue that dispatches
+jobs to it independently of a waiting agent run.
 
-**What happens:** there is no worker registration, no work queue, and no environment key.
-Tools run in the managed sandbox only. Environments let you pre-install packages and set a
-network allowlist, but the execution stays on the platform.
+**What happens:** there is no worker registration, durable work queue, or environment key.
+Built-in tools and environment execution stay in the managed sandbox.
 
-**Instead:** a remote HTTP MCP server is the only shape that moves execution to your side -
-verified, but unauthenticated servers only. Everything else your code needs to do belongs in
-your own process, around the session rather than inside it.
+**Instead:** use an application-executed custom tool when a run may wait for your process to
+return a result. Use remote HTTP MCP when the platform should call a server-managed capability
+directly; current deployment verification covers unauthenticated servers only. Neither is a
+general worker-registration or background-queue API.
 
 ## Also absent
 
@@ -167,7 +153,7 @@ Smaller gaps, same rule: they do not exist, so do not plan on them.
 
 | Thing | What to know |
 |---|---|
-| A command-line interface | TypeScript SDK only. |
+| A command-line interface | There is no CLI. Use the TypeScript SDK, Python SDK, or HTTP API. |
 | Per-session tool or MCP overrides, `agent_with_overrides` on session create | `createSession` takes `initial_events` and `metadata`, nothing else. `PATCH` on a session is `405` through the gateway. There is no override path and no `patchSession`. |
 | `session.status_*`, `span.*`, `stop_reason` events | Not in the vocabulary. Use `run.finished` and its `payload.status`. |
 | Installing a skill from the global catalog | `404`. Global skills are already attached at agent creation. |

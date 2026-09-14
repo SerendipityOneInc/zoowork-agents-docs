@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 429a082b3c750d181c238ad117c1cca57694f00768809cb53e1f8c53a5068cb7
+source_hash: 07d2c3d92d03adb06a9abe3bb4973c5c29ae14c526d91419400a4748064dfd5b
 ---
 
 # TypeScript SDK 参考
@@ -143,15 +143,15 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 **渠道**
 
 把一个聊天平台绑到用 API 创建出来的 agent 上，这样同一个 agent 也能在聊天软件里回复人。
-飞书 / Lark、企业微信、微信三家都有服务端驱动的扫码流程；Slack 没有，只能走 `addChannel`，
-用你已经拿到的凭证绑定；微信正相反，扫码流是它唯一的路径。平台对照表和各种坑见
-[渠道](../build/channels.md)。
+飞书 / Lark、企业微信、微信三家都有服务端驱动的扫码流程。Slack 和钉钉走 `addChannel`，
+用你已经拿到的凭证绑定；微信正相反，扫码流是它唯一的路径。钉钉直接绑定来自源码核对，
+尚未在部署环境验证。平台对照表和各种坑见[渠道](../build/channels.md)。
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 这个 agent 已绑定的平台账号，带各自的 `health` 和 `status`。纯 API 的 agent 返回空数组。 |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 用 `config` 里的显式凭证绑定一个平台（201）。**201 的意思是存下了，不是能用了** ——绑定时不校验凭证，结论要从随后一次 `listChannels` 的 `health`/`status` 去读。 |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 改一个绑定的 `dm_policy`、`group_policy` 或 `enabled`，并把改完之后的状态返回给你。源码已核对：公共网关忽略 `allow_from`，它不构成发送者 ACL。**不**幂等：这个平台上没有绑定就是 `404 channel.not_found`。 |
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 这个 agent 已绑定的平台账号，带各自的 `health`、`status` 和可选 capability 状态。纯 API 的 agent 返回空数组。 |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 用 `config` 里的显式凭证绑定一个平台（201）。支持用 `platform: 'dingtalk-connector'` 和 `clientId`/`clientSecret` 直接绑定钉钉（源码已核对）。飞书还接受 `permission_admin_enabled`。**201 的意思是存下了，不是能用了**——绑定时不校验凭证，结论要从后续 `listChannels` 读取。 |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 改一个绑定的 `dm_policy`、`group_policy`、`enabled` 或飞书的 `permission_admin_enabled`，并把新状态返回。源码已核对：公共网关忽略 `allow_from`，它不构成发送者 ACL。**不**幂等：这个平台上没有绑定就是 `404 channel.not_found`。 |
 | `removeChannel(agentId, platform, opts?)` | `Promise<void>` | 解绑一个 `platform` + `account`（`account` 默认 `'default'`）。和 `updateChannel` 不同，它是幂等的——删一个本来就不存在的绑定返回 `200 { ok: true }`。 |
 | `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | 在 `'feishu'` / `'wecom'` / `'weixin'` 上发起扫码注册。飞书返回 `verification_uri_complete` 和 `poll_interval`，`expires_in: 600`；企业微信和微信返回 `qrcode_url`，没有 `poll_interval`，`expires_in: 300`，而且微信的 `qrcode_url` 可能是内嵌的 `data:image/…`。UI 归你自己做：把返回的那个渲染出来，通常是渲染成二维码。`brand: 'lark'`（只有飞书有）会把 URI 的 host 换成 `open.larksuite.com`，而且必须和扫码那个人所在的 workspace 对得上。 |
 | `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | 轮询这个 session 一次。被取消或已经消失的 session 返回的是 `404 channel.{platform}_session_not_found`，不是某个终态，所以自己写的轮询循环要把这个 404 当成结束条件，而不是一个该重试的传输错误。 |
@@ -174,7 +174,8 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 |---|---|---|
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | 开一个 session。要求 agent 处于运行状态，否则 `409 agent_not_running`。 |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | 读取一个 session，可选带上落盘的会话记录。 |
-| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | 一个 agent 的 session，按 `updated_at` 从新到旧，每页 50 条，`page` 从 1 开始。没有游标；每一行都包含 `run_status`，但不包含 `status`。 |
+| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | 通过旧的数字分页通道列出一个 agent 的 session：按 `updated_at` 从新到旧，每页 50 条，`page` 从 1 开始。每一行都包含 `run_status`，但不包含 `status`。 |
+| `listSessionPage(agentId, opts?)` | `Promise<SessionListPage>` | 选择带 filter 的 cursor 通道。第一次不传 cursor（SDK 会发送 `sls1:0`），之后传 `next_cursor`；`limit` 为 1–100。支持排除 channel、包含 surface、runtime mode 和 archive filter。cursor 不透明，并绑定 agent 和 filter scope。 |
 | `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | 盖上 `archived_at`。之后写入返回 `409 session_archived`，读取照常。先中断正在跑的回合。 |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | 软删除这个 session（204），会先取消正在跑的回合。会话记录和事件为审计保留。 |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string \| null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>` | 往 session 里写入 user 或 system 事件；被接受的事件以完整事件对象回显。 |
@@ -182,6 +183,13 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 | `listEventsPage(agentId, sessionId, opts?)` | `Promise<SessionEventPage>` | 同一页，但带 `hasMore`/`nextCursor`——手动翻页的原语。 |
 | `listAllEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | 跟着服务端的游标拿到全部持久事件。要全量就用它，别自己给 `listEvents` 翻页。 |
 | `streamEvents(agentId, sessionId, opts?)` | `AsyncGenerator<SessionEvent>` | 通过 SSE 流式读取持久事件，可用 `cursor` 续传。 |
+
+**应用执行的 custom tools**
+
+| 方法 | 返回 | 做什么 |
+|---|---|---|
+| `listCustomToolCalls(agentId, { status: 'pending' })` | `Promise<CustomToolCallRecord[]>` | 恢复一个 agent 下待处理的应用执行调用。filter 只接受 `pending`。 |
+| `resolveCustomToolCall(agentId, callId, input)` | `Promise<CustomToolCallRecord>` | 提交 1–16 个 text、JSON 或 base64 image 结果 block。`202` 且 `signaled: true` 只表示投递已接受；run 消费前记录仍可能是 pending。 |
 
 **审批**
 
@@ -696,8 +704,9 @@ postEvents(
 列表缺失时返回 `[]`。被接受的事件返回的就是历史里将出现的完整事件对象（带 `seq`）；未被接受的
 仍是 `{ id, type, accepted: false }` 回执。
 
-写入路径接受四种类型：`user.message`、`user.interrupt`、`system.message` 和
-`user.tool_confirmation`。
+写入路径接受五种类型：`user.message`、`user.interrupt`、`system.message`、
+`user.tool_confirmation` 和 `user.custom_tool_result`。最后一种是
+`resolveCustomToolCall()` 的事件形式替代方案；见[工具](../build/tools.md#应用执行的自定义工具)。
 
 ```ts
 await zc.postEvents(agentId, sessionId, [
@@ -855,6 +864,8 @@ console.log(outcome, text)
 - `SkillVersionRecord` 是 `{ skill_id, version, state }`，不是根记录。创建重复 name 为 409；版本按内容去重；HTTP key 并非所有上传的幂等保证。
 - `run_status` 可为 null，`pending_approvals` 是数字。审批时间用 `requested_at`；可选 preview 是字符串，另有 allowed_decisions、timeout/resolution 字段。202/signaled 不代表已执行，预算行为未实测。
 - Environment 的 `partial_ready` 可是过渡态或部分终态。创建新版本不是重试旧版本；轮询示例见 [Environments](../build/environments.md#构建状态)。
+- MCP 声明可通过 `context.meta` / `context.headers` 显式传运行时 context，并通过 server 级 `permission` 和按原始工具名精确匹配的 `tools` 设置审批行为。tool policy pattern 支持精确名称、全局 `*` 或一个末尾 `prefix*`；`alsoAllow` 仍只支持精确名称。
+- 钉钉直接绑定使用 `platform: 'dingtalk-connector'` 和 `clientId` / `clientSecret`。飞书请求接受 `permission_admin_enabled`，渠道响应可返回文档 capability 的同步、provider、缺失 scope 和管理员审批状态。
 
 ## 类型
 
@@ -864,8 +875,8 @@ console.log(outcome, text)
 没有这个索引签名的那几个是**故意封闭的** ——`SessionEvent`、`SessionHistoryEntry`、`ToolCall`、
 `ExecResult`、`WakeResult`、`Ownership`、`EnvironmentConfig`、`AgentResource`、`OutcomeConfig`、
 `OutcomeEvaluator`、`SystemPromptDeclaration`、`SSEMessage`、`ZooworkConfig`、`ZooworkAuth`、
-`AddChannelInput`、`UpdateChannelInput` 和 `ChannelSetupInput` 不收多余的键，多写一个键是编译
-错误，而不是一个能活到线上的字段。
+`McpContextConfig`、`McpToolPermissionOverride`、`AddChannelInput`、`UpdateChannelInput` 和
+`ChannelSetupInput` 不收多余的键，多写一个键是编译错误，而不是一个能活到线上的字段。
 
 这里的小节只覆盖你在本页走过的那些路径上会碰到的类型。skill registry、审批、定时任务、wake、
 exec 和 Environment 相关的类型都在[完整导出清单](#完整导出清单)里，而且每一个都把自己字段级的坑
@@ -981,6 +992,7 @@ interface AgentResource {
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
   mcp?: McpServerDeclaration[]
+  custom_tools?: CustomToolDeclaration[]
   system_prompt?: SystemPromptDeclaration
   outcome?: OutcomeConfig | null
   sandbox?: { scope: 'agent' | 'session' }
@@ -990,6 +1002,7 @@ interface AgentResource {
 ```
 
 你发给 `createAgent()` 的配置。`name` 是唯一必填的字段。`mcp` 声明远程 MCP server。
+`custom_tools` 声明由你的应用执行、run 在中途等待结果的工作。
 `system_prompt` pin 一个模板版本（创建时省略等于「当前 active 的平台版本」，
 从此定住；PUT 时和 `tool_policy` 一样整体替换），`outcome` 是无人值守 cron 触发的 agent 级
 默认门。
@@ -1013,11 +1026,48 @@ interface McpServerDeclaration {
   credential?: string
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
+  context?: { meta?: boolean; headers?: boolean }
+  permission?: 'always_ask' | 'always_allow'
+  tools?: Record<string, { permission: 'always_ask' | 'always_allow' }>
   [k: string]: unknown
 }
 ```
 
 省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 目前仍无法写入 `credential` 指向的密钥；只使用公开、免鉴权的 MCP server。见[工具](../build/tools.md)。
+
+两个 context 开关都默认是 `false`。`meta` 在工具执行时添加 `_meta["ai.zooclaw/context"]`，`headers` 添加 `x-zooclaw-*` header；目录发现阶段两者都不带。context 包含 agent/session/computer 标识和可选 run/turn/config/actor 字段。它是上下文，不是鉴权凭据。
+
+`permission` 是 server 默认值。`tools` 按 MCP 原始工具名精确覆盖，不支持通配符，最多 64 条。省略时保留默认 allow 行为。这些字段及 allow-always 的 Session 范围来自源码核对；审批闭环尚未在部署环境验证。
+
+### `AgentChannel`
+
+```ts
+interface AgentChannel {
+  platform: string
+  account: string
+  display_name?: string | null
+  dm_policy?: string
+  group_policy?: string
+  enabled?: boolean
+  health?: string
+  status?: string
+  status_code?: string | null
+  capabilities?: {
+    feishu_documents?: {
+      permission_admin_enabled: boolean
+      sync: { state: 'pending' | 'applied' | 'retry' | 'error' }
+      provider: {
+        state: 'ready' | 'degraded'
+        missing_scopes: string[]
+        approval_state?: 'pending_admin' | null
+      }
+    } | null
+  } | null
+  [k: string]: unknown
+}
+```
+
+飞书 capability 投影来自源码核对，尚未在部署环境验证。在添加、更新或扫码配置时打开 `permission_admin_enabled` 只是发出请求；应读取这份投影，判断 scope 同步是已生效、degraded、正在重试，还是等待管理员审批。
 
 ### `AgentSkill`
 
@@ -1226,7 +1276,7 @@ const SESSION_EVENT_TYPES: readonly [
   'run.started', 'run.finished',
   'chat.delta', 'chat.final', 'chat.aborted', 'chat.error',
   'agent.lifecycle', 'agent.assistant', 'agent.thinking', 'agent.tool', 'agent.item',
-  'agent.plan', 'agent.approval', 'agent.command_output', 'agent.patch',
+  'agent.plan', 'agent.approval', 'agent.custom_tool_use', 'agent.command_output', 'agent.patch',
   'agent.compaction', 'agent.error',
   'attachment.created', 'message.outbound',
 ]
@@ -1234,7 +1284,7 @@ const SESSION_EVENT_TYPES: readonly [
 type SessionEventType = (typeof SESSION_EVENT_TYPES)[number]
 ```
 
-读取侧的完整词表：19 种类型。`SessionEvent.eventType` 的类型是 `SessionEventType | string`，
+读取侧的完整词表：20 种类型。`SessionEvent.eventType` 的类型是 `SessionEventType | string`，
 所以来自更新版本服务端的未知类型仍然能通过类型检查，也仍然会到达你手里。
 
 用这个数组做校验，或者用来构造过滤条件：
@@ -1305,9 +1355,21 @@ import {
   type AgentPagePromise,
   type AgentStatus,
   type AgentSkill,
+  type CustomToolDeclaration,
+  type CustomToolResultImageMimeType,
+  type CustomToolResultContent,
+  type CustomToolResultEvent,
+  type CustomToolCallStatus,
+  type CustomToolCallRecord,
+  type SessionListPageOptions,
+  type SessionListPage,
 
   // channels
   type AgentChannel,
+  type AgentChannelCapabilitySync,
+  type AgentChannelCapabilities,
+  type FeishuChannelProviderStatus,
+  type FeishuDocumentsCapability,
   type ChannelPlatform,
   type AddChannelPlatform,
   type GuidedSetupPlatform,
@@ -1321,7 +1383,10 @@ import {
   type FeishuPollResult,
 
   // more resource types
+  type McpContextConfig,
   type McpServerDeclaration,
+  type McpToolPermission,
+  type McpToolPermissionOverride,
   type SkillRecord,
   type SkillVersionRecord,
   type SessionRecord,
@@ -1378,6 +1443,8 @@ import {
   messageText,
   assistantText,
   thinkingText,
+  customToolUse,
+  type CustomToolUse,
   toolCall,
   type ToolCall,
 
@@ -1387,8 +1454,8 @@ import {
 } from '@zoowork-ai/sdk'
 ```
 
-13 个值和 58 个类型，由一个把入口导出当成集合来断言的测试钉住——少一个符号、或者多出一个不该有的
-符号，它都会失败。`DEFAULT_BASE_URL` 就是那个会被 `ZOOWORK_BASE_URL` 和 `baseUrl` 选项覆盖掉的
+入口导出由一个集合断言测试固定——少一个符号、或者多出一个不该有的符号，它都会失败。
+`DEFAULT_BASE_URL` 就是那个会被 `ZOOWORK_BASE_URL` 和 `baseUrl` 选项覆盖掉的
 公开网关 base；把它导出来，是为了让你能拿它做比较，或者自己拼 URL。
 
 这就是全部的公开接口面。不在这个清单上的东西就是不存在——特别地，没有 `patchSession`：

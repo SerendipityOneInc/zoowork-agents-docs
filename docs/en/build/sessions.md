@@ -49,9 +49,10 @@ const agentId = process.env.AGENT_ID!
 ```
 
 ::: warning Source-reviewed fields, not an end-to-end approval test
-`run_status` can be null when there is no latest run. `pending_approvals` is an optional
-number, not a list; use `listApprovals` for records. A resolve receipt with 202/`signaled`
-can remain pending and does not prove a tool executed.
+`run_status` can be null when there is no latest run. `pending_approvals` and
+`pending_custom_tool_calls` are optional numbers, not lists; use `listApprovals` and
+`listCustomToolCalls` for records. A resolve receipt with 202/`signaled` can remain pending
+and does not prove a tool executed.
 
 Initial `user.message` events can carry `actor: { ref }`, just like later messages.
 Choose a stable ref from authenticated backend state; metadata alone does not select it.
@@ -158,8 +159,9 @@ history will show (with its `seq`); a `user.interrupt` with no run in flight com
 finished. A turn ends when you see `run.finished`, whose `payload.status` is `succeeded`,
 `failed`, or `aborted` - see [Events and streaming](./events.md).
 
-The write path accepts four event types: `user.message`, `user.interrupt`, `system.message`,
-and `user.tool_confirmation`.
+The write path accepts five event types: `user.message`, `user.interrupt`, `system.message`,
+`user.tool_confirmation`, and `user.custom_tool_result`. Use the last one to return an
+application-executed custom tool result; see [Tools](./tools.md#application-executed-custom-tools).
 
 ## Read a session
 
@@ -324,10 +326,53 @@ at create time, because you cannot add it later.
 There is also no top-level session resource, so there is no way to list sessions across
 agents. See [Not supported](../reference/not-supported.md) for the full boundary.
 
-Per-agent listing and lifecycle do have methods - `listSessions(agentId, { page })`,
-`archiveSession(agentId, sessionId)`, `deleteSession(agentId, sessionId)` - and none of them
-changes the two paragraphs above: you still fan out across agents yourself, and `metadata` is
-still write-once.
+Per-agent listing has two compatible lanes. `listSessions(agentId, { page })` keeps the old
+numeric page: 50 rows, newest by `updated_at`, with `page` starting at 1. Python calls the same
+lane with `list_sessions(agent_id, page=...)`.
+
+Use `listSessionPage()` / `list_session_page()` when you need filters or resumable scanning:
+
+```ts
+let cursor: string | undefined
+do {
+  const page = await zc.listSessionPage(agentId, {
+    cursor,
+    limit: 100,
+    excludeChannels: ['api'],
+    includeSurfaces: ['inbox'],
+    runtimeModes: ['active'],
+    includeArchived: false,
+  })
+  for (const session of page.sessions) await index(session)
+  cursor = page.next_cursor ?? undefined
+} while (cursor)
+```
+
+```python
+cursor = "sls1:0"
+while cursor is not None:
+    page = await client.list_session_page(
+        agent_id,
+        cursor=cursor,
+        limit=100,
+        exclude_channels=["api"],
+        include_surfaces=["inbox"],
+        runtime_modes=["active"],
+    )
+    for session in page.sessions:
+        await index(session)
+    cursor = page.next_cursor
+```
+
+The initial cursor is `sls1:0`. Treat every cursor as opaque and keep all filters unchanged;
+the cursor is bound to the Agent and filter scope, and invalid reuse returns
+`400 invalid_cursor`. `limit` is 1–100. `runtime_modes` accepts `active`, `preview`,
+`authoring`, and `evaluation`. Each row has `list_cursor`, so a consumer that stops partway
+through a page can resume after the last processed row. `next_cursor` is null at the end.
+
+`archiveSession(agentId, sessionId)` and `deleteSession(agentId, sessionId)` provide lifecycle
+operations. None of these methods changes the boundaries above: you still fan out across Agents
+yourself, and `metadata` is still write-once.
 
 One last boundary: a session isolates conversation history, not files - every session of an agent
 shares one `/workspace`. When a multi-user product needs file and memory isolation, see

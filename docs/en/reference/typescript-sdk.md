@@ -144,15 +144,16 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 **Channels**
 
 Bind a chat platform to an API-created agent, so the same agent also answers people in the
-chat app. Feishu/Lark, WeCom and WeChat have a server-driven QR flow; Slack does not and binds
+chat app. Feishu/Lark, WeCom and WeChat have a server-driven QR flow. Slack and DingTalk bind
 through `addChannel` with credentials you already hold, while WeChat is the reverse — the QR
-flow is its only path. See [Channels](../build/channels.md) for the platform table and the traps.
+flow is its only path. DingTalk direct binding is source-reviewed, not deployment-verified.
+See [Channels](../build/channels.md) for the platform table and the traps.
 
 | Method | Returns | What it does |
 |---|---|---|
-| `listChannels(agentId)` | `Promise<AgentChannel[]>` | The platform accounts bound to this agent, with their `health` and `status`. Empty for a pure API agent. |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from `health`/`status` on a follow-up `listChannels`. |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, or `enabled` on one binding and returns it in its new state. The public gateway ignores `allow_from`; it is not a working allowlist. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | The platform accounts bound to this agent, with their `health`, `status`, and optional capability state. Empty for a pure API agent. |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). Supports direct DingTalk through `platform: 'dingtalk-connector'` with `clientId`/`clientSecret` (source-reviewed). Feishu also accepts `permission_admin_enabled`. **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from a follow-up `listChannels`. |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, `enabled`, or Feishu's `permission_admin_enabled` on one binding and returns it in its new state. The public gateway ignores `allow_from`; it is not a working allowlist. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
 | `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Unbinds one `platform` + `account` (`account` defaults to `'default'`). Idempotent, unlike `updateChannel` - removing a binding that is not there answers `200 { ok: true }`. |
 | `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts a QR registration on `'feishu'`, `'wecom'` or `'weixin'`. Feishu answers `verification_uri_complete` and a `poll_interval`, with `expires_in: 600`; WeCom and WeChat answer `qrcode_url` with no interval and `expires_in: 300`, and WeChat's may be an inline `data:image/…` payload. You own the UI: render whichever one came back, usually as a QR code. `brand: 'lark'` (Feishu only) switches the URI host to `open.larksuite.com` and must match the workspace the person approves it in. |
 | `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | Polls that session once. A cancelled or vanished session answers `404 channel.{platform}_session_not_found` rather than a terminal status, so a hand-rolled loop must treat that 404 as an end condition, not a transport error to retry. |
@@ -175,7 +176,8 @@ flow is its only path. See [Channels](../build/channels.md) for the platform tab
 |---|---|---|
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | Opens a session. Requires a running agent, else `409 agent_not_running`. |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | Reads a session, optionally with the at-rest transcript. |
-| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | One agent's sessions, newest first by `updated_at`, 50 per page, `page` 1-based. There is no cursor; each row carries `run_status` and omits `status`. |
+| `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | One agent's sessions through the legacy numeric-page lane: newest first by `updated_at`, 50 per page, `page` 1-based. Each row carries `run_status` and omits `status`. |
+| `listSessionPage(agentId, opts?)` | `Promise<SessionListPage>` | Selects the filtered cursor lane. Start without a cursor (the SDK sends `sls1:0`), then pass `next_cursor`; `limit` is 1–100. Supports channel exclusion, surface inclusion, runtime-mode, and archive filters. Cursors are opaque and bound to the agent and filter scope. |
 | `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | Stamps `archived_at`. Afterwards writes are `409 session_archived` while reads keep working. Interrupt an in-flight run first. |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | Soft-deletes the session (204), cancelling an in-flight run first. Transcripts and events survive for audit. |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string \| null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>` | Writes user or system events into a session; accepted events echo back as full event objects. |
@@ -183,6 +185,13 @@ flow is its only path. See [Channels](../build/channels.md) for the platform tab
 | `listEventsPage(agentId, sessionId, opts?)` | `Promise<SessionEventPage>` | The same page WITH its `hasMore`/`nextCursor` — the hand-paging primitive. |
 | `listAllEvents(agentId, sessionId, opts?)` | `Promise<SessionEvent[]>` | Every durable event, following the server's cursor. Reach for this rather than paging `listEvents` by hand. |
 | `streamEvents(agentId, sessionId, opts?)` | `AsyncGenerator<SessionEvent>` | Streams durable events over SSE, resumable with `cursor`. |
+
+**Application-executed custom tools**
+
+| Method | Returns | What it does |
+|---|---|---|
+| `listCustomToolCalls(agentId, { status: 'pending' })` | `Promise<CustomToolCallRecord[]>` | Recovers pending application-executed calls for one agent. Only `pending` is accepted as a filter. |
+| `resolveCustomToolCall(agentId, callId, input)` | `Promise<CustomToolCallRecord>` | Posts 1–16 text, JSON, or base64 image result blocks. A `202` response with `signaled: true` means delivery was accepted; the row can remain pending until the run consumes it. |
 
 **Approvals**
 
@@ -719,8 +728,9 @@ from the wire envelope; an absent list becomes `[]`. An accepted event comes bac
 event object the history will show (with its `seq`); an unaccepted one stays a
 `{ id, type, accepted: false }` receipt.
 
-The write path accepts four types: `user.message`, `user.interrupt`, `system.message`, and
-`user.tool_confirmation`.
+The write path accepts five types: `user.message`, `user.interrupt`, `system.message`,
+`user.tool_confirmation`, and `user.custom_tool_result`. The last one is the event-form
+alternative to `resolveCustomToolCall()`; see [Tools](../build/tools.md#application-executed-custom-tools).
 
 ```ts
 await zc.postEvents(agentId, sessionId, [
@@ -898,6 +908,13 @@ These additions are reflected in SDK types and offline tests, not new live recor
   `created_at` remains type-compatible but is not promised on current responses.
 - Environment builds include `partial_ready`; use bounded polling and, if needed, the
   existing GET's optional `resourceClass`. Configuration creation and build retry differ.
+- MCP declarations can opt into runtime context with `context.meta` / `context.headers`, and
+  set approval behavior through server-wide `permission` plus exact native-name `tools`
+  overrides. Tool-policy patterns accept exact names, global `*`, or one trailing `prefix*`;
+  `alsoAllow` remains exact-only.
+- Direct DingTalk bindings use `platform: 'dingtalk-connector'` with `clientId` and
+  `clientSecret`. Feishu requests accept `permission_admin_enabled`, and channel responses may
+  expose document capability sync, provider, scope and administrator-approval state.
 
 ## Types
 
@@ -907,9 +924,9 @@ fields within a version: ignore what you do not recognize rather than failing on
 The ones that do not are closed on purpose - `SessionEvent`, `SessionHistoryEntry`,
 `ToolCall`, `ExecResult`, `WakeResult`, `Ownership`, `EnvironmentConfig`, `AgentResource`,
 `OutcomeConfig`, `OutcomeEvaluator`, `SystemPromptDeclaration`, `SSEMessage`, `ZooworkConfig`,
-`ZooworkAuth`, `AddChannelInput`, `UpdateChannelInput`, and `ChannelSetupInput` take no extra
-keys, and an extra key on them is a compile error rather than a field that survives to the
-wire.
+`ZooworkAuth`, `McpContextConfig`, `McpToolPermissionOverride`, `AddChannelInput`,
+`UpdateChannelInput`, and `ChannelSetupInput` take no extra keys, and an extra key on them is a
+compile error rather than a field that survives to the wire.
 
 The sections here cover the types you handle on the paths this page walks. The skill-registry,
 approval, schedule, wake, exec, and Environment types are all in the
@@ -1032,6 +1049,7 @@ interface AgentResource {
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
   mcp?: McpServerDeclaration[]
+  custom_tools?: CustomToolDeclaration[]
   system_prompt?: SystemPromptDeclaration
   outcome?: OutcomeConfig | null
   sandbox?: { scope: 'agent' | 'session' }
@@ -1041,7 +1059,8 @@ interface AgentResource {
 ```
 
 The configuration you send to `createAgent()`. `name` is the only required field. `mcp`
-declares remote MCP servers. `system_prompt` pins a template
+declares remote MCP servers. `custom_tools` declares work that your application executes
+while a run waits. `system_prompt` pins a template
 version (omitted on create means "the platform version active right now", pinned from then
 on; replace-on-write on PUT like `tool_policy`), and `outcome` is the agent-level default
 gate for unattended cron fires.
@@ -1069,6 +1088,9 @@ interface McpServerDeclaration {
   credential?: string
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
+  context?: { meta?: boolean; headers?: boolean }
+  permission?: 'always_ask' | 'always_allow'
+  tools?: Record<string, { permission: 'always_ask' | 'always_allow' }>
   [k: string]: unknown
 }
 ```
@@ -1078,6 +1100,49 @@ until loaded. `direct` declares them on the first model request. There is no `au
 a loaded deferred tool remains available on later turns in the same Session. Public API keys
 still cannot populate `credential`; use public, unauthenticated MCP servers only. See
 [Tools](../build/tools.md).
+
+Both context switches default to `false`. `meta` adds
+`_meta["ai.zooclaw/context"]` and `headers` adds `x-zooclaw-*` headers during tool execution;
+catalog discovery receives neither. Context carries agent/session/computer identifiers and
+optional run/turn/config/actor fields. Treat it as context, not authentication.
+
+`permission` is the server default. `tools` overrides exact native tool names, accepts no
+wildcards, and is capped at 64 entries. Omission preserves the default-allow behavior. These
+fields, including allow-always Session scope, are source-reviewed; the approval round trip is
+not deployment-verified.
+
+### `AgentChannel`
+
+```ts
+interface AgentChannel {
+  platform: string
+  account: string
+  display_name?: string | null
+  dm_policy?: string
+  group_policy?: string
+  enabled?: boolean
+  health?: string
+  status?: string
+  status_code?: string | null
+  capabilities?: {
+    feishu_documents?: {
+      permission_admin_enabled: boolean
+      sync: { state: 'pending' | 'applied' | 'retry' | 'error' }
+      provider: {
+        state: 'ready' | 'degraded'
+        missing_scopes: string[]
+        approval_state?: 'pending_admin' | null
+      }
+    } | null
+  } | null
+  [k: string]: unknown
+}
+```
+
+The Feishu capability projection is source-reviewed, not deployment-verified. Enabling
+`permission_admin_enabled` on add, update or guided setup is only a request; read this
+projection to determine whether scope sync is applied, degraded, retrying, or waiting for an
+administrator.
 
 ### `AgentSkill`
 
@@ -1300,7 +1365,7 @@ const SESSION_EVENT_TYPES: readonly [
   'run.started', 'run.finished',
   'chat.delta', 'chat.final', 'chat.aborted', 'chat.error',
   'agent.lifecycle', 'agent.assistant', 'agent.thinking', 'agent.tool', 'agent.item',
-  'agent.plan', 'agent.approval', 'agent.command_output', 'agent.patch',
+  'agent.plan', 'agent.approval', 'agent.custom_tool_use', 'agent.command_output', 'agent.patch',
   'agent.compaction', 'agent.error',
   'attachment.created', 'message.outbound',
 ]
@@ -1308,7 +1373,7 @@ const SESSION_EVENT_TYPES: readonly [
 type SessionEventType = (typeof SESSION_EVENT_TYPES)[number]
 ```
 
-The full read-side vocabulary: 19 types. `SessionEvent.eventType` is
+The full read-side vocabulary: 20 types. `SessionEvent.eventType` is
 `SessionEventType | string`, so an unknown type from a newer server still type-checks and
 still reaches you.
 
@@ -1383,9 +1448,21 @@ import {
   type AgentPagePromise,
   type AgentStatus,
   type AgentSkill,
+  type CustomToolDeclaration,
+  type CustomToolResultImageMimeType,
+  type CustomToolResultContent,
+  type CustomToolResultEvent,
+  type CustomToolCallStatus,
+  type CustomToolCallRecord,
+  type SessionListPageOptions,
+  type SessionListPage,
 
   // channels
   type AgentChannel,
+  type AgentChannelCapabilitySync,
+  type AgentChannelCapabilities,
+  type FeishuChannelProviderStatus,
+  type FeishuDocumentsCapability,
   type ChannelPlatform,
   type AddChannelPlatform,
   type GuidedSetupPlatform,
@@ -1399,7 +1476,10 @@ import {
   type FeishuPollResult,
 
   // more resource types
+  type McpContextConfig,
   type McpServerDeclaration,
+  type McpToolPermission,
+  type McpToolPermissionOverride,
   type SkillRecord,
   type SkillVersionRecord,
   type SessionRecord,
@@ -1456,6 +1536,8 @@ import {
   messageText,
   assistantText,
   thinkingText,
+  customToolUse,
+  type CustomToolUse,
   toolCall,
   type ToolCall,
 
@@ -1465,8 +1547,8 @@ import {
 } from '@zoowork-ai/sdk'
 ```
 
-Thirteen values and fifty-eight types, pinned by a test that asserts the entry point's exports as
-a set - a missing symbol and an accidental extra one both fail it. `DEFAULT_BASE_URL` is the
+The entry point is pinned by a test that asserts its exports as a set - a missing symbol and an
+accidental extra one both fail it. `DEFAULT_BASE_URL` is the
 public gateway base that `ZOOWORK_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.
 

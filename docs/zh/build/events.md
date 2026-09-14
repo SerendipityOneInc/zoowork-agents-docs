@@ -2,7 +2,7 @@
 title: 事件与流式
 description: 写入事件、消费 SSE、通过 cursor 续传，并理解完整的事件词表。
 source: /en/build/events
-source_hash: 5cece4d40dbae78409799d78e0954cf748ebd71cbfcbdab2ae12526b88185b61
+source_hash: e5c727a37a529f8da0e26a3fdf781612910ec6aa8369dca83305096621aae1a4
 ---
 
 # 事件与流式
@@ -85,7 +85,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 
 ## 事件词表
 
-以下是全部出站事件类型，也就是 `SESSION_EVENT_TYPES` 的完整内容（固定 19 项），外加[你自己的输入，回显](#你自己的输入回显)那四种输入类型。历史查询上的 `types=` 过滤器接受这两组，其余任何值都以 `400 invalid_request` 拒绝。
+以下是全部出站事件类型，也就是 `SESSION_EVENT_TYPES` 的完整内容（固定 20 项），外加[你自己的输入，回显](#你自己的输入回显)那五种输入类型。历史查询上的 `types=` 过滤器接受这两组，其余任何值都以 `400 invalid_request` 拒绝。
 
 ### `run.*` —— 回合记账
 
@@ -105,6 +105,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 | `agent.item` | 内部循环标记，不是对话内容。 | `kind`：`assistant_segment`（带 `phase`、`segment`）或 `llm_request`（抓取到的 provider 请求/响应）。渲染聊天界面时可以安全忽略。 |
 | `agent.plan` | 词表里保留的类型。核心循环不会发出它。 | - |
 | `agent.approval` | 某次工具调用需要审批，或该审批已经有了结果。 | `phase`：`requested` \| `resolved`；`approvalId`、`toolCallId`、`toolName`、`arguments`，可选的 `stake`、`timeoutAt`；`resolved` 时还有 `resolution`，以及可选的 `resolvedBy`、`resolutionChannel`。 |
+| `agent.custom_tool_use` | 应用执行的 custom tool 被请求或解决。 | `phase`：`requested` \| `resolved`；`callId`；请求时有 `toolCallId`、`name`、`input`、`timeoutAt`；解决时有 `outcome`，以及可选的 `isError`、`resolvedBy`、`resolutionChannel`。用 `customToolUse()`。 |
 | `agent.command_output` | 某个执行命令的工具产生了 stdout/stderr，按结果粒度给出。 | `toolCallId`、`toolName`，以及抓取到的输出字段。 |
 | `agent.patch` | 一次 `apply_patch` 工具调用成功。 | `toolCallId`，以及这次 patch 的摘要。 |
 | `agent.compaction` | 历史被压缩以塞进上下文窗口。 | `firstKeptEntryId`、`tokensBefore`、`reason` |
@@ -119,7 +120,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 
 ### 你自己的输入，回显
 
-你自己发的输入会以 `user.message`、`user.interrupt`、`user.tool_confirmation`、`system.message` 出现在同一份日志里（导出为 `PUBLIC_INPUT_EVENT_TYPES`）。`user.message` 的 payload 是 `{ content: [...] }` —— 文本 block 加 `{ type: 'attachment', mime, name, size }` 存根 —— 它的 `processedAt` 在 agent 消费后从 `null` 变成时间戳。这四种的写入侧规则见[入站事件](#入站事件)。
+你自己发的输入会以 `user.message`、`user.interrupt`、`user.tool_confirmation`、`user.custom_tool_result`、`system.message` 出现在同一份日志里（导出为 `PUBLIC_INPUT_EVENT_TYPES`）。`user.message` 的 payload 是 `{ content: [...] }` —— 文本 block 加 `{ type: 'attachment', mime, name, size }` 存根 —— 它的 `processedAt` 在 agent 消费后从 `null` 变成时间戳。这五种的写入侧规则见[入站事件](#入站事件)。
 
 ### `chat.*` —— 不在持久日志上
 
@@ -128,12 +129,12 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 ::: warning 尚未验证
 我们在真实 session 上反复观察到的序列是 `run.started`、`agent.lifecycle`、`agent.item`、`agent.thinking`、`agent.assistant`、`agent.tool`（start/end）、`agent.lifecycle`、`run.finished`。
 
-`agent.approval`、`agent.command_output`、`agent.patch`、`agent.compaction`、`attachment.created` 和 `message.outbound` 在词表里，引擎也会发出它们，但我们没有通过这个 API 端到端跑通过其中任何一个。把它们的 payload 字段当作参考，不是契约，代码要写得防御一些。（回显的输入事件已验证：投递、回显、`processedAt`、游标续传、重试去重，2026-08-19 端到端跑通。）
+`agent.approval`、`agent.custom_tool_use`、`agent.command_output`、`agent.patch`、`agent.compaction`、`attachment.created` 和 `message.outbound` 在词表里，引擎也会发出它们，但我们没有通过这个 API 端到端跑通过其中任何一个。把它们的 payload 字段当作参考，不是契约，代码要写得防御一些。（回显的输入事件已验证：投递、回显、`processedAt`、游标续传、重试去重，2026-08-19 端到端跑通。）
 :::
 
 ## 入站事件
 
-你能 post 的事件类型恰好只有四种。其他任何类型都会被拒绝，返回 `400 invalid_event`，并在消息里点名这四种。
+你能 post 的事件类型恰好只有五种。其他任何类型都会被拒绝，返回 `400 invalid_event`，并在消息里点名这五种。
 
 ```ts
 const res = await zc.postEvents(agentId, sessionId, [
@@ -205,6 +206,14 @@ if (r.events[0]?.accepted === false) {
 ::: warning 尚未验证
 上面这个可接受的请求体是从请求解析器里读出来的；没有任何一个真实的待处理审批通过这条路由被创建并解决过。审批闭环的状态记在[能力矩阵](../reference/capabilities.md)里。
 :::
+
+### `user.custom_tool_result`
+
+返回应用执行的 custom tool 结果。用 `custom_tool_use_id` 或 `call_id` 标识调用，
+`content` 放 1–16 个 text、JSON 或 base64 image block；可能重试时发送稳定的
+`idempotency_key`。可选的 `is_error` 表示工具失败。同一操作也可通过
+`resolveCustomToolCall()` 完成；完整的大小、图片、生命周期和错误规则见
+[工具](./tools.md#应用执行的自定义工具)。
 
 ### `system.message`
 

@@ -1,74 +1,118 @@
 ---
-description: Control built-in tools, declare MCP servers, and observe tool calls through events.
+description: Control built-in tools, declare application and MCP tools, and observe their events.
 ---
 
 # Tools
 
 An agent runs inside a managed sandbox with a built-in tool set already available to the
-model. You do not register tools, and you do not implement them. You choose how much of the
-built-in set the agent may reach, and you observe what it actually called by reading
-`agent.tool` events off the session stream.
+model. You choose how much of that set it may reach. You may also declare custom tools that
+your application executes, or remote MCP servers that the platform calls. Observe built-in
+and MCP activity through `agent.tool`; custom calls use `agent.custom_tool_use`.
 
-## Client-executed custom tools do not exist
+## Application-executed custom tools
 
-::: danger Not supported
-There is no way to have the agent call a function in your process.
+Declare a custom tool when the model should pause mid-turn, ask your application to do some
+work, and continue with the result. The platform publishes the declaration to the model but
+does not execute the tool itself.
 
-- No `{ type: 'custom' }` tool definition on the agent or the session.
-- No `user.custom_tool_result` event, and no other write-side event that returns a tool
-  result to the model.
-- No callback, no webhook, no polling handshake that hands you a pending tool call to
-  execute.
-
-The session write side accepts exactly four event types: `user.message`,
-`user.interrupt`, `user.tool_confirmation`, and `system.message`. A tool result is not
-among them.
-
-If your design is "the agent calls my function, my code queries my database, I hand the
-answer back", that loop is not available. Pick one of the two paths below instead.
+::: warning Source-reviewed, not deployment-verified
+The SDK types, methods, events, validation rules, and public routes below are covered by
+offline contract tests. This review did not run the loop against a live deployment.
 :::
 
-This is the gap most likely to reshape a design. Code ported from a platform with
-client-executed tools has nothing to compile against here.
+### Declare the tool
 
-### What to do instead
-
-**Put the data in the prompt.** You control every turn, so you can fetch from your own
-systems first and send the result as text. Both write paths work:
+`resource.custom_tools` is replace-on-write. A declaration has a name, description, object
+JSON Schema, and optional result timeout:
 
 ```ts
-import { createZooworkClient } from '@zoowork-ai/sdk'
-
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
-
-const rows = await myDatabase.lookup(customerId) // your code, your process
-
-await zc.postEvents(agentId, sessionId, [
-  {
-    type: 'user.message',
-    content: `Customer record:\n${JSON.stringify(rows)}\n\nSummarize the open issues.`,
+const agent = await zc.createAgent({
+  resource: {
+    name: 'pricing-agent',
+    custom_tools: [
+      {
+        name: 'lookup_price',
+        description: 'Look up one SKU in the pricing service.',
+        input_schema: {
+          type: 'object',
+          properties: { sku: { type: 'string' } },
+          required: ['sku'],
+        },
+        timeoutMs: 600_000,
+      },
+    ],
   },
-])
+})
 ```
 
-`system.message` is the out-of-band variant. It is not shown as a user turn, and the model
-reads it on the following turn:
+The corresponding Python resource uses the same wire fields:
+
+```python
+agent = await client.create_agent(
+    {
+        "name": "pricing-agent",
+        "custom_tools": [
+            {
+                "name": "lookup_price",
+                "description": "Look up one SKU in the pricing service.",
+                "input_schema": {"type": "object", "required": ["sku"]},
+                "timeoutMs": 600_000,
+            }
+        ],
+    }
+)
+```
+
+An Agent accepts at most 32 custom tools. `name` matches
+`^[a-zA-Z0-9_-]{1,64}$`, must be unique, and cannot shadow a built-in, MCP, memory, or
+runtime-reserved tool. `description` is non-empty and at most 4 KiB. `input_schema` must
+have `type: 'object'` and is at most 16 KiB. `timeoutMs` defaults to 600,000 ms and is at
+most 86,400,000 ms. Invalid declarations return `400 invalid_request`.
+
+### Execute and return a result
+
+The requested event is `agent.custom_tool_use`. The TypeScript `customToolUse()` helper and
+Python `custom_tool_use()` helper expose its `callId`, name, input, and timeout:
 
 ```ts
-await zc.postEvents(agentId, sessionId, [
-  { type: 'system.message', text: 'Operator note: the user is on the enterprise plan.' },
-])
+const call = customToolUse(ev)
+if (call?.phase === 'requested') {
+  const price = await pricing.lookup(call.input?.sku)
+  await zc.resolveCustomToolCall(agentId, call.callId, {
+    content: [{ type: 'json', value: price }],
+    resolvedBy: 'pricing-service',
+  })
+}
 ```
 
-Note the field name: `system.message` carries `text`, while `user.message` carries
-`content`.
+```python
+call = custom_tool_use(event)
+if call is not None and call.phase == "requested":
+    price = await pricing.lookup(call.input["sku"] if call.input else None)
+    await client.resolve_custom_tool_call(
+        agent_id,
+        call.call_id,
+        content=[{"type": "json", "value": price}],
+        resolved_by="pricing-service",
+    )
+```
 
-This covers the common case where you know in advance what the agent needs. It does not
-cover the case where the model decides mid-turn that it wants something from you. For that,
-the only path is a remote MCP server.
+`listCustomToolCalls(agentId, { status: 'pending' })` and
+`list_custom_tool_calls(agent_id, status="pending")` recover pending work after an
+application restart. `pending` is the only list filter.
 
-**Expose your capability as a remote MCP server.** See [Remote MCP servers](#remote-mcp-servers)
-below. It works, and it is unauthenticated-only.
+The Session API is the other result path: post a `user.custom_tool_result` event with
+`custom_tool_use_id` (or `call_id`), `content`, optional `is_error`, and a stable
+`idempotency_key`. Result content contains 1–16 text, JSON, or base64 image blocks. Text is
+limited to 256 KiB total; one image to 4 MiB of base64; all blocks together to 8 MiB. Images
+accept PNG, JPEG, GIF, or WebP.
+
+While waiting, `run_status` is `awaiting_approval`. Check
+`pending_custom_tool_calls` rather than assuming that status means a normal approval. A
+pending REST resolution returns `202` with `signaled: true`; the row remains pending until
+the run consumes it. An already completed, timed-out, or cancelled call returns `200` with
+`signaled: false`. Unknown calls return 404, another Agent's call returns 403, a stopped run
+returns 409, and a deployment without result signaling returns 501.
 
 ## The built-in tool set
 
@@ -145,6 +189,24 @@ policy on every turn. See [Errors and retries](../reference/errors.md).
 platform's own request examples. Confirm the names your deployment uses by running a turn and
 reading `toolCall(ev).toolName`, as shown above.
 
+### Tool-name patterns
+
+Source review shows that policy entries have three supported forms:
+
+- `*` matches every tool.
+- `read` matches that exact tool name.
+- `mcp__pricing__*` matches every tool whose name starts with `mcp__pricing__`.
+
+Only one trailing `*` has prefix semantics. Other placements such as `mcp__*__quote` or
+`*search` match nothing. The same matching rules apply to `allow`, `deny`, rule `match` and
+`afterRules`, plus deferred MCP `pinned` entries. `alsoAllow` is deliberately narrower: its
+entries are always exact names. When several policy rules could apply, the first matching rule
+wins.
+
+This matters for MCP because one server exposes several native names under the common
+`mcp__<server>__` prefix. Use an exact entry for one MCP tool and a trailing-prefix entry only
+when you intend to cover every tool from that server.
+
 ::: warning Not yet verified
 We have exercised `tool_policy: {}` (the default) end to end. We have not verified that a
 non-empty allow/deny policy takes effect on a live run, so treat a narrowed policy as
@@ -187,10 +249,11 @@ An `agent.tool` event with `isError: true` is still followed by `run.finished` w
 
 ## Remote MCP servers
 
-The one way to give an agent a capability you wrote is to run a remote MCP server and declare
-it on the agent. The declaration goes in `resource.mcp` on `createAgent`, and in the same
-position on `updateAgent`. It is a typed field, `mcp?: McpServerDeclaration[]`, so the entry
-shape is checked at compile time.
+Use a remote MCP server when the capability should run on server-managed infrastructure.
+Declare it on the agent through `resource.mcp` on `createAgent`, and in the same position on
+`updateAgent`. It is a typed field, `mcp?: McpServerDeclaration[]`, so the entry shape is
+checked at compile time. Use `custom_tools` instead when your application owns execution and
+can return the result while the run waits.
 
 ```ts
 await zc.updateAgent(agentId, {
@@ -201,6 +264,11 @@ await zc.updateAgent(agentId, {
       transport: 'streamable-http', // or 'sse'; this is the default
       toolFilter: ['quote'],        // omit to expose all of the server's tools
       exposure: 'deferred',         // default; use 'direct' for the first model request
+      context: { meta: true },      // opt in to runtime identifiers in MCP request metadata
+      permission: 'always_ask',     // default for this server's tools
+      tools: {
+        quote: { permission: 'always_allow' }, // exact native MCP tool name
+      },
     },
   ],
 })
@@ -226,6 +294,36 @@ await zc.updateAgent(agentId, {
   here and do not justify automatic retries of business tool calls.
 - It is declared on the agent and nowhere else: there is no MCP resource of its own, and no
   session-level override.
+
+### Runtime context is opt-in
+
+An MCP declaration may opt into runtime identifiers through `context.meta`,
+`context.headers`, or both. Both default to `false` when omitted.
+
+`meta: true` adds an `_meta["ai.zooclaw/context"]` object to each MCP tool call. `headers: true`
+adds the corresponding `x-zooclaw-*` HTTP headers. The context contains `agentId`, `sessionId`
+and `computerId`, plus `runId`, `turn`, `configVersion` and `actorUid` when available. Treat
+these values as request context, not authorization: authenticate the caller independently.
+
+Catalog discovery does not carry runtime context because it happens before a tool call has a
+Session context. HTTP intermediaries can also remove custom headers, so prefer `meta` when the
+MCP server must work through an intermediary. These details are source-reviewed and have not
+been verified against a deployment.
+
+### Approval defaults and per-tool overrides
+
+`permission` sets a server-wide default of `always_ask` or `always_allow`. `tools` overrides
+that default for exact native MCP tool names, before the `mcp__<server>__<tool>` prefix is added.
+Wildcard keys are not accepted in `tools`, and a declaration may carry at most 64 overrides.
+When both fields are omitted, the effective default is `always_allow`.
+
+`toolFilter` and permissions solve different problems: the filter decides which server tools
+are exposed; permissions decide whether an exposed call asks for approval. An allow-always
+decision made against the server-wide wildcard applies to every tool from that server for the
+rest of the Session. Use an exact per-tool policy when that broader scope is not intended.
+
+These fields are source-reviewed. The end-to-end approval flow remains unverified, so the
+warning below still applies.
 
 ::: danger Public servers only
 `credential` names a stored bearer token, but there is nowhere to store one - the credential

@@ -21,8 +21,8 @@ exist".
 
 ## Which platforms you can bind
 
-Probed against a live deployment on 2026-08-28. A platform outside this table answers
-`400 channel.invalid_request`.
+The first four rows were probed against a live deployment on 2026-08-28. DingTalk direct
+binding is source-reviewed and has not been deployment-verified.
 
 | Platform | `addChannel` | Server-driven QR flow | You supply |
 |---|---|---|---|
@@ -30,8 +30,10 @@ Probed against a live deployment on 2026-08-28. A platform outside this table an
 | `slack` | ✅ | ❌ never | bot token + app token |
 | `wecom` | ✅ | ✅ | nothing, or bot id + secret |
 | `weixin` / `wechat` | ❌ | ✅ — the only path | nothing |
+| `dingtalk-connector` | ✅ — source-reviewed | ❌ public API | client id + client secret |
 
-Three of the four have a QR flow, and the two "no"s in this table are the interesting cases.
+Three platforms have a QR flow. Slack and DingTalk use explicit credentials, while WeChat is
+QR-only.
 
 **Slack will not get one.** A server-driven flow needs the chat platform to hand credentials
 back to a server that asked for them. Slack has no such thing: a Slack app is created by a
@@ -45,6 +47,11 @@ here.
 `platform: 'weixin'` (or `'wechat'`) answers `400 channel.weixin_setup_required`, and that
 error means what it says — use `startChannelSetup(agentId, 'weixin')`. There are no WeChat
 credentials for you to bring.
+
+**DingTalk is direct-config only in the public API.** Call `addChannel` with
+`platform: 'dingtalk-connector'`, `config: { clientId, clientSecret }`, and
+`dm_policy: 'open'`. The public guided-setup routes do not accept DingTalk. This contract is
+source-reviewed and has not been verified against a deployment.
 
 ## The QR flow
 
@@ -137,11 +144,11 @@ only then is the binding written, so a name clash surfaces as `409 channel.confl
 someone has already scanned, leaving that fresh app behind in their workspace. Retrying under
 the same name does both again.
 
-## Explicit config — the path for Slack
+## Explicit config — Slack, DingTalk, Feishu and WeCom
 
-`addChannel` is the non-interactive path: the only path for Slack, an alternative to the QR
-flow for Feishu and WeCom, and refused for WeChat. You bring the platform app's credentials
-and pass them in `config`.
+`addChannel` is the non-interactive path: the only public API path for Slack and DingTalk, an
+alternative to the QR flow for Feishu and WeCom, and refused for WeChat. You bring the
+platform app's credentials and pass them in `config`.
 
 **`config` keys are platform-specific, and they are camelCase.** These are the keys the
 channel service reads; anything else you put in `config` is stored and ignored.
@@ -151,6 +158,7 @@ channel service reads; anything else you put in `config` is stored and ignored.
 | `slack` | `{ botToken: 'xoxb-…', appToken: 'xapp-…' }` — both required |
 | `wecom` | `{ botId: '…', secret: '…' }` — both required |
 | `feishu` | `{ appId: '…', appSecret: '…', domain: '…' }` — only when you skip the QR flow |
+| `dingtalk-connector` | `{ clientId: '…', clientSecret: '…' }` — both required; use `dm_policy: 'open'` |
 
 ```ts
 await zc.addChannel(agentId, {
@@ -161,6 +169,31 @@ await zc.addChannel(agentId, {
 
 Slack runs in socket mode, which is why it needs the app-level `xapp-` token as well as the
 bot token. Both come from the Slack app's own settings pages.
+
+### Feishu document permissions
+
+Feishu bindings accept `permission_admin_enabled: true` on direct add, update and guided setup.
+This opts the binding into document-permission administration. The field defaults to disabled
+when omitted.
+
+```ts
+await zc.addChannel(agentId, {
+  platform: 'feishu',
+  config: { appId, appSecret, domain: 'feishu' },
+  permission_admin_enabled: true,
+})
+```
+
+Channel responses may report the result under `capabilities.feishu_documents`:
+
+- `sync` is `pending`, `applied`, `retry`, or `error`.
+- `provider` is `ready` or `degraded` and may include `missing_scopes`.
+- `approval_state: 'pending_admin'` means an administrator still has to approve the required
+  platform permissions.
+
+These request and response fields are source-reviewed and have not been deployment-verified.
+Do not treat `permission_admin_enabled: true` as proof that document operations are ready;
+read the returned capability state.
 
 ::: warning An ignored field is not an access-control list
 Source review shows that the public gateway ignores `allow_from`, including on create.

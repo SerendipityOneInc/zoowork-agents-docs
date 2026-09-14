@@ -159,11 +159,11 @@ asyncio.run(main())
 Start with the [Overview](./get-started/overview.md) to learn how ZooWork works, or follow the
 [Quickstart](./get-started/quickstart.md) for a complete task, outcome checks, and cleanup.
 
-**Client-executed custom tools do not exist**: there is no `{type: "custom"}` tool definition
-and no `user.custom_tool_result` event, so the agent never calls back into your process.
+**Application-executed custom tools are source-reviewed, not deployment-verified**: declare
+`resource.custom_tools`, handle `agent.custom_tool_use`, and return a result through either SDK.
 Session-level outcome definitions, vaults, session `resources[]` mounts, and platform webhooks
-are also absent. Read [Not supported](./reference/not-supported.md) before you design around
-any of them.
+remain absent. Read [Tools](./build/tools.md) for custom tools and
+[Not supported](./reference/not-supported.md) for the remaining boundaries.
 
 </template>
 </ZcHome>

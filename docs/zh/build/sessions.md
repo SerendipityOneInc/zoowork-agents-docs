@@ -2,7 +2,7 @@
 title: Sessions
 description: 创建、继续、列出、归档和删除 session，并读取 transcript。
 source: /en/build/sessions
-source_hash: 35d3ab12281183da901c16cf589558ea8cdda259f3ac9ec7d779447e390cb45a
+source_hash: 73d4c8236611dce1cf229163303e18a2614dee02c100845f74f22e0e1b44a2ac
 ---
 
 # Sessions
@@ -47,7 +47,7 @@ const agentId = process.env.AGENT_ID!
 ```
 
 ::: warning 源码已核对，不是审批端到端实测
-没有最近 run 时，`run_status` 可为 null。`pending_approvals` 是可选数字，不是审批数组；记录从 `listApprovals` 读取。resolve 返回 202/`signaled` 时仍可能 pending，不证明工具已执行。
+没有最近 run 时，`run_status` 可为 null。`pending_approvals` 和 `pending_custom_tool_calls` 是可选数字，不是记录数组；记录分别从 `listApprovals` 和 `listCustomToolCalls` 读取。resolve 返回 202/`signaled` 时仍可能 pending，不证明工具已执行。
 
 初始 `user.message` 和后续消息一样可带 `actor: { ref }`。稳定 ref 应由已鉴权的后端选择，metadata 本身不选择 actor；归属标识不是权限或文件/session 隔离，IM session 拒绝调用方 actor。校验规则见[事件](./events.md)。
 :::
@@ -131,7 +131,7 @@ console.log(second.text)                 // mentions "Ada"
 
 `postEvents` 返回 `202`，以及一个把每个事件的结果包起来的对象 —— 数组在 `events` 下面，不是响应本身。被接受的事件返回的就是历史里将出现的完整事件对象（带 `seq`）；没有进行中 run 时的 `user.interrupt` 返回 `{ id, type, accepted: false }`。被接受意味着事件已入队，不代表回合已经结束。一个回合在你看到 `run.finished` 时结束，它的 `payload.status` 是 `succeeded`、`failed` 或 `aborted` —— 见[事件与流式](./events.md)。
 
-写入路径接受四种事件类型：`user.message`、`user.interrupt`、`system.message` 和 `user.tool_confirmation`。
+写入路径接受五种事件类型：`user.message`、`user.interrupt`、`system.message`、`user.tool_confirmation` 和 `user.custom_tool_result`。最后一种用于返回应用执行的 custom tool 结果；见[工具](./tools.md#应用执行的自定义工具)。
 
 ## 读取 session
 
@@ -264,6 +264,43 @@ const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 
 也没有顶层的 session 资源，所以无法跨 agent 列出 session。完整边界见[不支持的能力](../reference/not-supported.md)。
 
-按 agent 的列举和生命周期操作确实有方法 —— `listSessions(agentId, { page })`、`archiveSession(agentId, sessionId)`、`deleteSession(agentId, sessionId)` —— 但它们不改变上面这两段：跨 agent 还是得你自己扇出去合并，`metadata` 还是只能写一次。
+按 agent 列出 session 有两条兼容通道。`listSessions(agentId, { page })` 保留旧的数字分页：固定 50 条，按 `updated_at` 最新在前，`page` 从 1 开始。Python 的对应方法是 `list_sessions(agent_id, page=...)`。
+
+需要 filter 或可续传扫描时，用 `listSessionPage()` / `list_session_page()`：
+
+```ts
+let cursor: string | undefined
+do {
+  const page = await zc.listSessionPage(agentId, {
+    cursor,
+    limit: 100,
+    excludeChannels: ['api'],
+    includeSurfaces: ['inbox'],
+    runtimeModes: ['active'],
+  })
+  for (const session of page.sessions) await index(session)
+  cursor = page.next_cursor ?? undefined
+} while (cursor)
+```
+
+```python
+cursor = "sls1:0"
+while cursor is not None:
+    page = await client.list_session_page(
+        agent_id,
+        cursor=cursor,
+        limit=100,
+        exclude_channels=["api"],
+        include_surfaces=["inbox"],
+        runtime_modes=["active"],
+    )
+    for session in page.sessions:
+        await index(session)
+    cursor = page.next_cursor
+```
+
+初始 cursor 是 `sls1:0`。cursor 不透明，续传时必须保持所有 filter 不变；它绑定 Agent 和 filter scope，错误复用返回 `400 invalid_cursor`。`limit` 是 1–100。`runtime_modes` 接受 `active`、`preview`、`authoring` 和 `evaluation`。每行都有 `list_cursor`，所以只处理半页时可以从最后处理的 row 之后继续。到达末尾时 `next_cursor` 是 null。
+
+`archiveSession(agentId, sessionId)` 和 `deleteSession(agentId, sessionId)` 提供生命周期操作。这些方法不改变前面的边界：跨 Agent 仍需自己扇出合并，`metadata` 仍然只能写一次。
 
 最后一个边界：session 隔离的是对话历史，不隔离沙箱里的文件——同一个 agent 的所有 session 共享一个 `/workspace`。多用户产品需要文件和记忆隔离时，见[每用户一个 agent](./per-user-agents.md)。
