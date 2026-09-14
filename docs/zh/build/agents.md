@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: a74ca1cb29d0939c4f8bdffe1cd06955ea690bdfef08eefd6394f98833ab2a7f
+source_hash: 73d62a72b981e7d6190623c98be63077c71becabe8c2c18a6cd8045becb6b938
 ---
 
 # Agents
@@ -64,9 +64,9 @@ onboarding 面试总是被跳过——agent 会直接回答你的第一条消息
 | `model.max_tokens` | integer | 单次模型请求的输出 token 上限。不设走平台默认；非法值创建时报 400。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
-| `tool_policy` | object | `{}` 表示完整的工具清单。非空对象是一份 allow/deny 策略，例如 `{ allow: ['read', 'web_search'] }`。见[工具](./tools.md)。 |
+| `tool_policy` | object | `{}` 表示完整的工具清单。policy 字段支持精确名称、全局 `*` 和一个末尾 `prefix*`；`alsoAllow` 仍然只支持精确名称。见[工具](./tools.md)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
-| `mcp` | array | 远程 MCP server 声明，可带 `exposure: 'deferred' \| 'direct'`。见[工具](./tools.md)。 |
+| `mcp` | array | 远程 MCP server 声明，可选配置 exposure、运行时 context、server 级默认审批和精确的逐工具覆盖。见[工具](./tools.md)。 |
 
 整个 `model` 段都可以省略。省略时，创建操作会把当时的平台默认值写入 agent。源码当前默认是 `litellm/gpt-5.6-terra`，但这不代表部署环境已经验证，未来默认值也仍可能轮换。需要可重复部署时，请先调用 `listModels()`，再持久化一个明确选择。
 
@@ -89,7 +89,7 @@ const agent = await zc.createAgent({
 ```
 
 ::: warning 尚未验证
-`name`、`model`（含 `max_tokens`，实测会把回复截断在上限处）、`labels` 和 `mcp` 已经端到端验证过。`persona.docs`、`tool_policy` 和 `sandbox.scope` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
+`name`、`model`（含 `max_tokens`，实测会把回复截断在上限处）、`labels` 和 MCP 基础路由已经端到端验证过。MCP context 和 permission 字段仅做过源码核对。`persona.docs`、`tool_policy` 和 `sandbox.scope` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
 :::
 
 创建时的 `skills` 是生效的（staging 实测 2026-08-30）：skill 会真的装上，但创建回执和 `getAgent` 的 `declared` 都**不回显**这个字段——确认安装读 `listAgentSkills(agentId)`，不要看回执。见 [Skills](./skills.md)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments.md)。

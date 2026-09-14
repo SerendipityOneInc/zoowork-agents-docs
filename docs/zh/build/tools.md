@@ -2,7 +2,7 @@
 title: 工具
 description: 控制内置工具、声明 MCP server，并通过事件观察工具调用。
 source: /en/build/tools
-source_hash: 8dbc23fa0a94ebef3a6872494dd592c24572d06ff8f98af3ae9b8d899f15c413
+source_hash: 2ebba0b64a4cbb70a133f1c4bae3254552ec7fe7f72864b73a3f113babb2ef4c
 ---
 
 # 工具
@@ -120,6 +120,18 @@ await zc.updateAgent(agentId, { tool_policy: {} })
 
 **这些标识符由平台定义。** 上面的 `read` 和 `web_search` 来自平台自己的请求示例。按上面的方式跑一个回合、读 `toolCall(ev).toolName`，来确认你那套部署实际用的名字。
 
+### 工具名匹配模式
+
+源码核对显示，policy 条目支持三种形式：
+
+- `*` 匹配所有工具。
+- `read` 只匹配这个精确工具名。
+- `mcp__pricing__*` 匹配所有以 `mcp__pricing__` 开头的工具名。
+
+只有末尾的一个 `*` 表示前缀匹配。`mcp__*__quote`、`*search` 等其他位置的 `*` 都匹配不到任何工具。相同规则用于 `allow`、`deny`、rule 的 `match` 和 `afterRules`，以及 deferred MCP 的 `pinned` 条目。`alsoAllow` 更严格，其中的条目始终按精确名称匹配。多条 policy rule 都可能命中时，以第一条为准。
+
+这对 MCP 很重要，因为同一个 server 的多个工具都共享 `mcp__<server>__` 前缀。只控制一个 MCP 工具时应使用精确名称；只有确实想覆盖该 server 的所有工具时，才使用末尾前缀匹配。
+
 ::: warning 尚未验证
 `tool_policy: {}`（默认值）我们已经端到端实测过。非空的 allow/deny 策略在真实运行中是否生效，我们没有实测过；所以在你亲眼盯过一个「本应被拦截」的回合的 `agent.tool` 事件之前，把收窄后的策略当作未确认。
 :::
@@ -162,6 +174,11 @@ await zc.updateAgent(agentId, {
       transport: 'streamable-http', // 或 'sse'；这个是默认值
       toolFilter: ['quote'],        // 省略则暴露该 server 的全部工具
       exposure: 'deferred',         // 默认值；首个模型请求就声明则用 'direct'
+      context: { meta: true },      // 在 MCP 请求 metadata 中附带运行时标识
+      permission: 'always_ask',     // 该 server 的默认审批行为
+      tools: {
+        quote: { permission: 'always_allow' }, // 精确的 MCP 原始工具名
+      },
     },
   ],
 })
@@ -174,6 +191,22 @@ await zc.updateAgent(agentId, {
 - 健康目录仍按 `config_version` 固定。源码核对显示，短暂失败的目录可以过期，下次解析目录时才可能重新探测。过期策略由部署配置，不是周期重试或自动恢复保证。
 - 探测失败可能让这个回合缺少该 server 的工具，并发出 `agent.error`：`kind` 为 `mcp_connection_failed` 或 `mcp_authentication_failed`，带 `server`、`errorMessage` 和可选 `reason`。未知 reason 应保留。这些新增细节尚未做真实部署验证，也不构成自动重试业务工具调用的理由。
 - 它只声明在 agent 上：没有自己的 MCP 资源，也没有 session 级覆盖。
+
+### 运行时 context 需要显式开启
+
+MCP 声明可以通过 `context.meta`、`context.headers` 或两者同时开启运行时标识。省略时，两项都默认为 `false`。
+
+`meta: true` 会在每次 MCP 工具调用的 `_meta["ai.zooclaw/context"]` 中加入 context。`headers: true` 会加入对应的 `x-zooclaw-*` HTTP header。context 包含 `agentId`、`sessionId` 和 `computerId`；有值时还会包含 `runId`、`turn`、`configVersion` 和 `actorUid`。这些值只是请求上下文，不是鉴权凭据；server 仍应独立验证调用方身份。
+
+目录发现阶段没有 Session 调用上下文，所以不会带这些字段。HTTP 中间层也可能移除自定义 header；MCP server 需要经过中间层时，优先使用 `meta`。这些细节来自源码核对，尚未在部署环境验证。
+
+### 默认审批和逐工具覆盖
+
+`permission` 把整个 server 的默认值设为 `always_ask` 或 `always_allow`。`tools` 再按 MCP 原始工具名精确覆盖，匹配发生在加上 `mcp__<server>__<tool>` 前缀之前。`tools` 的 key 不支持通配符，一份声明最多有 64 条覆盖。两个字段都省略时，有效默认值是 `always_allow`。
+
+`toolFilter` 和 permission 解决的是不同问题：filter 决定暴露哪些 server 工具；permission 决定已暴露的调用是否要审批。对 server 级通配范围做出的 allow-always 决定，会在当前 Session 中允许该 server 的全部工具。如果不希望范围这么大，应使用精确的逐工具 policy。
+
+这些字段来自源码核对。端到端审批流程仍未验证，所以下面的警告仍然适用。
 
 ::: danger 只能用免鉴权的 server
 `credential` 指向一个存好的 bearer token，但根本没有地方存——凭据端点经网关返回 404，这是有意为之。需要鉴权的 server 今天做不了。只声明免鉴权的 server。

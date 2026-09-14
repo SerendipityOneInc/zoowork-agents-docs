@@ -73,9 +73,9 @@ The onboarding interview is always skipped, so the agent answers your first mess
 | `model.max_tokens` | integer | Output-token cap per model request. Omit to use the platform default; invalid values are rejected at create. |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | Guidance documents. Only inline `content` is stored. Only the canonical names are read when the prompt is assembled: `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`. Other names are saved but never reach the model. `MEMORY.md` and the `memory/` namespace are reserved and return `400 invalid_persona_doc_name`. |
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
-| `tool_policy` | object | `{}` means the full tool manifest. A non-empty object is an allow/deny policy, e.g. `{ allow: ['read', 'web_search'] }`. See [Tools](./tools.md). |
+| `tool_policy` | object | `{}` means the full tool manifest. Exact names, global `*`, and one trailing `prefix*` are supported in the policy fields; `alsoAllow` remains exact-only. See [Tools](./tools.md). |
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
-| `mcp` | array | Remote MCP server declarations, including optional `exposure: 'deferred' \| 'direct'`. See [Tools](./tools.md). |
+| `mcp` | array | Remote MCP server declarations, including optional exposure, runtime-context delivery, server-wide approval defaults, and exact per-tool overrides. See [Tools](./tools.md). |
 
 The whole `model` section is optional. If you omit it, create pins the platform defaults current
 at that moment. The current source default is `litellm/gpt-5.6-terra`, but that is not deployment
@@ -101,10 +101,11 @@ const agent = await zc.createAgent({
 ```
 
 ::: warning Not yet verified
-`name`, `model` (including `max_tokens`, which visibly caps a reply), `labels` and `mcp` are
-verified end to end. `persona.docs`, `tool_policy` and `sandbox.scope` are accepted by the
-create route per the API contract, but no turn has proven each one changed the agent's
-behaviour. Verify the effect you depend on before you build on it.
+`name`, `model` (including `max_tokens`, which visibly caps a reply), `labels` and the base MCP
+route are verified end to end. MCP context and permission fields are source-reviewed only.
+`persona.docs`, `tool_policy` and `sandbox.scope` are accepted by the create route per the API
+contract, but no turn has proven each one changed the agent's behaviour. Verify the effect you
+depend on before you build on it.
 :::
 
 `skills` at create time does work (staging-verified 2026-08-30): the skill is installed, but

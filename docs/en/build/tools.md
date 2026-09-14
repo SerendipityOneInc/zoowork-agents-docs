@@ -145,6 +145,24 @@ policy on every turn. See [Errors and retries](../reference/errors.md).
 platform's own request examples. Confirm the names your deployment uses by running a turn and
 reading `toolCall(ev).toolName`, as shown above.
 
+### Tool-name patterns
+
+Source review shows that policy entries have three supported forms:
+
+- `*` matches every tool.
+- `read` matches that exact tool name.
+- `mcp__pricing__*` matches every tool whose name starts with `mcp__pricing__`.
+
+Only one trailing `*` has prefix semantics. Other placements such as `mcp__*__quote` or
+`*search` match nothing. The same matching rules apply to `allow`, `deny`, rule `match` and
+`afterRules`, plus deferred MCP `pinned` entries. `alsoAllow` is deliberately narrower: its
+entries are always exact names. When several policy rules could apply, the first matching rule
+wins.
+
+This matters for MCP because one server exposes several native names under the common
+`mcp__<server>__` prefix. Use an exact entry for one MCP tool and a trailing-prefix entry only
+when you intend to cover every tool from that server.
+
 ::: warning Not yet verified
 We have exercised `tool_policy: {}` (the default) end to end. We have not verified that a
 non-empty allow/deny policy takes effect on a live run, so treat a narrowed policy as
@@ -201,6 +219,11 @@ await zc.updateAgent(agentId, {
       transport: 'streamable-http', // or 'sse'; this is the default
       toolFilter: ['quote'],        // omit to expose all of the server's tools
       exposure: 'deferred',         // default; use 'direct' for the first model request
+      context: { meta: true },      // opt in to runtime identifiers in MCP request metadata
+      permission: 'always_ask',     // default for this server's tools
+      tools: {
+        quote: { permission: 'always_allow' }, // exact native MCP tool name
+      },
     },
   ],
 })
@@ -226,6 +249,36 @@ await zc.updateAgent(agentId, {
   here and do not justify automatic retries of business tool calls.
 - It is declared on the agent and nowhere else: there is no MCP resource of its own, and no
   session-level override.
+
+### Runtime context is opt-in
+
+An MCP declaration may opt into runtime identifiers through `context.meta`,
+`context.headers`, or both. Both default to `false` when omitted.
+
+`meta: true` adds an `_meta["ai.zooclaw/context"]` object to each MCP tool call. `headers: true`
+adds the corresponding `x-zooclaw-*` HTTP headers. The context contains `agentId`, `sessionId`
+and `computerId`, plus `runId`, `turn`, `configVersion` and `actorUid` when available. Treat
+these values as request context, not authorization: authenticate the caller independently.
+
+Catalog discovery does not carry runtime context because it happens before a tool call has a
+Session context. HTTP intermediaries can also remove custom headers, so prefer `meta` when the
+MCP server must work through an intermediary. These details are source-reviewed and have not
+been verified against a deployment.
+
+### Approval defaults and per-tool overrides
+
+`permission` sets a server-wide default of `always_ask` or `always_allow`. `tools` overrides
+that default for exact native MCP tool names, before the `mcp__<server>__<tool>` prefix is added.
+Wildcard keys are not accepted in `tools`, and a declaration may carry at most 64 overrides.
+When both fields are omitted, the effective default is `always_allow`.
+
+`toolFilter` and permissions solve different problems: the filter decides which server tools
+are exposed; permissions decide whether an exposed call asks for approval. An allow-always
+decision made against the server-wide wildcard applies to every tool from that server for the
+rest of the Session. Use an exact per-tool policy when that broader scope is not intended.
+
+These fields are source-reviewed. The end-to-end approval flow remains unverified, so the
+warning below still applies.
 
 ::: danger Public servers only
 `credential` names a stored bearer token, but there is nowhere to store one - the credential

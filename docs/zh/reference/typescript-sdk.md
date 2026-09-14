@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 429a082b3c750d181c238ad117c1cca57694f00768809cb53e1f8c53a5068cb7
+source_hash: 3ebca9655b96a5269db71757f1aeab7c298183a729553c0147bd9b5b34b005ec
 ---
 
 # TypeScript SDK 参考
@@ -143,15 +143,15 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 **渠道**
 
 把一个聊天平台绑到用 API 创建出来的 agent 上，这样同一个 agent 也能在聊天软件里回复人。
-飞书 / Lark、企业微信、微信三家都有服务端驱动的扫码流程；Slack 没有，只能走 `addChannel`，
-用你已经拿到的凭证绑定；微信正相反，扫码流是它唯一的路径。平台对照表和各种坑见
-[渠道](../build/channels.md)。
+飞书 / Lark、企业微信、微信三家都有服务端驱动的扫码流程。Slack 和钉钉走 `addChannel`，
+用你已经拿到的凭证绑定；微信正相反，扫码流是它唯一的路径。钉钉直接绑定来自源码核对，
+尚未在部署环境验证。平台对照表和各种坑见[渠道](../build/channels.md)。
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 这个 agent 已绑定的平台账号，带各自的 `health` 和 `status`。纯 API 的 agent 返回空数组。 |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 用 `config` 里的显式凭证绑定一个平台（201）。**201 的意思是存下了，不是能用了** ——绑定时不校验凭证，结论要从随后一次 `listChannels` 的 `health`/`status` 去读。 |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 改一个绑定的 `dm_policy`、`group_policy` 或 `enabled`，并把改完之后的状态返回给你。源码已核对：公共网关忽略 `allow_from`，它不构成发送者 ACL。**不**幂等：这个平台上没有绑定就是 `404 channel.not_found`。 |
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 这个 agent 已绑定的平台账号，带各自的 `health`、`status` 和可选 capability 状态。纯 API 的 agent 返回空数组。 |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 用 `config` 里的显式凭证绑定一个平台（201）。支持用 `platform: 'dingtalk-connector'` 和 `clientId`/`clientSecret` 直接绑定钉钉（源码已核对）。飞书还接受 `permission_admin_enabled`。**201 的意思是存下了，不是能用了**——绑定时不校验凭证，结论要从后续 `listChannels` 读取。 |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 改一个绑定的 `dm_policy`、`group_policy`、`enabled` 或飞书的 `permission_admin_enabled`，并把新状态返回。源码已核对：公共网关忽略 `allow_from`，它不构成发送者 ACL。**不**幂等：这个平台上没有绑定就是 `404 channel.not_found`。 |
 | `removeChannel(agentId, platform, opts?)` | `Promise<void>` | 解绑一个 `platform` + `account`（`account` 默认 `'default'`）。和 `updateChannel` 不同，它是幂等的——删一个本来就不存在的绑定返回 `200 { ok: true }`。 |
 | `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | 在 `'feishu'` / `'wecom'` / `'weixin'` 上发起扫码注册。飞书返回 `verification_uri_complete` 和 `poll_interval`，`expires_in: 600`；企业微信和微信返回 `qrcode_url`，没有 `poll_interval`，`expires_in: 300`，而且微信的 `qrcode_url` 可能是内嵌的 `data:image/…`。UI 归你自己做：把返回的那个渲染出来，通常是渲染成二维码。`brand: 'lark'`（只有飞书有）会把 URI 的 host 换成 `open.larksuite.com`，而且必须和扫码那个人所在的 workspace 对得上。 |
 | `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | 轮询这个 session 一次。被取消或已经消失的 session 返回的是 `404 channel.{platform}_session_not_found`，不是某个终态，所以自己写的轮询循环要把这个 404 当成结束条件，而不是一个该重试的传输错误。 |
@@ -855,6 +855,8 @@ console.log(outcome, text)
 - `SkillVersionRecord` 是 `{ skill_id, version, state }`，不是根记录。创建重复 name 为 409；版本按内容去重；HTTP key 并非所有上传的幂等保证。
 - `run_status` 可为 null，`pending_approvals` 是数字。审批时间用 `requested_at`；可选 preview 是字符串，另有 allowed_decisions、timeout/resolution 字段。202/signaled 不代表已执行，预算行为未实测。
 - Environment 的 `partial_ready` 可是过渡态或部分终态。创建新版本不是重试旧版本；轮询示例见 [Environments](../build/environments.md#构建状态)。
+- MCP 声明可通过 `context.meta` / `context.headers` 显式传运行时 context，并通过 server 级 `permission` 和按原始工具名精确匹配的 `tools` 设置审批行为。tool policy pattern 支持精确名称、全局 `*` 或一个末尾 `prefix*`；`alsoAllow` 仍只支持精确名称。
+- 钉钉直接绑定使用 `platform: 'dingtalk-connector'` 和 `clientId` / `clientSecret`。飞书请求接受 `permission_admin_enabled`，渠道响应可返回文档 capability 的同步、provider、缺失 scope 和管理员审批状态。
 
 ## 类型
 
@@ -864,8 +866,8 @@ console.log(outcome, text)
 没有这个索引签名的那几个是**故意封闭的** ——`SessionEvent`、`SessionHistoryEntry`、`ToolCall`、
 `ExecResult`、`WakeResult`、`Ownership`、`EnvironmentConfig`、`AgentResource`、`OutcomeConfig`、
 `OutcomeEvaluator`、`SystemPromptDeclaration`、`SSEMessage`、`ZooworkConfig`、`ZooworkAuth`、
-`AddChannelInput`、`UpdateChannelInput` 和 `ChannelSetupInput` 不收多余的键，多写一个键是编译
-错误，而不是一个能活到线上的字段。
+`McpContextConfig`、`McpToolPermissionOverride`、`AddChannelInput`、`UpdateChannelInput` 和
+`ChannelSetupInput` 不收多余的键，多写一个键是编译错误，而不是一个能活到线上的字段。
 
 这里的小节只覆盖你在本页走过的那些路径上会碰到的类型。skill registry、审批、定时任务、wake、
 exec 和 Environment 相关的类型都在[完整导出清单](#完整导出清单)里，而且每一个都把自己字段级的坑
@@ -1013,11 +1015,48 @@ interface McpServerDeclaration {
   credential?: string
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
+  context?: { meta?: boolean; headers?: boolean }
+  permission?: 'always_ask' | 'always_allow'
+  tools?: Record<string, { permission: 'always_ask' | 'always_allow' }>
   [k: string]: unknown
 }
 ```
 
 省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 目前仍无法写入 `credential` 指向的密钥；只使用公开、免鉴权的 MCP server。见[工具](../build/tools.md)。
+
+两个 context 开关都默认是 `false`。`meta` 在工具执行时添加 `_meta["ai.zooclaw/context"]`，`headers` 添加 `x-zooclaw-*` header；目录发现阶段两者都不带。context 包含 agent/session/computer 标识和可选 run/turn/config/actor 字段。它是上下文，不是鉴权凭据。
+
+`permission` 是 server 默认值。`tools` 按 MCP 原始工具名精确覆盖，不支持通配符，最多 64 条。省略时保留默认 allow 行为。这些字段及 allow-always 的 Session 范围来自源码核对；审批闭环尚未在部署环境验证。
+
+### `AgentChannel`
+
+```ts
+interface AgentChannel {
+  platform: string
+  account: string
+  display_name?: string | null
+  dm_policy?: string
+  group_policy?: string
+  enabled?: boolean
+  health?: string
+  status?: string
+  status_code?: string | null
+  capabilities?: {
+    feishu_documents?: {
+      permission_admin_enabled: boolean
+      sync: { state: 'pending' | 'applied' | 'retry' | 'error' }
+      provider: {
+        state: 'ready' | 'degraded'
+        missing_scopes: string[]
+        approval_state?: 'pending_admin' | null
+      }
+    } | null
+  } | null
+  [k: string]: unknown
+}
+```
+
+飞书 capability 投影来自源码核对，尚未在部署环境验证。在添加、更新或扫码配置时打开 `permission_admin_enabled` 只是发出请求；应读取这份投影，判断 scope 同步是已生效、degraded、正在重试，还是等待管理员审批。
 
 ### `AgentSkill`
 
@@ -1308,6 +1347,10 @@ import {
 
   // channels
   type AgentChannel,
+  type AgentChannelCapabilitySync,
+  type AgentChannelCapabilities,
+  type FeishuChannelProviderStatus,
+  type FeishuDocumentsCapability,
   type ChannelPlatform,
   type AddChannelPlatform,
   type GuidedSetupPlatform,
@@ -1321,7 +1364,10 @@ import {
   type FeishuPollResult,
 
   // more resource types
+  type McpContextConfig,
   type McpServerDeclaration,
+  type McpToolPermission,
+  type McpToolPermissionOverride,
   type SkillRecord,
   type SkillVersionRecord,
   type SessionRecord,

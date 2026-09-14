@@ -2,7 +2,7 @@
 title: 能力矩阵
 description: 查看每项 managed-agent 能力是已验证、未验证，还是不存在。
 source: /en/reference/capabilities
-source_hash: b31fbb3b4e42be5b17d633efe5c14d52f3bd6ecc7d4371b2e083826a0faa6aaf
+source_hash: 8c441bb527bca2b98b3534404376c8c848549400ab0e26e5db3e8aecdd5fb9a2
 ---
 
 # 能力矩阵
@@ -98,7 +98,7 @@ source_hash: b31fbb3b4e42be5b17d633efe5c14d52f3bd6ecc7d4371b2e083826a0faa6aaf
 
 | 面 | 状态 | 说明 |
 |---|---|---|
-| 能绑哪些平台 | 已实测 | `feishu`、`slack`、`wecom` 可以通过 `addChannel` 绑定；`feishu`、`wecom`、`weixin` 可以走扫码流。`weixin`/`wechat` 调 `addChannel` 返回 `400 channel.weixin_setup_required`——它指向的扫码流是存在的，照着走即可。其他名字一律 `400 channel.invalid_request`。 |
+| 能绑哪些平台 | 已实测 + 新增项源码已核对 | 实测：`feishu`、`slack`、`wecom` 可以通过 `addChannel` 绑定；`feishu`、`wecom`、`weixin` 可以走扫码流。仅源码核对：`dingtalk-connector` 用 `clientId`/`clientSecret` 和 `dm_policy: 'open'` 直接绑定，没有公共扫码配置路由。`weixin`/`wechat` 调 `addChannel` 返回 `400 channel.weixin_setup_required`。 |
 | `dm_policy: 'pairing'` | 不存在 | 创建和更新都返回 `400 channel.pairing_unsupported`。 |
 | `listChannels()` | 已实测 | 纯 API agent 返回 `{ channels: [] }`。 |
 | `addChannel()` | 已实测 | 返回 `201`——但**绑定时不校验凭证**。编造的凭证同样返回 `201`，带 `health: 'unknown'` / `status: 'configured'`，随后在列表里变成 `health: 'unhealthy'` / `status: 'error'`。判定要从后续的 list 里读，绝不能只看 201。源码已核对：公共网关忽略 `allow_from`，它不是 ACL。请求体完全相同时重发会回放同一个 `201`，但同一个 `platform` + `account` 换一份**不同的 `config`** 会返回 `409 channel.conflict`——换凭证要先 remove 再 add。 |
@@ -108,6 +108,7 @@ source_hash: b31fbb3b4e42be5b17d633efe5c14d52f3bd6ecc7d4371b2e083826a0faa6aaf
 | 微信 setup 的请求体 | 已实测 | 只读 `dm_policy`，而且只接受 `'open'`/`'disabled'`——`'allowlist'` 返回 `400 channel.allowlist_unsupported`。account 钉死为 `'default'`、group policy 钉死为 `'disabled'`，请求体里其他字段被忽略而不是报错。 |
 | `waitForChannelSetup()` | 已实测 | 按服务端的间隔驱动循环，并把 body 报告的终态当返回值交回。session 不存在的情况是抛异常——见渠道页的告诫。只针对飞书的旧拼写（`startFeishuSetup()` 等）仍然可用，内部调的就是这几个。 |
 | 真人扫码完成的绑定 | 可用，未实测 | 每条路由都跑过了，但没有任何一次运行让真人走完 QR 批准，所以 `status: 'success'` 和一个健康的渠道都没有被观察到。 |
+| 飞书文档权限管理 | 源码已核对，未实测 | 添加、更新和扫码配置都接受 `permission_admin_enabled`。响应可能通过 `capabilities.feishu_documents` 返回同步状态、provider 就绪状态、缺失 scope 和 `pending_admin` 审批状态。打开请求字段不等于能力已经就绪。 |
 | `deleteAgent()` 的渠道清理 | 可用，未实测 | 删除成功后 best-effort 停用该 agent 的渠道；清理失败永远不会把删除变成报错。已确认的只有：agent 删除后，渠道路由返回 `404 service_api.not_found`。 |
 
 ## 工具 {#tools}
@@ -115,9 +116,11 @@ source_hash: b31fbb3b4e42be5b17d633efe5c14d52f3bd6ecc7d4371b2e083826a0faa6aaf
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | 模型可用的内置工具 | 已实测 | 一个正常回合会产生成对的 `agent.tool` 事件。确切的工具名在运行时随这些事件到达；没有公开的目录路由让你先枚举它们。 |
-| `tool_policy` 的 allow 和 deny | 可用，未实测 | `{}` 表示完整清单。非空对象会被读成一份收窄可用工具面的 allow/deny 策略。我们没有跑过收窄后的策略，所以请通过观察 `agent.tool` 里出现哪些工具，来确认你的策略生效了。 |
+| `tool_policy` 的 allow 和 deny | 可用，未实测 | `{}` 表示完整清单。源码核对显示，allow/deny/rule match/afterRules 和 deferred MCP pinned 条目支持精确名称、全局 `*` 或一个末尾 `prefix*`；其他 `*` 位置匹配不到任何工具，`alsoAllow` 仍只支持精确名称。我们没有跑过收窄后的策略，请通过 `agent.tool` 确认。 |
 | 客户端执行的自定义工具 | 不存在 | 没有自定义工具类型，也没有 `user.custom_tool_result` 事件。这是最大的一个缺口。围绕它做设计之前，先[读一下替代方案](./not-supported.md#client-executed-custom-tools)。 |
-| 远程 HTTP MCP server | 已实测 | 声明在 agent 上（`resource.mcp[]`），不是独立资源；传输是 `streamable-http`（默认）和 `sse`。可选 `exposure` 只能是 `deferred`（也是省略时的默认）或 `direct`，没有 `auto`。延迟工具通过 search/describe 加载，并在同一个 Session 的后续回合继续可用；`direct` 从首个请求开始声明（源码已核对）。工具以 `mcp__<server>__<tool>` 出现——server 名不能带下划线——并且对公开 server **真的会执行**。健康目录与配置绑定。源码已核对：失败可发 mcp_connection_failed 或 mcp_authentication_failed，附可选 reason；瞬时失败缓存到期后可在后续解析时重探，不是定时恢复保证。这是唯一一条能让你自己的代码撑起一个 agent 工具的路径，但**只支持无鉴权**：`credential` slug 能声明进去，其背后的存储过网关是 404，所以需要鉴权的 server 今天做不起来。 |
+| 远程 HTTP MCP server | 已实测 + 新增项源码已核对 | 声明在 agent 上（`resource.mcp[]`），不是独立资源；传输是 `streamable-http`（默认）和 `sse`。可选 `exposure` 只能是 `deferred`（也是省略时的默认）或 `direct`，没有 `auto`。延迟工具通过 search/describe 加载，并在同一个 Session 的后续回合继续可用；`direct` 从首个请求开始声明（源码已核对）。工具以 `mcp__<server>__<tool>` 出现——server 名不能带下划线——并且对公开 server **真的会执行**。健康目录与配置绑定。源码已核对：失败可发 mcp_connection_failed 或 mcp_authentication_failed，附可选 reason；瞬时失败缓存到期后可在后续解析时重探，不是定时恢复保证。这是唯一一条能让你自己的代码撑起一个 agent 工具的路径，但**只支持无鉴权**：`credential` slug 能声明进去，其背后的存储过网关是 404，所以需要鉴权的 server 今天做不起来。 |
+| MCP 运行时 context | 源码已核对，未实测 | `context.meta` 添加 `_meta["ai.zooclaw/context"]`，`context.headers` 添加 `x-zooclaw-*` header，两者都需要显式开启。context 包含 agent/session/computer 标识和可选 run/turn/config/actor 字段。目录发现不带运行时 context，中间层也可能移除 header。 |
+| MCP 默认 permission 和覆盖 | 源码已核对，未实测 | `permission` 为 server 设置 `always_ask` 或 `always_allow`。`tools` 按 MCP 原始工具名精确覆盖，不支持通配符，最多 64 条。省略时默认为 allow。对 server 通配范围做出的 Session 级 allow-always 会覆盖该 server 的全部工具。 |
 | stdio MCP server、MCP OAuth | 不存在 | 就只有远程 HTTP。 |
 | 端到端的审批门控工具执行 | 源码已核对，未实测 | REST 方法与 requested_at/decision 等字段存在；resolve 返回 202/signaled 时仍可能 pending。部署支持、REST/事件往返、回合预算处理未实测。危险动作保持门控，不支持的部署返回 501。 |
 | `POST /agents/{id}/exec` | 可用，未实测 | 一个运维扩展，在 agent 的沙箱里跑一条命令，不是给 agent 用工具的通路。`exec(agentId, args)` 调的就是它，`args` 是 argv：要 shell 语义就写 `['bash', '-lc', 'pwd']`。它要求 agent 级的沙箱：session 级的 agent 拿到 `409 exec_requires_agent_scope`，没有沙箱后端的部署拿到 `501 not_configured`。 |

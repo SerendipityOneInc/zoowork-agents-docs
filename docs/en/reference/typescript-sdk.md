@@ -144,15 +144,16 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 **Channels**
 
 Bind a chat platform to an API-created agent, so the same agent also answers people in the
-chat app. Feishu/Lark, WeCom and WeChat have a server-driven QR flow; Slack does not and binds
+chat app. Feishu/Lark, WeCom and WeChat have a server-driven QR flow. Slack and DingTalk bind
 through `addChannel` with credentials you already hold, while WeChat is the reverse — the QR
-flow is its only path. See [Channels](../build/channels.md) for the platform table and the traps.
+flow is its only path. DingTalk direct binding is source-reviewed, not deployment-verified.
+See [Channels](../build/channels.md) for the platform table and the traps.
 
 | Method | Returns | What it does |
 |---|---|---|
-| `listChannels(agentId)` | `Promise<AgentChannel[]>` | The platform accounts bound to this agent, with their `health` and `status`. Empty for a pure API agent. |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from `health`/`status` on a follow-up `listChannels`. |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, or `enabled` on one binding and returns it in its new state. The public gateway ignores `allow_from`; it is not a working allowlist. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | The platform accounts bound to this agent, with their `health`, `status`, and optional capability state. Empty for a pure API agent. |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). Supports direct DingTalk through `platform: 'dingtalk-connector'` with `clientId`/`clientSecret` (source-reviewed). Feishu also accepts `permission_admin_enabled`. **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from a follow-up `listChannels`. |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, `enabled`, or Feishu's `permission_admin_enabled` on one binding and returns it in its new state. The public gateway ignores `allow_from`; it is not a working allowlist. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
 | `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Unbinds one `platform` + `account` (`account` defaults to `'default'`). Idempotent, unlike `updateChannel` - removing a binding that is not there answers `200 { ok: true }`. |
 | `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts a QR registration on `'feishu'`, `'wecom'` or `'weixin'`. Feishu answers `verification_uri_complete` and a `poll_interval`, with `expires_in: 600`; WeCom and WeChat answer `qrcode_url` with no interval and `expires_in: 300`, and WeChat's may be an inline `data:image/…` payload. You own the UI: render whichever one came back, usually as a QR code. `brand: 'lark'` (Feishu only) switches the URI host to `open.larksuite.com` and must match the workspace the person approves it in. |
 | `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | Polls that session once. A cancelled or vanished session answers `404 channel.{platform}_session_not_found` rather than a terminal status, so a hand-rolled loop must treat that 404 as an end condition, not a transport error to retry. |
@@ -898,6 +899,13 @@ These additions are reflected in SDK types and offline tests, not new live recor
   `created_at` remains type-compatible but is not promised on current responses.
 - Environment builds include `partial_ready`; use bounded polling and, if needed, the
   existing GET's optional `resourceClass`. Configuration creation and build retry differ.
+- MCP declarations can opt into runtime context with `context.meta` / `context.headers`, and
+  set approval behavior through server-wide `permission` plus exact native-name `tools`
+  overrides. Tool-policy patterns accept exact names, global `*`, or one trailing `prefix*`;
+  `alsoAllow` remains exact-only.
+- Direct DingTalk bindings use `platform: 'dingtalk-connector'` with `clientId` and
+  `clientSecret`. Feishu requests accept `permission_admin_enabled`, and channel responses may
+  expose document capability sync, provider, scope and administrator-approval state.
 
 ## Types
 
@@ -907,9 +915,9 @@ fields within a version: ignore what you do not recognize rather than failing on
 The ones that do not are closed on purpose - `SessionEvent`, `SessionHistoryEntry`,
 `ToolCall`, `ExecResult`, `WakeResult`, `Ownership`, `EnvironmentConfig`, `AgentResource`,
 `OutcomeConfig`, `OutcomeEvaluator`, `SystemPromptDeclaration`, `SSEMessage`, `ZooworkConfig`,
-`ZooworkAuth`, `AddChannelInput`, `UpdateChannelInput`, and `ChannelSetupInput` take no extra
-keys, and an extra key on them is a compile error rather than a field that survives to the
-wire.
+`ZooworkAuth`, `McpContextConfig`, `McpToolPermissionOverride`, `AddChannelInput`,
+`UpdateChannelInput`, and `ChannelSetupInput` take no extra keys, and an extra key on them is a
+compile error rather than a field that survives to the wire.
 
 The sections here cover the types you handle on the paths this page walks. The skill-registry,
 approval, schedule, wake, exec, and Environment types are all in the
@@ -1069,6 +1077,9 @@ interface McpServerDeclaration {
   credential?: string
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
+  context?: { meta?: boolean; headers?: boolean }
+  permission?: 'always_ask' | 'always_allow'
+  tools?: Record<string, { permission: 'always_ask' | 'always_allow' }>
   [k: string]: unknown
 }
 ```
@@ -1078,6 +1089,49 @@ until loaded. `direct` declares them on the first model request. There is no `au
 a loaded deferred tool remains available on later turns in the same Session. Public API keys
 still cannot populate `credential`; use public, unauthenticated MCP servers only. See
 [Tools](../build/tools.md).
+
+Both context switches default to `false`. `meta` adds
+`_meta["ai.zooclaw/context"]` and `headers` adds `x-zooclaw-*` headers during tool execution;
+catalog discovery receives neither. Context carries agent/session/computer identifiers and
+optional run/turn/config/actor fields. Treat it as context, not authentication.
+
+`permission` is the server default. `tools` overrides exact native tool names, accepts no
+wildcards, and is capped at 64 entries. Omission preserves the default-allow behavior. These
+fields, including allow-always Session scope, are source-reviewed; the approval round trip is
+not deployment-verified.
+
+### `AgentChannel`
+
+```ts
+interface AgentChannel {
+  platform: string
+  account: string
+  display_name?: string | null
+  dm_policy?: string
+  group_policy?: string
+  enabled?: boolean
+  health?: string
+  status?: string
+  status_code?: string | null
+  capabilities?: {
+    feishu_documents?: {
+      permission_admin_enabled: boolean
+      sync: { state: 'pending' | 'applied' | 'retry' | 'error' }
+      provider: {
+        state: 'ready' | 'degraded'
+        missing_scopes: string[]
+        approval_state?: 'pending_admin' | null
+      }
+    } | null
+  } | null
+  [k: string]: unknown
+}
+```
+
+The Feishu capability projection is source-reviewed, not deployment-verified. Enabling
+`permission_admin_enabled` on add, update or guided setup is only a request; read this
+projection to determine whether scope sync is applied, degraded, retrying, or waiting for an
+administrator.
 
 ### `AgentSkill`
 
@@ -1386,6 +1440,10 @@ import {
 
   // channels
   type AgentChannel,
+  type AgentChannelCapabilitySync,
+  type AgentChannelCapabilities,
+  type FeishuChannelProviderStatus,
+  type FeishuDocumentsCapability,
   type ChannelPlatform,
   type AddChannelPlatform,
   type GuidedSetupPlatform,
@@ -1399,7 +1457,10 @@ import {
   type FeishuPollResult,
 
   // more resource types
+  type McpContextConfig,
   type McpServerDeclaration,
+  type McpToolPermission,
+  type McpToolPermissionOverride,
   type SkillRecord,
   type SkillVersionRecord,
   type SessionRecord,
