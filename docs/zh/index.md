@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: 2540ad3c9cba5524276104144888d3e72f14527426f709f88ba48c6f48d9bb7a
+source_hash: af390328c81db65b9d65a4ba51a819e5c5df9a1e21b9c3910bd73ee06ea54abd
 hero:
   text: 用 Agent 构建应用。运行交给 ZooWork。
   tagline: 让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
@@ -21,7 +21,16 @@ home:
       - text: TypeScript SDK
         link: /zh/reference/typescript-sdk
         theme: text
-    sampleMeta: 创建 Agent 和 Session · Node 22.20+
+    sampleTabsLabel: SDK 语言
+    samples:
+      - id: typescript
+        label: TypeScript
+        install: npm i @zoowork-ai/sdk
+        meta: 创建 Agent 和 Session · Node.js 22.20+
+      - id: python
+        label: Python
+        install: python -m pip install zoowork
+        meta: 创建 Agent 和 Session · Python 3.10+
     sampleLinkText: 查看完整 Quickstart
     sampleLink: /zh/get-started/quickstart
     streamLabel: 示例 SESSION 事件
@@ -102,6 +111,8 @@ home:
 
 </template>
 
+<template v-slot:sample-typescript>
+
 ```ts
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
@@ -118,6 +129,30 @@ const session = await client.createSession(agent.agent_id, {
   }],
 })
 ```
+
+</template>
+
+<template v-slot:sample-python>
+
+```python
+import asyncio
+from zoowork import create_zoowork_client
+
+async def main() -> None:
+    async with create_zoowork_client() as client:
+        agent = await client.create_agent({"name": "quickstart-agent"})
+        await client.start_agent(agent["agent_id"])
+        await client.create_session(agent["agent_id"], {
+            "initial_events": [{
+                "type": "user.message",
+                "content": "What can you do?",
+            }],
+        })
+
+asyncio.run(main())
+```
+
+</template>
 
 <template v-slot:edges>
 

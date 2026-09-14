@@ -83,9 +83,29 @@ function checkHomePage(relativePath: string, frontmatter: Record<string, any>, s
   // Each of these drives a section of the page; an empty one is a section that vanishes.
   // Written as paths so the name appears once rather than as a string and an expression
   // that have to be kept pointing at the same thing.
-  for (const path of ['hero.actions', 'nouns.items', 'journey.stages', 'band.columns']) {
+  for (const path of ['hero.actions', 'hero.samples', 'nouns.items', 'journey.stages', 'band.columns']) {
     const value = path.split('.').reduce<any>((node, key) => node?.[key], home)
     if (!Array.isArray(value) || value.length === 0) fail(`\`home.${path}\` is missing or empty`)
+  }
+
+  const samples = home.hero?.samples
+  if (Array.isArray(samples)) {
+    const ids = new Set<string>()
+    for (const [index, sample] of samples.entries()) {
+      if (!sample || typeof sample !== 'object') {
+        fail(`\`home.hero.samples[${index}]\` is not an object`)
+        continue
+      }
+      for (const key of ['id', 'label', 'install', 'meta']) {
+        if (typeof sample[key] !== 'string' || !sample[key].trim()) {
+          fail(`\`home.hero.samples[${index}].${key}\` is missing or empty`)
+        }
+      }
+      if (typeof sample.id === 'string') {
+        if (ids.has(sample.id)) fail(`\`home.hero.samples\` contains duplicate id "${sample.id}"`)
+        ids.add(sample.id)
+      }
+    }
   }
 
   const links = new Set<string>()
@@ -318,7 +338,7 @@ function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
 
 export default defineConfig({
   title: 'ZooWork Docs',
-  description: 'Build agent products on ZooWork. TypeScript SDK, sessions, and streaming events.',
+  description: 'Build agent products on ZooWork. TypeScript and Python SDKs, sessions, and streaming events.',
   // The site does not own a host of its own: it is served from a path on the main
   // domain, at zoowork.ai/docs, next to /blog and /industry. `base` puts that prefix
   // on every generated URL; `outDir` mirrors the prefix in the build output so the
@@ -395,7 +415,7 @@ export default defineConfig({
       label: '简体中文',
       lang: 'zh-CN',
       link: '/zh/',
-      description: '在 ZooWork 上构建你自己的 agent 产品。TypeScript SDK、会话与流式事件。',
+      description: '在 ZooWork 上构建你自己的 agent 产品。TypeScript 和 Python SDK、会话与流式事件。',
       themeConfig: {
         nav: nav(ZH, '/zh'),
         sidebar: sidebar(ZH, '/zh'),

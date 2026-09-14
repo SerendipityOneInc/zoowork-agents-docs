@@ -65,9 +65,14 @@ the behavior as a task-level path. Once labeled with an outcome, it can become a
 example, a preference signal, or a reinforcement signal. One execution can contribute to
 both views, but the terms are not interchangeable.
 
-Today, use `listAllEvents(agentId, sessionId)` for the complete ordered event history and
-`getSession(agentId, sessionId, { history: true })` for the stored transcript. Keep your own
-task identifier, result reference, and outcome beside those records.
+Today, read the complete ordered event history and stored transcript through either SDK:
+
+- **TypeScript:** `listAllEvents(agentId, sessionId)` and
+  `getSession(agentId, sessionId, { history: true })`.
+- **Python:** `list_all_events(agent_id, session_id)` and
+  `get_session(agent_id, session_id, history=True)`.
+
+Keep your own task identifier, result reference, and outcome beside those records.
 
 ::: warning Current API boundary
 Managed Agents captures the runtime side of this loop. The public API does not currently

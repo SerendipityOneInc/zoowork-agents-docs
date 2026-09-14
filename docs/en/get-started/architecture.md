@@ -14,8 +14,8 @@ model and tool loop, conversation state, and sandbox lifecycle.
 
 [View architecture diagram full size](https://assets.yesy.site/f/images/2026/09/qdvtaf6e.png)
 
-Your application connects through the TypeScript SDK or HTTP. Both use the same API and the
-same Agent, Session, and Event resources.
+Your application connects through the TypeScript SDK, Python SDK, or HTTP. All three use the
+same API and the same Agent, Session, and Event resources.
 
 | Component | Responsibility |
 |---|---|
