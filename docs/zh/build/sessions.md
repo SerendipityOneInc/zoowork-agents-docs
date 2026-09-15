@@ -2,7 +2,7 @@
 title: Sessions
 description: 创建、继续、列出、归档和删除 session，并读取 transcript。
 source: /en/build/sessions
-source_hash: 73d4c8236611dce1cf229163303e18a2614dee02c100845f74f22e0e1b44a2ac
+source_hash: 69bd3f18d3acbddc92a4ea2a622f612a41f85df3b4c5bc5ce55404fabb3e948c
 ---
 
 # Sessions
@@ -46,7 +46,7 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 const agentId = process.env.AGENT_ID!
 ```
 
-::: warning 源码已核对，不是审批端到端实测
+::: info Approval 计数和 actor 归属
 没有最近 run 时，`run_status` 可为 null。`pending_approvals` 和 `pending_custom_tool_calls` 是可选数字，不是记录数组；记录分别从 `listApprovals` 和 `listCustomToolCalls` 读取。resolve 返回 202/`signaled` 时仍可能 pending，不证明工具已执行。
 
 初始 `user.message` 和后续消息一样可带 `actor: { ref }`。稳定 ref 应由已鉴权的后端选择，metadata 本身不选择 actor；归属标识不是权限或文件/session 隔离，IM session 拒绝调用方 actor。校验规则见[事件](./events.md)。
@@ -60,7 +60,7 @@ const agentId = process.env.AGENT_ID!
 409  error.type = "agent_not_running"
 ```
 
-新创建的 agent 返回时是停止状态，所以你得自己调 `startAgent`。用 `status.desired_state === 'running'` 把关；`status.actual_state` 报的是聊天渠道健康度，不是 API 就绪状态。route-status 不受支持时它可以是 `active`，短暂健康查询失败后也可能是 `activating`；它永远不会变成 `running`，所以不能轮询它判断就绪。
+新建 Agent 返回时是停止状态，因此创建 Session 前要先调用 `startAgent`。通过 `status.desired_state === 'running'` 判断 API 是否就绪。`status.actual_state` 表示聊天渠道健康度，可能在没有渠道时显示 `active`，也可能在健康信息刷新时显示 `activating`。
 
 ```ts
 const agent = await zc.getAgent(agentId)
@@ -85,7 +85,7 @@ console.log(session.session_key)  // "api:0123456789abcdef0123456789abcdef"
 
 带 `initial_events` 创建会立刻启动第一个回合 —— 开场消息没有单独的「发送」步骤。
 
-**`initial_events` 只接受 `user.message`。** 其他事件类型在这里都不合法；session 建好之后，其余的用 `postEvents` 投递。API 最多接受 50 条初始事件。`content` 传纯字符串这一形式已实测。
+**`initial_events` 只接受 `user.message`。** 其他事件类型在这里都不合法；Session 建好之后，其余事件使用 `postEvents` 投递。API 最多接受 50 条初始事件，`content` 使用非空字符串。
 
 `metadata` 是一个随 session 一起存下来的任意 JSON 对象，`getSession` 会原样返回。它归你用来做关联 —— 一个租户 id、一个请求 id、这段对话来自哪个入口。平台不会解释它的任何内容。
 
@@ -139,7 +139,7 @@ console.log(second.text)                 // mentions "Ada"
 const s = await zc.getSession(agentId, session.session_id)
 ```
 
-实测响应：
+示例响应：
 
 ```json
 {
@@ -148,7 +148,7 @@ const s = await zc.getSession(agentId, session.session_id)
   "channel": "api",
   "run_status": "succeeded",
   "updated_at": "2026-01-01T00:00:00.000Z",
-  "metadata": { "source": "sdk-capability-probe" },
+  "metadata": { "source": "docs-example" },
   "archived": false,
   "status": null,
   "pending_approvals": 0
@@ -164,11 +164,11 @@ const s = await zc.getSession(agentId, session.session_id)
 | `updated_at` | 最后一次变更的 ISO 时间戳。 |
 | `metadata` | 你传给 `createSession` 的东西，原样返回。 |
 | `archived` | 布尔值。 |
-| `pending_approvals` | 正在等待审批的工具调用数量。预期为 `0` —— 审批闭环未验证。 |
-| `status` | 旧的 Session 字段；当前公开 `getSession()` 路径上实测为 `null`。见下面。 |
+| `pending_approvals` | 正在等待审批的工具调用数量。记录本身通过 `listApprovals()` 读取。 |
+| `status` | 旧的 Session 字段；当前 `getSession()` 路径返回 `null`。见下面。 |
 
-::: danger 不要把 `status` 当作 run 状态
-当前公开 `getSession()` 路径返回 `status: null`，最后一次 run 已经成功结束的 session 也是如此。这个旧的 Session 字段不是 run 状态，不同部署上的值可能不同。不要轮询它，也不要用它做分支。真正的状态字段是 `run_status`（实测取值：`"succeeded"`）。
+::: info 从 `run_status` 读取运行状态
+`status` 是旧的 Session 字段，值可能是 `null`。需要读取或轮询最近一次 run 的状态时，请使用 `run_status`。
 :::
 
 响应里可能带有上表之外的字段。遇到不认识的就忽略，不要因此报错。
@@ -191,7 +191,7 @@ for (const row of s.history ?? []) {
 
 `limit` 是返回最近多少行，默认 100，最大 500。返回的行按 `seq` 升序排列。
 
-一条实测的 assistant 行：
+一条 assistant 示例记录：
 
 ```json
 {
@@ -254,15 +254,14 @@ const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
 
 显式传 `after` —— 在这里或在 `listEvents`/`streamEvents` 上 —— 走的是废弃的 engine-only 通道：没有用户输入、没有分页标志，只留给旧存量游标用。`seq` 持久且严格递增，但不保证连续；续传 SSE 流用每个流式事件自带的 `cursor`（`streamEvents({ cursor })`）。`types` 在服务端过滤，可以和 `cursor`、`limit` 组合使用。
 
-## SDK 里没有的
+## 保存 Session metadata
 
-::: danger 不支持
-`ZooworkClient` 没有 `patchSession`，对一个 session 发 `PATCH` 返回的是 `405`，这就使得 session 的 `metadata` 只能在 `createSession` 时写一次。
+Session 的 `metadata` 在调用 `createSession()` 时写入。SDK 没有 `patchSession`，
+对一个 Session 发送 `PATCH` 会返回 `405`。
 
 自己记录你创建过的那些 `session_id` —— 把它们和你应用里所属的东西存在一起 —— 并且在创建时就把之后需要检索的一切放进 `metadata`，因为后面加不进去。
-:::
 
-也没有顶层的 session 资源，所以无法跨 agent 列出 session。完整边界见[不支持的能力](../reference/not-supported.md)。
+Session 列表的作用域是一个 Agent。需要跨多个 Agent 查找 Session 时，请在应用中保存 Agent id。
 
 按 agent 列出 session 有两条兼容通道。`listSessions(agentId, { page })` 保留旧的数字分页：固定 50 条，按 `updated_at` 最新在前，`page` 从 1 开始。Python 的对应方法是 `list_sessions(agent_id, page=...)`。
 

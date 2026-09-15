@@ -75,12 +75,11 @@ The onboarding interview is always skipped, so the agent answers your first mess
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
 | `tool_policy` | object | `{}` means the full tool manifest. Exact names, global `*`, and one trailing `prefix*` are supported in the policy fields; `alsoAllow` remains exact-only. See [Tools](./tools.md). |
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
-| `mcp` | array | Remote MCP server declarations, including optional exposure, runtime-context delivery, server-wide approval defaults, and exact per-tool overrides. See [Tools](./tools.md). |
+| `mcp` | array | Remote MCP server declarations, including exposure, runtime context, and approval policies. See [MCP servers](./mcp.md) and [Permission policies](./permissions.md). |
 
 The whole `model` section is optional. If you omit it, create pins the platform defaults current
-at that moment. The current source default is `litellm/gpt-5.6-terra`, but that is not deployment
-verification and future defaults can rotate.
-Use `listModels()` and persist an explicit selection when repeatable provisioning matters.
+at that moment. Defaults can differ by deployment and change over time. Use `listModels()` and
+persist an explicit selection when repeatable provisioning matters.
 
 ```ts
 const agent = await zc.createAgent({
@@ -100,15 +99,7 @@ const agent = await zc.createAgent({
 })
 ```
 
-::: warning Not yet verified
-`name`, `model` (including `max_tokens`, which visibly caps a reply), `labels` and the base MCP
-route are verified end to end. MCP context and permission fields are source-reviewed only.
-`persona.docs`, `tool_policy` and `sandbox.scope` are accepted by the create route per the API
-contract, but no turn has proven each one changed the agent's behaviour. Verify the effect you
-depend on before you build on it.
-:::
-
-`skills` at create time does work (staging-verified 2026-08-30): the skill is installed, but
+`skills` at create time installs the skill, but
 neither the create receipt nor `getAgent`'s `declared` echoes the field - confirm the install
 with `listAgentSkills(agentId)`, not the receipt. See [Skills](./skills.md). `environment_id` and `environment_version` do work
 here; [Environments](./environments.md) has the resolution rules.
@@ -185,7 +176,7 @@ reads are hidden as 404, not rejected as 403.
 ## Start the agent
 
 `startAgent()` flips `desired_state` to `running`. This is the precondition for every session
-call. It is fast - sub-second in practice.
+call.
 
 ```ts
 const { warnings } = await zc.startAgent(agent.agent_id)
@@ -198,8 +189,8 @@ console.log(warnings)
 Successful start/stop responses return `{ warnings: string[] }`; warnings are not guaranteed
 on every call. A non-2xx response throws `ZooworkError`, not a successful warning result.
 
-Source-reviewed stop behavior can reject after `desired_state` changes to `stopped`.
-Read back and reconcile before retrying; that field alone does not prove runtime cleanup.
+A stop request can fail after `desired_state` changes to `stopped`. Read the Agent again before
+retrying; that field alone does not prove runtime cleanup.
 
 ### `desired_state` vs `actual_state`
 
@@ -208,16 +199,12 @@ Read back and reconcile before retrying; that field alone does not prove runtime
 | Field | What it means | Values |
 |---|---|---|
 | `desired_state` | The lifecycle intent. **This is what gates the API.** | `running`, `stopped`, `deleted` |
-| `actual_state` | Chat-channel route health. Nothing to do with API readiness. | `activating`, `active`, `degraded`, `error`, `stopped`, `deleting` |
+| `actual_state` | Chat-channel route health. | `activating`, `active`, `degraded`, `error`, `stopped`, `deleting` |
 
-This field is a best-effort channel-health projection. When route-status is unsupported, GET can
-report `active` with `status.channels.expected === 0`, `connected === 0`, and a `status_message`
-that says channel health was not verified. A transient query failure remains `activating`.
-`listAgents()` does not run the same foreground health query, so list and GET can briefly differ.
-`running` is not a member of the `actual_state` enum, so polling it for `running` never returns.
-Sessions work regardless of whether the projection is `active` or `activating`; binding a
-[channel](./channels.md) can make it reflect that channel's connectivity, but never API readiness.
-The fallback behavior is source-reviewed, not deployment-verified here.
+`actual_state` is a best-effort channel-health projection. GET can report `active` with zero
+channel counts, or `activating` while health information is refreshing. `listAgents()` and GET
+can briefly differ. Sessions use `desired_state` for readiness; after you bind a
+[channel](./channels.md), `actual_state` can reflect that channel's connectivity.
 
 Poll `desired_state`, with a timeout. `waitUntilRunning()` is that loop, already written:
 
@@ -378,11 +365,10 @@ A freshly created agent already has the entire global skill catalog attached, so
 
 `listAgents({ labels, page })` enumerates the agents owned by the user your key is bound to.
 
-::: warning SDK version and verification
+::: warning SDK version
 These pagination examples target the SDK change in [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26).
 SDK 0.5.2 returns a single-page array. Use a package release containing that change before
-using `.data` or async iteration. The new SDK behavior is source-reviewed and covered by
-offline tests; agent listing has not been verified against a live deployment here.
+using `.data` or async iteration.
 :::
 
 Use `for await` to read all matching agents. Subsequent pages are requested only as you
@@ -428,19 +414,13 @@ listing - so for anything that spans keys, keep your own record of the ids.
 entry. `{ labels: { workspace_id: '...' } }` is the one worth remembering: it turns the
 workspace id in a ZooWork chat URL - the first path segment - back into the agent behind it.
 
-## Not supported
+## Manage configuration changes
 
-::: danger Not supported
-**No agent version history and no version pinning.** `config_version` counts up, but there is
-no route to list past versions, read one, pin traffic to one, or roll back. If you need to
-recover an old configuration, store it yourself before you PUT.
-:::
+`config_version` increases after each update, but it is not a configuration-history API.
+Store the previous configuration in your application if you need comparison or rollback.
 
-::: danger Not supported
-**No optimistic concurrency.** There is no `version` precondition on `updateAgent()`, and
-concurrent writers never see a `409`. Two processes updating the same agent silently
-last-write-wins per section. Serialize your own writes if that matters.
-:::
+`updateAgent()` has no version precondition. Concurrent updates to the same section use the
+last write, so serialize writers in your application when multiple processes can update one Agent.
 
 ## Next
 

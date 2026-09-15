@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: fdbfd2f9eaa4de4415ba157e50d96b52836c449f457964ae5952b73501ef9196
+source_hash: 29002fe5c724d98a4185e6ea8986246bb1c347c9f353cb8b50c8bd06035b8fea
 ---
 
 # 错误与重试
@@ -88,9 +88,7 @@ if (e instanceof ZooworkError) {
 
 还有一个怪点值得知道：`ZooworkError` 有可能带着 **2xx** 状态。如果一个成功的响应回来时响应体不是合法 JSON，SDK 会抛 `ZooworkError(res.status, 'non-JSON response: <path>')`。不要在 catch 块里假设 `status >= 400`。
 
-## 你真正会遇到的 type
-
-除非某一行另有说明，下面这些都是在公开网关上、对着一套真实部署观察到的。
+## 常见 error type
 
 | `type` | HTTP | 原因 | 怎么办 |
 |---|---:|---|---|
@@ -99,28 +97,21 @@ if (e instanceof ZooworkError) {
 | `service_token.invalid` | 401 | key 缺失、格式不对、已吊销，或者它绑定的用户离开了组织。由网关发出，用网关的信封。 | 修凭证。不要重试——重试会一模一样地失败。用 `listModels()` 验证。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
 | `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本。 | 改请求。原样重试会一模一样地失败。 |
-| *（没抓到 type）* | 404 | `putAgentSkill()` 传一个全局目录里的 skill id。这里只有你自己租户上传的 skill 装得上，而全局目录在每个新 agent 创建时就已经挂上了，所以没有什么需要装的。 | 按 `status === 404` 分支。这个检查跑在网关里，而且我们没有在它上面抓到 type，所以按 `e.type` 匹配的 handler 永远不会触发。见 [Skills](../build/skills.md)。 |
-
-::: warning 尚未验证
-`idempotency_conflict` 是 API 文档里写的。`createAgent()` 接受这个请求头，`createSession()` 上的重放也确实生效；但我们从没在 `createAgent()` 上重放过同一个 key 去看它去重，两边也都没有刻意去制造冲突。请处理它；不要假设报错文本的具体措辞。
-:::
+| *（可能没有 type）* | 404 | `putAgentSkill()` 传入 global 目录里的 skill id。只有当前租户上传的 skill 可以安装，而 global 目录已经挂在每个新 Agent 上。 | 按 `status === 404` 分支，因为这个响应可能省略 `type`。见 [Skills](../build/skills.md)。 |
 
 ### 更多 400
 
-`updateAgent()` 在 body 里出现 `skills`、`credentials` 或任何未知字段时返回 **400** 。skill 走 `putAgentSkill()`；凭据则根本没有 API——见[不支持的能力](./not-supported.md)。
+`updateAgent()` 在 body 里出现 `skills`、`credentials` 或任何未知字段时返回 **400**。skill 走 `putAgentSkill()`；credential 不通过 `updateAgent()` 配置。
 
 有两种创建期的拒绝带的是自己更窄的 type，而不是 `invalid_request`：`persona.docs` 条目取名 `MEMORY.md` 或落在保留的 `memory/` 命名空间下时是 `invalid_persona_doc_name`，body 里带 `sandbox.template` 字段时是 `sandbox_template_deprecated`。操作上它们和任何别的 400 一样：改 body，不要重试。
 
-::: warning 尚未验证
-这两个 type 字符串来自 API 自己的参考文档；我们两个都没有触发过。可以放心依赖的是状态码。
-:::
+这两种错误都是 HTTP 400。响应包含较窄的 `type` 时可以使用它，同时保留按 status 处理的 fallback。
 
-四种被接受的事件类型之外的事件，`postEvents()` 一律以 **400** 拒绝——见[事件与流式](../build/events.md)。我们没有在它上面抓到 `error.type`，所以 `postEvents()` 的失败请按 `status === 400` 分支，并且把它当作编程错误而不是瞬时故障：你的事件结构写错了，重试改变不了这件事。
+五种被接受的事件类型之外的事件，`postEvents()` 一律以 **400** 拒绝——见[事件与流式](../build/events.md)。响应可能省略 `error.type`，因此 `postEvents()` 的失败需要按 `status === 400` 分支，并把它当作编程错误而不是瞬时故障：事件结构不正确，原样重试不会改变结果。
 
-### API 文档里写的其他 type
+### 其他 error type
 
-::: warning 尚未验证
-这些出现在 API 自己的错误参考里，但我们没有在公开网关上观察到。列在这里是为了让你遇到时能认出来，不是给你拿来写分支的分类表。
+响应包含 `type` 时，可以使用下面的值；同时保留前文所说的 HTTP status fallback。
 
 | `type` | HTTP | 含义 |
 |---|---:|---|
@@ -130,8 +121,7 @@ if (e instanceof ZooworkError) {
 | `payload_too_large` | 413 | 请求体或 skill 负载超限。 |
 | `quota_exceeded` | 429 | 频率或数量超限。 |
 | `internal_error` | 500 | 服务端故障。读操作退避后重试；写操作先对账。 |
-| `not_configured` | 501 | 这个环境里没有接上后端服务。不要原样重试。 |
-:::
+| `not_configured` | 501 | 这个环境没有配置对应的后端服务。不要原样重试。 |
 
 ## 什么可以安全重试
 
@@ -153,7 +143,7 @@ if (e instanceof ZooworkError) {
 
 ### create 调用上的 `Idempotency-Key`
 
-源码已核对的去重方式按操作区分，不能统一承诺 exactly-once。SDK 有七个方法能发送 `Idempotency-Key` 请求头，但发送不等于每条路由都会使用它：`createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion`。前五个把它作为最后一个参数传，两个上传方法把它放在 options 对象的 `idempotencyKey` 字段里。你最先会用到的是这两个：
+不同操作使用不同的幂等机制。HTTP key、event key、稳定资源 ID 和内容去重相互独立，都不提供 exactly-once 保证。SDK 有七个方法可以发送 `Idempotency-Key` 请求头：`createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion`。前五个把它作为最后一个参数传入，两个上传方法把它放在 options 对象的 `idempotencyKey` 字段里。最常用的两个例子是：
 
 ```ts
 const created = await zc.createAgent(

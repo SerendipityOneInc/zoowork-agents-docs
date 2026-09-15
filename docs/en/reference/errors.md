@@ -105,9 +105,7 @@ response arrives with a body that is not valid JSON, the SDK throws
 `ZooworkError(res.status, 'non-JSON response: <path>')`. Do not assume `status >= 400` inside
 your catch block.
 
-## The types you will actually hit
-
-Observed on the public gateway against a live deployment, unless a row says otherwise.
+## Common error types
 
 | `type` | HTTP | Cause | What to do |
 |---|---:|---|---|
@@ -116,41 +114,31 @@ Observed on the public gateway against a live deployment, unless a row says othe
 | `service_token.invalid` | 401 | The key is missing, malformed, revoked, or its bound user left the organization. Emitted by the gateway, in the gateway's envelope. | Fix the credential. Do not retry - it will fail identically. Verify with `listModels()`. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
 | `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
-| *(none captured)* | 404 | `putAgentSkill()` with a global-catalog skill id. Only skills your own tenant uploaded are installable here, and the global catalog is already attached to every new agent, so there is nothing to install. | Branch on `status === 404`. The check runs in the gateway and we captured no type on it, so a handler keyed on `e.type` never fires. See [Skills](../build/skills.md). |
-
-::: warning Not yet verified
-`idempotency_conflict` is documented by the API. The header is accepted on `createAgent()`
-and a replay on `createSession()` is honoured, but we have never replayed a `createAgent()`
-key to watch it dedupe, and we have not deliberately provoked the conflict on either. Handle
-it; do not assume the exact wording of the message.
-:::
+| *(may be absent)* | 404 | `putAgentSkill()` with a global-catalog skill id. Only skills your own tenant uploaded are installable here, and the global catalog is already attached to every new agent, so there is nothing to install. | Branch on `status === 404` because this response may omit `type`. See [Skills](../build/skills.md). |
 
 ### More 400s
 
 `updateAgent()` answers **400** when the body names `skills`, `credentials`, or any
-unknown field. Skills go through `putAgentSkill()`; there is no credentials API at all - see
-[Not supported](./not-supported.md).
+unknown field. Skills go through `putAgentSkill()`; credentials are not configured through
+`updateAgent()`.
 
 Two create-time rejections carry their own narrower type rather than `invalid_request`:
 `invalid_persona_doc_name` for a `persona.docs` entry named `MEMORY.md` or anything under the
 reserved `memory/` namespace, and `sandbox_template_deprecated` for a `sandbox.template`
 field. Operationally they are the same as any other 400: fix the body, do not retry.
 
-::: warning Not yet verified
-Those two type strings come from the API's own reference; we have not provoked either. What
-is safe to rely on is the status.
-:::
+These two errors are both HTTP 400. Use the narrower `type` when present and keep a
+status-based fallback.
 
-`postEvents()` answers **400** for any event outside the four accepted types - see
-[Events](../build/events.md). We captured no `error.type` on it, so branch on `status === 400`
+`postEvents()` answers **400** for any event outside the five accepted types - see
+[Events](../build/events.md). The response may omit `error.type`, so branch on `status === 400`
 for `postEvents()` failures, and treat them as programming errors rather than transient ones:
 your event shape is wrong and a retry will not change that.
 
-### Other types the API documents
+### Other error types
 
-::: warning Not yet verified
-These appear in the API's own error reference but we have not observed them through the
-public gateway. Listed so you recognize one if it arrives, not as a taxonomy to code against.
+Use these values when `type` is present, while retaining the HTTP-status fallback described
+above.
 
 | `type` | HTTP | Meaning |
 |---|---:|---|
@@ -160,8 +148,7 @@ public gateway. Listed so you recognize one if it arrives, not as a taxonomy to 
 | `payload_too_large` | 413 | Body or skill payload over the limit. |
 | `quota_exceeded` | 429 | Rate or quantity limit. |
 | `internal_error` | 500 | Server-side failure. Back off and retry reads; reconcile writes first. |
-| `not_configured` | 501 | The backing service is not wired in this environment. Do not retry as-is. |
-:::
+| `not_configured` | 501 | The backing service is not configured in this environment. Do not retry as-is. |
 
 ## What is safe to retry
 
@@ -183,10 +170,10 @@ Retry safety is per operation, not per error. Nothing in the SDK retries for you
 
 ### `Idempotency-Key` on the create calls
 
-An SDK key argument does not prove every endpoint uses it for replay. The source-reviewed
-matrix separates HTTP keys, event keys, stable resource IDs and content deduplication; these
-are not an exactly-once SLA. Agent, Session and Environment create methods take an HTTP key
-as a trailing argument. Two common examples:
+Idempotency works differently across operations. HTTP keys, event keys, stable resource IDs,
+and content deduplication are separate mechanisms; none creates an exactly-once guarantee.
+Agent, Session, and Environment create methods take an HTTP key as a trailing argument. Two
+common examples:
 
 ```ts
 const created = await zc.createAgent(

@@ -2,16 +2,10 @@
 title: Environments
 description: 定义可复用的沙箱模板，并把带版本的 Environment 绑定到 agent。
 source: /en/build/environments
-source_hash: f0580853a9f644ed9094e2318a5c4dcad2c16bca87650322627d568ad5136db9
+source_hash: 5463b5c9c4f0b2269e276f37b26814f3b7e18e9a8e19c48731a80f53987397da
 ---
 
 # Environments
-
-::: warning 尚未验证
-这个面没有任何一部分被端到端实测过。我们从来没有构建过一个 Environment，没有把它挂到 agent 上过，也没有观察到任何一个沙箱是从它启动的。
-
-SDK 对整个资源都有类型，`listEnvironments()` 返回 `200`。除此之外的一切都是我们没看着它跑过的、有类型的契约。如果你的项目依赖预装的包，请规划一条退路：不带 `environment_id` 的 agent 跑在系统默认之上，今天就能用。
-:::
 
 Environment 是一份不可变的沙箱模板。你把包、文件和构建脚本声明一次；平台按这份声明构建一个镜像；agent 随后固定到一个确切的已构建版本上。它回答的是「agent 需要我的 Python 依赖」和「agent 只能访问这些主机」这两类问题。
 
@@ -56,15 +50,15 @@ config 对象只接受这四个 key。任何其他 key 都返回 `400 invalid_en
 
 文件路径是规范化后的相对 POSIX 路径。单次请求里的内联 `contentBase64` 解码后合计上限 1 MB；内联内容加直接上传合计上限 50 MB。更大的文件走一套独立的预签名上传流程，它会发一个 `upload_id`，你在 `files[]` 里引用这个 id，而不是内联字节。
 
-## 你绕不开的约束
+## Environment 配置模型
 
-这些是平台的性质，不是你能改的默认值。
+Environment version 是可复现的构建产物，输入范围保持精简：
 
-- **三个包管理器，就只有三个。** apt、npm、pip。没有其他安装器钩子。
-- **自定义 Environment 永远继承同一个固定的平台基础镜像。** 不支持任意的继承链。你不能从自己的镜像出发。
-- **没有 secret，没有运行时凭证，没有自定义环境变量，也没有沙箱启动钩子。** Environment 是一件构建期产物。`build.script` 在镜像被构建时运行，绝不在沙箱启动时运行。如果你的依赖在运行时需要一个 API key，Environment 不是放它的地方。
-- **版本配置不可变。** `createEnvironmentVersion` 创建新版本，不是重试旧版本。对失败版本执行专用 retry 操作才会保留同一版本的尝试与日志历史。
-- **skill、persona 和工作区文件不属于 Environment。** 你显式提交包、文件和构建脚本；不会从任何别处推断出什么。
+- **包安装**支持 apt、npm 和 pip。
+- **基础镜像**使用 ZooWork 托管的平台镜像。你的配置在此基础上添加包、文件和构建脚本。
+- **构建期配置**会在镜像构建时运行 `build.script`。运行时凭证和应用 secret 应放在 Environment 定义之外。
+- **Version 不可变**，用于保留输入和构建历史。配置变化时创建新 version；需要重新构建同一 version 时使用 retry 操作。
+- **Agent 配置保持独立。** Skills、persona 和工作区文件通过各自的 Agent API 挂载。
 
 ## 把 Environment 固定到 agent 上
 
@@ -120,7 +114,7 @@ await zc.updateAgent(agentId, { environment_id: 'env_example', environment_versi
 | `createEnvironment({ resource, ownership }, idempotencyKey?)` | 创建一个 Environment 和它的第一个版本。 |
 | `archiveEnvironment(environmentId)` | 归档它。 |
 | `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | 创建一个新的不可变版本，不是重试旧版本。 |
-| `getEnvironmentVersion(environmentId, version, opts?)` | 读版本聚合状态；可传 `{ resourceClass: 'starter' }` 查询单个规格（也支持 `pro`、`ultra`）。该参数已核对源码，未在本轮线上验证。 |
+| `getEnvironmentVersion(environmentId, version, opts?)` | 读版本聚合状态；可传 `{ resourceClass: 'starter' }` 查询单个规格（也支持 `pro`、`ultra`）。 |
 
 平台默认的那个 Environment——新建 agent 被钉上的那个——不出现在 `listEnvironments()` 里，`getEnvironment()` 对它返回 `404`。网关强制加了组织选择器，而默认 Environment 不属于任何组织，所以这是选择器不匹配，不是权限问题。
 
@@ -150,13 +144,13 @@ console.log(env.version?.version) // 1
 console.log(env.version?.status)  // 'queued'
 ```
 
-第一个版本在 create 的响应里以 `EnvironmentRecord.version` 内联返回，所以不需要再补一次 `getEnvironmentVersion()` 才能看到它。后续版本走 `createEnvironmentVersion(environmentId, config)`，它会把你的 config 包成 `{ resource: { config } }`；这个请求体没有对着线上部署实测过。
+第一个版本在 create 的响应里以 `EnvironmentRecord.version` 内联返回，所以不需要再补一次 `getEnvironmentVersion()` 才能看到它。后续版本走 `createEnvironmentVersion(environmentId, config)`，它会把你的 config 包成 `{ resource: { config } }`。
 
 这两个调用都给一个稳定的 `Idempotency-Key`。版本根本没有删除接口，而 `archiveEnvironment()` 归档的是整个 Environment——第一个版本删不掉。
 
-### 没有 wrapper 的路由
+### 直接调用的 HTTP endpoints
 
-有四个操作没有对应的客户端方法。对同一个 base URL、用同一个 bearer 发普通 `fetch`：
+以下四个操作使用同一 base URL 和 bearer，通过普通 `fetch` 调用：
 
 | 操作 | 请求 |
 |---|---|
@@ -203,10 +197,10 @@ while (Date.now() < deadline && !cancel.signal.aborted) {
 if (v?.status !== 'ready') throw new Error('Build wait cancelled or timed out; inspect class status')
 ```
 
-::: warning 源码已核对，未实测
+::: warning 构建状态
 版本状态包括 `queued`、`submitting`、`building`、`verifying`、`partial_ready`、`ready`、`failed`。`partial_ready` 表示部分规格就绪，其他规格可能仍在构建，也可能已经失败；它既可能是过渡状态，也可能是部分成功的终态。
 
-示例采用保守策略：等待全部规格 `ready`，以整体截止时间、单次请求超时和取消信号限制等待。查询单个 `resourceClass` 用于诊断，不把它的成功当成整体成功；不要无限等待 `partial_ready`。需要支持该可选参数的 SDK，并单独核验目标部署。
+示例采用保守策略：等待全部规格 `ready`，以整体截止时间、单次请求超时和取消信号限制等待。查询单个 `resourceClass` 用于诊断，不把它的成功当成整体成功；不要无限等待 `partial_ready`。
 :::
 
 Environment 自己的 `status` 是 `active` 或 `archived`，那是生命周期，不是构建进度。`failure_stage` 与 `failure_message` 用于解释版本失败。
@@ -217,4 +211,3 @@ Environment 这一行带着两个版本号，它们不是同一个号。`latest_
 
 - [Agents](./agents.md)——完整的 agent 资源和 `config_version` 语义。
 - [工具](./tools.md)——在这个 Environment 构建出的沙箱里，agent 能做什么。
-- [能力矩阵](../reference/capabilities.md)——整套 API 的验证状态。

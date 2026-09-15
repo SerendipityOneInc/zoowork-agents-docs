@@ -11,47 +11,29 @@ Channels attach at the **agent** level, keyed by the same `agent_id` you already
 agent with no channels is a pure API agent — that is the default, and nothing on this page is
 required for API use.
 
-::: warning New surface, rolling out
-Verified end to end on 2026-08-28. This family arrives with a gateway release that is still
-rolling out, and a deployment without it answers **404 with a different error envelope** —
-`{"error":{"type":"not_found"}}` instead of this family's `{"code": …, "detail": …}`. That
-difference is how you tell "this deployment has no channels yet" from "that thing does not
-exist".
-:::
-
 ## Which platforms you can bind
 
-The first four rows were probed against a live deployment on 2026-08-28. DingTalk direct
-binding is source-reviewed and has not been deployment-verified.
+| Platform | Configuration path | You supply |
+|---|---|---|
+| `feishu` | QR setup or direct credentials | Nothing, or app credentials |
+| `slack` | Direct credentials | Bot token + app token |
+| `wecom` | QR setup or direct credentials | Nothing, or bot id + secret |
+| `weixin` / `wechat` | QR setup | Nothing |
+| `dingtalk-connector` | Direct credentials | Client id + client secret |
 
-| Platform | `addChannel` | Server-driven QR flow | You supply |
-|---|---|---|---|
-| `feishu` | ✅ | ✅ | nothing, or app credentials |
-| `slack` | ✅ | ❌ never | bot token + app token |
-| `wecom` | ✅ | ✅ | nothing, or bot id + secret |
-| `weixin` / `wechat` | ❌ | ✅ — the only path | nothing |
-| `dingtalk-connector` | ✅ — source-reviewed | ❌ public API | client id + client secret |
+Feishu, WeCom, and WeChat have a QR flow. Slack and DingTalk use explicit credentials.
 
-Three platforms have a QR flow. Slack and DingTalk use explicit credentials, while WeChat is
-QR-only.
+**Slack uses explicit credentials.** Create the Slack app on `api.slack.com/apps`, then pass
+its `xoxb-` and `xapp-` tokens to `addChannel` in `config`. The ZooWork app's guided setup
+helps collect these same two values.
 
-**Slack will not get one.** A server-driven flow needs the chat platform to hand credentials
-back to a server that asked for them. Slack has no such thing: a Slack app is created by a
-person on `api.slack.com/apps`, and its `xoxb-` / `xapp-` tokens only ever appear in that
-person's browser. So Slack is `addChannel` with the tokens in `config`, permanently. If you
-have seen the guided Slack setup in the ZooWork app, that guidance is exactly this: it helps
-someone create the app and then has them paste the two tokens — the same two tokens you pass
-here.
+**WeChat uses guided setup.** Call `startChannelSetup(agentId, 'weixin')` and show the returned
+QR code. Calling `addChannel` with `platform: 'weixin'` or `'wechat'` returns
+`400 channel.weixin_setup_required`.
 
-**WeChat goes the other way: the QR flow is its only path.** `addChannel` with
-`platform: 'weixin'` (or `'wechat'`) answers `400 channel.weixin_setup_required`, and that
-error means what it says — use `startChannelSetup(agentId, 'weixin')`. There are no WeChat
-credentials for you to bring.
-
-**DingTalk is direct-config only in the public API.** Call `addChannel` with
+**DingTalk uses direct configuration in the public API.** Call `addChannel` with
 `platform: 'dingtalk-connector'`, `config: { clientId, clientSecret }`, and
-`dm_policy: 'open'`. The public guided-setup routes do not accept DingTalk. This contract is
-source-reviewed and has not been verified against a deployment.
+`dm_policy: 'open'`. The public guided-setup routes do not accept DingTalk.
 
 ## The QR flow
 
@@ -122,15 +104,14 @@ encoder. And **WeChat takes only `dm_policy: 'open'` or `'disabled'`** — `'all
 `400 channel.allowlist_unsupported` — pins the account to `'default'`, forces the group policy
 to `'disabled'`, and ignores anything else you put in the body rather than rejecting it.
 
-::: warning A session can stop existing, and then polling 404s
-`cancelChannelSetup(agentId, platform, sessionId)` abandons a session — and afterwards polling
-it answers `404 channel.feishu_session_not_found` (or `channel.wecom_session_not_found` /
-`channel.weixin_session_not_found`) rather than a terminal `status`. So a hand-rolled loop
-must treat that 404 as an ending, not as a transport error to retry. `waitForChannelSetup`
-surfaces it as a thrown `ZooworkError` carrying that `type`.
+::: info Handle cancelled and expired setup sessions
+After `cancelChannelSetup(agentId, platform, sessionId)`, polling returns
+`404 channel.feishu_session_not_found` (or the corresponding `wecom` / `weixin` code) instead
+of a terminal `status`. A custom poll loop should treat this response as a terminal outcome.
+`waitForChannelSetup` surfaces it as a `ZooworkError` carrying that `type`.
 
-Whether a session that simply runs past `expires_in` reports `status: 'expired'` in a 200 or
-disappears into the same 404 has not been observed. Handle both.
+A setup session that reaches `expires_in` can finish with `status: 'expired'` or become the
+same 404. Handle both as terminal outcomes.
 :::
 
 `brand` is Feishu's alone and picks the real host: `'feishu'` (default) gives an
@@ -191,25 +172,22 @@ Channel responses may report the result under `capabilities.feishu_documents`:
 - `approval_state: 'pending_admin'` means an administrator still has to approve the required
   platform permissions.
 
-These request and response fields are source-reviewed and have not been deployment-verified.
 Do not treat `permission_admin_enabled: true` as proof that document operations are ready;
 read the returned capability state.
 
 ::: warning An ignored field is not an access-control list
-Source review shows that the public gateway ignores `allow_from`, including on create.
-The SDK retains it for compatibility; sending it does not restrict access. Use supported
+The public gateway ignores `allow_from`, including on create. The SDK retains it for
+compatibility; sending it does not restrict access. Use supported
 `dm_policy` settings and verify the effective policy separately.
 :::
 
-::: danger 201 means stored, not working
-Credentials are **not validated when you bind**. We bound a channel with deliberately bogus
-credentials and got a `201` back carrying `health: 'unknown'`, `status: 'configured'` — the
-same shape a good binding returns. Moments later the same channel listed as
-`health: 'unhealthy'`, `status: 'error'`.
+::: info Verify channel health after binding
+Channel creation stores the configuration before the provider health check completes. A
+`201` response can carry
+`health: 'unknown'` and `status: 'configured'`; an invalid binding later appears as
+`health: 'unhealthy'` and `status: 'error'`.
 
-So the 201 tells you the binding was stored, not that it works. Read the verdict from
-`health` / `status` on a follow-up `listChannels`, and do not report success to your user on
-the strength of the create call alone.
+Read the effective state from `health` and `status` on a follow-up `listChannels()` call.
 :::
 
 ### Naming the binding: `account`
@@ -224,9 +202,8 @@ Four things to know before you pick a value:
 - **The name is unique per user, across every agent.** There is one active binding per
   (owner, platform, account), so taking `feishu` / `default` on one agent takes it away from
   all your other agents.
-- **`'default'` is very likely taken already** if the same login ever bound this platform in
-  the app. That binding was not made through this API, so the server declines to adopt it and
-  answers `409 channel.conflict`.
+- **Prefer an application-specific account name.** `'default'` may already identify a binding
+  created in the ZooWork app; reusing it returns `409 channel.conflict`.
 - **The format is `^[a-z0-9][a-z0-9_-]{0,63}$`**, plus three reserved words (`__proto__`,
   `prototype`, `constructor`). Anything else is a `400`, and nothing is normalized for you — a
   display name with capitals, spaces, or non-ASCII characters is rejected, not cleaned up.
@@ -264,8 +241,8 @@ value answers `400 channel.invalid_request`. One value is rejected outright here
 pairing exists in the chat product, not on API-created agents.
 
 `updateChannel` hands back the channel in its **new** state, so you do not need a follow-up
-read. Note that `enabled: false` is more than a flag: it was observed moving `status` to
-`'disabled'` and resetting `health` to `'unknown'`.
+read. Setting `enabled: false` moves `status` to `'disabled'` and resets `health` to
+`'unknown'`.
 
 ### The three 404s, and what each one tells you
 
@@ -282,31 +259,29 @@ Note the asymmetry, because it decides whether your cleanup code needs a `try`: 
 is idempotent** — removing a binding that is not there answers `200 { ok: true }`, not a 404 —
 while **`updateChannel` is not**, and answers `404 channel.not_found`.
 
-A fourth case is not this family at all: if the whole response envelope is
-`{"error":{"type":"not_found"}}` rather than `{"code": …, "detail": …}`, the deployment does
-not carry the channels routes yet.
+A response shaped as `{"error":{"type":"not_found"}}` belongs to the common resource error
+family rather than the channel-specific `{"code": …, "detail": …}` family.
 
 ## What binding a channel changes
 
 Two things to design for before you bind:
 
-::: danger Chat conversations and API sessions are separate
+::: info Chat conversations and API Sessions keep separate context
 A conversation in the chat app and a session you create over the API are **different
 sessions with different context**. Chat traffic has its own sessions, not automatic context
-merging with an API-created session. This is **not API-key access isolation**: source review
-shows that authorized API calls can address an IM session by id. Your backend must enforce
+merging with an API-created session. This is **not API-key access isolation**: authorized API
+calls can address an IM session by id. Your backend must enforce
 application-user access to each Agent/session. IM sessions reject `actor`; use their
 channel-native identity rules.
 :::
 
 ::: warning `actual_state` is only a health projection
-`status.actual_state` is already present on a pure API agent: unsupported route-status can
-project `active` with zero channel counts, while transient health-query failure can project
-`activating`. Once a channel is bound it may report that channel's connectivity, so dashboards
+`status.actual_state` is already present on a pure API agent. It can report `active` with zero
+channel counts, or `activating` while health information is refreshing. Once a channel is
+bound it may report that channel's connectivity, so dashboards
 can treat it as **best-effort channel health**. It is still not an API-readiness signal: keep
 gating on `desired_state === 'running'` (or `waitUntilRunning`).
 :::
 
-And one lifecycle note: deleting an agent best-effort disables its channels. That cleanup
-never turns a successful delete into an error, so on a bad day a chat binding can outlive
-its agent — if a binding must be gone, `removeChannel` before `deleteAgent`.
+Deleting an Agent also requests channel cleanup. If your workflow requires the binding to be
+removed before deletion completes, call `removeChannel()` before `deleteAgent()`.

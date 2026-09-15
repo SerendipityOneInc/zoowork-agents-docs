@@ -2,7 +2,7 @@
 title: Agent 轨迹
 description: 了解托管执行如何形成 Agent 轨迹、outcome 如何标注轨迹，以及两者如何支持评估和后训练。
 source: /en/get-started/trajectories
-source_hash: 9e943d19cb58635e4aff2e3a75d66bd2d3526401e2b82e41ba093441cf9b29fc
+source_hash: 8e235029fc632ddfe8fb3fb16fd454d6597d1ab0a2f498d52817897a46f27741
 ---
 
 # Agent 轨迹
@@ -68,10 +68,8 @@ Trace 用于检查执行如何运作；轨迹用于把这次行为作为一条�
 
 请将你自己的任务标识、产出引用和 outcome 与这些记录一起保存。
 
-::: warning 当前 API 边界
-Managed Agents 记录这个闭环的运行时一侧。公共 API 当前不提供 trajectory export 资源、Session 级 outcome 定义
-或后训练任务端点。你的应用负责 outcome 标签、训练数据集和下游训练流程。
-详见[不支持的能力](../reference/not-supported.md#outcome-definitions-on-interactive-sessions)。
+::: info 在应用中保存 Outcome
+Managed Agents 记录这个闭环的运行时部分。请在应用中把 outcome 标签和数据集归属与 Agent、Session id 一起保存，再把整理后的数据交给训练流程。
 :::
 
 ## Outcome 让轨迹变成学习数据
@@ -124,7 +122,7 @@ Managed Agents API 不会在一个对象中提供所有字段。请将应用自�
 - [架构](./architecture.md)：了解托管运行时、模型、工具与沙箱如何协作。
 - [Sessions](../build/sessions.md)：创建并继续承载 Agent 工作的对话。
 - [事件与流式](../build/events.md)：读取有序执行记录，并在断线后续传。
-- [能力矩阵](../reference/capabilities.md)：检查哪些运行时能力已经验证。
+- [Agents](../build/agents.md)：配置产生每条 trajectory 的 Agent。
 
 ## 检查你的理解
 

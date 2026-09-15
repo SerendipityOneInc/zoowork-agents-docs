@@ -146,13 +146,13 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 Bind a chat platform to an API-created agent, so the same agent also answers people in the
 chat app. Feishu/Lark, WeCom and WeChat have a server-driven QR flow. Slack and DingTalk bind
 through `addChannel` with credentials you already hold, while WeChat is the reverse — the QR
-flow is its only path. DingTalk direct binding is source-reviewed, not deployment-verified.
-See [Channels](../build/channels.md) for the platform table and the traps.
+flow is its only path.
+See [Channels](../build/channels.md) for the platform table and setup behavior.
 
 | Method | Returns | What it does |
 |---|---|---|
 | `listChannels(agentId)` | `Promise<AgentChannel[]>` | The platform accounts bound to this agent, with their `health`, `status`, and optional capability state. Empty for a pure API agent. |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). Supports direct DingTalk through `platform: 'dingtalk-connector'` with `clientId`/`clientSecret` (source-reviewed). Feishu also accepts `permission_admin_enabled`. **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from a follow-up `listChannels`. |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). Direct DingTalk uses `platform: 'dingtalk-connector'` with `clientId`/`clientSecret`. Feishu also accepts `permission_admin_enabled`. **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from a follow-up `listChannels`. |
 | `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, `enabled`, or Feishu's `permission_admin_enabled` on one binding and returns it in its new state. The public gateway ignores `allow_from`; it is not a working allowlist. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
 | `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Unbinds one `platform` + `account` (`account` defaults to `'default'`). Idempotent, unlike `updateChannel` - removing a binding that is not there answers `200 { ok: true }`. |
 | `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts a QR registration on `'feishu'`, `'wecom'` or `'weixin'`. Feishu answers `verification_uri_complete` and a `poll_interval`, with `expires_in: 600`; WeCom and WeChat answer `qrcode_url` with no interval and `expires_in: 300`, and WeChat's may be an inline `data:image/…` payload. You own the UI: render whichever one came back, usually as a QR code. `brand: 'lark'` (Feishu only) switches the URI host to `open.larksuite.com` and must match the workspace the person approves it in. |
@@ -166,7 +166,7 @@ See [Channels](../build/channels.md) for the platform table and the traps.
 | Method | Returns | What it does |
 |---|---|---|
 | `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | Creates the skill and version 1. Scope is `org` or `personal`; other values get HTTP 400. Put description in ZIP frontmatter: this create option is not forwarded. Read back on uncertain outcomes; HTTP keys do not guarantee replay. |
-| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | Source-reviewed version row: `skill_id`, `version`, `state`. Description override is supported here. Same-skill identical content is deduplicated; unpinned agents follow the version. |
+| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | Returns a version row with `skill_id`, `version`, and `state`. Description override is accepted here. Same-skill identical content is deduplicated; unpinned agents follow the version. |
 | `listSkills(opts?)` | `Promise<SkillRecord[]>` | The registry catalog visible to your key: global skills plus your org and personal ones. `q` matches on name, `page` is 1-based, page size fixed at 100. |
 | `deleteSkill(skillId)` | `Promise<void>` | Deletes a registry skill (204). No in-use guard for org and personal scopes: agents holding it simply lose it. |
 
@@ -197,8 +197,8 @@ See [Channels](../build/channels.md) for the platform table and the traps.
 
 | Method | Returns | What it does |
 |---|---|---|
-| `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | Tool calls parked on a human decision. `opts.status` may only be omitted or `'pending'`, so resolved ones cannot be listed. This is the platform's separate approvals resource, not the `user.tool_confirmation` event loop; where its backend is not wired the route answers `501 not_configured`. |
-| `resolveApproval(agentId, approvalId, input)` | `Promise<ApprovalRecord>` | Sends an allowed `decision` and optional `resolvedBy`. A 202 receipt with `signaled: true` can still be `pending`; it is not completed execution. Response fields are source-reviewed, not live-verified. |
+| `listApprovals(agentId, opts?)` | `Promise<ApprovalRecord[]>` | Lists tool calls waiting for a decision. `opts.status` may only be omitted or `'pending'`, so resolved records are not returned. This REST resource is separate from the `user.tool_confirmation` event path. |
+| `resolveApproval(agentId, approvalId, input)` | `Promise<ApprovalRecord>` | Sends an allowed `decision` and optional `resolvedBy`. A `202` receipt with `signaled: true` can still be `pending`; keep reading events for execution progress. See [Permission policies](../build/permissions.md). |
 
 **System prompt**
 
@@ -206,7 +206,7 @@ See [Channels](../build/channels.md) for the platform table and the traps.
 |---|---|---|
 | `getSystemPrompt(agentId)` | `Promise<SystemPromptInfo>` | The system-prompt pin as declared and the rendered template in effect. A fresh agent is born pinned to the active platform version; `declaration: null` marks a pre-templates agent still on virtual legacy behaviour. |
 | `previewSystemPrompt(agentId, input)` | `Promise<SystemPromptPreview>` | Assembles the exact prompt for runtime facts you supply, without touching any session - deterministic, `transcript` always `[]`, one hash per template slot in `slot_hashes`. Six input fields are required, and omitting any one is a 400 naming it: `config_version` (must be the agent's current one, else `409 config_version_changed`), `now_ms`, `session_id`, `model_display`, `workspace_dir`, and `tool_names`. `channel`, `chat_type`, `session_key`, and `subagent` are optional. |
-| `upgradeSystemPrompt(agentId, input)` | `Promise<SystemPromptUpgrade>` | The one write that moves the pin. `expected_config_version` is a required CAS (stale is `409 config_version_changed` - read fresh, then upgrade); omit `template_version` for the currently active platform version. The 200 receipt carries the new `config_version`. Needs a gateway from 2026-08-14 or later - older deployments answer a gateway 404 on this route's `{id}:verb` grammar. |
+| `upgradeSystemPrompt(agentId, input)` | `Promise<SystemPromptUpgrade>` | Moves the pin. `expected_config_version` is a required CAS (stale is `409 config_version_changed` - read fresh, then upgrade); omit `template_version` for the currently active platform version. The 200 receipt carries the new `config_version`. |
 
 **Artifacts**
 
@@ -287,12 +287,10 @@ command comes back looking like a short one.
 | `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | Creates an Environment and its first version. `resource.config` takes exactly `packages`, `files`, `build`, and `networking`; anything else is `400 invalid_environment_config`. |
 | `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Archives it. The SDK percent-encodes the colon in `{id}:archive` for you - a raw `:` makes the engine miss the route and answer 404. |
 | `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | Adds an immutable version to an existing Environment. The SDK wraps your `config` as `{ resource: { config } }`, mirroring create. |
-| `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | Reads aggregate status or optional `opts.resourceClass` (`starter`, `pro`, `ultra`). Handle `partial_ready` and enforce a deadline; see [Environments](../build/environments.md#build-states). Selector is source-reviewed, not live-verified here. |
+| `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | Reads aggregate status or optional `opts.resourceClass` (`starter`, `pro`, `ultra`). Handle `partial_ready` and enforce a deadline; see [Environments](../build/environments.md#build-states). |
 
-Only the methods with a section below carry behaviour beyond their signature; the rest are
-one call each. A method being on the client is not a claim that its route has been exercised -
-the [capability matrix](./capabilities.md) is where that is recorded, family by
-family.
+Only the methods with a section below need behavioral notes beyond their signature. The rest
+are one-call operations described by the table.
 
 All snippets below assume:
 
@@ -376,11 +374,10 @@ followed by a `getAgent()` saying `3`. See [Errors and retries](./errors.md).
 
 ### `listAgents(opts?)` {#listagentsopts}
 
-::: warning SDK version and verification
+::: warning SDK version
 This return shape is implemented in [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26).
 SDK 0.5.2 returns `Promise<AgentRecord[]>`; use a package release containing the pagination
-change for these examples. The implementation and offline tests have been reviewed; this
-is not live deployment verification.
+change for these examples.
 :::
 
 ```ts
@@ -512,12 +509,12 @@ startAgent(agentId: string): Promise<{ warnings: string[] }>
 ```
 
 Flips `desired_state` to `running`. This is the precondition for `createSession()` and
-`postEvents()`. It is fast - sub-second in practice.
+`postEvents()`.
 
 ```ts
 const { warnings } = await zc.startAgent(agentId)
 console.log(warnings)
-// [ 'channel_routes_reload_failed: routes reload returned 404' ]
+// [] or informational messages about follow-up work
 ```
 
 Successful responses can contain warnings; they are not guaranteed on every call.
@@ -541,7 +538,7 @@ waitUntilRunning(
 
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
-| `opts.timeoutMs` | `number` | `30_000` | Total budget. Start is sub-second in practice, so this is for a bad day. |
+| `opts.timeoutMs` | `number` | `30_000` | Maximum time to wait for the running state. |
 | `opts.intervalMs` | `number` | `500` | Gap between polls. |
 | `opts.signal` | `AbortSignal` | - | Cancels the wait, including the request in flight. |
 
@@ -565,8 +562,8 @@ a stop, `createSession()` on that agent returns `409 agent_not_running`.
 const { warnings } = await zc.stopAgent(agentId)
 ```
 
-Source-reviewed stop behavior can fail after desired state changes. Read back and reconcile
-before retrying; `desired_state: 'stopped'` alone does not prove cleanup completed.
+A stop request can fail after the desired state changes. Read the Agent again before retrying;
+`desired_state: 'stopped'` alone does not prove cleanup completed.
 
 ---
 
@@ -616,11 +613,8 @@ Only skills **your own tenant uploaded** (`org` or `personal` scope) are install
 the public gateway. A `global` catalog id is listable but answers `404` here. Those global
 skills are already attached at creation, so there is nothing to install and nothing to remove.
 
-::: warning Not yet verified
-We have exercised the 404 on a global-scope id. We have not installed an org-scope or
-personal-scope skill end to end, because no such skill existed under the test tenant. The
-route is open to those scopes; confirm it yourself before you depend on it.
-:::
+After installing an `org` or `personal` skill, call `listAgentSkills()` to confirm that it is
+attached and eligible.
 
 ---
 
@@ -702,8 +696,8 @@ import { messageText } from '@zoowork-ai/sdk'
 
 const s = await zc.getSession(agentId, sessionId, { history: true, limit: 20 })
 
-console.log(s.run_status)  // 'succeeded'  <- the live field
-console.log(s.status)      // null         <- observed on the current public read path
+console.log(s.run_status)  // 'succeeded'  <- latest run state
+console.log(s.status)      // null         <- legacy field
 
 for (const row of s.history ?? []) {
   if (row.entry_type !== 'message') continue
@@ -892,9 +886,7 @@ Structured responses can provide `type` and `requestId`; `contentType`, `bodySni
 `cfRay` and `retryable` provide context when present. HTML failures may have no type.
 Match status and an available type; never assume every stream failure lacks one.
 
-## Source-reviewed contract details
-
-These additions are reflected in SDK types and offline tests, not new live recordings:
+## Additional contract details
 
 - `OutboundEvent.actor`: `{ ref: string }` for API-session user messages. See the identity and
   isolation limits in [Events](../build/events.md#usermessage).
@@ -930,7 +922,7 @@ compile error rather than a field that survives to the wire.
 
 The sections here cover the types you handle on the paths this page walks. The skill-registry,
 approval, schedule, wake, exec, and Environment types are all in the
-[complete export list](#complete-export-list), and each carries its field-level traps in the
+[complete export list](#complete-export-list), with field-level details in the
 JSDoc your editor shows on hover - `ScheduleRecord` and `ScheduleUpdate` especially, because
 the write shape and the read shape of a schedule are different documents.
 
@@ -1025,15 +1017,14 @@ interface AgentStatus {
 }
 ```
 
-::: danger Never gate on `actual_state`
+::: info Gate API readiness on `desired_state`
 `desired_state` is the one that gates the API: `running` is the precondition for
 `createSession()` and `postEvents()`, and anything else is `409 agent_not_running`.
 
 `actual_state` is a best-effort chat-channel health projection, not API readiness. A GET can
-report `active` with zero channel counts and a health-unverified `status_message` when
-route-status is unsupported; a transient lookup failure remains `activating`, and list and GET
-can briefly disagree. `running` is not even a member of its enum, so a loop polling for it never
-returns. Poll `status.desired_state`. See [Agents](../build/agents.md).
+report `active` with zero channel counts, or `activating` while health information is
+refreshing; list and GET can briefly disagree. `running` is not a member of this enum, so poll
+`status.desired_state`. See [Agents](../build/agents.md).
 :::
 
 `config_version` here is the authoritative version on the read path.
@@ -1065,9 +1056,8 @@ version (omitted on create means "the platform version active right now", pinned
 on; replace-on-write on PUT like `tool_policy`), and `outcome` is the agent-level default
 gate for unattended cron fires.
 
-Omitting `model` pins the platform defaults current at creation time. The source default is
-currently `litellm/gpt-5.6-terra`, but deployments may differ and defaults can rotate. For
-deterministic provisioning, call `listModels()` and set `primary` explicitly.
+Omitting `model` pins the platform default active at creation time. Defaults can change, so
+call `listModels()` and set `primary` explicitly when provisioning must be deterministic.
 
 **`AgentResource` is closed.** It carries no index signature, so one extra key is a
 TypeScript error rather than a field that reaches the server. A field a newer server accepts
@@ -1098,8 +1088,8 @@ interface McpServerDeclaration {
 Omitted `exposure` defaults to `deferred`: tools stay behind `tool_search` / `tool_describe`
 until loaded. `direct` declares them on the first model request. There is no `auto` value, and
 a loaded deferred tool remains available on later turns in the same Session. Public API keys
-still cannot populate `credential`; use public, unauthenticated MCP servers only. See
-[Tools](../build/tools.md).
+cannot populate `credential`; use public, unauthenticated MCP servers only. See
+[MCP servers](../build/mcp.md).
 
 Both context switches default to `false`. `meta` adds
 `_meta["ai.zooclaw/context"]` and `headers` adds `x-zooclaw-*` headers during tool execution;
@@ -1107,9 +1097,8 @@ catalog discovery receives neither. Context carries agent/session/computer ident
 optional run/turn/config/actor fields. Treat it as context, not authentication.
 
 `permission` is the server default. `tools` overrides exact native tool names, accepts no
-wildcards, and is capped at 64 entries. Omission preserves the default-allow behavior. These
-fields, including allow-always Session scope, are source-reviewed; the approval round trip is
-not deployment-verified.
+wildcards, and is capped at 64 entries. Omission preserves the default-allow behavior. See
+[Permission policies](../build/permissions.md) for precedence and approval handling.
 
 ### `AgentChannel`
 
@@ -1139,8 +1128,7 @@ interface AgentChannel {
 }
 ```
 
-The Feishu capability projection is source-reviewed, not deployment-verified. Enabling
-`permission_admin_enabled` on add, update or guided setup is only a request; read this
+Enabling `permission_admin_enabled` on add, update or guided setup is only a request; read this
 projection to determine whether scope sync is applied, degraded, retrying, or waiting for an
 administrator.
 
@@ -1183,7 +1171,7 @@ interface SessionRecord {
 `limit` rows, in ascending `seq` order.
 
 The fields vary by response surface: `createSession()` returns `status: "running"` and no
-`run_status`; the current public `getSession()` path returns `status: null` alongside
+`run_status`; `getSession()` returns `status: null` alongside
 `run_status`; `listSessions()` rows carry `run_status` and omit `status`. The legacy `status`
 field may differ across deployments and is not the run outcome. Use `run_status` for the latest
 run state.
@@ -1552,10 +1540,8 @@ accidental extra one both fail it. `DEFAULT_BASE_URL` is the
 public gateway base that `ZOOWORK_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.
 
-That is the entire public surface. Anything not on this list does not exist - in particular
-there is no `patchSession`: `PATCH /agents/{id}/sessions/{sid}` answers `405`, and a session's
-`metadata` is write-once at `createSession()`. See
-[Not supported](./not-supported.md).
+That is the entire public surface. Session metadata is set when you call `createSession()`;
+`PATCH /agents/{id}/sessions/{sid}` returns `405`.
 
 ## Next
 

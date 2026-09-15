@@ -24,8 +24,7 @@ the users must not share what lives **outside** the transcript:
   persistent `/workspace`. Files one session writes, another session reads. With one shared
   agent, that means files one *user* writes, another user's turn can read.
 - **Model-side memory.** API messages can select memory attribution with
-  `actor: { ref: 'customer-42' }`; omitting it uses the owner. This source-reviewed contract
-  needs deployment verification. It does not repartition old memory, erase session context,
+  `actor: { ref: 'customer-42' }`; omitting it uses the owner. This does not repartition old memory, erase session context,
   authorize users or isolate files. See [Events](./events.md#usermessage).
 
 There is no per-user sandbox inside a single agent, and no way to partition `/workspace` by
@@ -171,12 +170,10 @@ With the diff, active users converge on their next visit and dormant agents cost
 
 ## What to keep in mind
 
-- **`deleteSkill` has no in-use guard.** Deleting an org skill that the fleet still installs
-  means every agent silently loses it. Retire a skill from your desired list and let
-  reconciliation drop it (`deleteAgentSkill`) before deleting the registry entry.
-- **Only your own skills install.** `global` catalog entries list but answer 404 on
-  `putAgentSkill` — and they are already attached anyway. See
-  [the trap in Skills](./skills.md#the-trap-global-skills-are-listable-but-not-installable).
+- **Detach a skill before deleting it.** Retire an org skill from your desired list and let
+  reconciliation remove it (`deleteAgentSkill`) before deleting the registry entry.
+- **Provision custom skills only.** Global catalog skills are already attached and managed by
+  the platform. See [Global skills are attached automatically](./skills.md#global-skills-are-attached-automatically).
 - **Skill eligibility is per agent.** After installing, confirm `eligible: true` in
   `listAgentSkills` on a real agent rather than assuming the upload's success carries over.
 - **Per-turn context still belongs in the session.** The agent-per-user split covers identity
@@ -185,6 +182,6 @@ With the diff, active users converge on their next visit and dormant agents cost
 
 ## Related
 
-- [Skills](./skills.md) — upload rules, version-follow semantics, and the global-skill trap.
+- [Skills](./skills.md) — upload rules, version-follow semantics, and global catalog behavior.
 - [Agents](./agents.md) — `config_version`, start/stop, and `desired_state`.
 - [Sessions](./sessions.md) — the cheaper pattern when users only need separate conversations.

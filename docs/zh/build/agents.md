@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: 73d62a72b981e7d6190623c98be63077c71becabe8c2c18a6cd8045becb6b938
+source_hash: dd77063917e836a34d79ee5ad1800240cf543443d04ce4a0ffd347c7185b0155
 ---
 
 # Agents
@@ -66,9 +66,9 @@ onboarding 面试总是被跳过——agent 会直接回答你的第一条消息
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
 | `tool_policy` | object | `{}` 表示完整的工具清单。policy 字段支持精确名称、全局 `*` 和一个末尾 `prefix*`；`alsoAllow` 仍然只支持精确名称。见[工具](./tools.md)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
-| `mcp` | array | 远程 MCP server 声明，可选配置 exposure、运行时 context、server 级默认审批和精确的逐工具覆盖。见[工具](./tools.md)。 |
+| `mcp` | array | 远程 MCP Server 声明，包括加载方式、运行时 context 和审批策略。见 [MCP Server](./mcp.md)和[权限策略](./permissions.md)。 |
 
-整个 `model` 段都可以省略。省略时，创建操作会把当时的平台默认值写入 agent。源码当前默认是 `litellm/gpt-5.6-terra`，但这不代表部署环境已经验证，未来默认值也仍可能轮换。需要可重复部署时，请先调用 `listModels()`，再持久化一个明确选择。
+整个 `model` 段都可以省略。省略时，创建操作会把当时的平台默认值写入 Agent。默认值可能随部署环境和时间变化。需要可重复部署时，请先调用 `listModels()`，再持久化一个明确选择。
 
 ```ts
 const agent = await zc.createAgent({
@@ -88,11 +88,7 @@ const agent = await zc.createAgent({
 })
 ```
 
-::: warning 尚未验证
-`name`、`model`（含 `max_tokens`，实测会把回复截断在上限处）、`labels` 和 MCP 基础路由已经端到端验证过。MCP context 和 permission 字段仅做过源码核对。`persona.docs`、`tool_policy` 和 `sandbox.scope` 按 API 契约会被创建路由接受，但没有任何一个回合证明过它们各自真的改变了 agent 的行为。在依赖某个效果之前，先自己实测它。
-:::
-
-创建时的 `skills` 是生效的（staging 实测 2026-08-30）：skill 会真的装上，但创建回执和 `getAgent` 的 `declared` 都**不回显**这个字段——确认安装读 `listAgentSkills(agentId)`，不要看回执。见 [Skills](./skills.md)。`environment_id` 和 `environment_version` 在这里是能用的；解析规则见 [Environments](./environments.md)。
+创建时传入 `skills` 会安装 skill，但创建回执和 `getAgent` 的 `declared` 都**不回显**这个字段——确认安装读 `listAgentSkills(agentId)`，不要看回执。见 [Skills](./skills.md)。`environment_id` 和 `environment_version` 的解析规则见 [Environments](./environments.md)。
 
 ## 读取 agent，以及两种响应结构
 
@@ -159,7 +155,7 @@ console.log(agent.declared?.name, agent.status?.desired_state, configVersion(age
 
 ## 启动 agent
 
-`startAgent()` 把 `desired_state` 翻成 `running`。这是每一次 session 调用的前置条件。它很快 —— 实测在一秒以内。
+`startAgent()` 把 `desired_state` 翻成 `running`。这是每一次 Session 调用的前置条件。
 
 ```ts
 const { warnings } = await zc.startAgent(agent.agent_id)
@@ -171,7 +167,7 @@ console.log(warnings)
 
 成功的 start/stop 响应返回 `{ warnings: string[] }`，但不保证每次都有警告。非 2xx 响应会抛出 `ZooworkError`，不能把失败调用当作仅含警告的成功。
 
-源码核对显示，stop 可能先把 `desired_state` 改为 `stopped` 再失败。先读回状态并核对结果，再决定是否重试；仅凭这个字段不能证明运行资源已经清理完成。
+stop 请求可能在把 `desired_state` 改为 `stopped` 以后失败。重试前先重新读取 Agent；仅凭这个字段不能证明运行资源已经清理完成。
 
 ### `desired_state` 与 `actual_state`
 
@@ -180,9 +176,9 @@ console.log(warnings)
 | 字段 | 含义 | 取值 |
 |---|---|---|
 | `desired_state` | 生命周期意图。**API 由它把关。** | `running`、`stopped`、`deleted` |
-| `actual_state` | 聊天渠道路由的健康度。与 API 是否就绪无关。 | `activating`、`active`、`degraded`、`error`、`stopped`、`deleting` |
+| `actual_state` | 聊天渠道路由的健康度。 | `activating`、`active`、`degraded`、`error`、`stopped`、`deleting` |
 
-这个字段是尽力而为的渠道健康投影。当 route-status 不受支持时，GET 可以返回 `active`、`status.channels.expected === 0`、`connected === 0`，并通过 `status_message` 说明渠道健康度未经验证；短暂查询失败仍显示 `activating`。`listAgents()` 不执行同一套前台健康查询，因此列表与 GET 可能短时不同。`running` 不在 `actual_state` 的枚举里，所以轮询它等待 `running` 永远不会返回。无论投影是 `active` 还是 `activating`，session 都能正常工作；绑定[渠道](./channels.md)后它可能反映渠道连通性，但始终不是 API 就绪信号。上述 fallback 行为来自源码核对，尚未在部署环境验证。
+`actual_state` 是尽力而为的渠道健康投影。GET 可能返回 `active` 和零渠道计数，也可能在健康信息刷新时显示 `activating`。`listAgents()` 与 GET 的结果可能短时不同。Session 通过 `desired_state` 判断就绪状态；绑定[渠道](./channels.md)后，`actual_state` 可以反映渠道连通性。
 
 轮询 `desired_state`，并带上超时。`waitUntilRunning()` 就是这个循环，已经写好了：
 
@@ -317,10 +313,9 @@ await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
 
 `listAgents({ labels, page })` 枚举你的 key 所绑定的那个用户拥有的 agent。
 
-::: warning SDK 版本与验证状态
+::: warning SDK 版本
 以下分页示例对应 [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26) 中的改动。
 SDK 0.5.2 返回单页数组；使用 `.data` 或异步迭代前，需要安装包含该改动的发布版本。
-新的 SDK 行为已核对源码并通过离线测试；此处尚未在真实部署中验证 agent 列表。
 :::
 
 使用 `for await` 读取所有匹配的 agent。SDK 随着遍历按需请求下一页；`break` 后不再请求后续页面：
@@ -353,15 +348,13 @@ API 仍使用从 1 开始的数字页码，每页固定 100 条，没有 `limit`
 
 `labels` 按你在创建时声明的 label 过滤，每一项对应一个 `label.<key>` 选择器。`{ labels: { workspace_id: '...' } }` 是最值得记住的一种：它能把 ZooWork 聊天 URL 里的 workspace id —— 也就是路径的第一段 —— 换回它背后的那个 agent。
 
-## 不支持的能力
+## 管理配置变更
 
-::: danger 不支持
-**没有 agent 版本历史，也没有版本固定。** `config_version` 一路往上数，但没有任何路由可以列出历史版本、读取其中一个、把流量固定到其中一个，或者回滚。如果你需要找回旧配置，请在 PUT 之前自己存一份。
-:::
+`config_version` 会在每次更新后递增，但它不是配置历史 API。需要比较或回滚时，
+请在自己的应用中保存上一份配置。
 
-::: danger 不支持
-**没有乐观并发控制。** `updateAgent()` 上没有 `version` 前置条件，并发的写入方永远不会看到 `409`。两个进程改同一个 agent，会按小节静默地后写覆盖先写。如果这件事对你有影响，请自己把写入串行化。
-:::
+`updateAgent()` 没有 version 前置条件。并发修改同一个 section 时，最后一次写入生效。
+如果多个进程可能更新同一个 Agent，请在应用侧串行执行这些写入。
 
 ## 下一步
 

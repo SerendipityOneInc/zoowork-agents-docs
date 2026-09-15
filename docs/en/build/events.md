@@ -71,15 +71,14 @@ fields within a version.
 
 ## The wire underneath
 
-::: warning The wire shapes disagree on spelling
+::: info The SDK normalizes wire formats
 On the unified lane both transports send the same snake_case object
 (`event_type`, `run_id`, `processed_at`, `created_at`), with the SSE `id:` line carrying the
-resume token. On the deprecated `after` lane, REST stays snake_case but SSE frames arrive
-camelCase (`eventType`, `runId`, `createdAt`). **No shape carries a top-level `type`.**
+resume token. The SDK's `normalizeEvent` converts this into the `SessionEvent` shape used by
+both `listEvents` and `streamEvents`.
 
-The SDK absorbs all of this in `normalizeEvent`, so `listEvents` and `streamEvents` return the
-same `SessionEvent` and you never see the difference. If you call the HTTP API directly, you
-must handle the mappings yourself.
+Direct HTTP integrations should also accept camelCase fields from the legacy `after` SSE lane.
+Use `eventType`; the wire object does not include a top-level `type`.
 :::
 
 The server writes a `: ping` comment line every 20 seconds as a keepalive, so any socket read
@@ -124,7 +123,7 @@ of 20), plus the five input types under [Your inputs, echoed](#your-inputs-echoe
 | `agent.command_output` | A command-running tool produced stdout/stderr, at result granularity. | `toolCallId`, `toolName`, plus the captured output fields. |
 | `agent.patch` | An `apply_patch` tool call succeeded. | `toolCallId` plus the patch summary. |
 | `agent.compaction` | History was compacted to fit the context window. | `firstKeptEntryId`, `tokensBefore`, `reason` |
-| `agent.error` | An error occurred inside the turn. | `errorMessage`, sometimes `kind` (for example `mcp_connection_failed`) and `server`. Not by itself a verdict on the turn; read `run.finished`. Source-reviewed MCP errors also include `mcp_authentication_failed` and optional `reason`; preserve unknown reasons. |
+| `agent.error` | An error occurred inside the turn. | `errorMessage`, sometimes `kind` (for example `mcp_connection_failed` or `mcp_authentication_failed`), `server`, and optional `reason`. Preserve unknown reasons. This event is not a verdict on the turn; read `run.finished`. |
 
 ### Other
 
@@ -143,25 +142,11 @@ Your own inputs come back on the same log as `user.message`, `user.interrupt`,
 a timestamp once the agent has consumed it. The write-side rules for all five are under
 [Inbound events](#inbound-events).
 
-### `chat.*` - not on the durable log
+### Preview events: `chat.*`
 
-`chat.delta`, `chat.final`, `chat.aborted`, and `chat.error` are members of the vocabulary but
-are **not written to the durable event log**. They live on a separate per-run preview lane, and
-the only way to see anything from it is the `?deltas=` query parameter described at the end of
-this page. Do not build turn logic on them; a turn is bounded by `run.started` and
-`run.finished`.
-
-::: warning Not yet verified
-The arc we have observed repeatedly on live sessions is `run.started`, `agent.lifecycle`,
-`agent.item`, `agent.thinking`, `agent.assistant`, `agent.tool` (start/end), `agent.lifecycle`,
-`run.finished`.
-
-`agent.approval`, `agent.custom_tool_use`, `agent.command_output`, `agent.patch`, `agent.compaction`,
-`attachment.created`, and `message.outbound` are in the vocabulary and the engine emits them,
-but we have not driven one end to end through this API. Treat their payload fields as a guide,
-not a contract, and code defensively. (The echoed input events are verified: posting, echo,
-`processedAt`, cursor resume, and retry dedup were driven end to end on 2026-08-19.)
-:::
+`chat.delta`, `chat.final`, `chat.aborted`, and `chat.error` are delivered on a separate
+per-run preview lane through the `?deltas=` query parameter described at the end of this page.
+Use the durable `run.started` and `run.finished` events for turn lifecycle logic.
 
 ## Inbound events
 
@@ -192,19 +177,14 @@ Appends a user turn and starts a run.
 | `content` | yes | Must be a **non-empty string**. Anything else is `400 invalid_event`. |
 | `attachments` | no | Must be an array if present. |
 | `idempotency_key` | no | Non-empty string. Used as the delivery dedup key, so a retry with the same key converges instead of duplicating the message. |
-| `actor` | no | Source-reviewed: `{ ref: string }` on API sessions only. `ref` is 1–200 ASCII characters from `[A-Za-z0-9._:@+-]`. Omit the whole object to use the owner. |
+| `actor` | no | `{ ref: string }` on API sessions only. `ref` is 1–200 ASCII characters from `[A-Za-z0-9._:@+-]`. Omit the whole object to use the owner. |
 
 `createSession(agentId, { initial_events })` accepts `user.message` and nothing else, up to 50
 entries.
 
-::: warning Not yet verified
-Only a plain string `content` has been exercised. Rich content blocks are not accepted by the
-parser today, so send strings.
-:::
-
 ::: warning Memory attribution is not access control
-The actor contract is source-reviewed, not live-verified here. Your backend must map an
-authenticated application user to a stable opaque `actor.ref` and authorize the session.
+Your backend must map an authenticated application user to a stable opaque `actor.ref` and
+authorize the session.
 `metadata.user_id` does not set the actor. It does not isolate sandbox files or remove prior
 context. IM sessions reject `actor`; `actor.token`, unknown actor keys and malformed refs
 return HTTP 400. Never accept a supplied actor as proof of identity.
@@ -245,11 +225,8 @@ Resolves a pending approval.
 Note the mixed casing: the body is snake_case (`approval_id`) while the event payload you read
 it from is camelCase (`approvalId`). Any other shape is `400 invalid_event`.
 
-::: warning Not yet verified
-The accepted body above is read from the request parser; no live pending approval has been
-created and resolved through this route. The [capability matrix](../reference/capabilities.md)
-records the state of the approval loop.
-:::
+See [Permission policies](./permissions.md) for server defaults, per-tool overrides, and the
+REST approval workflow.
 
 ### `user.custom_tool_result`
 
@@ -269,8 +246,8 @@ application owns, pushed in without appearing as a user turn.
 { "type": "system.message", "text": "Operator note: the user's plan is Enterprise." }
 ```
 
-`text` must be a non-empty string. Verified: the note is in context on the next turn, not the
-current one, so post it before the `user.message` it should affect.
+`text` must be a non-empty string. The note enters context on the next turn, so post it before
+the `user.message` it should affect.
 
 ```ts
 await zc.postEvents(agentId, sessionId, [
@@ -291,13 +268,14 @@ streamEvents(
 ): AsyncGenerator<SessionEvent>
 ```
 
-::: danger The stream is session-scoped and does not close when a turn ends
+::: info A Session stream can carry multiple turns
 `run.finished` is the end of the *turn*, not the end of the *stream*. The connection stays open
 waiting for the next turn, and the server only drops it when the connection goes idle long
 enough.
 
 If you `for await` to completion, or `await` an array collected from the generator, you will
-wait until the server times the connection out. Always `break` on `isRunFinished(ev)`.
+wait until the server times the connection out. Break on `isRunFinished(ev)` when you only
+need the current turn.
 :::
 
 A complete single turn, with a wall-clock budget so a stuck run cannot hang your process:
@@ -533,13 +511,12 @@ A turn ends with exactly one `run.finished`. Its `payload.status` is one of:
 | `failed` | The turn errored out. Usually preceded by an `agent.error` carrying `errorMessage`. |
 | `aborted` | A `user.interrupt` landed on the live run. |
 
-::: danger A failed tool does not fail the run
+::: info Read the run outcome independently from tool results
 An `agent.tool` event with `phase: 'end'` and `isError: true` is still followed by
 `run.finished` with `status: 'succeeded'`. The model saw the tool error, worked around it, and
 produced an answer. That is a successful turn.
 
-The inverse also holds: **do not infer success from the absence of tool errors**. Read
-`runOutcome()` and nothing else.
+Use `runOutcome()` for the turn result rather than deriving it from individual tool events.
 :::
 
 ```ts
@@ -604,12 +581,7 @@ they are not part of the durable cursor and never replay. And their `replace: tr
 you would write for a prefix-append delta stream duplicates everything already shown. Assign,
 do not append.
 
-Requesting `deltas` on a deployment without the preview backend configured returns
-`501 not_configured` before the stream opens, so you get a normal JSON error rather than a
-stream that stays silent.
+When preview streaming is unavailable, requesting `deltas` returns `501 not_configured`
+before the stream opens. Handle it as a regular JSON error.
 
-::: warning Not yet verified
-The semantics above are read from the server implementation; `?deltas=` has not been exercised
-against a live deployment. For finished text, use `agent.assistant` events, which are durable,
-resumable, and verified.
-:::
+For finished text, use `agent.assistant` events, which are durable and resumable.

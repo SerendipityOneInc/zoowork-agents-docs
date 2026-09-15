@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: fbd97a535fbe2b0bf5c23c7cc3f21b5cd450e2be4f5a1883adbfbd6eefe6321f
+source_hash: 94b36be3aa05e5ffd92a004dccb3b58fa856ca8096f75ccb8978b860e20cd3f4
 hero:
   text: 用 Agent 构建应用。运行交给 ZooWork。
   tagline: 让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
@@ -52,7 +52,7 @@ home:
         link: /zh/build/sessions
       - name: Event
         id: seq
-        body: 双向的基本单位。你写入四种类型，读回一份持久的、带序号的日志，
+        body: 双向的基本单位。你写入五种类型，读回一份持久的、带序号的日志，
           可以从你见过的最后一个 cursor 续传。
         linkText: 事件与流式
         link: /zh/build/events
@@ -75,32 +75,31 @@ home:
           - { text: 事件与流式, link: /zh/build/events, icon: pulse }
           - { text: Skills, link: /zh/build/skills, icon: skill }
           - { text: 工具, link: /zh/build/tools, icon: wrench }
+          - { text: MCP Server, link: /zh/build/mcp, icon: brackets }
+          - { text: 权限策略, link: /zh/build/permissions, icon: key }
           - { text: Environments, link: /zh/build/environments, icon: layers }
       - name: 交付给用户
         hint: 你的产品，他们各自的 agent
         chips:
           - { text: 每用户一个 agent, link: /zh/build/per-user-agents, icon: users, badge: NEW }
           - { text: 渠道, link: /zh/build/channels, icon: chat }
-      - name: 知道边界在哪
-        hint: 已验证、未测试、不存在
+      - name: 参考
+        hint: API 类型和运行行为
         chips:
-          - { text: 能力矩阵, link: /zh/reference/capabilities, icon: table }
-          - { text: 不支持的能力, link: /zh/reference/not-supported, icon: blocked }
           - { text: 错误处理, link: /zh/reference/errors, icon: alert }
           - { text: TypeScript SDK, link: /zh/reference/typescript-sdk, icon: brackets }
   band:
-    title: 这里的每一条断言，要么已验证，要么被标注。
-    body: 一项能力只有在真实部署上被实际跑通之后，才会被写成「可用」。其余的一律带明确标注；
-      而不存在的东西会有属于它自己的一页说明它不存在，并给出真正的替代方案。
+    title: Agent 配置一次，通过 Session 持续工作。
+    body: Agent 配置描述模型、指令、工具、Skills 和运行环境。Session 分别保存每次对话及其事件历史。
     columns:
-      - title: 能力矩阵
-        body: 已验证、未测试、缺失 —— 一张表，按面拆分。
-        linkText: 查看矩阵
-        link: /zh/reference/capabilities
-      - title: 不支持的能力
-        body: 自定义工具、webhook、文件上传 —— 逐条点名的缺失，每条都附上该怎么做。
-        linkText: 设计前先看这里
-        link: /zh/reference/not-supported
+      - title: 定义能力
+        body: 选择内置工具、连接 MCP Server，并挂载可复用的 Skills。
+        linkText: 配置工具
+        link: /zh/build/tools
+      - title: 运行并观察
+        body: 创建 Session、发送消息，再消费持久化事件流。
+        linkText: 创建 Session
+        link: /zh/build/sessions
 ---
 
 <ZcHome>
@@ -159,10 +158,9 @@ asyncio.run(main())
 通过[概览](./get-started/overview.md)了解 ZooWork 的工作方式，或跟随[快速开始](./get-started/quickstart.md)
 完成一个任务，包括结果检查与资源清理。
 
-**应用执行的 custom tools 已做源码核对，部署未验证**：声明 `resource.custom_tools`，处理
-`agent.custom_tool_use`，再通过任一 SDK 返回结果。session 级 outcome、vault、session 的
-`resources[]` 挂载和平台 webhook 仍然不存在。custom tools 见[工具](./build/tools.md)，其余边界见
-[不支持的能力](./reference/not-supported.md)。
+添加能力时，内置工具和应用执行的工具见[工具](./build/tools.md)，远程工具见
+[MCP Server](./build/mcp.md)，需要让 MCP 调用等待审批时见[权限策略](./build/permissions.md)。
+在产品中展示执行进度和结果，见[事件与流式](./build/events.md)。
 
 </template>
 </ZcHome>
