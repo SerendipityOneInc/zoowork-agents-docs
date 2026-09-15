@@ -51,7 +51,7 @@ home:
         link: /en/build/sessions
       - name: Event
         id: seq
-        body: The unit in both directions. You write four types and read back a durable,
+        body: The unit in both directions. You write five types and read back a durable,
           sequence-numbered log that resumes from the last cursor you saw.
         linkText: Events and streaming
         link: /en/build/events
@@ -74,33 +74,32 @@ home:
           - { text: Events and streaming, link: /en/build/events, icon: pulse }
           - { text: Skills, link: /en/build/skills, icon: skill }
           - { text: Tools, link: /en/build/tools, icon: wrench }
+          - { text: MCP servers, link: /en/build/mcp, icon: brackets }
+          - { text: Permission policies, link: /en/build/permissions, icon: key }
           - { text: Environments, link: /en/build/environments, icon: layers }
       - name: Ship to users
         hint: Your product, their agents
         chips:
           - { text: An agent per user, link: /en/build/per-user-agents, icon: users, badge: NEW }
           - { text: Channels, link: /en/build/channels, icon: chat }
-      - name: Know the edges
-        hint: Verified, untested, absent
+      - name: Reference
+        hint: API types and operational behavior
         chips:
-          - { text: Capability matrix, link: /en/reference/capabilities, icon: table }
-          - { text: Not supported, link: /en/reference/not-supported, icon: blocked }
           - { text: Errors, link: /en/reference/errors, icon: alert }
           - { text: TypeScript SDK, link: /en/reference/typescript-sdk, icon: brackets }
   band:
-    title: Every claim here is verified — or labelled.
-    body: A capability is documented as working only after it has been exercised against a
-      live deployment. Anything else carries an explicit note, and what does not exist gets a
-      page of its own that says so, with the real alternative.
+    title: Define the Agent once. Continue work through Sessions.
+    body: Agent configuration describes the model, instructions, tools, Skills, and runtime.
+      Sessions keep each conversation and its event history separate.
     columns:
-      - title: Capability matrix
-        body: Verified, untested and missing — one table, per surface.
-        linkText: Read the matrix
-        link: /en/reference/capabilities
-      - title: Not supported
-        body: Custom tools, webhooks, file uploads — named absences, each with what to do instead.
-        linkText: Check before designing
-        link: /en/reference/not-supported
+      - title: Define capabilities
+        body: Select built-in tools, connect MCP servers, and attach reusable Skills.
+        linkText: Configure tools
+        link: /en/build/tools
+      - title: Run and observe
+        body: Start a Session, send a message, and consume its durable event stream.
+        linkText: Create a Session
+        link: /en/build/sessions
 ---
 
 <ZcHome>
@@ -159,11 +158,10 @@ asyncio.run(main())
 Start with the [Overview](./get-started/overview.md) to learn how ZooWork works, or follow the
 [Quickstart](./get-started/quickstart.md) for a complete task, outcome checks, and cleanup.
 
-**Application-executed custom tools are source-reviewed, not deployment-verified**: declare
-`resource.custom_tools`, handle `agent.custom_tool_use`, and return a result through either SDK.
-Session-level outcome definitions, vaults, session `resources[]` mounts, and platform webhooks
-remain absent. Read [Tools](./build/tools.md) for custom tools and
-[Not supported](./reference/not-supported.md) for the remaining boundaries.
+When you add capabilities, use [Tools](./build/tools.md) for built-in and application-executed
+tools, [MCP servers](./build/mcp.md) for remote tools, and
+[Permission policies](./build/permissions.md) when an MCP call should wait for approval.
+Use [Events and streaming](./build/events.md) to present progress and completion in your product.
 
 </template>
 </ZcHome>

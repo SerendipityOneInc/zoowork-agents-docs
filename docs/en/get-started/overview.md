@@ -59,7 +59,9 @@ To see how that execution history becomes useful for evaluation and model improv
 ## Configure your agent
 
 - [Agents](../build/agents.md): configure instructions and model selection.
-- [Tools](../build/tools.md): control built-in tools and connect MCP servers.
+- [Tools](../build/tools.md): control built-in tools and add tools executed by your application.
+- [MCP servers](../build/mcp.md): connect tools hosted on remote servers.
+- [Permission policies](../build/permissions.md): choose which MCP calls require approval.
 - [Skills](../build/skills.md): add reusable task instructions and resources.
 - [Environments](../build/environments.md): customize sandbox dependencies and network rules.
 
@@ -73,4 +75,4 @@ follow [An agent per user](../build/per-user-agents.md).
 - [Agent trajectories](./trajectories.md): connect production execution to evaluation and post-training.
 - [TypeScript SDK](../reference/typescript-sdk.md): look up TypeScript client methods and options.
 - [Python SDK](https://github.com/SerendipityOneInc/zoowork-sdk-python): install the async Python client and read its package guide.
-- [Capability matrix](../reference/capabilities.md): check support and verification status.
+- [Errors](../reference/errors.md): handle API failures and safe retries.

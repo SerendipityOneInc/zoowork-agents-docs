@@ -1,7 +1,7 @@
 ---
 description: 了解 ZooWork Managed Agents 提供什么、适用于哪些任务，以及 Agent、Session 和 Event 如何协作。
 source: /en/get-started/overview
-source_hash: 5d51028825e4c59c5b913c88e76d2431abf388c6096a9ef52da8330638df77fe
+source_hash: 14e0417629a3abadf731b9ca79b04bf3124300218257f82ac281e2ccce050948
 ---
 
 # ZooWork Managed Agents 概览
@@ -34,7 +34,7 @@ ZooWork 负责模型与工具调用循环、对话历史、沙箱执行和事件
 
 例如，一个配置为编写报告的 Agent，可以在一个 Session 中处理销售报告。
 你的请求、它的工具执行过程和回复，都会作为 Event 出现在这个 Session 中。
-各资源的生命周期和线上结构见 [Agents](../build/agents.md)、[Sessions](../build/sessions.md)
+各资源的生命周期和响应结构见 [Agents](../build/agents.md)、[Sessions](../build/sessions.md)
 和[事件与流式](../build/events.md)。
 
 ## 工作流程
@@ -52,7 +52,9 @@ ZooWork 负责模型与工具调用循环、对话历史、沙箱执行和事件
 ## 配置 Agent
 
 - [Agents](../build/agents.md)：配置指令和模型选择。
-- [工具](../build/tools.md)：控制内置工具并连接 MCP 服务器。
+- [工具](../build/tools.md)：控制内置工具，并添加由你的应用执行的工具。
+- [MCP Server](../build/mcp.md)：连接托管在远程 Server 上的工具。
+- [权限策略](../build/permissions.md)：决定哪些 MCP 调用需要审批。
 - [Skills](../build/skills.md)：添加可复用的任务指令与资源。
 - [Environments](../build/environments.md)：定制沙箱依赖和网络规则。
 
@@ -66,4 +68,4 @@ ZooWork 负责模型与工具调用循环、对话历史、沙箱执行和事件
 - [Agent 轨迹](./trajectories.md)：把生产执行连接到评估和后训练。
 - [TypeScript SDK](../reference/typescript-sdk.md)：查阅 TypeScript client method 和选项。
 - [Python SDK](https://github.com/SerendipityOneInc/zoowork-sdk-python)：安装 async Python client，并查看 package guide。
-- [能力矩阵](../reference/capabilities.md)：确认支持范围与验证状态。
+- [错误处理](../reference/errors.md)：处理 API 错误和安全重试。

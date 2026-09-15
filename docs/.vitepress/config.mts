@@ -131,8 +131,8 @@ function checkHomePage(relativePath: string, frontmatter: Record<string, any>, s
   return problems
 }
 
-// Reference tables here are three and four columns of prose - the capability matrix, the
-// method lists, the event vocabulary - and on a phone they can only scroll sideways, which
+// Reference tables here are three and four columns of prose - method lists, configuration
+// fields, and the event vocabulary - and on a phone they can only scroll sideways, which
 // is how the page a reader is told to consult before choosing an architecture becomes the
 // least readable page on the site. The stylesheet turns those rows into stacked records
 // under 768px; a stacked cell loses its column unless it carries the header with it, so
@@ -207,10 +207,6 @@ function stackableTables(md: MarkdownRenderer): void {
 
 // The sidebar follows the path a developer takes: learn the product, define an
 // agent, configure its environment, run sessions, and integrate it into an app.
-// Capability and unsupported-feature inventories remain available through
-// contextual links and the complete AI index, but they are not primary UI
-// navigation: they are maintenance references, not steps in that path.
-//
 // The site is bilingual. English is the authored source: the SDK, its errors, and
 // every identifier in this documentation are English, so that is where a claim is
 // written first. Chinese pages are translations of a specific English revision and
@@ -233,14 +229,14 @@ interface PageSet {
   events: string
   channels: string
   tools: string
+  mcp: string
+  permissions: string
   skills: string
   perUserAgents: string
   environments: string
   reference: string
   sdk: string
   errors: string
-  capabilities: string
-  notSupported: string
 }
 
 const EN: PageSet = {
@@ -259,14 +255,14 @@ const EN: PageSet = {
   events: 'Events and streaming responses',
   channels: 'Connect chat channels',
   tools: 'Tools',
+  mcp: 'MCP servers',
+  permissions: 'Permission policies',
   skills: 'Skills',
   perUserAgents: 'An agent per user',
   environments: 'Environments',
   reference: 'Reference',
   sdk: 'TypeScript SDK',
   errors: 'Errors',
-  capabilities: 'Capability matrix',
-  notSupported: 'Not supported',
 }
 
 const ZH: PageSet = {
@@ -285,32 +281,21 @@ const ZH: PageSet = {
   events: '事件与流式响应',
   channels: '连接聊天渠道',
   tools: '工具',
+  mcp: 'MCP Server',
+  permissions: '权限策略',
   skills: 'Skills',
   perUserAgents: '每用户一个 Agent',
   environments: 'Environments',
   reference: '参考',
   sdk: 'TypeScript SDK',
   errors: '错误处理',
-  capabilities: '能力矩阵',
-  notSupported: '不支持的能力',
 }
 
-function sidebar(
-  t: PageSet,
-  base: string,
-  includeReferenceInventories = false,
-): DefaultTheme.SidebarItem[] {
+function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
   const referenceItems: DefaultTheme.SidebarItem[] = [
     { text: t.sdk, link: `${base}/reference/typescript-sdk` },
     { text: t.errors, link: `${base}/reference/errors` },
   ]
-
-  if (includeReferenceInventories) {
-    referenceItems.push(
-      { text: t.capabilities, link: `${base}/reference/capabilities` },
-      { text: t.notSupported, link: `${base}/reference/not-supported` },
-    )
-  }
 
   return [
     {
@@ -327,6 +312,8 @@ function sidebar(
       items: [
         { text: t.agents, link: `${base}/build/agents` },
         { text: t.tools, link: `${base}/build/tools` },
+        { text: t.mcp, link: `${base}/build/mcp` },
+        { text: t.permissions, link: `${base}/build/permissions` },
         { text: t.skills, link: `${base}/build/skills` },
       ],
     },
@@ -481,9 +468,8 @@ export default defineConfig({
   // emits the markdown BODY only, so llms.txt now takes its title and description from
   // `hero.text` / `hero.tagline`, and the index's own entry carries the canonical
   // introduction, abbreviated example, and links to the overview and full Quickstart.
-  // The longer orientation lives in get-started/overview. The complete AI inventory also
-  // includes the capability and unsupported-feature references that are intentionally absent
-  // from primary UI navigation. Keep `hero.text` and `hero.tagline` where they are —
+  // The longer orientation lives in get-started/overview. Keep `hero.text` and
+  // `hero.tagline` where they are —
   // renaming them silently falls back to the site description and drops the tagline line.
   // The root docs/index.md stays out — it is only a redirect stub.
   vite: {
@@ -492,7 +478,7 @@ export default defineConfig({
         workDir: 'en',
         excludeIndexPage: false,
         // AI pages are emitted relative to workDir, without the HTML locale prefix.
-        sidebar: sidebar(EN, '', true),
+        sidebar: sidebar(EN, ''),
       }),
     ],
   },

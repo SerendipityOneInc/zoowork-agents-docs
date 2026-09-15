@@ -48,7 +48,7 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 const agentId = process.env.AGENT_ID!
 ```
 
-::: warning Source-reviewed fields, not an end-to-end approval test
+::: info Approval counters and actor attribution
 `run_status` can be null when there is no latest run. `pending_approvals` and
 `pending_custom_tool_calls` are optional numbers, not lists; use `listApprovals` and
 `listCustomToolCalls` for records. A resolve receipt with 202/`signaled` can remain pending
@@ -68,11 +68,10 @@ See [Events](./events.md) for validation rules.
 409  error.type = "agent_not_running"
 ```
 
-A newly created agent comes back stopped, so you have to call `startAgent` yourself. Gate on
-`status.desired_state === 'running'`; `status.actual_state` reports chat-channel connectivity,
-not API readiness. It can be `active` when route-status is unsupported or `activating` after a
-transient health-query failure; it never becomes `running`, so polling it for readiness never
-returns.
+A newly created Agent is stopped, so call `startAgent` before creating a Session. Use
+`status.desired_state === 'running'` for API readiness. `status.actual_state` reports
+chat-channel health and can be `active` with no channels or `activating` while health
+information is refreshing.
 
 ```ts
 const agent = await zc.getAgent(agentId)
@@ -100,7 +99,7 @@ Creating with `initial_events` starts the first turn immediately - there is no s
 
 **`initial_events` accepts only `user.message`.** No other event type is valid there; post
 everything else with `postEvents` after the session exists. The API accepts at most 50
-initial events. `content` is verified as a plain string.
+initial events. `content` must be a non-empty string.
 
 `metadata` is an arbitrary JSON object stored with the session and echoed back by
 `getSession`. It is yours to use for correlation - a tenant id, a request id, the name of
@@ -169,7 +168,7 @@ application-executed custom tool result; see [Tools](./tools.md#application-exec
 const s = await zc.getSession(agentId, session.session_id)
 ```
 
-Observed response:
+Example response:
 
 ```json
 {
@@ -178,7 +177,7 @@ Observed response:
   "channel": "api",
   "run_status": "succeeded",
   "updated_at": "2026-01-01T00:00:00.000Z",
-  "metadata": { "source": "sdk-capability-probe" },
+  "metadata": { "source": "docs-example" },
   "archived": false,
   "status": null,
   "pending_approvals": 0
@@ -194,14 +193,12 @@ Observed response:
 | `updated_at` | ISO timestamp of the last change. |
 | `metadata` | Exactly what you passed to `createSession`. |
 | `archived` | Boolean. |
-| `pending_approvals` | Count of tool calls waiting on an approval. Expect `0` - the approval loop is not verified. |
-| `status` | A legacy Session field, observed as `null` on the current public `getSession()` path. See below. |
+| `pending_approvals` | Count of tool calls waiting on approval. Read the records with `listApprovals()`. |
+| `status` | A legacy Session field; the current `getSession()` path returns `null`. See below. |
 
-::: danger Do not use `status` as the run state
-The current public `getSession()` path returns `status: null`, including for sessions whose
-last run finished successfully. This legacy Session field is not the run state and may differ
-across deployments. Do not poll or branch on it. The live field is `run_status` (observed value:
-`"succeeded"`).
+::: info Read run state from `run_status`
+`status` is a legacy Session field and may be `null`. Use `run_status` to read or poll the
+state of the most recent run.
 :::
 
 Responses may carry additional fields beyond those listed. Ignore what you do not recognize
@@ -230,7 +227,7 @@ array and the plain-string form.
 `limit` is the number of most recent rows to return, default 100, maximum 500. Rows come back
 in ascending `seq` order.
 
-An observed assistant row:
+Example assistant row:
 
 ```json
 {
@@ -312,19 +309,17 @@ engine-only lane: no user inputs, no pagination flags. Keep it for old stored cu
 stream use each streamed event's `cursor` token (`streamEvents({ cursor })`). `types` filters
 server-side and composes with `cursor` and `limit`.
 
-## Not in the SDK
+## Store Session metadata
 
-::: danger Not supported
-`ZooworkClient` has no `patchSession`, and `PATCH` on a session answers `405`, which makes a
-session's `metadata` write-once, at `createSession`.
+A Session's `metadata` is written when you call `createSession()`. The SDK has no
+`patchSession`, and `PATCH` on a Session returns `405`.
 
 Keep your own record of the `session_id` values you create - store them alongside whatever
 they belong to in your application - and put anything you need to search on into `metadata`
 at create time, because you cannot add it later.
-:::
 
-There is also no top-level session resource, so there is no way to list sessions across
-agents. See [Not supported](../reference/not-supported.md) for the full boundary.
+Session listing is scoped to one Agent. Store Agent ids in your application when you need to
+find Sessions across several Agents.
 
 Per-agent listing has two compatible lanes. `listSessions(agentId, { page })` keeps the old
 numeric page: 50 rows, newest by `updated_at`, with `page` starting at 1. Python calls the same

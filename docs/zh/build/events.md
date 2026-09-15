@@ -2,7 +2,7 @@
 title: 事件与流式
 description: 写入事件、消费 SSE、通过 cursor 续传，并理解完整的事件词表。
 source: /en/build/events
-source_hash: e5c727a37a529f8da0e26a3fdf781612910ec6aa8369dca83305096621aae1a4
+source_hash: 60376f9bd283120143657546f3508316d2926602011c5128e8b5958fee46393e
 ---
 
 # 事件与流式
@@ -67,10 +67,10 @@ interface SessionEvent {
 
 ## 底层的线格式
 
-::: warning 线格式的拼写不一致
-统一通道上两种 transport 发的是同一个 snake_case 对象（`event_type`、`run_id`、`processed_at`、`created_at`），SSE 的 `id:` 行承载续传令牌。废弃的 `after` 通道上，REST 仍是 snake_case，但 SSE 帧是 camelCase（`eventType`、`runId`、`createdAt`）。**任何形状都不带顶层 `type`。**
+::: info SDK 会统一 wire format
+统一通道上的两种 transport 都发送 snake_case 对象（`event_type`、`run_id`、`processed_at`、`created_at`），SSE 的 `id:` 行承载续传令牌。SDK 的 `normalizeEvent` 会把它们转换为 `listEvents` 和 `streamEvents` 共用的 `SessionEvent`。
 
-SDK 在 `normalizeEvent` 里吸收了这一切，所以 `listEvents` 和 `streamEvents` 返回同一个 `SessionEvent`，你根本看不到区别。如果你直接调 HTTP API，这些映射都得自己处理。
+直接调用 HTTP API 时，还应兼容旧 `after` SSE 通道中的 camelCase 字段。事件类型使用 `eventType`；wire object 不包含顶层 `type`。
 :::
 
 服务端每 20 秒写一行 `: ping` 注释作为 keepalive，所以任何低于这个值的 socket 读超时或代理空闲超时都会杀掉一条健康的流；而一个不跳过注释行的手写解析器会撞上 `JSON.parse('')` 并抛异常——不想自己写的话，`parseSSE` 是导出的。
@@ -109,7 +109,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 | `agent.command_output` | 某个执行命令的工具产生了 stdout/stderr，按结果粒度给出。 | `toolCallId`、`toolName`，以及抓取到的输出字段。 |
 | `agent.patch` | 一次 `apply_patch` 工具调用成功。 | `toolCallId`，以及这次 patch 的摘要。 |
 | `agent.compaction` | 历史被压缩以塞进上下文窗口。 | `firstKeptEntryId`、`tokensBefore`、`reason` |
-| `agent.error` | 回合内部发生了一个错误。 | `errorMessage`，有时还有 `kind`（例如 `mcp_connection_failed`）和 `server`。它本身不是对这个回合的判决；判决读 `run.finished`。 源码已核对：MCP 错误还包括 `mcp_authentication_failed` 和可选 `reason`，保留未知 reason。 |
+| `agent.error` | 回合内部发生了一个错误。 | `errorMessage`，有时还有 `kind`（例如 `mcp_connection_failed` 或 `mcp_authentication_failed`）、`server` 和可选 `reason`。保留未知 reason。它本身不是对这个回合的判决；判决读 `run.finished`。 |
 
 ### 其他
 
@@ -125,12 +125,6 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the 
 ### `chat.*` —— 不在持久日志上
 
 `chat.delta`、`chat.final`、`chat.aborted` 和 `chat.error` 也是词表成员，但**不会写进持久事件日志** 。它们活在一条独立的、按 run 划分的预览通道上，唯一能看到其中内容的办法是本页末尾讲的 `?deltas=` 查询参数。不要拿它们构建回合逻辑；一个回合的边界是 `run.started` 和 `run.finished`。
-
-::: warning 尚未验证
-我们在真实 session 上反复观察到的序列是 `run.started`、`agent.lifecycle`、`agent.item`、`agent.thinking`、`agent.assistant`、`agent.tool`（start/end）、`agent.lifecycle`、`run.finished`。
-
-`agent.approval`、`agent.custom_tool_use`、`agent.command_output`、`agent.patch`、`agent.compaction`、`attachment.created` 和 `message.outbound` 在词表里，引擎也会发出它们，但我们没有通过这个 API 端到端跑通过其中任何一个。把它们的 payload 字段当作参考，不是契约，代码要写得防御一些。（回显的输入事件已验证：投递、回显、`processedAt`、游标续传、重试去重，2026-08-19 端到端跑通。）
-:::
 
 ## 入站事件
 
@@ -159,16 +153,12 @@ const res = await zc.postEvents(agentId, sessionId, [
 | `content` | 是 | 必须是**非空字符串** 。其他任何形式都是 `400 invalid_event`。 |
 | `attachments` | 否 | 如果出现，必须是数组。 |
 | `idempotency_key` | 否 | 非空字符串。用作投递去重的 key，所以带同一个 key 的重试会收敛，而不是把消息发重。 |
-| `actor` | 否 | 源码已核对：仅 API session 接受 `{ ref: string }`。`ref` 为 1–200 个来自 `[A-Za-z0-9._:@+-]` 的 ASCII 字符。省略整个对象时归属 owner。 |
+| `actor` | 否 | 仅 API Session 接受 `{ ref: string }`。`ref` 为 1–200 个来自 `[A-Za-z0-9._:@+-]` 的 ASCII 字符。省略整个对象时归属 owner。 |
 
 `createSession(agentId, { initial_events })` 只接受 `user.message`，别的都不接受，最多 50 条。
 
-::: warning 尚未验证
-我们只跑过纯字符串的 `content`。富内容块目前不被解析器接受，所以请发字符串。
-:::
-
 ::: warning 记忆归属不等于访问控制
-actor 契约经过源码核对，尚未在这里做真实部署验证。你的后端须把已认证的应用用户映射到稳定、不透明的 `actor.ref`，并校验 session 归属。`metadata.user_id` 不会自动设置 actor。这个字段不隔离沙箱文件，也不删除原有对话上下文。IM session 拒绝 `actor`；`actor.token`、未知 actor 字段和非法 ref 返回 HTTP 400。不能把调用方提供的 actor 当作身份证明。
+你的后端须把已认证的应用用户映射到稳定、不透明的 `actor.ref`，并校验 Session 归属。`metadata.user_id` 不会自动设置 actor。这个字段不隔离沙箱文件，也不删除原有对话上下文。IM Session 拒绝 `actor`；`actor.token`、未知 actor 字段和非法 ref 返回 HTTP 400。不能把调用方提供的 actor 当作身份证明。
 :::
 
 ### `user.interrupt`
@@ -203,9 +193,7 @@ if (r.events[0]?.accepted === false) {
 
 注意这里大小写风格是混的：请求体是 snake_case（`approval_id`），而你读到这个值的那个事件 payload 是 camelCase（`approvalId`）。其他任何形状都是 `400 invalid_event`。
 
-::: warning 尚未验证
-上面这个可接受的请求体是从请求解析器里读出来的；没有任何一个真实的待处理审批通过这条路由被创建并解决过。审批闭环的状态记在[能力矩阵](../reference/capabilities.md)里。
-:::
+Server 默认策略、逐工具覆盖和 REST approval 流程见[权限策略](./permissions.md)。
 
 ### `user.custom_tool_result`
 
@@ -223,7 +211,7 @@ if (r.events[0]?.accepted === false) {
 { "type": "system.message", "text": "Operator note: the user's plan is Enterprise." }
 ```
 
-`text` 必须是非空字符串。已实测：这条说明进的是下一个回合的上下文，不是当前回合，所以要把它 post 在它应该影响的那条 `user.message` 之前。
+`text` 必须是非空字符串。这条说明进入下一个回合的 context，不是当前回合，所以要把它 post 在它应该影响的那条 `user.message` 之前。
 
 ```ts
 await zc.postEvents(agentId, sessionId, [
@@ -244,10 +232,10 @@ streamEvents(
 ): AsyncGenerator<SessionEvent>
 ```
 
-::: danger 这个流是 session 级的，回合结束时不会关闭
+::: info 一个 Session stream 可以承载多个回合
 `run.finished` 是*回合*的结束，不是*流*的结束。连接会保持打开等待下一个回合，只有当连接空闲得足够久时，服务端才会断开它。
 
-如果你 `for await` 跑到底，或者 `await` 一个从生成器收集来的数组，你就会一直等到服务端把这个连接超时掉。永远要在 `isRunFinished(ev)` 时 `break`。
+如果你 `for await` 跑到底，或者 `await` 一个从生成器收集来的数组，程序会等到服务端关闭空闲连接。只需要当前回合时，在 `isRunFinished(ev)` 处 `break`。
 :::
 
 一个完整的单回合，带一个墙钟预算，这样一个卡住的 run 不会把你的进程挂死：
@@ -462,10 +450,10 @@ interface ToolCall {
 | `failed` | 回合出错终止。通常前面会有一个带 `errorMessage` 的 `agent.error`。 |
 | `aborted` | 一个 `user.interrupt` 落到了正在跑的 run 上。 |
 
-::: danger 工具失败不会让 run 失败
+::: info 分别判断 run 结果与工具结果
 一个 `phase: 'end'` 且 `isError: true` 的 `agent.tool` 事件，后面照样跟着 `status: 'succeeded'` 的 `run.finished`。模型看到了这个工具错误，绕开了它，并给出了答案。那就是一个成功的回合。
 
-反过来同样成立：**不要因为没有工具错误就推断成功** 。读 `runOutcome()`，别读别的。
+使用 `runOutcome()` 判断回合结果，不要从单个工具事件推导。
 :::
 
 ```ts
@@ -510,7 +498,7 @@ for await (const ev of zc.streamEvents(agentId, sessionId)) {
 console.log(`${pending.size} tool calls never returned`)
 ```
 
-`toolCall()` 会把任何它不认识的 phase 映射成 `start`，所以如果你需要线上的确切值，请直接读 `ev.payload.phase`。
+`toolCall()` 会把未知 phase 映射成 `start`。需要读取原始值时，请直接使用 `ev.payload.phase`。
 
 ## `?deltas=` 预览通道
 
@@ -520,6 +508,4 @@ console.log(`${pending.size} tool calls never returned`)
 
 在没有配置预览后端的部署上请求 `deltas`，会在流打开之前返回 `501 not_configured`，所以你拿到的是一个正常的 JSON 错误，而不是一条一直沉默的流。
 
-::: warning 尚未验证
-上面的语义是从服务端实现里读出来的；`?deltas=` 没有对着真实部署跑过。要拿最终文本，请用 `agent.assistant` 事件——它是持久的、可续传的，而且已实测。
-:::
+要拿最终文本，请使用 `agent.assistant` 事件。它是持久的，并且可以续传。

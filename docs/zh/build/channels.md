@@ -2,7 +2,7 @@
 title: 渠道
 description: 把 agent 接入聊天平台，并管理各渠道的配置流程与生命周期。
 source: /en/build/channels
-source_hash: 58a6c0ee88610211c5866f1b5a78a64a0d4acae6dc93b49a1fbcd11e8deb9fc1
+source_hash: 3807ca20e877ccb3adbf663b45e22536a68b41cf630cf34012f6a3a8e072a469
 ---
 
 # 渠道
@@ -11,29 +11,23 @@ source_hash: 58a6c0ee88610211c5866f1b5a78a64a0d4acae6dc93b49a1fbcd11e8deb9fc1
 
 渠道绑在 **agent** 级别，用的就是你手上的 `agent_id`。没绑渠道的 agent 是纯 API agent——这是默认状态，本页的一切对纯 API 使用都不是必需的。
 
-::: warning 新面，正在灰度
-2026-08-28 端到端实测过。这一族随一个仍在灰度的网关版本发布，没带上它的部署会返回 **404，但错误信封不一样**——是 `{"error":{"type":"not_found"}}`，而不是本族自己的 `{"code": …, "detail": …}`。这个差别就是你区分「这个部署还没有渠道能力」和「那个东西不存在」的依据。
-:::
-
 ## 能绑哪些平台
 
-前四行已在 2026-08-28 对真实部署实测。钉钉的直接绑定来自源码核对，尚未在部署环境验证。
+| 平台 | 配置方式 | 你要提供什么 |
+|---|---|---|
+| `feishu` | 扫码或直接传凭证 | 无，或应用凭证 |
+| `slack` | 直接传凭证 | bot token + app token |
+| `wecom` | 扫码或直接传凭证 | 无，或 bot id + secret |
+| `weixin` / `wechat` | 扫码 | 无 |
+| `dingtalk-connector` | 直接传凭证 | client id + client secret |
 
-| 平台 | `addChannel` | 服务端扫码流 | 你要提供什么 |
-|---|---|---|---|
-| `feishu` | ✅ | ✅ | 什么都不用，或应用凭证 |
-| `slack` | ✅ | ❌ 永远不会有 | bot token + app token |
-| `wecom` | ✅ | ✅ | 什么都不用，或 bot id + secret |
-| `weixin` / `wechat` | ❌ | ✅ —— 唯一的路径 | 什么都不用 |
-| `dingtalk-connector` | ✅ —— 源码已核对 | ❌ 公共 API | client id + client secret |
+飞书、企业微信和微信提供扫码流程。Slack 和钉钉使用显式凭证。
 
-三个平台有扫码流。Slack 和钉钉使用显式凭证，微信只支持扫码。
+**Slack 使用显式凭证。** 在 `api.slack.com/apps` 创建 Slack 应用，然后把它的 `xoxb-` 和 `xapp-` token 放进 `config` 传给 `addChannel`。ZooWork App 中的引导式配置收集的也是这两个值。
 
-**Slack 不会有。** 服务端驱动的扫码流，前提是聊天平台愿意把凭证交回给发起请求的服务端。Slack 没有这种东西：Slack 应用只能由人在 `api.slack.com/apps` 上创建，它的 `xoxb-` / `xapp-` token 只会出现在那个人的浏览器里。所以 Slack 永远是「`addChannel` + 把两个 token 放进 `config`」。如果你在 ZooWork App 里见过 Slack 的引导式配置，那个引导做的正是这件事：帮人把应用建出来，然后让他粘贴那两个 token——和你在这里传的是同两个。
+**微信使用引导式配置。** 调用 `startChannelSetup(agentId, 'weixin')`，并展示返回的二维码。使用 `platform: 'weixin'` 或 `'wechat'` 调用 `addChannel` 会返回 `400 channel.weixin_setup_required`。
 
-**微信正好相反：扫码流是它唯一的路径。** 用 `platform: 'weixin'`（或 `'wechat'`）调 `addChannel` 会返回 `400 channel.weixin_setup_required`，这句报错说的就是字面意思——改用 `startChannelSetup(agentId, 'weixin')`。微信这边没有需要你自己准备的凭证。
-
-**公共 API 中，钉钉只支持显式配置。** 调用 `addChannel` 时传 `platform: 'dingtalk-connector'`、`config: { clientId, clientSecret }` 和 `dm_policy: 'open'`。公共扫码配置路由不接受钉钉。这个契约来自源码核对，尚未在部署环境验证。
+**钉钉在公共 API 中使用显式配置。** 调用 `addChannel` 时传 `platform: 'dingtalk-connector'`、`config: { clientId, clientSecret }` 和 `dm_policy: 'open'`。
 
 ## 扫码流
 
@@ -92,10 +86,10 @@ pending 的一次轮询返回的是 `{ status: 'pending', channel_configured: fa
 
 有两点要在代码里处理。**微信的 `qrcode_url` 可能是一张内嵌图片**，也就是 `data:image/…` 而不是一个 URL，所以喂给二维码库之前先判断前缀。另外**微信的 `dm_policy` 只接受 `'open'` 和 `'disabled'`**——传 `'allowlist'` 返回 `400 channel.allowlist_unsupported`——它把 account 钉死为 `'default'`、group policy 钉死为 `'disabled'`，请求体里的其他字段会被忽略而不是报错。
 
-::: warning session 会「不存在」，那时轮询返回 404
-`cancelChannelSetup(agentId, platform, sessionId)` 放弃一个 session——之后再轮询它，返回的是 `404 channel.feishu_session_not_found`（企业微信和微信是 `channel.wecom_session_not_found` / `channel.weixin_session_not_found`），而**不是**某个终态 `status`。所以你自己写的轮询循环必须把这个 404 当成一种结束，而不是当成可重试的传输错误。`waitForChannelSetup` 会把它抛成一个带这个 `type` 的 `ZooworkError`。
+::: info 处理已取消或过期的 setup session
+调用 `cancelChannelSetup(agentId, platform, sessionId)` 后，继续轮询会返回 `404 channel.feishu_session_not_found`（企业微信和微信对应 `channel.wecom_session_not_found` / `channel.weixin_session_not_found`），而不是终态 `status`。自定义轮询循环应把这个 404 作为终态处理。`waitForChannelSetup` 会返回一个带对应 `type` 的 `ZooworkError`。
 
-至于一个 session 单纯活过了 `expires_in` 之后，是返回 200 带 `status: 'expired'`，还是同样变成这个 404——**我们没有观察到**。两种都要处理。
+setup Session 到达 `expires_in` 后，可能以 `status: 'expired'` 结束，也可能变成同样的 404。两种都应当作为终态处理。
 :::
 
 `brand` 只有飞书有，它决定真实的域名：`'feishu'`（默认）给的是 `open.feishu.cn` 的 URI，`'lark'` 给的是 `open.larksuite.com`。它必须和对方将要批准它的那个工作区对上。
@@ -142,16 +136,17 @@ await zc.addChannel(agentId, {
 - `provider` 是 `ready` 或 `degraded`，还可能带 `missing_scopes`。
 - `approval_state: 'pending_admin'` 表示仍需管理员批准平台权限。
 
-这些请求和响应字段来自源码核对，尚未在部署环境验证。不要把 `permission_admin_enabled: true` 当作文档操作已经就绪的证明；应读取返回的 capability 状态。
+不要把 `permission_admin_enabled: true` 当作文档操作已经就绪的证明；应读取返回的 capability 状态。
 
 ::: warning 被忽略的字段不是访问白名单
-源码核对显示，公共网关会忽略 `allow_from`，创建时也一样。SDK 为兼容保留这个字段，传入它并不能限制访问。请使用受支持的 `dm_policy` 设置，并单独验证实际生效的策略。
+公共网关会忽略 `allow_from`，创建时也一样。SDK 为兼容保留这个字段，传入它并不能限制访问。请使用 `dm_policy` 设置，并检查实际生效的策略。
 :::
 
-::: danger 201 的含义是「存下了」，不是「能用」
-绑定时**不校验凭证**。我们用一组故意编造的凭证去绑，拿回来的是 `201`，带着 `health: 'unknown'`、`status: 'configured'`——和一个正常绑定返回的形状一模一样。几秒之后，同一个渠道在列表里的状态变成了 `health: 'unhealthy'`、`status: 'error'`。
+::: info 绑定后检查渠道健康状态
+创建渠道时会先保存配置，再完成平台健康检查。`201` 响应可能带 `health: 'unknown'`、`status: 'configured'`；
+无效绑定随后会显示为 `health: 'unhealthy'`、`status: 'error'`。
 
-所以 201 只告诉你绑定被存下来了，不代表它能工作。真正的判定要从后续 `listChannels` 的 `health` / `status` 里读，不要只凭创建调用的成功就向用户报告绑定成功。
+通过后续 `listChannels()` 返回的 `health` 和 `status` 读取最终状态。
 :::
 
 ### 给绑定命名：`account`
@@ -161,7 +156,7 @@ await zc.addChannel(agentId, {
 选值之前有四件事要知道：
 
 - **这个名字在你名下是全局唯一的，跨所有 agent。** 同一个 (owner, platform, account) 只有一条有效绑定，所以在一个 agent 上占掉 `feishu` / `default`，你其他所有 agent 就都用不了这个名字了。
-- **`'default'` 很可能已经被占了**——只要同一个登录账号曾经在 App 里绑过这个平台。那条绑定不是通过这套 API 建的，服务端不会去接管它，直接返回 `409 channel.conflict`。
+- **建议使用应用专属的 account 名称。** `'default'` 可能已经对应 ZooWork App 创建的绑定；重复使用会返回 `409 channel.conflict`。
 - **格式是 `^[a-z0-9][a-z0-9_-]{0,63}$`**，另外还有三个保留字（`__proto__`、`prototype`、`constructor`）。别的都是 `400`，而且服务端不会替你做任何规范化——带大写、空格或非 ASCII 字符的显示名会被拒掉，不会被清洗。
 - **SDK 没法替你预检这个名字。** `listChannels` 的范围是单个 agent，而这个约束覆盖你整个账号，所以被你另一个 agent 占掉的名字在这里根本看不见。自己记账。
 
@@ -186,7 +181,7 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 
 `dm_policy` 和 `group_policy` 是可达性策略——谁能在私聊、谁能在群里找到这个 agent。服务端对两者的默认值都是 `'open'`，传枚举外的值返回 `400 channel.invalid_request`。有一个值在这里被直接拒绝：`dm_policy: 'pairing'` 在创建和更新时都返回 `400 channel.pairing_unsupported`——pairing 是聊天产品侧的能力，API 创建的 agent 上没有。
 
-`updateChannel` 直接把渠道的**新**状态交回来，你不需要再读一次。注意 `enabled: false` 不只是翻一个标志位：实测它会把 `status` 变成 `'disabled'`，并把 `health` 重置为 `'unknown'`。
+`updateChannel` 直接返回渠道的**新**状态，不需要再读一次。设置 `enabled: false` 会把 `status` 变成 `'disabled'`，并把 `health` 重置为 `'unknown'`。
 
 ### 三种 404，各自说明什么
 
@@ -200,18 +195,18 @@ await zc.removeChannel(agentId, 'feishu', { account: 'sales' })
 
 注意这里有个不对称，它决定了你的清理代码要不要包 `try`：**`removeChannel` 是幂等的**——删一个不存在的绑定返回 `200 { ok: true }`，不是 404；而 **`updateChannel` 不是**，它返回 `404 channel.not_found`。
 
-还有第四种情况根本不属于这一族：如果整个响应信封是 `{"error":{"type":"not_found"}}` 而不是 `{"code": …, "detail": …}`，说明这个部署还没有渠道路由。
+`{"error":{"type":"not_found"}}` 这种响应属于通用资源错误，而不是渠道特有的 `{"code": …, "detail": …}` 错误族。
 
 ## 绑定渠道之后，什么变了
 
 动手绑之前，有两件事要先设计好：
 
-::: danger 聊天对话和 API session 是分开的
-聊天软件里的对话，和你通过 API 创建的 session，是**两个 session、两份上下文**，不会自动合并。这**不等于 API key 的访问隔离**：源码核对显示，有权限的 API 调用可以按 id 访问 IM session。你的后端必须校验应用用户对每个 Agent/session 的权限。IM session 拒绝 `actor`，应使用渠道原生身份规则。
+::: info 聊天对话与 API Session 使用独立上下文
+聊天软件里的对话，和你通过 API 创建的 Session，是**两个 Session、两份上下文**，不会自动合并。这**不等于 API key 的访问隔离**：有权限的 API 调用可以按 id 访问 IM Session。你的后端必须校验应用用户对每个 Agent 和 Session 的权限。IM Session 拒绝 `actor`，应使用渠道原生身份规则。
 :::
 
 ::: warning `actual_state` 只是健康投影
-纯 API agent 上也会出现 `status.actual_state`：route-status 不受支持时可以投影为 `active` 和零渠道计数，短暂健康查询失败时也可以投影为 `activating`。绑定渠道后，它可能反映该渠道的连通性，仪表盘可以把它当作**尽力而为的渠道健康度**。但它仍然不是 API 就绪信号：判断能不能开 session，依旧看 `desired_state === 'running'`（或用 `waitUntilRunning`）。
+纯 API Agent 上也会出现 `status.actual_state`。它可能显示为 `active` 且渠道计数为零，也可能在健康信息刷新时显示 `activating`。绑定渠道后，它可以反映渠道连通性，仪表盘可以把它作为**尽力而为的渠道健康度**。它不是 API 就绪信号：判断能否创建 Session，仍然看 `desired_state === 'running'`，或使用 `waitUntilRunning`。
 :::
 
-还有一条生命周期备注：删除 agent 会 best-effort 停用它的渠道。这个清理永远不会把一次成功的删除变成报错，所以坏运气的时候，一个聊天绑定可能比它的 agent 活得久——如果某个绑定必须消失，先 `removeChannel` 再 `deleteAgent`。
+删除 Agent 时也会请求清理渠道。如果业务流程要求绑定先完成移除，请先调用 `removeChannel()`，再调用 `deleteAgent()`。

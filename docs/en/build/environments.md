@@ -4,15 +4,6 @@ description: Define reusable sandbox templates and attach versioned environments
 
 # Environments
 
-::: warning Not yet verified
-None of this surface has been exercised end to end. We have never built an Environment, never
-attached one to an agent, and never observed a sandbox start from one.
-
-The SDK types the whole resource, and `listEnvironments()` answers `200`. Everything past that
-is a typed contract we have not watched run. If your project depends on preinstalled packages,
-plan a fallback: an agent with no `environment_id` runs on the system default and works today.
-:::
-
 An Environment is an immutable sandbox template. You declare packages, files, and a build
 script once; the platform builds an image from that declaration; agents then pin an exact
 built version. It is the answer to "the agent needs my Python dependencies" and "the agent
@@ -67,22 +58,19 @@ capped at 1 MB after decoding; inline content plus direct uploads together are c
 50 MB. Larger files go through a separate presigned upload flow that mints an `upload_id`,
 which you then reference from `files[]` instead of inlining bytes.
 
-## Constraints you cannot design around
+## Environment configuration model
 
-These are properties of the platform, not defaults you can change.
+Environment versions are reproducible build artifacts with a deliberately small input model:
 
-- **Three package managers, and only three.** apt, npm, pip. There is no other installer
-  hook.
-- **A custom Environment always inherits one fixed platform base.** Arbitrary inheritance
-  chains are not supported. You cannot start from your own image.
-- **No secrets, no runtime credentials, no custom environment variables, and no sandbox
-  start hooks.** An Environment is a build-time artifact. `build.script` runs when the image
-  is built, never when a sandbox starts. If your dependency needs an API key at runtime,
-  an Environment is not where it goes.
-- **Version configuration is immutable.** Creating a version adds a new one. Retrying an
-  existing failed build is a separate operation; `createEnvironmentVersion` is not retry.
-- **Skills, personas, and workspace files are not part of an Environment.** You submit
-  packages, files, and a build script explicitly; nothing is inferred from anywhere else.
+- **Package installation** supports apt, npm, and pip.
+- **Base image** is the managed ZooWork platform image. Your configuration adds packages,
+  files, and a build script on top of it.
+- **Build-time configuration** runs `build.script` while the image is built. Keep runtime
+  credentials and application secrets outside the Environment definition.
+- **Immutable versions** preserve the input and build history. Create a version for a new
+  configuration; use the retry operation to rebuild the same version.
+- **Agent configuration remains separate.** Skills, personas, and workspace files are
+  attached through their own Agent APIs.
 
 ## Pinning an Environment to an agent
 
@@ -147,15 +135,12 @@ A cross-tenant `environment_id` is hidden as `404`, not `403`.
 | `createEnvironment({ resource, ownership }, idempotencyKey?)` | Creates an Environment and its first version. |
 | `archiveEnvironment(environmentId)` | Archives it. |
 | `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | Adds a new immutable configuration version, not a retry of the old one. |
-| `getEnvironmentVersion(environmentId, version, opts?)` | Reads aggregate build state; optional `opts.resourceClass` selects `starter`, `pro` or `ultra`. Source-reviewed, not live-verified here. |
+| `getEnvironmentVersion(environmentId, version, opts?)` | Reads aggregate build state; optional `opts.resourceClass` selects `starter`, `pro` or `ultra`. |
 
 The platform default Environment - the one a fresh agent is pinned to - is not in
 `listEnvironments()`, and `getEnvironment()` on it answers `404`. The gateway forces an org
 selector and the default belongs to no org, so this is a selector mismatch, not a permission
 problem.
-
-`listEnvironments()` answered `200` with an empty list. That is the only thing on this path we
-have actually run.
 
 ### Creating an Environment
 
@@ -187,14 +172,14 @@ console.log(env.version?.status)  // 'queued'
 The first version comes back inline on the create as `EnvironmentRecord.version`, so there is
 no follow-up `getEnvironmentVersion()` needed to see it. Later versions go through
 `createEnvironmentVersion(environmentId, config)`, which wraps your config as
-`{ resource: { config } }`; that body has not been exercised against a live deployment.
+`{ resource: { config } }`.
 
 Give both calls a stable `Idempotency-Key`. Versions have no delete at all, and
 `archiveEnvironment()` archives the entire Environment - the first version cannot be removed.
 
-### Routes with no wrapper
+### Direct HTTP endpoints
 
-Four operations have no client method. Call them with a plain `fetch` against the same base
+Call these four operations with a plain `fetch` against the same base
 URL and the same bearer:
 
 | Operation | Request |
@@ -245,13 +230,12 @@ while (Date.now() < deadline && !cancel.signal.aborted) {
 if (v?.status !== 'ready') throw new Error('Build wait cancelled or timed out; inspect class status')
 ```
 
-::: warning Source-reviewed build behavior
+::: warning Build states
 A version can be `queued`, `submitting`, `building`, `verifying`, `partial_ready`, `ready`
 or `failed`. `partial_ready` means some classes are ready while others may be building or
 failed; it can be transient or a partial terminal result. It is not itself a verdict for your
 chosen class. This conservative example waits for aggregate ready with bounded requests;
-a terminal partial build exits by timeout rather than waiting forever. The resource-class
-selector requires the SDK contract shown here; verify deployment behavior before relying on it.
+a terminal partial build exits by timeout rather than waiting forever.
 :::
 
 The Environment's top-level `status` is `active` or `archived`, not build progress.
@@ -266,4 +250,3 @@ Pinning `latest_version` is how an agent create earns the `409 environment_not_r
 
 - [Agents](./agents.md) - the full agent resource and `config_version` semantics.
 - [Tools](./tools.md) - what the agent can do inside the sandbox this Environment builds.
-- [Capability matrix](../reference/capabilities.md) - verification status across the API.

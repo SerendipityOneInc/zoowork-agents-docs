@@ -74,11 +74,10 @@ Today, read the complete ordered event history and stored transcript through eit
 
 Keep your own task identifier, result reference, and outcome beside those records.
 
-::: warning Current API boundary
-Managed Agents captures the runtime side of this loop. The public API does not currently
-provide a trajectory-export resource, a session-level outcome definition, or a post-training
-job endpoint. Your application owns the outcome labels, training dataset, and downstream
-training workflow. See [Not supported](../reference/not-supported.md#outcome-definitions-on-interactive-sessions).
+::: info Store outcomes in your application
+Managed Agents captures the runtime side of this loop. Store outcome labels and dataset
+membership beside the Agent and Session ids in your application, then pass the curated data
+to your training workflow.
 :::
 
 ## Outcomes turn trajectories into learning data
@@ -136,7 +135,7 @@ parts in your database and join them to the Session records you read from ZooWor
 - [Architecture](./architecture.md): see how the managed runtime, model, tools, and sandbox fit together.
 - [Sessions](../build/sessions.md): create and continue the conversations that contain agent work.
 - [Events and streaming](../build/events.md): read the ordered execution record and resume a stream.
-- [Capability matrix](../reference/capabilities.md): check which runtime surfaces have been verified.
+- [Agents](../build/agents.md): configure the Agent that produces each trajectory.
 
 ## Check your understanding
 

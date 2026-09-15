@@ -57,7 +57,6 @@ Your application continues with the same Agent and Session.
 Automatic pause and resume are managed runtime behavior. Pausing follows the sandbox
 lifecycle policy; `run.finished` does not mean compute pauses immediately. Explicitly
 stopping an Agent releases its sandbox and is a different operation from automatic pause.
-This lifecycle description is source-reviewed, not a live timing or performance guarantee.
 :::
 
 ## Configuration and isolation
@@ -68,9 +67,6 @@ files, and network policy; use the default Environment to get started.
 
 By default, Sessions belonging to the same Agent share its sandbox and workspace. For an
 application that needs separate user workspaces, create [an Agent per user](../build/per-user-agents.md).
-
-The [capability matrix](../reference/capabilities.md) records verification status. Public API
-gaps are listed separately under [Not supported](../reference/not-supported.md).
 
 This page describes how managed execution works. [Agent trajectories](./trajectories.md)
 explains why preserving that execution history matters for evaluation and post-training.

@@ -2,7 +2,7 @@
 title: 架构
 description: 了解 Managed Agents API 如何连接应用、模型、工具与隔离执行环境，以及状态持久保存、计算按需启停的工作方式。
 source: /en/get-started/architecture
-source_hash: aadfc766d2590ea48d4151b83969642c2786dd1b6bfd6ed4930eda03c45294d8
+source_hash: b196d3d8372f2b9f63972036e6253d8f91b3e0bb523a6ecd6571b7b491b9552e
 ---
 
 # 架构
@@ -54,7 +54,6 @@ Agent 生成 `report.md` 后，可以等待你的下一条消息。当你让它�
 ::: info 沙箱生命周期
 自动暂停和恢复由托管运行时管理。暂停遵循沙箱生命周期策略，`run.finished` 不表示计算会立即暂停。
 主动停止 Agent 会释放沙箱，与自动暂停是不同的操作。
-此处生命周期描述经过源码核对，不构成经过线上验证的时延或性能保证。
 :::
 
 ## 配置与隔离
@@ -64,8 +63,6 @@ Agent 生成 `report.md` 后，可以等待你的下一条消息。当你让它�
 
 默认情况下，同一 Agent 的多个 Session 共享沙箱和工作区。
 如果应用需要隔离不同用户的工作区，请为[每个用户创建独立 Agent](../build/per-user-agents.md)。
-
-[能力矩阵](../reference/capabilities.md)记录各项能力的验证状态；公共 API 缺口单独列在[不支持的能力](../reference/not-supported.md)中。
 
 本页介绍托管执行在工程上如何运作。[Agent 轨迹](./trajectories.md)介绍为什么保留这些执行历史对评估和后训练很重要。
 

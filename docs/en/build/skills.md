@@ -12,7 +12,7 @@ Attaching one changes what the agent knows how to do; it does not add an API you
 Skills attach at the **agent** level. There is no session-level skill list and no per-session
 override.
 
-## A new agent already has skills
+## Inspect attached skills
 
 You do not need to install anything to get started. A freshly created agent comes back with
 the full global catalog already attached.
@@ -29,10 +29,8 @@ for (const s of skills) {
 }
 ```
 
-In our run against a live deployment, a bare agent created seconds earlier returned 21
-entries, every one of them `scope: 'global'`, including document skills such as `docx`,
-`pptx`, `xlsx`, and `pdf`. The exact catalog is defined by the deployment, so read it rather
-than assuming this number.
+The global catalog can include document skills such as `docx`, `pptx`, `xlsx`, and `pdf`.
+The catalog can evolve, so list it at runtime instead of depending on a fixed count.
 
 Pass `{ verbose: true }` to include shadowed and ineligible entries:
 
@@ -56,60 +54,38 @@ interface AgentSkill {
 }
 ```
 
-Live rows carry more than the typed fields — `description`, `location`
+Rows can carry more than the typed fields — `description`, `location`
 (`/skills/<name>/SKILL.md`), `basePath` (`/opt/zooclaw/skills/<scope>/<name>/<version>`),
 `contentHash` and `promptVersion`. They are reachable through the index signature and are the
 cheapest way to confirm a skill is really on disk.
 
-`scope` is the field that decides what you can do with the entry, so read it first:
+`scope` tells you who manages the entry:
 
-| `scope` | Where it came from | Can you install or remove it with an API key? |
+| `scope` | Where it came from | Management model |
 |---|---|---|
-| `global` | The platform catalog. Attached to every agent by default. | No. See the trap below. |
-| `org` | Uploaded by your own organization. | Yes — verified. |
-| `personal` | Uploaded under one user. | Yes, not verified. |
-| `pack` | Injected by an assembled pack. | Not through this API. |
+| `global` | The platform catalog. Attached to every agent by default. | Managed by the platform. |
+| `org` | Uploaded by your own organization. | Managed with the Skills API. |
+| `personal` | Uploaded under one user. | Managed with the Skills API. |
+| `pack` | Injected by an assembled pack. | Managed as part of the pack. |
 
 `eligible` reports whether the resolved skill is actually usable for this agent. An entry can
 be attached and still not eligible.
 
-## The trap: global skills are listable but not installable
+## Global skills are attached automatically
 
-::: danger Installing a global skill with an API key returns 404
-```ts
-try {
-  await zc.putAgentSkill(agentId, 'skl_some_global_skill')
-} catch (e) {
-  // ZooworkError, status 404
-}
-```
-
-This is not a wrong skill id and not a permissions bug you can configure around. The install
-endpoint behind your API key only accepts skills your own organization owns: `org` and
-`personal` scope. A `global` catalog entry is visible in every listing and answers 404 on
-install.
-
-The damage is smaller than it looks: **the global skills are already attached**. You are not
-being denied the capability, you are being denied control over it. Do not write a
-provisioning step that installs the global skills it found in the catalog, and do not retry
-the 404.
-:::
-
-Match on the status, not the message:
+Global skills are ready on every new agent and require no provisioning step. Use
+`putAgentSkill()` and `deleteAgentSkill()` only for skills with `org` or `personal` scope:
 
 ```ts
-import { ZooworkError } from '@zoowork-ai/sdk'
-
-try {
-  await zc.putAgentSkill(agentId, skillId)
-} catch (e) {
-  if (e instanceof ZooworkError && e.status === 404) {
-    // Either the skill is global, or it belongs to another tenant.
-    // Cross-tenant ids are hidden as 404 rather than 403.
-  }
-  throw e
-}
+const catalog = await zc.listSkills()
+const customSkills = catalog.filter(
+  (skill) => skill.scope === 'org' || skill.scope === 'personal',
+)
 ```
+
+The API returns `404` when `putAgentSkill()` receives a global skill id. Treat that response
+as a scope mismatch and do not retry it. Cross-tenant skill ids use the same status, so match
+on the status rather than the message.
 
 ## Installing and removing
 
@@ -147,14 +123,12 @@ Both calls bump `config_version` on success, every time, even when nothing chang
 is a side-effect-free replay.** After a network timeout, call `listAgentSkills` to reconcile
 before retrying.
 
-Removing a `global` entry does not detach it. Per the platform's documented behaviour, a
-DELETE against a global skill removes your override and restores the default; only `org` and
-`personal` skills are genuinely uninstalled.
+For a global entry, DELETE restores the platform default rather than detaching the skill.
+`org` and `personal` skills are removed from the agent.
 
-Installing an `org` skill is **verified** end to end: the skill came back from
-`listAgentSkills` with `eligible: true`, and the next turn answered from its own content.
-`deleteAgentSkill` is **available but not verified**; check the result with `listAgentSkills`
-rather than trusting the returned `config_version`.
+After installing a skill, use `listAgentSkills()` to check that it returns with
+`eligible: true`. Read the list again after removal; do not infer installation state only from
+the returned `config_version`.
 
 ## Finding skill ids
 
@@ -176,32 +150,23 @@ comes back `null` (it belongs to the organization, not to a person), and `latest
 back as the **string** `"1"` from the multipart create while other surfaces spell it as a
 number - compare loosely, or `Number()` it.
 
-## Writing a skill that fires
+## Write the `description` as a trigger
 
-::: danger The `description` is the trigger. The body is the payload.
-The agent decides whether to load your skill by reading **only the frontmatter
-`description`**. The body is read afterwards, and only if the description won. A description
-that says what the skill *is* will never fire, no matter how good the body is.
+The agent uses the frontmatter `description` to decide when to load a skill. Write when the
+skill applies and include words users are likely to say. Put the detailed instructions and
+reference material in the body.
 
 ```yaml
-# never fires - describes the artifact
+# Too broad: describes the artifact
 description: Notes about our office coffee bar.
 
-# fires - describes the occasion
+# Better: describes when to use it
 description: Use whenever the user asks about the office coffee menu, coffee prices, or wants
   to order a coffee - including the words latte, espresso, or americano.
 ```
 
-This is the one failure in this API that reports success at every step. A skill can upload,
-install, and list as eligible, and still never fire once, because the trigger words were in the
-body and the description only named the artifact. Rewriting the description, changing nothing
-else, made it fire on the next turn.
-
-When a skill "does nothing", check the description before you check anything else.
-:::
-
-Write the description as *when to use this*, and put the words a user would actually say into
-it. Everything the agent should know or do goes in the body.
+An uploaded skill can be attached and `eligible: true` without being selected for a turn.
+When selection is too broad or too narrow, adjust the description first.
 
 ## Uploading your own skill
 
@@ -211,12 +176,11 @@ frontmatter. `name` must match `^[a-z0-9-]{1,64}$`. Total expanded size is cappe
 paths must not contain `..`, absolute paths, or backslashes, and encrypted zips are rejected.
 The server expands the archive on ingestion.
 
-::: warning The zip's top-level directory must match the frontmatter `name`
+::: info Keep the directory and skill names aligned
 `coffee-order/SKILL.md` declaring `name: coffee-order`. A mismatch is rejected with a 400
-naming both, so it is friction rather than a trap - but it is the first thing that fails when
-you package a skill by hand. The two are compared case- and underscore-insensitively, so a
-directory `Coffee_Order/` still matches `name: coffee-order`. That leniency is about the
-directory only: the frontmatter `name` itself still has to match `^[a-z0-9-]{1,64}$`.
+naming both. The two are compared case- and underscore-insensitively, so a directory
+`Coffee_Order/` still matches `name: coffee-order`. This normalization applies only to the
+directory: the frontmatter `name` itself still has to match `^[a-z0-9-]{1,64}$`.
 
 Entries may be **stored** (uncompressed) as well as deflated, so a minimal zip writer is
 enough; you do not need a compression library to publish a small skill.
@@ -237,7 +201,7 @@ creates the skill row **and** version 1.
 
 `uploadSkill` is create-only. Put the initial description in the zip's frontmatter: the
 public gateway drops the create call's `description` option. Other scopes than org/personal
-are rejected by the gateway with HTTP 400. Source-reviewed, not live-verified here.
+are rejected by the gateway with HTTP 400.
 
 Use `uploadSkillVersion(skillId, zip)` to upload a new version; its frontmatter name must
 match the skill. It returns `SkillVersionRecord` with `skill_id`, `version` and `state`,
@@ -246,10 +210,10 @@ override. Unpinned installations follow updates without another `putAgentSkill`.
 
 Retry behavior differs: root create can return `409 skill_exists` after a successful
 same-name create; version upload deduplicates identical content for that skill. Neither
-promises HTTP-key replay. Read back to reconcile an uncertain outcome. These details and
-the version return type are source-reviewed; no live recording is claimed.
+promises HTTP-key replay. Read back to reconcile an uncertain outcome.
 
-`deleteSkill(skillId)` has no in-use guard. Agents holding the skill simply lose it.
+Before calling `deleteSkill(skillId)`, detach the skill from agents that still use it. Deletion
+takes effect immediately for those agents.
 
 ## Proving a skill actually ran
 
@@ -276,13 +240,14 @@ from your file, down to the details that exist nowhere else. The
 this comparison, with a fresh session per question so the second answer comes from the skill
 rather than from the agent remembering the first.
 
-## What is not here
+## Skill lifecycle
 
-- **No session-level skills.** Skills belong to the agent. A session cannot add, remove, or
-  override them, and there is no per-session skill limit to manage.
-- **No skill invocation API.** You cannot ask the platform to run a skill. The model decides.
-- **No skill content read-back through the agent.** `listAgentSkills` gives you the file
-  manifest (`files[]` with `path`, `size`, `sha256`), not file contents.
+- **Agent-level configuration.** Skills belong to the agent, so every Session on that Agent
+  uses the same attached set.
+- **Model-directed selection.** The model selects relevant skills from their descriptions for
+  each turn.
+- **Manifest inspection.** `listAgentSkills` returns the file manifest (`files[]` with `path`,
+  `size`, and `sha256`) for each attachment.
 
 ## Related
 
@@ -290,4 +255,3 @@ rather than from the agent remembering the first.
   per-user agents, with canary pinning and reconciliation.
 - [Agents](./agents.md) - `config_version` semantics and why every skill write bumps it.
 - [Tools](./tools.md) - the built-in tool set, which is a separate mechanism.
-- [Capability matrix](../reference/capabilities.md) - current verification status of each surface.

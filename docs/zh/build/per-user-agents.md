@@ -2,7 +2,7 @@
 title: 每用户一个 agent
 description: 为每个用户创建隔离的 agent，并安全地批量更新配置。
 source: /en/build/per-user-agents
-source_hash: e640267eda9b5fb1acb4f21251e40579bc27af41ae9313c679b5c5cd0c3ec673
+source_hash: 63bdb176445b4558a1dadcb1e3710baf2a1250e69b8a0db78cca496212645a62
 ---
 
 # 每用户一个 agent
@@ -16,7 +16,7 @@ source_hash: e640267eda9b5fb1acb4f21251e40579bc27af41ae9313c679b5c5cd0c3ec673
 如果只是要按用户隔离*对话*状态，一个 agent、每个会话一个 session 就够了，而且更便宜——见 [Sessions](./sessions.md)。当用户之间不能共享 transcript **之外**的东西时，才需要每用户一个 agent：
 
 - **沙箱。** 一个 agent 只有一个沙箱，它的每个 session 都工作在同一个持久的 `/workspace` 里。一个 session 写的文件，另一个 session 读得到。如果多个用户共享一个 agent，就意味着一个*用户*写的文件，另一个用户的 turn 读得到。
-- **模型侧记忆。** API 消息可以用 `actor: { ref: 'customer-42' }` 选择用户记忆归属，省略时归属 owner。这是源码核对过、仍需验证部署的契约。它不会重新划分历史记忆、清空 session 上下文、认证用户或隔离文件。见[事件](./events.md#usermessage)。
+- **模型侧记忆。** API 消息可以用 `actor: { ref: 'customer-42' }` 选择用户记忆归属，省略时归属 owner。它不会重新划分历史记忆、清空 Session context、认证用户或隔离文件。见[事件](./events.md#usermessage)。
 
 单个 agent 内部没有按用户的沙箱，也没有办法按终端用户切分 `/workspace`。文件隔离的边界在 agent 上；不能共享沙箱文件的用户需要独立 agent。应用仍须逐次校验用户对 Agent/session 的访问权限。
 
@@ -126,13 +126,13 @@ for (const skillId of DESIRED_ORG_SKILLS) {
 
 ## 需要记住的事
 
-- **`deleteSkill` 没有在用守卫。** 删掉一个 fleet 还装着的 org skill，意味着每个 agent 都会悄无声息地失去它。先把 skill 从你的 desired 列表里退役、让 reconcile 把它摘掉（`deleteAgentSkill`），再删 registry 里的条目。
-- **只有你自己的 skill 能安装。** `global` 目录条目能列出来，但 `putAgentSkill` 会回 404——而且它们本来就已经挂在 agent 上了。见 [Skills 里的陷阱](./skills.md#坑-global-skill-能列出来但装不上)。
+- **删除前先解除挂载。** 先把 org skill 从 desired 列表中移除，让 reconcile 通过 `deleteAgentSkill` 解除挂载，再删除 registry 条目。
+- **只配置自定义 Skills。** global 目录由平台管理，并已自动挂载。见 [Global Skills 由平台自动挂载](./skills.md#global-skills-由平台自动挂载)。
 - **skill 的 eligibility 是按 agent 的。** 安装之后，在一个真实 agent 上用 `listAgentSkills` 确认 `eligible: true`，不要假设上传成功就等于处处可用。
 - **按 turn 的上下文仍然属于 session。** 每用户一个 agent 解决的是身份和隔离；用户刚点了什么、在哪个套餐上，仍然最适合用 session 里的 `system.message` 送进去，而不是重写 N 份 persona。
 
 ## 相关页面
 
-- [Skills](./skills.md) —— 上传规则、版本跟随语义、global skill 的陷阱。
+- [Skills](./skills.md) —— 上传规则、版本跟随语义和 global 目录行为。
 - [Agents](./agents.md) —— `config_version`、启动/停止、`desired_state`。
 - [Sessions](./sessions.md) —— 当用户只需要各自独立的对话时，更便宜的模式。
