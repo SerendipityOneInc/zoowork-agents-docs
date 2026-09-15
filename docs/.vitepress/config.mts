@@ -205,9 +205,11 @@ function stackableTables(md: MarkdownRenderer): void {
   })
 }
 
-// Navigation runs Get started / Build / Reference. Where a capability does not
-// exist, the page still exists under Reference and says so — silence reads as
-// "not documented yet", which is the one thing we cannot afford.
+// The sidebar follows the path a developer takes: learn the product, define an
+// agent, configure its environment, run sessions, and integrate it into an app.
+// Capability and unsupported-feature inventories remain available through
+// contextual links and the complete AI index, but they are not primary UI
+// navigation: they are maintenance references, not steps in that path.
 //
 // The site is bilingual. English is the authored source: the SDK, its errors, and
 // every identifier in this documentation are English, so that is where a claim is
@@ -222,6 +224,10 @@ interface PageSet {
   architecture: string
   trajectories: string
   build: string
+  defineAgent: string
+  configureEnvironment: string
+  runSessions: string
+  integrateProduct: string
   agents: string
   sessions: string
   events: string
@@ -234,8 +240,6 @@ interface PageSet {
   sdk: string
   errors: string
   capabilities: string
-  // The nav bar says this instead of `capabilities` — see the EN entry for why.
-  capabilitiesNav: string
   notSupported: string
 }
 
@@ -246,10 +250,14 @@ const EN: PageSet = {
   architecture: 'Architecture',
   trajectories: 'Agent trajectories',
   build: 'Build',
-  agents: 'Agents',
-  sessions: 'Sessions',
-  events: 'Events and streaming',
-  channels: 'Channels',
+  defineAgent: 'Define your agent',
+  configureEnvironment: 'Configure the environment',
+  runSessions: 'Run sessions',
+  integrateProduct: 'Integrate your product',
+  agents: 'Agent configuration',
+  sessions: 'Create and continue sessions',
+  events: 'Events and streaming responses',
+  channels: 'Connect chat channels',
   tools: 'Tools',
   skills: 'Skills',
   perUserAgents: 'An agent per user',
@@ -258,12 +266,6 @@ const EN: PageSet = {
   sdk: 'TypeScript SDK',
   errors: 'Errors',
   capabilities: 'Capability matrix',
-  // The nav bar is a single row that has to hold the site title, the search box, every
-  // top-level label and the language menu inside the viewport, and from 768px up VitePress
-  // shows all of it at once. "Capability matrix" is the longest label here and it was what
-  // pushed that row past the edge; the sidebar has a column to itself and keeps the full
-  // wording. See the 768–959px block in theme/custom.css for the rest of that fix.
-  capabilitiesNav: 'Capabilities',
   notSupported: 'Not supported',
 }
 
@@ -274,24 +276,42 @@ const ZH: PageSet = {
   architecture: '架构',
   trajectories: 'Agent 轨迹',
   build: '构建',
-  agents: 'Agents',
-  sessions: 'Sessions',
-  events: '事件与流式',
-  channels: '渠道',
+  defineAgent: '定义 Agent',
+  configureEnvironment: '配置运行环境',
+  runSessions: '运行 Session',
+  integrateProduct: '集成到产品',
+  agents: 'Agent 配置',
+  sessions: '创建和继续 Session',
+  events: '事件与流式响应',
+  channels: '连接聊天渠道',
   tools: '工具',
   skills: 'Skills',
-  perUserAgents: '每用户一个 agent',
+  perUserAgents: '每用户一个 Agent',
   environments: 'Environments',
   reference: '参考',
   sdk: 'TypeScript SDK',
   errors: '错误处理',
   capabilities: '能力矩阵',
-  // Four Chinese characters already fit; nothing to shorten.
-  capabilitiesNav: '能力矩阵',
   notSupported: '不支持的能力',
 }
 
-function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
+function sidebar(
+  t: PageSet,
+  base: string,
+  includeReferenceInventories = false,
+): DefaultTheme.SidebarItem[] {
+  const referenceItems: DefaultTheme.SidebarItem[] = [
+    { text: t.sdk, link: `${base}/reference/typescript-sdk` },
+    { text: t.errors, link: `${base}/reference/errors` },
+  ]
+
+  if (includeReferenceInventories) {
+    referenceItems.push(
+      { text: t.capabilities, link: `${base}/reference/capabilities` },
+      { text: t.notSupported, link: `${base}/reference/not-supported` },
+    )
+  }
+
   return [
     {
       text: t.getStarted,
@@ -303,26 +323,36 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
       ],
     },
     {
-      text: t.build,
+      text: t.defineAgent,
       items: [
         { text: t.agents, link: `${base}/build/agents` },
-        { text: t.sessions, link: `${base}/build/sessions` },
-        { text: t.events, link: `${base}/build/events` },
-        { text: t.channels, link: `${base}/build/channels` },
         { text: t.tools, link: `${base}/build/tools` },
         { text: t.skills, link: `${base}/build/skills` },
-        { text: t.perUserAgents, link: `${base}/build/per-user-agents` },
+      ],
+    },
+    {
+      text: t.configureEnvironment,
+      items: [
         { text: t.environments, link: `${base}/build/environments` },
       ],
     },
     {
-      text: t.reference,
+      text: t.runSessions,
       items: [
-        { text: t.sdk, link: `${base}/reference/typescript-sdk` },
-        { text: t.errors, link: `${base}/reference/errors` },
-        { text: t.capabilities, link: `${base}/reference/capabilities` },
-        { text: t.notSupported, link: `${base}/reference/not-supported` },
+        { text: t.sessions, link: `${base}/build/sessions` },
+        { text: t.events, link: `${base}/build/events` },
       ],
+    },
+    {
+      text: t.integrateProduct,
+      items: [
+        { text: t.channels, link: `${base}/build/channels` },
+        { text: t.perUserAgents, link: `${base}/build/per-user-agents` },
+      ],
+    },
+    {
+      text: t.reference,
+      items: referenceItems,
     },
   ]
 }
@@ -332,7 +362,6 @@ function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
     { text: t.getStarted, link: `${base}/get-started/overview` },
     { text: t.build, link: `${base}/build/agents` },
     { text: t.reference, link: `${base}/reference/typescript-sdk` },
-    { text: t.capabilitiesNav, link: `${base}/reference/capabilities` },
   ]
 }
 
@@ -452,8 +481,9 @@ export default defineConfig({
   // emits the markdown BODY only, so llms.txt now takes its title and description from
   // `hero.text` / `hero.tagline`, and the index's own entry carries the canonical
   // introduction, abbreviated example, and links to the overview and full Quickstart.
-  // The longer orientation lives in get-started/overview and reference/not-supported, both
-  // of which are in the same bundle. Keep `hero.text` and `hero.tagline` where they are —
+  // The longer orientation lives in get-started/overview. The complete AI inventory also
+  // includes the capability and unsupported-feature references that are intentionally absent
+  // from primary UI navigation. Keep `hero.text` and `hero.tagline` where they are —
   // renaming them silently falls back to the site description and drops the tagline line.
   // The root docs/index.md stays out — it is only a redirect stub.
   vite: {
@@ -462,7 +492,7 @@ export default defineConfig({
         workDir: 'en',
         excludeIndexPage: false,
         // AI pages are emitted relative to workDir, without the HTML locale prefix.
-        sidebar: sidebar(EN, ''),
+        sidebar: sidebar(EN, '', true),
       }),
     ],
   },
