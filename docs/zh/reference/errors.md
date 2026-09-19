@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 29002fe5c724d98a4185e6ea8986246bb1c347c9f353cb8b50c8bd06035b8fea
+source_hash: 78239e1ec4e4a6885ef9e687d6ef44313a7576a13855c13881ef553195962ef0
 ---
 
 # 错误与重试
@@ -93,6 +93,7 @@ if (e instanceof ZooworkError) {
 | `type` | HTTP | 原因 | 怎么办 |
 |---|---:|---|---|
 | `agent_not_running` | 409 | 对一个 `status.desired_state` 不是 `running` 的 agent 调 `createSession()` 或 `postEvents()`。新创建的 agent 是停止的，你自己停掉的也一样。 | 调 `startAgent()`，轮询 `status.desired_state` 直到它是 `running`，再重试。永远不要轮询 `actual_state`。 |
+| `model_not_selectable` | 409 | create 或 update 选择了一个仍保留给已有引用、但不再接受新选择的模型目录条目。 | 重新调用 `listModels()`，选择 `selectable` 不为 `false` 的条目；目录提供 `expired_fallback_to` 时使用它。不要原样重试同一个 alias。 |
 | `not_found` / `service_api.not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。两种拼写都存在：agent 这一族返回 `service_api.not_found`，session、定时任务、environment 这一族返回不带点的 `not_found`。 | 两种拼写都匹配，或者干脆按 `status === 404` 分支。不要把它读成「已删除」：跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
 | `service_token.invalid` | 401 | key 缺失、格式不对、已吊销，或者它绑定的用户离开了组织。由网关发出，用网关的信封。 | 修凭证。不要重试——重试会一模一样地失败。用 `listModels()` 验证。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |

@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: c0fd47812cd5d7b78db1d7aef7447bf5f818d7101dccf1d4fe71d607c86d15ad
+source_hash: a0d4ea52a8976701e9394d8534b6db06c7f066d9b30329b63c0a1ed5c6f077f4
 ---
 
 # TypeScript SDK 参考
@@ -174,7 +174,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | 开一个 session。要求 agent 处于运行状态，否则 `409 agent_not_running`。 |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | 读取一个 session，可选带上落盘的会话记录。 |
 | `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | 通过旧的数字分页通道列出一个 agent 的 session：按 `updated_at` 从新到旧，每页 50 条，`page` 从 1 开始。每一行都包含 `run_status`，但不包含 `status`。 |
-| `listSessionPage(agentId, opts?)` | `Promise<SessionListPage>` | 选择带 filter 的 cursor 通道。第一次不传 cursor（SDK 会发送 `sls1:0`），之后传 `next_cursor`；`limit` 为 1–100。支持排除 channel、包含 surface、runtime mode 和 archive filter。cursor 不透明，并绑定 agent 和 filter scope。 |
+| `listSessionPage(agentId, opts?)` | `Promise<SessionListPage>` | 选择带 filter 的 cursor 通道。第一次不传 cursor（SDK 会发送 `sls1:0`），之后传 `next_cursor`；`limit` 为 1–100。支持排除 channel、包含 surface、runtime mode、archive 和 deleted tombstone filter。cursor 不透明，并绑定 agent 和完整 filter scope。 |
 | `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | 盖上 `archived_at`。之后写入返回 `409 session_archived`，读取照常。先中断正在跑的回合。 |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | 软删除这个 session（204），会先取消正在跑的回合。会话记录和事件为审计保留。 |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string \| null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>` | 往 session 里写入 user 或 system 事件；被接受的事件以完整事件对象回显。 |
@@ -304,7 +304,8 @@ listModels(): Promise<ModelInfo[]>
 
 ```ts
 const models = await zc.listModels()
-console.log(models.length, models[0]?.model)
+const selectable = models.filter((model) => model.selectable !== false)
+console.log(selectable.length, selectable[0]?.model)
 ```
 
 ```json
@@ -313,12 +314,16 @@ console.log(models.length, models[0]?.model)
     "model": "litellm/gpt-5.6-terra",
     "display_name": "GPT-5.6 Terra",
     "family": "openai",
-    "api": "openai-responses"
+    "api": "openai-responses",
+    "lifecycle_status": "active",
+    "selectable": true,
+    "revision": 3,
+    "default_for": ["text"]
   }
 ]
 ```
 
-把 `model` 的值原样传进 `resource.model.primary`。不要把别名背后那个真实的 provider 模型名写死在代码里。
+把 `model` 的值原样传进 `resource.model.primary`。不要把别名背后那个真实的 provider 模型名写死在代码里。只能选择 `selectable` 不为 `false` 的条目。lifecycle row 可能在禁止新选择后继续保留，供已有 Agent 引用；新选择会返回 `409 model_not_selectable`。存在 `expired_fallback_to` 时，它给出替代 alias。
 
 ---
 
@@ -975,9 +980,11 @@ interface AgentStatus {
 ```ts
 interface AgentResource {
   name: string
+  userTimezone?: string
   model?: { primary: string; input?: string[]; max_tokens?: number }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
   skills?: { skill_id: string; version?: number | 'latest' }[]
+  include_global_skills?: boolean
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
   mcp?: McpServerDeclaration[]
@@ -995,6 +1002,8 @@ interface AgentResource {
 `system_prompt` pin 一个模板版本（创建时省略等于「当前 active 的平台版本」，
 从此定住；PUT 时和 `tool_policy` 一样整体替换），`outcome` 是无人值守 cron 触发的 agent 级
 默认门。
+
+`userTimezone` 是 prompt context 和消息时间戳使用的 IANA timezone 名称，不设置 Schedule timezone。`include_global_skills` 默认 `true`；设为 `false` 会关闭自动挂载的 global Skills，但不会删除显式安装的 Skills。显式传入空的 `skills` array 也会 opt out。
 
 省略 `model` 会把创建时生效的平台默认值写入 Agent。默认值可能变化；需要确定性部署时，请调用 `listModels()` 并明确设置 `primary`。
 
@@ -1086,6 +1095,7 @@ interface SessionRecord {
   status?: string | null
   metadata?: Record<string, unknown>
   archived?: boolean
+  deleted?: boolean
   updated_at?: string
   history?: SessionHistoryEntry[]
   [k: string]: unknown
@@ -1098,8 +1108,31 @@ interface SessionRecord {
 `getSession()` 返回 `status: null`，同时返回 `run_status`；`listSessions()` 的每一行包含
 `run_status`，不包含 `status`。旧的 `status` 字段不是 run 的结果，不同部署上的值可能不同。
 最近一次 run 的状态应读取 `run_status`；没有最近 run 时可为 null。`pending_approvals` 是数量，不是数组。
+`deleted` 出现在 `listSessionPage()` 用 `includeDeleted: true` 返回的 deletion tombstone 上；tombstone 不是可读取的 Session resource。
 `session_key` 带频道前缀：你通过 API 创建的 session 是 `api:<session_id>`。`channel` 在你自己创建的
 session 上是 `api`，在定时任务触发出来的 session 上是 `cron`。
+
+### `SessionListPageOptions` 与 `SessionListPage`
+
+```ts
+interface SessionListPageOptions {
+  cursor?: string
+  limit?: number
+  excludeChannels?: string[]
+  includeSurfaces?: string[]
+  runtimeModes?: Array<'active' | 'preview' | 'authoring' | 'evaluation'>
+  includeArchived?: boolean
+  includeDeleted?: boolean
+}
+
+interface SessionListPage {
+  sessions: SessionRecord[]
+  next_cursor: string | null
+  includes_deleted?: true
+}
+```
+
+`includeDeleted` 会加入已删除 Session 的 tombstone，并改变 cursor scope。用 cursor 续传时，必须保持它和其他 filter 不变。请求该模式后，响应会用 `includes_deleted: true` 确认。
 
 ### `SessionHistoryEntry`
 
@@ -1143,12 +1176,20 @@ interface ModelInfo {
   display_name?: string
   family?: string
   api?: string
+  expired_at?: string | null
+  expired_fallback_to?: string | null
+  retired_at?: string | null
+  revision?: number
+  lifecycle_status?: 'active' | 'scheduled' | 'draining' | 'retired' | string
+  selectable?: boolean
+  retire_not_before?: string | null
+  default_for?: string[]
   [k: string]: unknown
 }
 ```
 
 `model` 是稳定的别名，作为 `resource.model.primary` 提交。`family` 是展示用的元数据；`api`
-是协议面（`anthropic-messages`、`openai-completions` 或 `openai-responses`）。请保留未来出现的未知值。
+是协议面（`anthropic-messages`、`openai-completions` 或 `openai-responses`）。`selectable: false` 表示不能在新 Agent 或新配置里选择这个 alias，即使该 row 仍然保留给已有引用。lifecycle timestamp、status、replacement alias、revision 和 default category 描述这个过渡过程。请保留未来出现的未知值。
 
 ### `Ownership`
 

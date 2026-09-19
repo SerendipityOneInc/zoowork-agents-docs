@@ -68,6 +68,11 @@ To see how that execution history becomes useful for evaluation and model improv
 Sessions on the same Agent share its workspace by default. For separate user workspaces,
 follow [An agent per user](../build/per-user-agents.md).
 
+## Usage and billing
+
+View API usage and costs on the [ZooWork Platform Usage page](https://platform.zoowork.ai/settings/usage).
+Managed Agents does not currently expose a public Usage API through the SDKs or HTTP API.
+
 ## Next steps
 
 - [Quickstart](./quickstart.md): create an Agent and complete a report task.

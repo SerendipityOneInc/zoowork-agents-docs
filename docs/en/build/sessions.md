@@ -337,6 +337,7 @@ do {
     includeSurfaces: ['inbox'],
     runtimeModes: ['active'],
     includeArchived: false,
+    includeDeleted: true,
   })
   for (const session of page.sessions) await index(session)
   cursor = page.next_cursor ?? undefined
@@ -353,6 +354,7 @@ while cursor is not None:
         exclude_channels=["api"],
         include_surfaces=["inbox"],
         runtime_modes=["active"],
+        include_deleted=True,
     )
     for session in page.sessions:
         await index(session)
@@ -364,6 +366,12 @@ the cursor is bound to the Agent and filter scope, and invalid reuse returns
 `400 invalid_cursor`. `limit` is 1–100. `runtime_modes` accepts `active`, `preview`,
 `authoring`, and `evaluation`. Each row has `list_cursor`, so a consumer that stops partway
 through a page can resume after the last processed row. `next_cursor` is null at the end.
+
+Deleted Sessions are omitted by default. Set `includeDeleted: true` in TypeScript or
+`include_deleted=True` in Python when a reconciliation job needs deletion tombstones. Those
+rows carry `deleted: true`, and the page confirms the mode with `includes_deleted: true`.
+The option is part of the cursor scope: keep it unchanged while continuing from a cursor.
+Tombstones identify deleted Session ids; do not treat them as readable Session resources.
 
 `archiveSession(agentId, sessionId)` and `deleteSession(agentId, sessionId)` provide lifecycle
 operations. None of these methods changes the boundaries above: you still fan out across Agents

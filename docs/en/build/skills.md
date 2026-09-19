@@ -73,7 +73,12 @@ be attached and still not eligible.
 
 ## Global skills are attached automatically
 
-Global skills are ready on every new agent and require no provisioning step. Use
+Global skills are ready on every new agent by default and require no provisioning step. To
+create an Agent without them, set `include_global_skills: false` or pass an explicit
+`skills: []` in the Agent resource. Setting `include_global_skills: false` does not remove
+Skills you install explicitly, and the opt-out persists across later updates and rerenders.
+
+Use
 `putAgentSkill()` and `deleteAgentSkill()` only for skills with `org` or `personal` scope:
 
 ```ts

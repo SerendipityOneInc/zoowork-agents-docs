@@ -177,7 +177,7 @@ See [Channels](../build/channels.md) for the platform table and setup behavior.
 | `createSession(agentId, input, idempotencyKey?)` | `Promise<SessionRecord>` | Opens a session. Requires a running agent, else `409 agent_not_running`. |
 | `getSession(agentId, sessionId, opts?)` | `Promise<SessionRecord>` | Reads a session, optionally with the at-rest transcript. |
 | `listSessions(agentId, opts?)` | `Promise<SessionRecord[]>` | One agent's sessions through the legacy numeric-page lane: newest first by `updated_at`, 50 per page, `page` 1-based. Each row carries `run_status` and omits `status`. |
-| `listSessionPage(agentId, opts?)` | `Promise<SessionListPage>` | Selects the filtered cursor lane. Start without a cursor (the SDK sends `sls1:0`), then pass `next_cursor`; `limit` is 1–100. Supports channel exclusion, surface inclusion, runtime-mode, and archive filters. Cursors are opaque and bound to the agent and filter scope. |
+| `listSessionPage(agentId, opts?)` | `Promise<SessionListPage>` | Selects the filtered cursor lane. Start without a cursor (the SDK sends `sls1:0`), then pass `next_cursor`; `limit` is 1–100. Supports channel exclusion, surface inclusion, runtime-mode, archive, and deleted-tombstone filters. Cursors are opaque and bound to the agent and complete filter scope. |
 | `archiveSession(agentId, sessionId)` | `Promise<{ session_id?: string; archived: boolean }>` | Stamps `archived_at`. Afterwards writes are `409 session_archived` while reads keep working. Interrupt an in-flight run first. |
 | `deleteSession(agentId, sessionId)` | `Promise<void>` | Soft-deletes the session (204), cancelling an in-flight run first. Transcripts and events survive for audit. |
 | `postEvents(agentId, sessionId, events)` | `Promise<{ events: { id?: string \| null; type?: string; accepted?: boolean; [k: string]: unknown }[] }>` | Writes user or system events into a session; accepted events echo back as full event objects. |
@@ -313,7 +313,8 @@ bare-array and the `{ models: [...] }` wire shapes and always hands you an array
 
 ```ts
 const models = await zc.listModels()
-console.log(models.length, models[0]?.model)
+const selectable = models.filter((model) => model.selectable !== false)
+console.log(selectable.length, selectable[0]?.model)
 ```
 
 ```json
@@ -322,13 +323,19 @@ console.log(models.length, models[0]?.model)
     "model": "litellm/gpt-5.6-terra",
     "display_name": "GPT-5.6 Terra",
     "family": "openai",
-    "api": "openai-responses"
+    "api": "openai-responses",
+    "lifecycle_status": "active",
+    "selectable": true,
+    "revision": 3,
+    "default_for": ["text"]
   }
 ]
 ```
 
 Pass a `model` value verbatim into `resource.model.primary`. Do not hardcode the underlying
-provider model name behind the alias.
+provider model name behind the alias. Only select rows whose `selectable` is not `false`.
+Lifecycle rows may remain visible for existing Agents after new selection is disabled; selecting
+one returns `409 model_not_selectable`. When present, `expired_fallback_to` names its replacement.
 
 ---
 
@@ -1034,9 +1041,11 @@ refreshing; list and GET can briefly disagree. `running` is not a member of this
 ```ts
 interface AgentResource {
   name: string
+  userTimezone?: string
   model?: { primary: string; input?: string[]; max_tokens?: number }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
   skills?: { skill_id: string; version?: number | 'latest' }[]
+  include_global_skills?: boolean
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
   mcp?: McpServerDeclaration[]
@@ -1055,6 +1064,11 @@ while a run waits. `system_prompt` pins a template
 version (omitted on create means "the platform version active right now", pinned from then
 on; replace-on-write on PUT like `tool_policy`), and `outcome` is the agent-level default
 gate for unattended cron fires.
+
+`userTimezone` is a named IANA timezone used in prompt context and message timestamps. It does
+not set Schedule timezone. `include_global_skills` defaults to `true`; set it to `false` to
+disable automatic global Skills without removing explicitly installed Skills. An explicit
+empty `skills` array also opts out.
 
 Omitting `model` pins the platform default active at creation time. Defaults can change, so
 call `listModels()` and set `primary` explicitly when provisioning must be deterministic.
@@ -1161,6 +1175,7 @@ interface SessionRecord {
   status?: string | null
   metadata?: Record<string, unknown>
   archived?: boolean
+  deleted?: boolean
   updated_at?: string
   history?: SessionHistoryEntry[]
   [k: string]: unknown
@@ -1175,9 +1190,35 @@ The fields vary by response surface: `createSession()` returns `status: "running
 `run_status`; `listSessions()` rows carry `run_status` and omit `status`. The legacy `status`
 field may differ across deployments and is not the run outcome. Use `run_status` for the latest
 run state.
+`deleted` is present on deletion tombstones returned by `listSessionPage()` with
+`includeDeleted: true`; a tombstone is not a readable Session resource.
 `session_key` is channel-qualified: sessions you create through
 the API are `api:<session_id>`. `channel` is `api` for sessions you create and `cron` for ones
 a schedule fired.
+
+### `SessionListPageOptions` and `SessionListPage`
+
+```ts
+interface SessionListPageOptions {
+  cursor?: string
+  limit?: number
+  excludeChannels?: string[]
+  includeSurfaces?: string[]
+  runtimeModes?: Array<'active' | 'preview' | 'authoring' | 'evaluation'>
+  includeArchived?: boolean
+  includeDeleted?: boolean
+}
+
+interface SessionListPage {
+  sessions: SessionRecord[]
+  next_cursor: string | null
+  includes_deleted?: true
+}
+```
+
+`includeDeleted` adds deleted Session tombstones and changes the cursor scope. Keep it and all
+other filters unchanged while continuing from a cursor. When requested, the response confirms
+the mode with `includes_deleted: true`.
 
 ### `SessionHistoryEntry`
 
@@ -1223,13 +1264,24 @@ interface ModelInfo {
   display_name?: string
   family?: string
   api?: string
+  expired_at?: string | null
+  expired_fallback_to?: string | null
+  retired_at?: string | null
+  revision?: number
+  lifecycle_status?: 'active' | 'scheduled' | 'draining' | 'retired' | string
+  selectable?: boolean
+  retire_not_before?: string | null
+  default_for?: string[]
   [k: string]: unknown
 }
 ```
 
 `model` is the stable alias to submit as `resource.model.primary`. `family` is display
 metadata; `api` is the protocol face (`anthropic-messages`, `openai-completions`, or
-`openai-responses`). Preserve unknown future values.
+`openai-responses`). `selectable: false` means the alias cannot be selected for a new Agent or
+config, even if the row remains visible for existing references. The lifecycle timestamps,
+status, replacement alias, revision, and default categories describe that transition. Preserve
+unknown future values.
 
 ### `Ownership`
 
