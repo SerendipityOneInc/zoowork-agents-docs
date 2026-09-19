@@ -2,7 +2,7 @@
 title: Sessions
 description: 创建、继续、列出、归档和删除 session，并读取 transcript。
 source: /en/build/sessions
-source_hash: 69bd3f18d3acbddc92a4ea2a622f612a41f85df3b4c5bc5ce55404fabb3e948c
+source_hash: 07f5aee5f969432f6df701bdfef453177d1bd5b0d72aa5b7ec5a299bc52492e6
 ---
 
 # Sessions
@@ -276,6 +276,7 @@ do {
     excludeChannels: ['api'],
     includeSurfaces: ['inbox'],
     runtimeModes: ['active'],
+    includeDeleted: true,
   })
   for (const session of page.sessions) await index(session)
   cursor = page.next_cursor ?? undefined
@@ -292,6 +293,7 @@ while cursor is not None:
         exclude_channels=["api"],
         include_surfaces=["inbox"],
         runtime_modes=["active"],
+        include_deleted=True,
     )
     for session in page.sessions:
         await index(session)
@@ -299,6 +301,8 @@ while cursor is not None:
 ```
 
 初始 cursor 是 `sls1:0`。cursor 不透明，续传时必须保持所有 filter 不变；它绑定 Agent 和 filter scope，错误复用返回 `400 invalid_cursor`。`limit` 是 1–100。`runtime_modes` 接受 `active`、`preview`、`authoring` 和 `evaluation`。每行都有 `list_cursor`，所以只处理半页时可以从最后处理的 row 之后继续。到达末尾时 `next_cursor` 是 null。
+
+默认不会返回已删除的 Session。reconciliation job 需要 deletion tombstone 时，TypeScript 传 `includeDeleted: true`，Python 传 `include_deleted=True`。这类 row 带有 `deleted: true`，page 用 `includes_deleted: true` 确认当前模式。这个选项属于 cursor scope；使用同一个 cursor 续传时不能修改它。tombstone 只用于识别已删除的 Session id，不能当作可读取的 Session resource。
 
 `archiveSession(agentId, sessionId)` 和 `deleteSession(agentId, sessionId)` 提供生命周期操作。这些方法不改变前面的边界：跨 Agent 仍需自己扇出合并，`metadata` 仍然只能写一次。
 

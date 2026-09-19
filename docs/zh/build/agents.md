@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: dd77063917e836a34d79ee5ad1800240cf543443d04ce4a0ffd347c7185b0155
+source_hash: 1f5980645ac9f6ee205592645f47bb432177d6daccec1c46f3846c273e37a36b
 ---
 
 # Agents
@@ -33,7 +33,9 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_.
 import type { AgentRecord } from '@zoowork-ai/sdk'
 
 const models = await zc.listModels()
-const primary = models.find((model) => model.model === 'litellm/gpt-5.6-terra')?.model
+const primary = models.find(
+  (model) => model.model === 'litellm/gpt-5.6-terra' && model.selectable !== false,
+)?.model
 if (!primary) throw new Error('请从 listModels() 返回的模型中选择一个')
 
 const created: AgentRecord = await zc.createAgent(
@@ -62,7 +64,10 @@ onboarding 面试总是被跳过——agent 会直接回答你的第一条消息
 | `model.primary` | string | `provider/model-id` 形式的模型别名，例如 `litellm/gpt-5.6-terra`。只写模型名会被归一成 `litellm/<model-id>`。列表从 `listModels()` 拿。 |
 | `model.input` | `string[]` | `text` 和/或 `image`。声明 `image` 表示主模型自己读图。 |
 | `model.max_tokens` | integer | 单次模型请求的输出 token 上限。不设走平台默认；非法值创建时报 400。 |
+| `userTimezone` | string | IANA timezone 名称，例如 `Asia/Shanghai`。它设置 prompt context 和消息时间戳使用的用户时区；Schedule 的 timezone 是另一项独立配置。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
+| `skills` | array | 显式安装的 Skills。传入 `[]` 会让这个 Agent 不再自动挂载 global Skills。 |
+| `include_global_skills` | boolean | 默认 `true`。设为 `false` 会关闭自动挂载的 global Skills，但保留显式安装的 Skills。这个设置在后续 update 和 rerender 后仍然保留。 |
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
 | `tool_policy` | object | `{}` 表示完整的工具清单。policy 字段支持精确名称、全局 `*` 和一个末尾 `prefix*`；`alsoAllow` 仍然只支持精确名称。见[工具](./tools.md)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
@@ -70,11 +75,14 @@ onboarding 面试总是被跳过——agent 会直接回答你的第一条消息
 
 整个 `model` 段都可以省略。省略时，创建操作会把当时的平台默认值写入 Agent。默认值可能随部署环境和时间变化。需要可重复部署时，请先调用 `listModels()`，再持久化一个明确选择。
 
+模型目录还包含 lifecycle metadata。只能选择 `selectable` 不为 `false` 的条目。进入 draining 或 retired 状态的条目可能继续留在目录里，让已有 Agent 继续运行；但新建或更新 Agent 时选择它会返回 `409 model_not_selectable`。如果响应里有 `expired_fallback_to`，它就是替代模型的 alias。重试前应重新读取模型目录，不要反复提交已经被拒绝的 alias。
+
 ```ts
 const agent = await zc.createAgent({
   resource: {
     name: 'support-triage',
     model: { primary, input: ['text', 'image'] },
+    userTimezone: 'Asia/Shanghai',
     persona: {
       docs: [
         { name: 'AGENTS.md', content: 'You triage inbound support tickets. Be terse.' },

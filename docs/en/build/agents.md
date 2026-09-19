@@ -40,7 +40,9 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_.
 import type { AgentRecord } from '@zoowork-ai/sdk'
 
 const models = await zc.listModels()
-const primary = models.find((model) => model.model === 'litellm/gpt-5.6-terra')?.model
+const primary = models.find(
+  (model) => model.model === 'litellm/gpt-5.6-terra' && model.selectable !== false,
+)?.model
 if (!primary) throw new Error('Choose a model returned by listModels()')
 
 const created: AgentRecord = await zc.createAgent(
@@ -71,7 +73,10 @@ The onboarding interview is always skipped, so the agent answers your first mess
 | `model.primary` | string | Model alias in `provider/model-id` form, e.g. `litellm/gpt-5.6-terra`. A bare name is normalized to `litellm/<model-id>`. Get the list from `listModels()`. |
 | `model.input` | `string[]` | `text` and/or `image`. Declaring `image` says the primary model reads images itself. |
 | `model.max_tokens` | integer | Output-token cap per model request. Omit to use the platform default; invalid values are rejected at create. |
+| `userTimezone` | string | Named IANA timezone such as `Asia/Shanghai`. It sets the user's timezone in prompt context and message timestamps; Schedule timezone remains a separate setting. |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | Guidance documents. Only inline `content` is stored. Only the canonical names are read when the prompt is assembled: `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`. Other names are saved but never reach the model. `MEMORY.md` and the `memory/` namespace are reserved and return `400 invalid_persona_doc_name`. |
+| `skills` | array | Skills to install explicitly. Passing `[]` opts this Agent out of automatically attached global Skills. |
+| `include_global_skills` | boolean | Defaults to `true`. Set `false` to disable automatic global Skills while keeping explicitly installed Skills. The setting persists across later updates and rerenders. |
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
 | `tool_policy` | object | `{}` means the full tool manifest. Exact names, global `*`, and one trailing `prefix*` are supported in the policy fields; `alsoAllow` remains exact-only. See [Tools](./tools.md). |
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
@@ -81,11 +86,18 @@ The whole `model` section is optional. If you omit it, create pins the platform 
 at that moment. Defaults can differ by deployment and change over time. Use `listModels()` and
 persist an explicit selection when repeatable provisioning matters.
 
+The model catalog also carries lifecycle metadata. Only choose a row whose `selectable` is not
+`false`. A draining or retired row can remain in the catalog so existing Agents keep working,
+but a new create or update that selects it returns `409 model_not_selectable`. When present,
+`expired_fallback_to` identifies the replacement alias. Refresh the catalog before retrying
+rather than repeatedly submitting the rejected alias.
+
 ```ts
 const agent = await zc.createAgent({
   resource: {
     name: 'support-triage',
     model: { primary, input: ['text', 'image'] },
+    userTimezone: 'Asia/Shanghai',
     persona: {
       docs: [
         { name: 'AGENTS.md', content: 'You triage inbound support tickets. Be terse.' },

@@ -2,7 +2,7 @@
 title: Skills
 description: 打包、上传、绑定、检查、更新和移除 agent 的 skill。
 source: /en/build/skills
-source_hash: bcdcc8118fa9988d7798aebedb58dd7a94cf967e4924b97634c27106cd828a6e
+source_hash: de85e3b16b147952108bd89087a06ed27770a3db35379ec62cf4c2b85d6895ea
 ---
 
 # Skills
@@ -66,7 +66,12 @@ interface AgentSkill {
 
 ## Global Skills 由平台自动挂载
 
-每个新 Agent 都可以直接使用 global Skills，不需要额外执行安装步骤。`putAgentSkill()`
+默认情况下，每个新 Agent 都可以直接使用 global Skills，不需要额外执行安装步骤。
+创建不需要这些 Skills 的 Agent 时，在 Agent resource 里设置 `include_global_skills: false`，
+或者显式传入 `skills: []`。`include_global_skills: false` 不会删除你显式安装的 Skills，
+而且这个 opt-out 在后续 update 和 rerender 后仍然保留。
+
+`putAgentSkill()`
 和 `deleteAgentSkill()` 只用于 `org` 或 `personal` scope：
 
 ```ts
