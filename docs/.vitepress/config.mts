@@ -364,7 +364,10 @@ export default defineConfig({
   base: '/docs/',
   outDir: '../dist/docs',
   cleanUrls: true,
-  lastUpdated: true,
+  // The production checkout does not retain enough Git history to calculate a reliable
+  // per-page modification time. Omitting the value is better than publishing the deploy
+  // commit timestamp for every page in both the UI and sitemap.
+  lastUpdated: false,
   sitemap: {
     // VitePress requires the deployment base in the hostname when the site is served
     // from a sub-path. This emits /docs/sitemap.xml with canonical /docs/... URLs.
