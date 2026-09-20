@@ -245,6 +245,9 @@ if (!sitemap.startsWith('<?xml version="1.0" encoding="UTF-8"?>')) {
 if (!sitemap.includes('<urlset ') || !sitemap.trimEnd().endsWith('</urlset>')) {
   fail('sitemap.xml does not contain a complete urlset')
 }
+if (sitemap.includes('<lastmod>')) {
+  fail('sitemap.xml should omit lastmod because the production build has no reliable per-page history')
+}
 for (const forbidden of ['zooclaw.ai', 'localhost', '127.0.0.1']) {
   if (sitemap.includes(forbidden)) fail(`sitemap.xml contains forbidden host ${forbidden}`)
 }
