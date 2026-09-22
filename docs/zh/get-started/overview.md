@@ -1,7 +1,7 @@
 ---
 description: 了解 ZooWork Managed Agents 提供什么、适用于哪些任务，以及 Agent、Session 和 Event 如何协作。
 source: /en/get-started/overview
-source_hash: ad02731c8cd1c8cb00b8b082130431836a232c6a2ae7a3381100406a8f29e452
+source_hash: 7d27e375ef4d02cccc005e152a13f82db78392968f27f6580c9597ade83caf56
 ---
 
 # ZooWork Managed Agents 概览
@@ -63,7 +63,6 @@ ZooWork 负责模型与工具调用循环、对话历史、沙箱执行和事件
 
 ## 用量与账单
 
-API 用量和费用请前往 [ZooWork Platform Usage 页面](https://platform.zoowork.ai/settings/usage)查看。
 Managed Agents 当前没有通过 SDK 或 HTTP API 开放 public Usage API。
 
 ## 下一步

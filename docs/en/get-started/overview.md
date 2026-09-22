@@ -70,7 +70,6 @@ follow [An agent per user](../build/per-user-agents.md).
 
 ## Usage and billing
 
-View API usage and costs on the [ZooWork Platform Usage page](https://platform.zoowork.ai/settings/usage).
 Managed Agents does not currently expose a public Usage API through the SDKs or HTTP API.
 
 ## Next steps
