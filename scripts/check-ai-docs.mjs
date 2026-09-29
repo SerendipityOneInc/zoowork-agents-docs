@@ -104,8 +104,8 @@ const sitemap = existsSync(sitemapPath) ? readFileSync(sitemapPath, 'utf8') : ''
 const tocEntries = [...llms.matchAll(/^- \[([^\]]+)]\((\/docs\/[^)]+\.md)\): (.+)$/gm)]
 
 if (!llms.startsWith('# ZooWork Managed Agents\n')) fail('llms.txt has an unexpected title')
-if (tocEntries.length !== 17) {
-  fail(`llms.txt should describe 17 English pages, found ${tocEntries.length}`)
+if (tocEntries.length !== 18) {
+  fail(`llms.txt should describe 18 English pages, found ${tocEntries.length}`)
 }
 
 const tocTargets = new Set()
@@ -159,8 +159,8 @@ const expectedHtmlPages = filesUnder(resolve('docs'), '.md')
     return `https://zoowork.ai/docs/${route}`
   })
 
-if (expectedHtmlPages.length !== 34) {
-  fail(`source should contain 34 locale pages, found ${expectedHtmlPages.length}`)
+if (expectedHtmlPages.length !== 36) {
+  fail(`source should contain 36 locale pages, found ${expectedHtmlPages.length}`)
 }
 const expectedHtmlPageSet = new Set(expectedHtmlPages)
 if (expectedHtmlPageSet.size !== expectedHtmlPages.length) {
@@ -253,8 +253,8 @@ for (const forbidden of ['zooclaw.ai', 'localhost', '127.0.0.1']) {
 }
 
 const sitemapEntries = [...sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)].map((match) => match[1])
-if (sitemapEntries.length !== 34) {
-  fail(`sitemap.xml should contain exactly 34 URL entries, found ${sitemapEntries.length}`)
+if (sitemapEntries.length !== 36) {
+  fail(`sitemap.xml should contain exactly 36 URL entries, found ${sitemapEntries.length}`)
 }
 
 const sitemapUrls = []
