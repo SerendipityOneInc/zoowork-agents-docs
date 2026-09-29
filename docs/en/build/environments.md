@@ -64,7 +64,8 @@ Environment versions are reproducible build artifacts with a deliberately small 
 
 - **Package installation** supports apt, npm, and pip.
 - **Base image** is the managed ZooWork platform image. Your configuration adds packages,
-  files, and a build script on top of it.
+  files, and a build script on top of it. See the [cloud sandbox reference](./cloud-sandbox-reference.md)
+  for the default image's languages, database clients, and utilities.
 - **Build-time configuration** runs `build.script` while the image is built. Keep runtime
   credentials and application secrets outside the Environment definition.
 - **Immutable versions** preserve the input and build history. Create a version for a new

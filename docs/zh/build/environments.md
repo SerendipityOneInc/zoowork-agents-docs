@@ -2,7 +2,7 @@
 title: Environments
 description: 定义可复用的沙箱模板，并把带版本的 Environment 绑定到 agent。
 source: /en/build/environments
-source_hash: 5463b5c9c4f0b2269e276f37b26814f3b7e18e9a8e19c48731a80f53987397da
+source_hash: fb9b9025e00b5a39e9a2b93e8d36ec89e89b92c8fd174973c53186529f0b125c
 ---
 
 # Environments
@@ -56,6 +56,7 @@ Environment version 是可复现的构建产物，输入范围保持精简：
 
 - **包安装**支持 apt、npm 和 pip。
 - **基础镜像**使用 ZooWork 托管的平台镜像。你的配置在此基础上添加包、文件和构建脚本。
+  默认镜像里的编程语言、数据库客户端和工具见[云沙箱参考](./cloud-sandbox-reference.md)。
 - **构建期配置**会在镜像构建时运行 `build.script`。运行时凭证和应用 secret 应放在 Environment 定义之外。
 - **Version 不可变**，用于保留输入和构建历史。配置变化时创建新 version；需要重新构建同一 version 时使用 retry 操作。
 - **Agent 配置保持独立。** Skills、persona 和工作区文件通过各自的 Agent API 挂载。

@@ -236,6 +236,7 @@ interface PageSet {
   skills: string
   perUserAgents: string
   environments: string
+  cloudSandboxReference: string
   reference: string
   sdk: string
   errors: string
@@ -262,6 +263,7 @@ const EN: PageSet = {
   skills: 'Skills',
   perUserAgents: 'An agent per user',
   environments: 'Environments',
+  cloudSandboxReference: 'Cloud sandbox reference',
   reference: 'Reference',
   sdk: 'TypeScript SDK',
   errors: 'Errors',
@@ -288,6 +290,7 @@ const ZH: PageSet = {
   skills: 'Skills',
   perUserAgents: '每用户一个 Agent',
   environments: 'Environments',
+  cloudSandboxReference: '云沙箱参考',
   reference: '参考',
   sdk: 'TypeScript SDK',
   errors: '错误处理',
@@ -323,6 +326,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
       text: t.configureEnvironment,
       items: [
         { text: t.environments, link: `${base}/build/environments` },
+        { text: t.cloudSandboxReference, link: `${base}/build/cloud-sandbox-reference` },
       ],
     },
     {
