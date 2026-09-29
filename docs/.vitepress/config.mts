@@ -5,6 +5,8 @@ import { defineConfig, type DefaultTheme, type MarkdownRenderer } from 'vitepres
 import llmstxt from 'vitepress-plugin-llms'
 
 const DOCS_URL = 'https://zoowork.ai/docs/'
+// Shared with the public homepage at zoowork.ai.
+const FAVICON_URL = 'https://assets.yesy.site/f/images/2026/06/b83kdmhd.png'
 
 function localeUrls(route: string) {
   const locale = route.match(/^(en|zh)(?=\/|$)/)?.[1]
@@ -388,6 +390,9 @@ export default defineConfig({
   // Matches the page surface in each scheme, so the mobile browser chrome does not sit on
   // the page as a separate colour. The palette itself is in theme/custom.css.
   head: [
+    ['link', { rel: 'icon', type: 'image/png', href: FAVICON_URL }],
+    ['link', { rel: 'shortcut icon', href: FAVICON_URL }],
+    ['link', { rel: 'apple-touch-icon', href: FAVICON_URL }],
     ['meta', { name: 'theme-color', media: '(prefers-color-scheme: light)', content: '#fafafa' }],
     ['meta', { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#111111' }],
   ],
