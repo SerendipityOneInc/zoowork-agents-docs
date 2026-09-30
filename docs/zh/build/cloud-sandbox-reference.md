@@ -2,7 +2,7 @@
 title: 云沙箱参考
 description: 查看 ZooWork 默认云沙箱中的编程语言、数据库客户端、实用工具和资源规格。
 source: /en/build/cloud-sandbox-reference
-source_hash: 6fb73f86bcbe4ade105384bab1e1ec5347435687b5c84e7a46597b2bf7b818cc
+source_hash: 9c7ed30021bc4e69f19d4d2b9e4c48a7c815bcc15a843332ca5342cd2c35a1bb
 ---
 
 # 云沙箱参考
@@ -11,7 +11,7 @@ ZooWork 默认云沙箱是 Agent 执行命令、处理文件和使用浏览器�
 backend 提供。下面列出的软件无需创建自定义 [Environment](./environments.md) 就能使用。
 
 本页描述默认沙箱镜像。自定义 Environment 以托管基础镜像为起点，可以添加 apt、npm、pip
-包、文件和构建步骤。基础镜像重建后，软件的 patch 版本可能变化。如果应用依赖精确版本，
+包、文件和构建步骤。基础镜像重建后，所列语言和工具系列中的具体版本可能变化。如果应用依赖精确版本，
 请在沙箱内检查，或在自定义 Environment 中固定所需依赖。
 
 ## 编程语言
@@ -30,7 +30,9 @@ backend 提供。下面列出的软件无需创建自定义 [Environment](./envi
 镜像还为 `python3` 安装了 pandas、Matplotlib、Pillow、openpyxl、python-docx、
 python-pptx、pypdf、ReportLab、pdfplumber、pdf2image、pytesseract、markitdown
 等数据与文档库。Node.js 的共享模块路径中有 `docx`、`pptxgenjs` 和
-`playwright-core`。
+`playwright-core`。镜像设置的 `NODE_PATH` 可供 CommonJS 的 `require()` 查找这些包；
+项目中的 ESM `import` 不使用这条回退路径。使用 ESM 时，可以通过 `createRequire()` 加载，
+或把依赖安装在项目的 `node_modules` 中。
 
 默认镜像的基础清单以本页列出的版本和工具为准。依赖其他版本或工具前，请先检查实际运行环境。
 

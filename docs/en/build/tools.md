@@ -1,13 +1,38 @@
 ---
-description: Configure built-in and application-executed tools, control their availability, and observe tool calls.
+description: See the Agent's basic tools, configure custom and MCP tools, and control tool availability.
 ---
 
 # Tools
 
-An agent runs inside a managed sandbox with a built-in tool set already available to the
-model. You choose how much of that set it may reach. You may also declare custom tools that
-your application executes while a run waits. Connect platform-executed external tools through
-[MCP servers](./mcp.md).
+An Agent comes with a managed [cloud sandbox](./cloud-sandbox-reference.md) and basic tools
+for files, commands, and web access. These are **tools the Agent calls during a run**. The SDK
+can allow or deny them through the Agent's `tool_policy`, but it does not directly invoke a
+model tool by name. The separate SDK `exec(agentId, args)` method runs a command in an
+agent-scope sandbox outside the Agent's tool loop. To reach your own systems, declare
+application-executed custom tools or connect [MCP servers](./mcp.md).
+
+## Basic Agent tools
+
+These names are on the default tool surface for an active Agent with an empty `tool_policy`.
+Visibility does not guarantee a call will succeed: the sandbox backend or web proxy must also
+be available, and file access and network requests remain subject to their respective limits.
+
+| Tool | What the Agent can do | Boundary |
+|---|---|---|
+| `read` | Read a sandbox file. | Relative paths resolve under `/workspace`. |
+| `write` | Create or replace a sandbox file. | Writes must stay within declared writable roots. |
+| `edit` | Change text in an existing sandbox file. | The same writable-root limit applies. |
+| `apply_patch` | Apply a patch to sandbox files. | The same writable-root limit applies. |
+| `exec` | Run a command in the sandbox. | The Environment controls installed software and sandbox network access. |
+| `process` | Continue or stop a command started by `exec`. | Requires a process from the current Agent runtime. |
+| `web_fetch` | Fetch and extract an HTTP(S) page. | Uses the platform proxy; it does not control a browser. |
+| `web_search` | Search the web. | Uses the configured platform search service. |
+| `web_image_search` | Search for images. | Uses the configured platform search service. |
+
+See the [cloud sandbox reference](./cloud-sandbox-reference.md) for installed software and
+resource sizes. Sandbox `networking` governs commands such as `curl` in `exec`; `web_fetch` and the
+search tools use platform services outside that sandbox network path. Use `tool_policy` to
+remove those web tools from the Agent's tool surface when necessary.
 
 ## Application-executed custom tools
 
@@ -110,11 +135,11 @@ the run consumes it. An already completed, timed-out, or cancelled call returns 
 returns 409. If result signaling is not configured in the current environment, the endpoint
 returns 501.
 
-## The built-in tool set
+## Observe tool calls
 
-The platform defines the built-in tool manifest. Read tool names from the event stream instead
-of keeping a separate list in your application, so your integration follows the tools available
-to the Agent.
+The event stream records tools the Agent actually called. It does not enumerate every tool
+available to that Agent. Use it to audit calls and to confirm the exact names observed in your
+deployment.
 
 Run a turn that needs tools and read the tool names from the event stream:
 
@@ -153,36 +178,79 @@ cursor for you. See [Events and streaming](./events.md).
 
 ## Narrowing the tool set with `tool_policy`
 
-`tool_policy` lives on the agent resource. An empty object means the full manifest, so a
-plain agent has every built-in tool. A non-empty object is read as an allow/deny policy that
-narrows the surface.
+`tool_policy` lives on the Agent resource. An empty object applies no policy restriction;
+runtime and configuration gates still decide which tools are visible. A non-empty object is
+read as an allow/deny policy that narrows the surface.
+
+ZooWork uses `allow` and `deny` names in `tool_policy`; it does not use a per-tool
+`enabled` setting.
+
+### Disable selected tools
+
+For a new Agent, hide the three web tools while leaving other tools subject to their
+normal runtime gates:
 
 ```ts
 await zc.createAgent({
   resource: {
-    name: 'research-bot',
-    model: { primary: 'litellm/gpt-5.6-terra' },
-    tool_policy: { allow: ['read', 'web_search'] },
+    name: 'report-agent-no-web-tools',
+    tool_policy: { deny: ['web_fetch', 'web_search', 'web_image_search'] },
   },
 })
 ```
 
-Three things to know before you rely on it.
+For an existing Agent, replace its policy to hide one tool:
 
-**It is replace-on-write.** Every other section of the agent document is merged per section
-by `updateAgent`, so omitting a section preserves it. `tool_policy` is the exception: each
-PUT replaces it wholesale. To restore the full manifest, send `{}`:
+```ts
+await zc.updateAgent(agentId, {
+  tool_policy: { deny: ['web_search'] },
+})
+```
+
+The update replaces the **entire** previous `tool_policy`. Include any other rules you
+still need in the submitted object.
+
+### Allow only selected tools
+
+An `allow` list narrows the ordinary tool surface. This policy admits `read`, `write`,
+and `exec` from that surface, subject to their normal runtime gates:
+
+```ts
+await zc.createAgent({
+  resource: {
+    name: 'report-agent',
+    tool_policy: { allow: ['read', 'write', 'exec'] },
+  },
+})
+```
+
+If a name appears in both `allow` and `deny`, `deny` wins.
+Special system turns can add contextual tools outside the ordinary surface.
+
+These examples control the Agent's model tool surface. Denying web tools does not stop a
+sandbox command started through `exec` from accessing the network; set the Environment's
+`networking` policy for sandbox egress.
+
+### Restore the default tool surface
+
+To remove all policy restrictions and return to the runtime's default tool surface, send
+`{}`:
 
 ```ts
 await zc.updateAgent(agentId, { tool_policy: {} })
 ```
 
+The default still depends on runtime and deployment configuration. Every PUT that names
+`tool_policy` replaces that policy as a whole; omitting it preserves the existing policy.
+
+Two more things to know before you rely on it.
+
 **Every PUT bumps `config_version`**, including one that changes nothing, so do not re-PUT the
 policy on every turn. See [Errors and retries](../reference/errors.md).
 
-**The identifiers are platform-defined.** `read` and `web_search` above come from the
-platform's own request examples. Confirm the names your deployment uses by running a turn and
-reading `toolCall(ev).toolName`, as shown above.
+**The identifiers are platform-defined.** The table above lists the basic names. A turn's
+`agent.tool` events confirm names actually called, but the absence of a name from those events
+does not mean the tool was unavailable.
 
 ### Tool-name patterns
 

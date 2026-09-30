@@ -78,7 +78,7 @@ The onboarding interview is always skipped, so the agent answers your first mess
 | `skills` | array | Skills to install explicitly. Passing `[]` opts this Agent out of automatically attached global Skills. |
 | `include_global_skills` | boolean | Defaults to `true`. Set `false` to disable automatic global Skills while keeping explicitly installed Skills. The setting persists across later updates and rerenders. |
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
-| `tool_policy` | object | `{}` means the full tool manifest. Exact names, global `*`, and one trailing `prefix*` are supported in the policy fields; `alsoAllow` remains exact-only. See [Tools](./tools.md). |
+| `tool_policy` | object | `{}` adds no policy restriction; runtime and configuration gates still apply. Exact names, global `*`, and one trailing `prefix*` are supported in the policy fields; `alsoAllow` remains exact-only. See [Tools](./tools.md). |
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
 | `mcp` | array | Remote MCP server declarations, including exposure, runtime context, and approval policies. See [MCP servers](./mcp.md) and [Permission policies](./permissions.md). |
 
