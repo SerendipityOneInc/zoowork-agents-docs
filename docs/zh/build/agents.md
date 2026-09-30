@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: 1f5980645ac9f6ee205592645f47bb432177d6daccec1c46f3846c273e37a36b
+source_hash: 7f6ca8e0acf7ae934a65e8dd5951a26459fe6ae568cdeba265ed49ad4691b44b
 ---
 
 # Agents
@@ -69,7 +69,7 @@ onboarding 面试总是被跳过——agent 会直接回答你的第一条消息
 | `skills` | array | 显式安装的 Skills。传入 `[]` 会让这个 Agent 不再自动挂载 global Skills。 |
 | `include_global_skills` | boolean | 默认 `true`。设为 `false` 会关闭自动挂载的 global Skills，但保留显式安装的 Skills。这个设置在后续 update 和 rerender 后仍然保留。 |
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
-| `tool_policy` | object | `{}` 表示完整的工具清单。policy 字段支持精确名称、全局 `*` 和一个末尾 `prefix*`；`alsoAllow` 仍然只支持精确名称。见[工具](./tools.md)。 |
+| `tool_policy` | object | `{}` 表示 policy 不额外限制工具；runtime 和配置条件仍然适用。policy 字段支持精确名称、全局 `*` 和一个末尾 `prefix*`；`alsoAllow` 仍然只支持精确名称。见[工具](./tools.md)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱是在这个 agent 的所有 session 之间共享，还是每个 session 建一个。默认 `agent`。 |
 | `mcp` | array | 远程 MCP Server 声明，包括加载方式、运行时 context 和审批策略。见 [MCP Server](./mcp.md)和[权限策略](./permissions.md)。 |
 

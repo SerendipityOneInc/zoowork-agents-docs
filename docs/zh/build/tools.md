@@ -1,13 +1,31 @@
 ---
 title: 工具
-description: 配置内置工具和应用执行的工具，控制工具是否可用，并观察工具调用。
+description: 查看 Agent 基础工具，配置 custom tool 和 MCP，并控制工具可用范围。
 source: /en/build/tools
-source_hash: 1f8c1b12937a03fb0a174d39393b9ca1346b8e81796944f4e71b74cced10ce66
+source_hash: e249daa18ef8647525c1b4d93ff7dafb50ea911b5ed49c6b6f6a353ec55271b0
 ---
 
 # 工具
 
-agent 跑在一个托管沙箱里，模型可用的内置工具集已经就位。你决定它能触达其中多少。你也可以声明由自己的应用执行的 custom tools，让 run 等待应用返回结果。由平台调用的外部工具通过 [MCP Server](./mcp.md) 连接。
+Agent 自带托管的[云沙箱](./cloud-sandbox-reference.md)，以及文件、命令和 Web 基础工具。这些工具由 **Agent 在运行中调用**。SDK 可以通过 Agent 的 `tool_policy` 允许或拒绝它们，但不能按名称直接调用模型工具。SDK 另有 `exec(agentId, args)` 方法，可在 agent-scope 沙箱中执行命令；它不经过 Agent 的工具循环。需要访问自己的系统时，可以声明由应用执行的 custom tool，或连接 [MCP Server](./mcp.md)。
+
+## Agent 基础工具
+
+普通的 active Agent 在 `tool_policy` 为空时，默认可以看到这些名称。可见不保证调用成功：沙箱 backend 或 Web proxy 仍需可用，文件访问和网络请求也受各自的限制。
+
+| 工具 | Agent 可以做什么 | 边界 |
+|---|---|---|
+| `read` | 读取沙箱中的文件。 | 相对路径从 `/workspace` 解析。 |
+| `write` | 新建或覆盖沙箱中的文件。 | 只能写入声明的可写目录。 |
+| `edit` | 修改已有文件中的文字。 | 同样受可写目录限制。 |
+| `apply_patch` | 对沙箱文件应用 patch。 | 同样受可写目录限制。 |
+| `exec` | 在沙箱中执行命令。 | 安装的软件和沙箱网络访问由 Environment 决定。 |
+| `process` | 继续管理或停止 `exec` 启动的命令。 | 需要当前 Agent runtime 中已有的进程。 |
+| `web_fetch` | 获取并提取 HTTP(S) 网页内容。 | 走平台 proxy，不操作浏览器。 |
+| `web_search` | 搜索网页。 | 走已配置的平台搜索服务。 |
+| `web_image_search` | 搜索图片。 | 走已配置的平台搜索服务。 |
+
+软件和资源规格见[云沙箱参考](./cloud-sandbox-reference.md)。沙箱的 `networking` 控制 `exec` 中 `curl` 等命令的网络访问；`web_fetch` 和搜索工具通过沙箱网络之外的平台服务执行。需要移除这些 Web 工具时，用 `tool_policy` 收窄 Agent 的工具面。
 
 ## 应用执行的自定义工具
 
@@ -84,9 +102,9 @@ if call is not None and call.phase == "requested":
 
 等待期间 `run_status` 是 `awaiting_approval`。应检查 `pending_custom_tool_calls`，不要把这个状态一律当成人工审批。pending REST resolve 返回 `202` 和 `signaled: true`，但 row 会保持 pending，直到 run 消费结果。已经 completed、timeout 或 cancelled 的调用返回 `200` 和 `signaled: false`。未知调用返回 404，其他 Agent 的调用返回 403，停止的 run 返回 409。如果当前环境没有配置 result signaling，这个 endpoint 返回 501。
 
-## 内置工具集
+## 观察工具调用
 
-内置工具 manifest 由平台定义。应用不要另外维护一份工具名称清单；直接从事件流读取 Agent 实际使用的工具名。
+事件流记录的是 Agent 实际调用过的工具，不会列出它能用的所有工具。可以用事件审计调用，并确认当前部署中观察到的准确名称。
 
 运行一个需要调用工具的回合，再从事件流读取工具名：
 
@@ -122,29 +140,66 @@ const toolEvents = await zc.listAllEvents(agentId, sessionId, { types: ['agent.t
 
 ## 用 `tool_policy` 收窄工具集
 
-`tool_policy` 挂在 agent 资源上。空对象表示完整清单，所以一个什么都没配的 agent 拥有全部内置工具。非空对象会被读作一份收窄可用范围的 allow/deny 策略。
+`tool_policy` 挂在 Agent 资源上。空对象表示 policy 不额外限制工具；runtime 和配置条件仍会决定哪些工具可见。非空对象会被读作一份收窄可用范围的 allow/deny 策略。
+
+ZooWork 在 `tool_policy` 中使用 `allow` 和 `deny` 工具名，不使用逐个工具的 `enabled` 配置。
+
+### 关闭指定工具
+
+创建 Agent 时，可以隐藏三个 Web 工具。其他工具仍按正常的 runtime 条件决定是否可见：
 
 ```ts
 await zc.createAgent({
   resource: {
-    name: 'research-bot',
-    model: { primary: 'litellm/gpt-5.6-terra' },
-    tool_policy: { allow: ['read', 'web_search'] },
+    name: 'report-agent-no-web-tools',
+    tool_policy: { deny: ['web_fetch', 'web_search', 'web_image_search'] },
   },
 })
 ```
 
-依赖它之前要知道三件事。
+对于已有 Agent，可以替换 policy，关闭单个工具：
 
-**它是写入即整体替换。** agent 文档的其他每一个 section 都由 `updateAgent` 按 section 合并，所以省略某个 section 就是保留它。`tool_policy` 是例外：每一次 PUT 都整体替换它。要恢复完整清单，发 `{}`：
+```ts
+await zc.updateAgent(agentId, {
+  tool_policy: { deny: ['web_search'] },
+})
+```
+
+这次更新会**整体替换**原有 `tool_policy`。提交时要带上仍需保留的其他规则。
+
+### 只开放指定工具
+
+`allow` 会收窄普通工具面。下面的 policy 只从这个工具面开放 `read`、`write` 和 `exec`，仍受正常 runtime 条件限制：
+
+```ts
+await zc.createAgent({
+  resource: {
+    name: 'report-agent',
+    tool_policy: { allow: ['read', 'write', 'exec'] },
+  },
+})
+```
+
+同一个名称同时出现在 `allow` 和 `deny` 时，`deny` 优先。
+特殊的系统回合仍可能额外注入上下文工具。
+
+这些例子控制的是 Agent 的模型工具面。拒绝 Web 工具不会阻止 `exec` 中的命令访问网络；沙箱出站网络要用 Environment 的 `networking` policy 控制。
+
+### 恢复默认工具面
+
+要移除所有 policy 限制，恢复 runtime 的默认工具面，发 `{}`：
 
 ```ts
 await zc.updateAgent(agentId, { tool_policy: {} })
 ```
 
+默认工具面仍取决于 runtime 和部署配置。每次 PUT 点名 `tool_policy` 都会整体替换该 policy；省略它则会保留原有 policy。
+
+依赖它之前还要知道两件事。
+
 **每一次 PUT 都会 bump `config_version`** ，包括什么都没改的那一次，所以不要每个回合都重 PUT 一遍策略。见[错误处理](../reference/errors.md)。
 
-**这些标识符由平台定义。** 上面的 `read` 和 `web_search` 来自平台自己的请求示例。按上面的方式跑一个回合、读 `toolCall(ev).toolName`，来确认你那套部署实际用的名字。
+**这些标识符由平台定义。** 上表列出基础工具名称。一个回合的 `agent.tool` 事件可以确认实际调用过的名称，但事件中没有某个名称，不表示该工具不可用。
 
 ### 工具名匹配模式
 

@@ -9,9 +9,10 @@ files, and browser-based work. It runs on the managed E2B backend. The software 
 available without creating a custom [Environment](./environments.md).
 
 This page describes the default sandbox image. A custom Environment starts from the managed
-base image and can add apt, npm, and pip packages, files, and build steps. Exact patch versions
-can change when the base image is rebuilt. If your application requires an exact version, check
-it in the sandbox or pin the needed dependency in a custom Environment.
+base image and can add apt, npm, and pip packages, files, and build steps. Exact versions within
+the listed language and tool series can change when the base image is rebuilt. If your
+application requires an exact version, check it in the sandbox or pin the needed dependency in
+a custom Environment.
 
 ## Programming languages
 
@@ -30,6 +31,9 @@ The image includes Python data and document libraries such as pandas, Matplotlib
 openpyxl, python-docx, python-pptx, pypdf, ReportLab, pdfplumber, pdf2image, pytesseract,
 and markitdown. They are installed for `python3`. For Node.js document
 work, `docx`, `pptxgenjs`, and `playwright-core` are available in the shared module path.
+The image sets `NODE_PATH` for CommonJS `require()` resolution; an ESM `import` from your own
+project does not use that fallback. In ESM, use `createRequire()` or install the dependency in
+your project's `node_modules`.
 
 Only the versions and tools listed here are part of the default image baseline. Check the
 actual runtime before depending on another version or tool.
