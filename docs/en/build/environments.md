@@ -27,10 +27,10 @@ The default image includes the languages, document libraries, utilities, and bro
 described in [Cloud sandbox reference](./cloud-sandbox-reference.md). Check that inventory
 before depending on additional software.
 
-Keep task inputs and outputs in `/workspace`; use [Files and artifacts](./files.md) to write
-text inputs and retrieve results. Changes made inside a running sandbox do not create an
-Environment version. Software installed at runtime is not guaranteed to survive sandbox
-replacement.
+Keep task files in `/workspace`; ask the Agent to create them with its file tools and
+use [Files and artifacts](./files.md) to publish and retrieve results. Changes made inside
+a running sandbox do not create an Environment version. Software installed at runtime is
+not guaranteed to survive sandbox replacement.
 
 ## Custom image builds {#build-states}
 
@@ -45,5 +45,5 @@ in your own backend and expose it through an
 ## Related
 
 - [Cloud sandbox reference](./cloud-sandbox-reference.md) — inspect the default software.
-- [Files and artifacts](./files.md) — provide task inputs and retrieve outputs.
+- [Files and artifacts](./files.md) — create files and retrieve published outputs.
 - [Current API boundaries](../reference/not-supported.md) — check other unavailable workflows.

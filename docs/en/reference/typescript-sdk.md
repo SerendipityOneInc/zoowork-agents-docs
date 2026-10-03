@@ -1,5 +1,5 @@
 ---
-description: Look up every TypeScript SDK client method, exported type, helper, and error class.
+description: Look up TypeScript SDK methods, types, helpers, and errors for public API workflows.
 ---
 
 # TypeScript SDK reference
@@ -1637,9 +1637,6 @@ That is the entire public surface. Session metadata is set when you call `create
 Check installed declarations before using these additive helpers. They require the SDK release containing them; use HTTP otherwise.
 
 ```ts
-getWorkspaceFile(agentId: string, path: string, opts?: { showHidden?: boolean }): Promise<WorkspaceFile>
-  writeWorkspaceFile(agentId: string, path: string, content: string): Promise<ApiObject>
-  getWorkspaceFileContent(agentId: string, path: string, opts?: { download?: boolean }): Promise<Uint8Array>
   getAgentDatabase(agentId: string): Promise<AgentDatabase>
   getAgentDatabaseRows(agentId: string, tableName: string, opts?: { limit?: number; offset?: number }): Promise<AgentDatabaseRows>
   getUsage(opts?: UsageOptions): Promise<UsageResult>
@@ -1662,4 +1659,4 @@ getWorkspaceFile(agentId: string, path: string, opts?: { showHidden?: boolean })
   redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
 ```
 
-Responses preserve unknown fields. `AgentWebhookPage.webhooks` contains endpoint rows. Action pages retain pagination; the original array methods retain their return shapes. Binary content returns `Uint8Array`. MCP tool overrides accept `requireConfirmation?: boolean`.
+Responses preserve unknown fields. `AgentWebhookPage.webhooks` contains endpoint rows. Action pages retain pagination; the original array methods retain their return shapes. MCP tool overrides accept `requireConfirmation?: boolean`.

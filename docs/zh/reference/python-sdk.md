@@ -1,7 +1,7 @@
 ---
 description: 配置async Python SDK，管理client生命周期，并使用Agent、Session和event核心方法。
 source: /en/reference/python-sdk
-source_hash: bd39c2e73260c578b7d442bfbd631b30165b468899aa5391bdcb0bc0befa75de
+source_hash: ef21989756e2617187e15e7a0a474a275ae632bdaddecc321c52c79d938d0b9b
 ---
 
 # Python SDK
@@ -86,7 +86,7 @@ SDK 不会自动重试业务操作。幂等和重试前读取核对的规则见[
 
 - [Tools](../build/tools.md)：应用执行的调用及 tool results。
 - [Sessions](../build/sessions.md) 与 [Events](../build/events.md)：继续对话、取消、保存历史及 streaming。
-- [文件与产物](../build/files.md)：HTTP workspace 访问和输出读取。
+- [文件与产物](../build/files.md)：Agent 文件创建和已发布输出的获取。
 - [Schedules](../build/schedules.md)：周期任务及受支持的 Outcome evaluation。
 - [Package guide](https://github.com/SerendipityOneInc/zoowork-sdk-python)：其他 package 接口。
 
@@ -94,9 +94,6 @@ SDK 不会自动重试业务操作。幂等和重试前读取核对的规则见[
 
 使用这些新增方法前检查已安装 SDK source；缺少方法时使用文档中的 HTTP。
 
-- `get_workspace_file(agent_id: str, path: str, *, show_hidden: bool | None=None)`
-- `write_workspace_file(agent_id: str, path: str, content: str)`
-- `get_workspace_file_content(agent_id: str, path: str, *, download: bool | None=None)`
 - `get_agent_database(agent_id: str)`
 - `get_agent_database_rows(agent_id: str, table_name: str, *, limit: int | None=None, offset: int | None=None)`
 - `get_usage(*, range: Literal['24h', '7d', '30d'] | None=None, timezone: str | None=None, group_by: Literal['session', 'api_key'] | None=None, view: Literal['groups', 'records', 'both'] | None=None, session_id: str | None=None, api_key_id: str | None=None, root_session_id: str | None=None, attribution: Literal['exact', 'shared', 'non_api', 'unattributed'] | None=None, page: int | None=None, per_page: int | None=None, as_of: str | None=None, snapshot: str | None=None, cursor: str | None=None)`
@@ -118,4 +115,4 @@ SDK 不会自动重试业务操作。幂等和重试前读取核对的规则见[
 - `redeliver_agent_webhook_delivery(agent_id: str, webhook_id: str, delivery_id: str, *, idempotency_key: str)`
 - `redeliver_agent_webhook_deliveries(agent_id: str, webhook_id: str, input: Mapping[str, Any], *, idempotency_key: str)`
 
-响应保留 API 字段名和未知字段。原始 content 返回 `bytes`。分页对象保留 `next_cursor` 和 `has_more`，现有 list 方法仍返回 list。
+响应保留 API 字段名和未知字段。分页对象保留 `next_cursor` 和 `has_more`，现有 list 方法仍返回 list。
