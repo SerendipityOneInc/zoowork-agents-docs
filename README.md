@@ -62,9 +62,19 @@ refresh the Chinese page's `source_hash` and review the generated AI docs.
 
 ### Content and validation
 
-- **Every claim is verified or labelled.** A capability is documented as working
-  only if it has been exercised against a live deployment. Anything else carries
-  an explicit status note. See the capability matrix for the levels.
+- **Use the Platform entry flow.** New readers get a key at `platform.zoowork.ai`,
+  add funds, and make their first request. SDK examples use the default API address;
+  curl configures the address once in Authentication. Keep environment-specific setup
+  out of the public guides.
+- **Match snippets to implemented SDK methods.** For supported API operations, use
+  TypeScript, Python, and curl code groups with the same operation. If an SDK method
+  or required typed parameter is absent, use curl for that operation and track the
+  gap in the corresponding SDK repository's issue. Do not invent SDK methods.
+- **Keep evidence in the internal audit.** Check capability claims against the public
+  API and runtime, and record live-test coverage and outstanding checks separately
+  from published pages. Public guides describe behavior, prerequisites, and actual
+  availability limits; do not publish code-review labels, test logs, or editorial notes.
+  Removing an internal verification note does not upgrade a capability's validation status.
 - **Bilingual.** English under `docs/en/` is the authored source; `docs/zh/` carries
   `source` + `source_hash` frontmatter pointing at the English revision it tracks.
 - **No unlabelled roadmap.** If something is planned but absent, it goes under

@@ -4,7 +4,7 @@ description: Look up every TypeScript SDK client method, exported type, helper, 
 
 # TypeScript SDK reference
 
-Every symbol `@zoowork-ai/sdk` exports, with the signature the compiler sees.
+Client methods, resource types, and helpers exported by `@zoowork-ai/sdk`, including the 0.9.0 webhook receiving helpers.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
@@ -29,7 +29,7 @@ The SDK has **zero runtime dependencies**. It uses the platform `fetch`, Web Str
 
 | Runtime | Notes |
 |---|---|
-| Node 20 or later | The main target. `fetch` and `ReadableStream` are built in. |
+| Node 20 or later | SDK runtime target with built-in `fetch` and `ReadableStream`. The Quickstart uses Node 22.20+ to run a `.mts` file directly without a separate compilation step. |
 | Cloudflare Workers, Deno, Bun, other edge runtimes | Supported by construction. The SSE parser is written against Web Streams, not Node streams. |
 | Browsers | The API key authorizes access to your organization's agents and sessions. Keep it on your server; call ZooWork through your own backend. |
 
@@ -73,8 +73,7 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 Clients are cheap. Create one per process and share it.
 
-API keys have no per-user or read-only scope. Your backend must authenticate end users and
-authorize their access to each agent and session.
+Get an API key and add funds in [ZooWork Platform](https://platform.zoowork.ai); see [Authentication](../get-started/authentication.md) for setup. The key selects an organization and Project. It does not replace your application's end-user authorization: authenticate end users and authorize each Agent and Session access.
 
 ### `ZooworkConfig`
 
@@ -92,8 +91,8 @@ Every field is optional, and with `ZOOWORK_API_KEY` exported so is the whole obj
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `apiKey` | `string` | no | Your `zct_...` key. Resolution order: this option, then `ZOOWORK_API_KEY`. This is the field to use. |
-| `baseUrl` | `string` | no | The API base **including the version prefix**. Resolution order: this option, then `ZOOWORK_BASE_URL`, then the exported `DEFAULT_BASE_URL` (the public gateway). Set it only to target a different deployment. Trailing slashes are stripped; paths such as `/models` and `/agents/{id}/sessions` are appended directly. |
+| `apiKey` | `string` | no | Your API key from ZooWork Platform. Resolution order: this option, then `ZOOWORK_API_KEY`. |
+| `baseUrl` | `string` | no | The API base **including the version prefix**. Resolution order: this option, then `ZOOWORK_BASE_URL`, then `DEFAULT_BASE_URL` (`https://clawapi.ecap.gsmo.ai/service/v1`). Set it only to target a different deployment. Trailing slashes are stripped; paths such as `/models` and `/agents/{id}/sessions` are appended directly. |
 | `auth` | `ZooworkAuth` | no | Advanced. `{ apiKey }` here is equivalent to the top-level `apiKey`, and beats it if you pass both. See below. |
 | `fetch` | function | no | Defaults to `globalThis.fetch`. |
 
@@ -103,15 +102,11 @@ Every field is optional, and with `ZOOWORK_API_KEY` exported so is the whole obj
 type ZooworkAuth = { serviceToken: string } | { apiKey: string }
 ```
 
-**Use `{ apiKey }`.** It is your `zct_...` organization service token, sent as
-`Authorization: Bearer zct_...` on every request including the SSE stream.
+**Use `{ apiKey }` for public API requests.** The client sends it as `Authorization: Bearer <key>` on every request, including the SSE stream.
 
 ```ts
 auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 ```
-
-The `{ serviceToken }` variant is internal-only and not usable with an API key; with a
-`zct_` key, always pass `{ apiKey }`.
 
 ## Methods
 
@@ -123,14 +118,14 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 
 | Method | Returns | What it does |
 |---|---|---|
-| `listModels()` | `Promise<ModelInfo[]>` | Lists the model aliases your organization can select. The cheapest check that a key works. |
+| `listModels()` | `Promise<ModelInfo[]>` | Lists the model catalog available to your key. Select an alias whose `selectable` is not `false`. |
 
 **Agents**
 
 | Method | Returns | What it does |
 |---|---|---|
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | Creates an agent. Returns the **flat create receipt**, not the read projection. The agent comes back stopped. |
-| `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | Lists the agents owned by your key's bound user. `opts.labels` filters on declared labels, `opts.page` is 1-based, page size is fixed at 100. The scope is `owner_uid` **and** `org_id`, so an agent a colleague created in your org is fetchable by id and absent from this list. |
+| `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | Lists Agents within the key's organization, Project, and owner scope. By-ID access uses the same scope. `opts.labels` filters on declared labels, `opts.page` is 1-based, and page size is fixed at 100. |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | Reads an agent. Returns the **projection**: config under `declared`, version at `status.config_version`. |
 | `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUTs the named declared sections, merging per section. Bumps `config_version` on every call. |
 | `deleteAgent(agentId)` | `Promise<void>` | Soft-deletes the agent. Does not stop it. |
@@ -138,37 +133,35 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `stopped`. |
 | `waitUntilRunning(agentId, opts?)` | `Promise<AgentRecord>` | Polls `status.desired_state` until it reads `running`, then hands back that projection. Defaults: 30s budget, 500ms between polls. Throws `408`/`timeout`. |
 | `listAgentSkills(agentId, opts?)` | `Promise<AgentSkill[]>` | Lists the skills resolved onto the agent. |
-| `putAgentSkill(agentId, skillId, opts?)` | `Promise<{ config_version?: number; warnings?: string[] }>` | Attaches a skill your own tenant owns. Global-catalog ids return 404. |
+| `putAgentSkill(agentId, skillId, opts?)` | `Promise<{ config_version?: number; warnings?: string[] }>` | Creates or updates an assignment for a Skill visible to the key. See [Skills](../build/skills.md). |
 | `deleteAgentSkill(agentId, skillId)` | `Promise<void>` | Detaches a skill. |
 
 **Channels**
 
-Bind a chat platform to an API-created agent, so the same agent also answers people in the
-chat app. Feishu/Lark, WeCom and WeChat have a server-driven QR flow. Slack and DingTalk bind
-through `addChannel` with credentials you already hold, while WeChat is the reverse — the QR
-flow is its only path.
-See [Channels](../build/channels.md) for the platform table and setup behavior.
+Platform keys cannot call the Agent channel routes; these methods return 404. The table retains their SDK contracts. To connect a chat application, authorize its users in your backend and forward their messages through the [Session API](../build/sessions.md). See [Channels](../build/channels.md).
 
 | Method | Returns | What it does |
 |---|---|---|
-| `listChannels(agentId)` | `Promise<AgentChannel[]>` | The platform accounts bound to this agent, with their `health`, `status`, and optional capability state. Empty for a pure API agent. |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Binds a platform from explicit credentials in `config` (201). Direct DingTalk uses `platform: 'dingtalk-connector'` with `clientId`/`clientSecret`. Feishu also accepts `permission_admin_enabled`. **201 means stored, not working** - credentials are not validated at bind time, so read the verdict from a follow-up `listChannels`. |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `dm_policy`, `group_policy`, `enabled`, or Feishu's `permission_admin_enabled` on one binding and returns it in its new state. The public gateway ignores `allow_from`; it is not a working allowlist. **Not** idempotent: a platform with no binding is `404 channel.not_found`. |
-| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Unbinds one `platform` + `account` (`account` defaults to `'default'`). Idempotent, unlike `updateChannel` - removing a binding that is not there answers `200 { ok: true }`. |
-| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts a QR registration on `'feishu'`, `'wecom'` or `'weixin'`. Feishu answers `verification_uri_complete` and a `poll_interval`, with `expires_in: 600`; WeCom and WeChat answer `qrcode_url` with no interval and `expires_in: 300`, and WeChat's may be an inline `data:image/…` payload. You own the UI: render whichever one came back, usually as a QR code. `brand: 'lark'` (Feishu only) switches the URI host to `open.larksuite.com` and must match the workspace the person approves it in. |
-| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | Polls that session once. A cancelled or vanished session answers `404 channel.{platform}_session_not_found` rather than a terminal status, so a hand-rolled loop must treat that 404 as an end condition, not a transport error to retry. |
-| `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | Abandons a setup session. Polling it afterwards 404s. |
-| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | Drives the poll loop until the session leaves `pending`, then hands back that terminal poll. A rejection is an outcome, not a throw: `expired`, `denied`, and `error` come back in `status`. Defaults: 10-minute budget, server-suggested interval (5s locally where the platform sends none). |
-| `startFeishuSetup` / `pollFeishuSetup` / `cancelFeishuSetup` / `waitForFeishuSetup` | as above | The Feishu-only spellings, kept for callers written against 0.3.x-0.4.x. They call the four methods above with `platform: 'feishu'`. |
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | Lists channel bindings through the channel route. |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Submits channel-binding configuration. |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Submits changes to a channel binding. |
+| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Requests removal of one platform/account binding. |
+| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts a guided setup request for the selected `GuidedSetupPlatform`. |
+| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | Reads the status of one setup request. |
+| `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | Cancels a setup request. |
+| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | SDK helper that repeatedly calls the setup-status route until completion or timeout. |
+| `startFeishuSetup` / `pollFeishuSetup` / `cancelFeishuSetup` / `waitForFeishuSetup` | as above | Feishu aliases for the four guided-setup methods above. |
 
 **Skill registry**
 
+Platform keys cannot call the root `/skills` routes; these methods return 404. This does not prevent reading or changing an Agent's assignments for existing visible Skills through `listAgentSkills()`, `putAgentSkill()`, and `deleteAgentSkill()`. See [Skills](../build/skills.md). The table retains the registry methods' SDK contracts.
+
 | Method | Returns | What it does |
 |---|---|---|
-| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | Creates the skill and version 1. Scope is `org` or `personal`; other values get HTTP 400. Put description in ZIP frontmatter: this create option is not forwarded. Read back on uncertain outcomes; HTTP keys do not guarantee replay. |
-| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | Returns a version row with `skill_id`, `version`, and `state`. Description override is accepted here. Same-skill identical content is deduplicated; unpinned agents follow the version. |
-| `listSkills(opts?)` | `Promise<SkillRecord[]>` | The registry catalog visible to your key: global skills plus your org and personal ones. `q` matches on name, `page` is 1-based, page size fixed at 100. |
-| `deleteSkill(skillId)` | `Promise<void>` | Deletes a registry skill (204). No in-use guard for org and personal scopes: agents holding it simply lose it. |
+| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | Submits a ZIP and metadata to create a registry Skill. The SDK accepts `org` or `personal` in `opts.scope`. |
+| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | Submits a ZIP as another version of a registry Skill. |
+| `listSkills(opts?)` | `Promise<SkillRecord[]>` | Lists registry records, with name query `q` and 1-based `page` options. |
+| `deleteSkill(skillId)` | `Promise<void>` | Requests deletion of a registry Skill. |
 
 **Sessions and events**
 
@@ -220,7 +213,7 @@ synthesized locally, so no server response explains it.
 |---|---|---|
 | `listArtifacts(agentId, opts?)` | `Promise<ArtifactPage>` | One page (`{artifacts, page, has_more}`) - and unlike `listEvents`, `has_more` tells you when it truncated. `limit` defaults to 50, capped at 100; filter with `sessionId`, `sourcePath`, `createdBefore`. |
 | `getArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | One artifact row. Its `status` is `pending`, `ready`, `failed`, or `deleted`, and only a `ready` row carries a resolvable `url`. Foreign and unknown ids are both 404. |
-| `downloadArtifact(agentId, artifactId)` | `Promise<{ artifact_id?: string; url?: string }>` | Mints a fresh access URL for a `ready` artifact. The URL is a revocable bearer capability - treat it as a secret. A row that never finalized answers `409 artifact_not_ready`. |
+| `downloadArtifact(agentId, artifactId)` | `Promise<{ artifact_id?: string; url?: string }>` | Returns an access URL for a `ready` artifact. Treat it as a bearer capability. Resolver URLs check deletion/access version; previously issued presigned object-store URLs are not guaranteed to be immediately revoked on deletion. The URL need not change on every call. A row that never finalized answers `409 artifact_not_ready`. See [Files and artifacts](../build/files.md). |
 | `deleteArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | Deletes one artifact and returns the row as the engine leaves it. |
 
 **Automation: schedules and wake**
@@ -228,8 +221,8 @@ synthesized locally, so no server response explains it.
 | Method | Returns | What it does |
 |---|---|---|
 | `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | The agent's schedules. The list answers the scheduler's own describe shape with the camelCase projection merged on top - read defensively. |
-| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | Creates a schedule. `201` with a receipt carrying only `schedule_name`, not the definition. Schedules outlive `stopAgent()` and `deleteAgent()`; delete them yourself. |
-| `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | Reads one schedule, in the camelCase read vocabulary. Nothing comes back under the name you sent it in. |
+| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | Creates a schedule. `201` with a receipt carrying public `schedule_id` and deprecated compatibility `schedule_name`, not the full definition. Schedules outlive `stopAgent()` and `deleteAgent()`; delete them yourself. |
+| `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | Reads one schedule, in the camelCase read vocabulary. Use the public `schedule_id`; read cadence from the normalized projection. |
 | `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | Replaces the definition. To change the cadence send `schedule`, never the `scheduleSpec` a read hands you - that one answers `200` and is silently ignored. The SDK strips all six refused fields, so a read-tweak-write round trip works from JavaScript too. |
 | `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | Deletes a schedule. Like `updateSchedule`, it carries no cross-timeout idempotency guarantee - reconcile by listing rather than blind-retrying. |
 | `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | Fires it once, now, out of band. Does not disturb the cadence. |
@@ -238,8 +231,7 @@ synthesized locally, so no server response explains it.
 
 `ScheduleInput` requires three fields. `schedule_id` is yours to choose, matching
 `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` - re-creating the same id with a *different* definition is
-a `409`. `schedule` is the cadence. `payload.kind` must be `'agentTurn'`; it is the only kind
-the management plane accepts.
+a `409`. `schedule` is the cadence. The example uses `payload.kind: 'agentTurn'`. The management HTTP parser also accepts `systemEvent` and `command`; these have different execution and caller restrictions. Follow [Schedules](../build/schedules.md) rather than assuming the kinds are interchangeable.
 
 ```ts
 await zc.createSchedule(agentId, {
@@ -255,11 +247,7 @@ The optional fields are `sessionTarget`, `delivery`, `enabled`, `deleteAfterRun`
 fresh session per fire, or `session:<id>` to target an existing session of this agent. It is
 **immutable** after create.
 
-Then read it back and none of those names survive. Your `schedule_id` comes back as `name` -
-that is the one you pass to `getSchedule`, `updateSchedule`, and `deleteSchedule`. The
-`scheduleId` field is the fully-qualified `cron/{computer_id}/{agent_id}/{schedule_id}`, not
-the id you chose. The cadence is `scheduleSpec.cronExpressions[0]`, the only place a read
-carries it, and `sessionTarget` reads back as `execution.kind`.
+Use the public `schedule_id` in create, get, and list responses for subsequent operations. Older projections can also include `name` and a fully qualified `scheduleId`; treat those as compatibility fields, not the preferred public ID. The cadence is available in `scheduleSpec.cronExpressions[0]`, and the execution target is reflected in `execution.kind`. Do not send read projections back as create/update input.
 
 `updateSchedule` refuses six fields, as compile errors and again by stripping them at runtime.
 Two are the read shapes just described, `scheduleSpec` and `sessionTarget`. The other four -
@@ -280,14 +268,16 @@ command comes back looking like a short one.
 
 **Environments**
 
+Platform keys cannot call the root `/environments` routes; these methods return 404. Agents use the managed default sandbox without creating an Environment. The table retains the SDK contracts; see [Environments](../build/environments.md) for availability.
+
 | Method | Returns | What it does |
 |---|---|---|
-| `listEnvironments(opts?)` | `Promise<EnvironmentRecord[]>` | The Environments visible to your org, `page` 1-based. The platform default an untouched agent is pinned to is not among them. |
-| `getEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Reads one Environment. `404` for anything outside your org, the platform default included - a selector mismatch, not a permission problem. |
-| `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | Creates an Environment and its first version. `resource.config` takes exactly `packages`, `files`, `build`, and `networking`; anything else is `400 invalid_environment_config`. |
-| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Archives it. The SDK percent-encodes the colon in `{id}:archive` for you - a raw `:` makes the engine miss the route and answer 404. |
-| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | Adds an immutable version to an existing Environment. The SDK wraps your `config` as `{ resource: { config } }`, mirroring create. |
-| `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | Reads aggregate status or optional `opts.resourceClass` (`starter`, `pro`, `ultra`). Handle `partial_ready` and enforce a deadline; see [Environments](../build/environments.md#build-states). |
+| `listEnvironments(opts?)` | `Promise<EnvironmentRecord[]>` | Lists Environment records, with a 1-based `page` option. |
+| `getEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Reads one Environment record. |
+| `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | Submits an Environment definition and its initial configuration. |
+| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Requests archival of an Environment. |
+| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | Submits another configuration version for an Environment. |
+| `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | Reads one version, optionally selecting `opts.resourceClass` (`starter`, `pro`, or `ultra`). |
 
 Only the methods with a section below need behavioral notes beyond their signature. The rest
 are one-call operations described by the table.
@@ -351,7 +341,7 @@ createAgent(
 | Parameter | Type | Notes |
 |---|---|---|
 | `input.resource` | `AgentResource` | The configuration. `name` is required. |
-| `input.ownership` | `Ownership` | Omit it here. It is **required** on `createEnvironment`, where you take it from an agent record's `ownership`. |
+| `input.ownership` | `Ownership` | Omit it when creating an Agent. The public gateway derives ownership from the key. |
 | `idempotencyKey` | `string` | Sent as the `Idempotency-Key` header. Omitted entirely when you do not pass it. |
 
 Returns the **create receipt**: a flat object with `agent_id`, a top-level `config_version`,
@@ -382,7 +372,6 @@ followed by a `getAgent()` saying `3`. See [Errors and retries](./errors.md).
 ### `listAgents(opts?)` {#listagentsopts}
 
 ::: warning SDK version
-This return shape is implemented in [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26).
 SDK 0.5.2 returns `Promise<AgentRecord[]>`; use a package release containing the pagination
 change for these examples.
 :::
@@ -463,7 +452,8 @@ const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
 ```
 
-An unknown, soft-deleted, or other-organization agent id returns `404 not_found`.
+An unknown, soft-deleted, or out-of-scope Agent ID returns 404. The public Agent route uses
+`service_api.not_found`; match the status as well as the code. See [Errors](./errors.md).
 
 ---
 
@@ -488,8 +478,9 @@ console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - omit
 `tool_policy` and `system_prompt` are the exceptions even to that: every PUT naming one
 replaces it wholesale. See [Tools](../build/tools.md).
 
-**Every successful PUT bumps `config_version`, including one whose body is byte-identical to
-what is stored.** See [Errors and retries](./errors.md).
+**Configuration writes increment `config_version`, including identical values; ownership-only
+writes do not.** Pass `expected_config_version` for an atomic precondition; a stale value returns
+`409 active_config_changed`. See [Errors and retries](./errors.md).
 
 `skills`, `credentials`, and unknown fields in the PUT body return `400`.
 
@@ -592,8 +583,7 @@ const skills = await zc.listAgentSkills(agentId)
 console.log(skills.length, skills.map((s) => s.name).slice(0, 5))
 ```
 
-A freshly created agent already has the whole global catalog attached, so call this before
-you try to install anything.
+Global Skills are included by default unless `include_global_skills` is `false`. Read the resolved list and each entry's eligibility before adding an assignment.
 
 ---
 
@@ -616,12 +606,9 @@ putAgentSkill(
 const { config_version } = await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true })
 ```
 
-Only skills **your own tenant uploaded** (`org` or `personal` scope) are installable through
-the public gateway. A `global` catalog id is listable but answers `404` here. Those global
-skills are already attached at creation, so there is nothing to install and nothing to remove.
+The Skill must be visible to the key: global Skills, organization Skills in the same organization, Project Skills in the same organization and named Project, or personal Skills owned by the key's owner with no organization or the same organization. An unknown or inaccessible ID returns 404. Registry content management is separate and is not available with Platform keys.
 
-After installing an `org` or `personal` skill, call `listAgentSkills()` to confirm that it is
-attached and eligible.
+Call `listAgentSkills()` after updating the assignment to confirm its resolved version and eligibility.
 
 ---
 
@@ -631,8 +618,7 @@ attached and eligible.
 deleteAgentSkill(agentId: string, skillId: string): Promise<void>
 ```
 
-Detaches a skill and resolves with nothing. Subject to the same scope rule as
-`putAgentSkill()`.
+Deletes the explicit assignment and resolves with nothing. Subject to the same visibility rule as `putAgentSkill()`. Deleting a global Skill's assignment restores its default behavior; it does not remove the Skill from the global catalog. To exclude it, use an assignment with `enabled: false`.
 
 ```ts
 await zc.deleteAgentSkill(agentId, 'skl_yourown')
@@ -645,7 +631,7 @@ await zc.deleteAgentSkill(agentId, 'skl_yourown')
 ```ts
 createSession(
   agentId: string,
-  input: { initial_events?: OutboundEvent[]; metadata?: Record<string, unknown> },
+  input: { initial_events?: OutboundEvent[]; metadata?: Record<string, unknown>; runtime_mode?: 'active'; idle_compaction?: boolean | null },
   idempotencyKey?: string,
 ): Promise<SessionRecord>
 ```
@@ -896,7 +882,7 @@ Match status and an available type; never assume every stream failure lacks one.
 ## Additional contract details
 
 - `OutboundEvent.actor`: `{ ref: string }` for API-session user messages. See the identity and
-  isolation limits in [Events](../build/events.md#usermessage).
+  isolation limits in [Events](../build/events.md#user-message).
 - Interval cadence: `{ kind: 'every', everyMs: 60_000, anchorMs: 0 }`. The obsolete `every`
   field is not converted; migrate explicitly. `ScheduleRun.session_id` is optional.
 - `SkillVersionRecord`: `skill_id: string`, `version: string | number`, `state: string`.
@@ -905,8 +891,8 @@ Match status and an available type; never assume every stream failure lacks one.
 - `ApprovalRecord`: optional `requested_at`, `arguments_preview`, `allowed_decisions`,
   `timeout_at`, `resolved_by`, `resolved_at`, `signaled` and `decision`. Legacy
   `created_at` remains type-compatible but is not promised on current responses.
-- Environment builds include `partial_ready`; use bounded polling and, if needed, the
-  existing GET's optional `resourceClass`. Configuration creation and build retry differ.
+- Custom Environment management is not available with Platform keys; use the managed
+  default sandbox. See [Environments](../build/environments.md).
 - MCP declarations can opt into runtime context with `context.meta` / `context.headers`, and
   set approval behavior through server-wide `permission` plus exact native-name `tools`
   overrides. Tool-policy patterns accept exact names, global `*`, or one trailing `prefix*`;
@@ -986,6 +972,7 @@ interface AgentRecord {
   environment_locked_at?: string | null
   status?: AgentStatus
   ownership?: Ownership
+  sandbox_resource_class?: string
   [k: string]: unknown
 }
 ```
@@ -1044,7 +1031,7 @@ interface AgentResource {
   userTimezone?: string
   model?: { primary: string; input?: string[]; max_tokens?: number }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
-  skills?: { skill_id: string; version?: number | 'latest' }[]
+  skills?: (({ skill_id: string; name?: string } | { name: string; skill_id?: string }) & { version?: number | 'latest' })[]
   include_global_skills?: boolean
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
@@ -1160,8 +1147,7 @@ interface AgentSkill {
 }
 ```
 
-`scope` is the field that decides whether you can manage the skill: only `org` and `personal`
-are installable through the public gateway.
+`scope` describes visibility, not permission to edit registry content. Platform keys can assign existing visible global, organization, Project, and personal Skills to their Agents. Registry management is not available. Preserve unknown scope values; see [Skills](../build/skills.md).
 
 ### `SessionRecord`
 
@@ -1251,7 +1237,7 @@ interface OutboundEvent {
 ```
 
 A write-side event. `type` is one of `user.message`, `user.interrupt`,
-`user.tool_confirmation`, or `system.message`. The index signature carries the per-type
+`user.tool_confirmation`, `user.custom_tool_result`, or `system.message`. The index signature carries the per-type
 fields: `content` for `user.message`, `text` for `system.message`.
 
 `type` is typed as `string`, so a typo compiles. The server rejects it.
@@ -1289,12 +1275,15 @@ unknown future values.
 interface Ownership {
   owner_uid: string
   org_id: string
+  project_id?: string | null
+  visibility?: 'private' | 'project'
 }
 ```
 
-A persistence anchor, not an auth claim. Omit it on `createAgent()`, and read the two values
-back from `created.ownership`. `createEnvironment()` is the call that **requires** it: pass
-the pair you read off an agent record.
+Ownership identifies the resource owner and organization; it does not grant access. Omit it
+on `createAgent()`. Read the effective values from `created.ownership` when needed.
+
+The TypeScript `createEnvironment()` signature requires an `ownership` argument. This signature does not make Environment management available with a Platform key: the root `/environments` routes return 404. Use the managed default sandbox; see [Environments](../build/environments.md).
 
 ### `ToolCall`
 
@@ -1314,8 +1303,7 @@ The decoded form of an `agent.tool` event, returned by `toolCall()`.
 One tool call produces a sequence of events sharing a `toolCallId`, one per phase: `start`
 carries `args`, `end` carries `isError` and `resultPreview`, and `blocked` means the call is
 parked on an approval and has **not** run. Pair them by `toolCallId` - they are **not
-adjacent** in the stream when calls run concurrently. A tool failing does not fail the run:
-`isError: true` is still followed by `run.finished` with `succeeded`. See
+adjacent** in the stream when calls run concurrently. A tool error does not necessarily fail the run. The model may recover and finish with `succeeded`, but `isError: true` does not guarantee that outcome. Check the final run status and termination. See
 [Events](../build/events.md).
 
 ### Config types
@@ -1445,7 +1433,7 @@ The raw SSE line parser, exported for advanced use. `streamEvents()` already use
 do not need it for normal work.
 
 It yields one `SSEMessage` per frame: `event` is the SSE event name (defaulting to
-`message`), `id` is the `id:` line - which for durable event frames is the `seq` - and `data`
+`message`), `id` is the `id:` line - an opaque resume cursor on the unified stream, not `seq` - and `data`
 is the JSON-parsed body, falling back to the raw string when the payload is not JSON.
 
 Reach for it when you are calling the stream endpoint yourself, for instance to see the
@@ -1466,19 +1454,32 @@ for await (const msg of parseSSE(res.body!)) {
 
 Dropping the `id:` line would freeze your resume cursor, which is why the parser surfaces it.
 
+## Webhook helpers
+
+Receiving helpers are available in `@zoowork-ai/sdk` **0.9.0+**. They verify and parse incoming deliveries; they are not webhook endpoint-management methods. Use [Webhooks](../build/webhooks.md) for registration and delivery management.
+
+| Helper | Behavior |
+|---|---|
+| `await verifyWebhookSignature(input)` | Verifies raw-body signature and timestamp; returns `{eventId, timestamp}`. |
+| `await unwrapWebhook(input)` | Verifies the signature and parses a `WebhookEvent` envelope. |
+| `isKnownWebhookEventType(type)` | Narrows a type against the SDK's known event names. |
+| `knownWebhookEvent(event)` | Returns the same event with a known-type cast, or `undefined`; it does not validate every `data` field. |
+| `await signWebhook({eventId, timestamp, body, secret})` | Constructs signature headers for offline receiver tests; it does not send or publish a platform event. |
+
+Verification input includes `headers`, the unchanged `rawBody` (`Uint8Array` or string), and optional `secret`, `now`, `toleranceSeconds`, and `maxBodyBytes`. Omitted `secret` reads `ZOOWORK_WEBHOOK_SECRET`; an explicit secret can be one string or a readonly array for rotation. `now` is **milliseconds**; signed and returned timestamps are Unix **seconds**. Defaults are a 300-second tolerance and a 16-KiB body limit.
+
+Do not parse or reserialize JSON before verification. `unwrapWebhook` checks the base envelope but preserves unknown event types and data fields; your handler still validates event-specific data. It does not check that the body `id` matches `webhook-id`. Deduplicate using the verified delivery ID and validate any equality required by your application. Verification failures throw `ZooworkWebhookError`. The SDK's known event constants are parser vocabulary, not a deployment availability guarantee.
+
 ## Complete export list
 
 ```ts
 import {
-  // client
   createZooworkClient,
   DEFAULT_BASE_URL,
   ZooworkError,
   type ZooworkClient,
   type ZooworkConfig,
   type ZooworkAuth,
-
-  // resource types
   type Ownership,
   type ModelInfo,
   type AgentResource,
@@ -1488,16 +1489,6 @@ import {
   type AgentPagePromise,
   type AgentStatus,
   type AgentSkill,
-  type CustomToolDeclaration,
-  type CustomToolResultImageMimeType,
-  type CustomToolResultContent,
-  type CustomToolResultEvent,
-  type CustomToolCallStatus,
-  type CustomToolCallRecord,
-  type SessionListPageOptions,
-  type SessionListPage,
-
-  // channels
   type AgentChannel,
   type AgentChannelCapabilitySync,
   type AgentChannelCapabilities,
@@ -1514,42 +1505,38 @@ import {
   type FeishuSetupInput,
   type FeishuSetupSession,
   type FeishuPollResult,
-
-  // more resource types
   type McpContextConfig,
   type McpServerDeclaration,
   type McpToolPermission,
   type McpToolPermissionOverride,
+  type CustomToolDeclaration,
+  type CustomToolResultImageMimeType,
+  type CustomToolResultContent,
+  type CustomToolResultEvent,
   type SkillRecord,
   type SkillVersionRecord,
   type SessionRecord,
+  type SessionListPageOptions,
+  type SessionListPage,
   type SessionHistoryEntry,
   type SessionEvent,
   type SessionEventPage,
   type OutboundEvent,
   type PostEventReceipt,
-
-  // approvals
   type ApprovalDecision,
   type ApprovalRecord,
-
-  // system prompt
+  type CustomToolCallStatus,
+  type CustomToolCallRecord,
+  type ArtifactPage,
+  type ArtifactRecord,
+  type ArtifactStatus,
+  type OutcomeConfig,
+  type OutcomeEvaluator,
   type SystemPromptDeclaration,
   type SystemPromptInfo,
   type SystemPromptPreview,
   type SystemPromptPreviewInput,
   type SystemPromptUpgrade,
-
-  // artifacts
-  type ArtifactStatus,
-  type ArtifactRecord,
-  type ArtifactPage,
-
-  // outcome
-  type OutcomeConfig,
-  type OutcomeEvaluator,
-
-  // schedules, wake, exec
   type ScheduleSpec,
   type SchedulePayload,
   type ScheduleInput,
@@ -1558,14 +1545,10 @@ import {
   type ScheduleRun,
   type WakeResult,
   type ExecResult,
-
-  // environments
   type EnvironmentConfig,
   type EnvironmentResource,
   type EnvironmentRecord,
   type EnvironmentVersionRecord,
-
-  // events
   SESSION_EVENT_TYPES,
   type SessionEventType,
   PUBLIC_INPUT_EVENT_TYPES,
@@ -1580,15 +1563,63 @@ import {
   type CustomToolUse,
   toolCall,
   type ToolCall,
-
-  // sse
   parseSSE,
   type SSEMessage,
+  WEBHOOK_EVENT_TYPES,
+  WEBHOOK_SCHEDULE_CONFIG_EVENT_TYPES,
+  type WebhookEventType,
+  isKnownWebhookEventType,
+  knownWebhookEvent,
+  verifyWebhookSignature,
+  unwrapWebhook,
+  signWebhook,
+  ZooworkWebhookError,
+  type WebhookErrorCode,
+  WEBHOOK_ID_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_SECRET_ENV,
+  WEBHOOK_TOLERANCE_SECONDS,
+  WEBHOOK_DEFAULT_MAX_BODY_BYTES,
+  type WebhookEvent,
+  type WebhookEventFor,
+  type KnownWebhookEvent,
+  type WebhookEventData,
+  type WebhookEventDataByType,
+  type WebhookEventAttribution,
+  type WebhookScheduleRunRef,
+  type WebhookWaitingOnRef,
+  type WebhookRunEventData,
+  type WebhookRunStartedData,
+  type WebhookRunFinishedData,
+  type WebhookRunYieldedData,
+  type WebhookApprovalEventData,
+  type WebhookApprovalRequestedData,
+  type WebhookApprovalResolvedData,
+  type WebhookCustomToolEventData,
+  type WebhookCustomToolRequestedData,
+  type WebhookCustomToolResolvedData,
+  type WebhookOutcomeEvaluatedData,
+  type WebhookSessionCreatedData,
+  type WebhookSessionArchivedData,
+  type WebhookSessionDeletedData,
+  type WebhookScheduleFireData,
+  type WebhookScheduleDispatchedData,
+  type WebhookScheduleDispatchFailedData,
+  type WebhookScheduleSkippedData,
+  type WebhookScheduleFinishedData,
+  type WebhookScheduleConfigData,
+  type WebhookTestData,
+  type WebhookHeaders,
+  type WebhookHeaderSource,
+  type WebhookSignatureHeaders,
+  type VerifyWebhookInput,
+  type VerifiedWebhook,
+  type SignWebhookInput,
 } from '@zoowork-ai/sdk'
 ```
 
-The entry point is pinned by a test that asserts its exports as a set - a missing symbol and an
-accidental extra one both fail it. `DEFAULT_BASE_URL` is the
+`DEFAULT_BASE_URL` is the
 public gateway base that `ZOOWORK_BASE_URL` and the `baseUrl` option override; it is exported
 so you can compare against it or build a URL by hand.
 
@@ -1600,3 +1631,35 @@ That is the entire public surface. Session metadata is set when you call `create
 - [Errors and retries](./errors.md) - the `ZooworkError.type` values worth branching on.
 - [Agents](../build/agents.md) - create, start, update, and the two response shapes.
 - [Sessions](../build/sessions.md) - drive a turn, page the event log, read the transcript.
+
+## Developer API methods
+
+Check installed declarations before using these additive helpers. They require the SDK release containing them; use HTTP otherwise.
+
+```ts
+getWorkspaceFile(agentId: string, path: string, opts?: { showHidden?: boolean }): Promise<WorkspaceFile>
+  writeWorkspaceFile(agentId: string, path: string, content: string): Promise<ApiObject>
+  getWorkspaceFileContent(agentId: string, path: string, opts?: { download?: boolean }): Promise<Uint8Array>
+  getAgentDatabase(agentId: string): Promise<AgentDatabase>
+  getAgentDatabaseRows(agentId: string, tableName: string, opts?: { limit?: number; offset?: number }): Promise<AgentDatabaseRows>
+  getUsage(opts?: UsageOptions): Promise<UsageResult>
+  getRunOutput(agentId: string, sessionId: string, runId: string, opts?: CursorOptions): Promise<RunOutput>
+  getApproval(agentId: string, approvalId: string): Promise<ApprovalRecord>
+  getCustomToolCall(agentId: string, callId: string): Promise<CustomToolCallRecord>
+  listApprovalPage(agentId: string, opts?: ActionListOptions): Promise<ApprovalPage>
+  listCustomToolCallPage(agentId: string, opts?: ActionListOptions): Promise<CustomToolCallPage>
+  listAgentWebhooks(agentId: string, opts?: CursorOptions): Promise<AgentWebhookPage>
+  createAgentWebhook(agentId: string, input: AgentWebhookInput, idempotencyKey: string): Promise<AgentWebhookCreated>
+  getAgentWebhook(agentId: string, webhookId: string): Promise<AgentWebhookEndpoint>
+  updateAgentWebhook(agentId: string, webhookId: string, input: Partial<AgentWebhookInput>): Promise<AgentWebhookEndpoint>
+  deleteAgentWebhook(agentId: string, webhookId: string): Promise<void>
+  rotateAgentWebhookSecret(agentId: string, webhookId: string, input: { revoke_previous_after: 0 | 86400 }, idempotencyKey: string): Promise<AgentWebhookSecretRotation>
+  testAgentWebhook(agentId: string, webhookId: string, idempotencyKey: string): Promise<WebhookTestReceipt>
+  getAgentWebhookEvent(agentId: string, eventId: string): Promise<ApiObject>
+  listAgentWebhookDeliveries(agentId: string, webhookId: string, opts?: WebhookDeliveryOptions): Promise<WebhookDeliveryPage>
+  getAgentWebhookDelivery(agentId: string, webhookId: string, deliveryId: string): Promise<ApiObject>
+  redeliverAgentWebhookDelivery(agentId: string, webhookId: string, deliveryId: string, idempotencyKey: string): Promise<WebhookRedeliveryReceipt>
+  redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
+```
+
+Responses preserve unknown fields. `AgentWebhookPage.webhooks` contains endpoint rows. Action pages retain pagination; the original array methods retain their return shapes. Binary content returns `Uint8Array`. MCP tool overrides accept `requireConfirmation?: boolean`.

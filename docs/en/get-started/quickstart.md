@@ -15,12 +15,11 @@ three months of sales data into a report, saves it as `report.md`, and reads it 
 | Session | A conversation with an agent, containing your messages and its work. |
 | Events | Messages, tool activity, replies, and turn results exchanged through a session. |
 
-This guide uses the default model and sandbox. You can [configure an Environment](../build/environments.md)
-when you need a custom sandbox; no separate Environment is required here.
+This guide uses the default model and managed sandbox. No separate Environment is required.
 
 ## Prerequisites
 
-- A ZooWork organization API key (`zct_...`). [Get an API key](https://zoowork.ai/identity?tab=account-api-keys).
+- An API key and a funded organization balance. Follow [Authentication and API keys](./authentication.md) to create the key and add funds in ZooWork Platform.
 - **TypeScript:** Node.js **22.20+** and npm.
 - **Python:** Python **3.10+** and pip.
 - **curl:** Bash, curl **7.76+**, and `jq` **1.6+**.
@@ -49,7 +48,7 @@ jq --version
 Set your API key in the terminal:
 
 ```bash
-export ZOOWORK_API_KEY='zct_...'
+export ZOOWORK_API_KEY='zwp_live_...'
 ```
 
 ::: warning Keep your key private
@@ -62,15 +61,13 @@ cleanup. Run the file with the command at the end of the guide.
 **Python:** Copy the Python blocks below into `quickstart.py` in order. The blocks include
 their required indentation. Run the file with the command at the end of the guide.
 
-**curl:** Run each block in the same Bash terminal. Check that each request succeeds before
-continuing. The commands save the returned IDs for the next step.
+**curl:** Complete the [HTTP setup in Authentication](./authentication.md#use-http) first, including `ZOOWORK_BASE_URL`. Run each block in the same Bash terminal. Check that each request succeeds before continuing. The commands save the returned IDs for the next step.
 
 ## Create your first session
 
 ### 1. Create an agent
 
-Create an agent and save its ID. The SDK reads `ZOOWORK_API_KEY` and uses the public API URL
-by default. The curl example sets the URL explicitly.
+Create an agent and save its ID. The SDK reads `ZOOWORK_API_KEY`. The curl example reuses the variables configured in Authentication.
 
 ::: code-group
 
@@ -180,7 +177,7 @@ data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
 
 ::: tip If the turn does not succeed
 For `failed`, `aborted`, or a connection that closes before `run.finished`, inspect the
-[session history](../build/sessions.md) before retrying. You can still use the cleanup requests below.
+[session history](../build/session-operations.md#the-transcript-getsession-history-true) before retrying. You can still use the cleanup requests below.
 :::
 
 ## What's happening
@@ -227,7 +224,8 @@ HTTP client when they exit.
 
 - [Architecture](./architecture.md): managed execution, persistent state, and on-demand compute.
 - [Agents](../build/agents.md): choose a model, tools, and skills.
-- [Sessions](../build/sessions.md): continue the conversation and read its history.
+- [Start a session](../build/sessions.md): create and continue a conversation.
+- [Session operations](../build/session-operations.md): read history and manage saved Sessions.
 - [Events and streaming](../build/events.md): handle events, timeouts, and reconnection.
 - [Example apps](https://github.com/SerendipityOneInc/zoowork-quickstarts): build a complete application.
 - [Coding assistant skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills): give your coding assistant ZooWork SDK guidance.

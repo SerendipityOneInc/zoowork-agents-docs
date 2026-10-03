@@ -1,109 +1,164 @@
 ---
-title: Sessions
-description: 创建、继续、列出、归档和删除 session，并读取 transcript。
+lang: zh-CN
+description: 创建 Session、选择 Agent 配置、发送首条消息并继续对话。
 source: /en/build/sessions
-source_hash: 07f5aee5f969432f6df701bdfef453177d1bd5b0d72aa5b7ec5a299bc52492e6
+source_hash: ff47448f86e448ab753355ecc22422fa07611c80b7d65a89d05c2f45f979a452
 ---
 
-# Sessions
+# 创建 Session
 
-一个 session 就是与一个 agent 的一段对话。你创建它，往里投递 `user.message` 事件，再以事件或对话记录的形式把 agent 的工作读出来。对话由 agent 保存在服务端 —— 你永远不需要重发之前的回合。
+Session 是属于一个 Agent 的持久对话。先创建 Session，再发送 `user.message` 开始工作；也可以用 `initial_events` 合并这两步。对话历史保存在服务端，后续消息无需重发历史。
 
-每一条 session 路由都嵌套在 agent 之下：
+Session 属于 Agent。应用应在自己的 conversation ID 旁保存 `agent_id` 和 `session_id`，每个 Session 调用都使用这两个 ID。Session 分开保存对话历史，但同一个 Agent 的 Session 默认共享 workspace。需要分开用户文件时，见 [每用户一个 Agent](./per-user-agents.md)。
 
-```
-POST   /agents/{agent_id}/sessions
-GET    /agents/{agent_id}/sessions/{session_id}
-POST   /agents/{agent_id}/sessions/{session_id}/events
-GET    /agents/{agent_id}/sessions/{session_id}/events
-```
+## 前置条件 {#prerequisites}
 
-SDK 在方法签名里照搬了这层嵌套，所以 `agentId` 是每一个 session 调用的第一个参数：
+使用后端 [API key](../get-started/authentication.md) 和已有 Agent。新建 Agent 处于 stopped 状态，创建 Session 前先 start，否则返回 `409 agent_not_running`。API readiness 使用 `status.desired_state`，不要用渠道连接状态判断。见 [Agent 生命周期](./agents.md)。
 
-```ts
-createSession(agentId, input, idempotencyKey?)
-getSession(agentId, sessionId, opts?)
-postEvents(agentId, sessionId, events)
-listEvents(agentId, sessionId, opts?)
+SDK 示例使用[认证](../get-started/authentication.md)中配置的 `client`。Agent ID 在 TypeScript 中记为 `agentId`，Python 中记为 `agent_id`，curl 中使用 `AGENT_ID`。Python 的 `await` 示例在 async 函数内运行。先启动 Agent：
+
+::: code-group
+
+```ts [TypeScript]
+await client.startAgent(agentId)
 ```
 
-不存在顶层的 `/sessions` 集合：session 只存在于它的 agent 之下，agent id 要一路穿过每一个调用。照「session 是顶层资源、agent 写在 body 里」那种形状写的代码，在这里编译不过。
-
-本页所有示例共用一个客户端：
-
-```ts
-import {
-  createZooworkClient,
-  assistantText,
-  isRunFinished,
-  runOutcome,
-  messageText,
-  type SessionEvent,
-} from '@zoowork-ai/sdk'
-
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
-
-const agentId = process.env.AGENT_ID!
+```python [Python]
+await client.start_agent(agent_id)
 ```
 
-::: info Approval 计数和 actor 归属
-没有最近 run 时，`run_status` 可为 null。`pending_approvals` 和 `pending_custom_tool_calls` 是可选数字，不是记录数组；记录分别从 `listApprovals` 和 `listCustomToolCalls` 读取。resolve 返回 202/`signaled` 时仍可能 pending，不证明工具已执行。
+```bash [curl]
+curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
 
-初始 `user.message` 和后续消息一样可带 `actor: { ref }`。稳定 ref 应由已鉴权的后端选择，metadata 本身不选择 actor；归属标识不是权限或文件/session 隔离，IM session 拒绝调用方 actor。校验规则见[事件](./events.md)。
 :::
 
-## 前置条件：agent 必须在运行
+默认 Cloud sandbox 按需管理。本例无需创建 Environment；自定义依赖在 [Agent 的 Environment](./environments.md) 中配置。
 
-对一个不在运行的 agent 调 `createSession` 会失败：
+## 创建 Session {#create-a-session}
 
-```
-409  error.type = "agent_not_running"
-```
+::: code-group
 
-新建 Agent 返回时是停止状态，因此创建 Session 前要先调用 `startAgent`。通过 `status.desired_state === 'running'` 判断 API 是否就绪。`status.actual_state` 表示聊天渠道健康度，可能在没有渠道时显示 `active`，也可能在健康信息刷新时显示 `activating`。
-
-```ts
-const agent = await zc.getAgent(agentId)
-if (agent.status?.desired_state !== 'running') {
-  await zc.startAgent(agentId)
-}
-```
-
-## 创建 session
-
-```ts
-const session = await zc.createSession(agentId, {
-  initial_events: [{ type: 'user.message', content: 'Summarize the attached brief.' }],
-  metadata: { source: 'my-app', tenant: 'acme' },
+```ts [TypeScript]
+const session = await client.createSession(agentId, {
+  metadata: { source: 'my-app', conversation_id: 'conversation-42' },
 })
-
-console.log(session.session_id)   // "0123456789abcdef0123456789abcdef"
-console.log(session.session_key)  // "api:0123456789abcdef0123456789abcdef"
+const sessionId = session.session_id
 ```
 
-`session_id` 是 opaque string。不要要求它带资源前缀；`api:` 属于 `session_key`。
+```python [Python]
+session = await client.create_session(agent_id, {
+    "metadata": {"source": "my-app", "conversation_id": "conversation-42"},
+})
+session_id = session["session_id"]
+```
 
-带 `initial_events` 创建会立刻启动第一个回合 —— 开场消息没有单独的「发送」步骤。
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"metadata":{"source":"my-app","conversation_id":"conversation-42"}}'
+```
 
-**`initial_events` 只接受 `user.message`。** 其他事件类型在这里都不合法；Session 建好之后，其余事件使用 `postEvents` 投递。API 最多接受 50 条初始事件，`content` 使用非空字符串。
+:::
 
-`metadata` 是一个随 session 一起存下来的任意 JSON 对象，`getSession` 会原样返回。它归你用来做关联 —— 一个租户 id、一个请求 id、这段对话来自哪个入口。平台不会解释它的任何内容。
+curl 后续请求使用创建响应中的 `session_id`，将它保存为 `SESSION_ID`。
+
+空 Session 等待输入。`session_id` 是 opaque ID；`api:` 属于 `session_key`，不属于 ID。没有顶层 `/sessions` collection：HTTP 创建路径是相对于 `/service/v1` base 的 `POST /agents/{agent_id}/sessions`。
+
+`metadata` 是应用自己的 JSON object。在创建时填写它用于关联；它不选择用户身份，也不提供访问控制。只能在创建时写入的限制见 [Session 操作](./session-operations.md#store-session-metadata)。
 
 ### Idempotency-Key
 
-`createSession` 接收一个可选的第三个参数，作为 `Idempotency-Key` 请求头发出。用同一个 key 重放会返回已存在的那个 session，而不是再建一个、把开场回合跑两遍。怎么选 key、怎么复用 key，见[错误处理](../reference/errors.md)。
+TypeScript 的 `createSession` 可选第三个参数，或 Python `create_session` 的 `idempotency_key` keyword argument，作为 `Idempotency-Key` header。创建响应丢失时，使用同一个 key 恢复同一个 Session。后续输入事件分别使用稳定的 `idempotency_key`。见 [错误与重试](../reference/errors.md)。
 
-事件写入路径用的是事件级的键而不是 header：给每个事件带一个 `idempotency_key`（任何稳定字符串），超时后重试 `postEvents` 就不会把同一条消息投递两次。
+### 选择配置快照 {#choose-a-configuration-snapshot}
 
-## 多回合
+省略 `runtime_mode` 时，后续 turn 解析当前 active Agent 配置。要在创建时固定当前 active 配置，通过 SDK 或 HTTP 显式设置 `runtime_mode: "active"`：
 
-要继续一段对话，往同一个 session 再投一条 `user.message`。不要重发历史 —— agent 在服务端持有它。
+```bash
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"runtime_mode":"active","metadata":{"source":"my-app"}}'
+```
 
-```ts
-async function runTurn(sessionId: string, cursor?: string) {
+| 创建请求 | 配置选择 |
+|---|---|
+| 省略 `runtime_mode` | 后续 turn 解析当前 active Agent 配置。 |
+| 显式设置 `runtime_mode: "active"` | 在创建时固定当前 active 配置。 |
+
+两种方式都不接受调用方传入 `config_version`。其他 runtime mode 有不同选择规则。这是在选择已保存的配置，不提供 Session-local `model`、`system`、`tools`、`mcp_servers`、`skills` 或 Environment override。这些设置通过 [Agent 配置](./agents.md) 修改。
+
+### 带上首条消息 {#include-the-first-message}
+
+首条消息已准备好时，用 `initial_events` 替代上面的空 Session 创建请求：
+
+::: code-group
+
+```ts [TypeScript]
+const seeded = await client.createSession(agentId, {
+  initial_events: [{ type: 'user.message', content: 'My display name is Ada.' }],
+})
+```
+
+```python [Python]
+seeded = await client.create_session(agent_id, {
+    "initial_events": [{"type": "user.message", "content": "My display name is Ada."}],
+})
+```
+
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"initial_events":[{"type":"user.message","content":"My display name is Ada."}]}'
+```
+
+:::
+
+选择这种方式时，后续调用使用这次响应的 Session ID。这里只接受 `user.message`，最多 50 条事件；`content` 必须是非空字符串。interrupt 和工具回复在 Session 创建后发送。actor 规则见 [Message 输入](./events.md#user-message)。
+
+## 发送工作并读取响应 {#send-work-and-read-the-response}
+
+对上面创建的空 Session 发送首条消息：
+
+::: code-group
+
+```ts [TypeScript]
+await client.postEvents(agentId, sessionId, [
+  { type: 'user.message', content: 'My display name is Ada.', idempotency_key: 'conversation-42-turn-1' },
+])
+```
+
+```python [Python]
+await client.post_events(agent_id, session_id, [{
+    "type": "user.message", "content": "My display name is Ada.",
+    "idempotency_key": "conversation-42-turn-1",
+}])
+```
+
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"events":[{"type":"user.message","content":"My display name is Ada.","idempotency_key":"conversation-42-turn-1"}]}'
+```
+
+:::
+
+202 receipt 确认排队，不代表执行完成。读取已保存事件或连接 stream 观察响应。下面的 helper 读取一个普通 turn：
+
+::: code-group
+
+```ts [TypeScript]
+import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
+
+async function readTurn(sessionId: string, cursor?: string) {
   let text = ''
   let outcome: string | undefined
-  for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
+  for await (const ev of client.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
     cursor = ev.cursor ?? cursor
     text += assistantText(ev)
     if (isRunFinished(ev)) {
@@ -114,196 +169,93 @@ async function runTurn(sessionId: string, cursor?: string) {
   return { text, cursor, outcome }
 }
 
-// Turn 1 - opens with the session.
-const session = await zc.createSession(agentId, {
-  initial_events: [{ type: 'user.message', content: 'My display name is Ada.' }],
-})
-const first = await runTurn(session.session_id)
-console.log(first.outcome, first.text)   // "succeeded" ...
+const first = await readTurn(sessionId)
+console.log(first.outcome, first.text)
+```
 
-// Turn 2 - same session, new message. Resume the stream from the last cursor you saw.
-await zc.postEvents(agentId, session.session_id, [
-  { type: 'user.message', content: 'What is my display name?' },
+```python [Python]
+from contextlib import aclosing
+from zoowork import assistant_text, is_run_finished, run_outcome
+
+async def read_turn(session_id: str, cursor: str | None = None):
+    text = ""
+    outcome = None
+    async with aclosing(client.stream_events(agent_id, session_id, cursor=cursor)) as stream:
+        async for event in stream:
+            cursor = event.cursor or cursor
+            text += assistant_text(event)
+            if is_run_finished(event):
+                outcome = run_outcome(event)
+                break
+    return {"text": text, "cursor": cursor, "outcome": outcome}
+
+first = await read_turn(session_id)
+print(first["outcome"], first["text"])
+```
+
+```bash [curl]
+curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Accept: text/event-stream'
+```
+
+:::
+
+SDK reader 在一个 `run.finished` 后退出；curl 输出原始 SSE frame，会一直读取直到你停止它。保存最后一个 SSE `id:` 值用于续传。`run.finished` 结束一个 turn，Session 和 stream 可以继续存在。等待异步工作的 yielded turn 也可能成功结束。把它当作任务完成前，先阅读 [结束状态与 yielded turn](./events.md#turn-outcomes)。
+
+## 继续对话 {#multi-turn}
+
+向同一个 Session 发送下一条消息，从最后处理的事件 cursor 继续读取：
+
+::: code-group
+
+```ts [TypeScript]
+await client.postEvents(agentId, sessionId, [
+  { type: 'user.message', content: 'What is my display name?', idempotency_key: 'conversation-42-turn-2' },
 ])
-const second = await runTurn(session.session_id, first.cursor)
-console.log(second.text)                 // mentions "Ada"
+const second = await readTurn(sessionId, first.cursor)
+console.log(second.text) // mentions Ada
 ```
 
-`postEvents` 返回 `202`，以及一个把每个事件的结果包起来的对象 —— 数组在 `events` 下面，不是响应本身。被接受的事件返回的就是历史里将出现的完整事件对象（带 `seq`）；没有进行中 run 时的 `user.interrupt` 返回 `{ id, type, accepted: false }`。被接受意味着事件已入队，不代表回合已经结束。一个回合在你看到 `run.finished` 时结束，它的 `payload.status` 是 `succeeded`、`failed` 或 `aborted` —— 见[事件与流式](./events.md)。
-
-写入路径接受五种事件类型：`user.message`、`user.interrupt`、`system.message`、`user.tool_confirmation` 和 `user.custom_tool_result`。最后一种用于返回应用执行的 custom tool 结果；见[工具](./tools.md#应用执行的自定义工具)。
-
-## 读取 session
-
-```ts
-const s = await zc.getSession(agentId, session.session_id)
+```python [Python]
+await client.post_events(agent_id, session_id, [{
+    "type": "user.message", "content": "What is my display name?",
+    "idempotency_key": "conversation-42-turn-2",
+}])
+second = await read_turn(session_id, first["cursor"])
+print(second["text"])
 ```
 
-示例响应：
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"events":[{"type":"user.message","content":"What is my display name?","idempotency_key":"conversation-42-turn-2"}]}'
 
-```json
-{
-  "session_id": "0123456789abcdef0123456789abcdef",
-  "session_key": "api:0123456789abcdef0123456789abcdef",
-  "channel": "api",
-  "run_status": "succeeded",
-  "updated_at": "2026-01-01T00:00:00.000Z",
-  "metadata": { "source": "docs-example" },
-  "archived": false,
-  "status": null,
-  "pending_approvals": 0
-}
+curl -N -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Accept: text/event-stream' \
+  --data-urlencode "cursor=$EVENT_CURSOR"
 ```
 
-| 字段 | 含义 |
-|---|---|
-| `session_id` | 你传给其他每一个 session 调用的 id。 |
-| `session_key` | 带渠道限定的 key。你通过 API 创建的 session 是 `api:<session_id>`。 |
-| `channel` | 通过这个 API 创建的 session 是 `api`。 |
-| `run_status` | 最近一次 run 的状态 —— 你要的是这个字段。 |
-| `updated_at` | 最后一次变更的 ISO 时间戳。 |
-| `metadata` | 你传给 `createSession` 的东西，原样返回。 |
-| `archived` | 布尔值。 |
-| `pending_approvals` | 正在等待审批的工具调用数量。记录本身通过 `listApprovals()` 读取。 |
-| `status` | 旧的 Session 字段；当前 `getSession()` 路径返回 `null`。见下面。 |
-
-::: info 从 `run_status` 读取运行状态
-`status` 是旧的 Session 字段，值可能是 `null`。需要读取或轮询最近一次 run 的状态时，请使用 `run_status`。
 :::
 
-响应里可能带有上表之外的字段。遇到不认识的就忽略，不要因此报错。
+curl 中的 `EVENT_CURSOR` 是第一回合最后处理的 SSE `id:` 值。成功处理后保存 cursor，将它作为 opaque token。timeout、重连、interrupt 和工具响应见 [事件与流式响应](./events.md)。读取状态和历史、列出、归档或删除见 [Session 操作](./session-operations.md)。
 
-## 对话记录：`getSession({ history: true })`
+## SDK 调用
 
-传 `history: true` 会附上落盘的对话记录，它读自这个 session 存储的会话行：
+以下示例要求安装包含该方法的 SDK release。先检查已安装的 exports；缺少方法时使用本页 HTTP 示例。
 
-```ts
-const s = await zc.getSession(agentId, session.session_id, { history: true, limit: 20 })
+::: code-group
 
-for (const row of s.history ?? []) {
-  if (row.entry_type !== 'message') continue
-  const msg = row.entry.message as { role?: string }
-  console.log(row.seq, msg.role, messageText(row.entry.message))
-}
+```ts [TypeScript]
+const session = await zc.createSession(agentId, { runtime_mode: 'active', idle_compaction: false })
 ```
 
-每一条是 `{ seq, entry_type, entry, created_at }`。当 `entry_type: 'message'` 时，对话内容在 `entry.message`，形式是 `{ role, content }`，其中 `content` 是一个 block 数组，只有 `{ type: 'text', text }` 这种 block 带文本。`messageText()` 数组形式和纯字符串形式都能处理。
-
-`limit` 是返回最近多少行，默认 100，最大 500。返回的行按 `seq` 升序排列。
-
-一条 assistant 示例记录：
-
-```json
-{
-  "seq": 2,
-  "entry_type": "message",
-  "entry": {
-    "type": "message",
-    "message": {
-      "role": "assistant",
-      "model": "litellm/gpt-5.6-terra",
-      "responseModel": "qwen35-122B",
-      "usage": {
-        "input": 15212,
-        "output": 40,
-        "cacheRead": 0,
-        "cacheWrite": 0,
-        "totalTokens": 15252,
-        "cost": { "input": 0, "output": 0, "total": 0 }
-      },
-      "content": [
-        { "type": "text", "text": "" },
-        { "type": "thinking", "thinking": "..." },
-        { "type": "text", "text": "\n\nPROBE-ONE" }
-      ],
-      "stopReason": "stop"
-    }
-  },
-  "created_at": "2026-01-01T00:00:00.000Z"
-}
+```python [Python]
+session = await client.create_session(agent_id, {"runtime_mode": "active", "idle_compaction": False})
 ```
 
-有两样东西只有它能给你：
-
-- **Token 用量。** `entry.message.usage` 是一个回合的 token 计数唯一暴露的地方。`usage.cost` 目前各字段都是 `0` —— 不要拿它做花费展示。
-- **真正回答的那个模型。** `model` 是 agent 被配置成的模型；`responseModel` 是实际服务这次请求的模型。部署方可以把你配的别名映射到一个替代模型，上面的样例里两者就不一致。当这个答复要进计费、评测或合规记录时，以 `responseModel` 为准。
-
-这是对话记录，不是事件日志。它装的是对话消息，不是 `run.started` / `agent.tool` / `run.finished`。用它来找回那些你漏掉了事件的答复；想要事件流就用 `listEvents`。还存在其他 `entry_type` 取值（session 锚点、压缩标记、模型变更）；筛出 `message`，其余跳过。
-
-## `listEvents` 与分页
-
-`listEvents` 返回一个 session 的持久事件日志 —— 你自己发的输入（`user.message` 等）也在里面，整段对话从这一个面就能重建 —— 已归一成单一的 `SessionEvent` 结构（`seq`、`eventType`、`payload`、`runId`、`turn`、`createdAt`，服务端给的话还有 `id` 和 `processedAt`）。
-
-```ts
-const events = await zc.listEvents(agentId, session.session_id, {
-  types: ['user.message', 'agent.assistant'],
-})
-```
-
-::: warning 一次调用只返回一页
-服务端**默认返回 100 条事件，最多 500 条**，而 `listEvents` 只返回一页，且不带这一页的 `has_more`/`next_cursor` 字段。要重建整段对话，用 `listAllEvents`，或者用 `listEventsPage` 手动翻页。
 :::
 
-`listAllEvents` 就是这个翻页循环。它跟着服务端的 `next_cursor` 一直走到 `has_more` 为 false（对没有游标分页的服务端则回落到走 `after`）：
-
-```ts
-const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
-```
-
-它比顺手写出来的循环更严格：它在页边界上去重，游标推不动时它停下来而不是空转。`pageSize` 是每次请求的 `limit`（默认值和上限都是 500）；`types` 的含义与 `listEvents` 上一致。
-
-显式传 `after` —— 在这里或在 `listEvents`/`streamEvents` 上 —— 走的是废弃的 engine-only 通道：没有用户输入、没有分页标志，只留给旧存量游标用。`seq` 持久且严格递增，但不保证连续；续传 SSE 流用每个流式事件自带的 `cursor`（`streamEvents({ cursor })`）。`types` 在服务端过滤，可以和 `cursor`、`limit` 组合使用。
-
-## 保存 Session metadata
-
-Session 的 `metadata` 在调用 `createSession()` 时写入。SDK 没有 `patchSession`，
-对一个 Session 发送 `PATCH` 会返回 `405`。
-
-自己记录你创建过的那些 `session_id` —— 把它们和你应用里所属的东西存在一起 —— 并且在创建时就把之后需要检索的一切放进 `metadata`，因为后面加不进去。
-
-Session 列表的作用域是一个 Agent。需要跨多个 Agent 查找 Session 时，请在应用中保存 Agent id。
-
-按 agent 列出 session 有两条兼容通道。`listSessions(agentId, { page })` 保留旧的数字分页：固定 50 条，按 `updated_at` 最新在前，`page` 从 1 开始。Python 的对应方法是 `list_sessions(agent_id, page=...)`。
-
-需要 filter 或可续传扫描时，用 `listSessionPage()` / `list_session_page()`：
-
-```ts
-let cursor: string | undefined
-do {
-  const page = await zc.listSessionPage(agentId, {
-    cursor,
-    limit: 100,
-    excludeChannels: ['api'],
-    includeSurfaces: ['inbox'],
-    runtimeModes: ['active'],
-    includeDeleted: true,
-  })
-  for (const session of page.sessions) await index(session)
-  cursor = page.next_cursor ?? undefined
-} while (cursor)
-```
-
-```python
-cursor = "sls1:0"
-while cursor is not None:
-    page = await client.list_session_page(
-        agent_id,
-        cursor=cursor,
-        limit=100,
-        exclude_channels=["api"],
-        include_surfaces=["inbox"],
-        runtime_modes=["active"],
-        include_deleted=True,
-    )
-    for session in page.sessions:
-        await index(session)
-    cursor = page.next_cursor
-```
-
-初始 cursor 是 `sls1:0`。cursor 不透明，续传时必须保持所有 filter 不变；它绑定 Agent 和 filter scope，错误复用返回 `400 invalid_cursor`。`limit` 是 1–100。`runtime_modes` 接受 `active`、`preview`、`authoring` 和 `evaluation`。每行都有 `list_cursor`，所以只处理半页时可以从最后处理的 row 之后继续。到达末尾时 `next_cursor` 是 null。
-
-默认不会返回已删除的 Session。reconciliation job 需要 deletion tombstone 时，TypeScript 传 `includeDeleted: true`，Python 传 `include_deleted=True`。这类 row 带有 `deleted: true`，page 用 `includes_deleted: true` 确认当前模式。这个选项属于 cursor scope；使用同一个 cursor 续传时不能修改它。tombstone 只用于识别已删除的 Session id，不能当作可读取的 Session resource。
-
-`archiveSession(agentId, sessionId)` 和 `deleteSession(agentId, sessionId)` 提供生命周期操作。这些方法不改变前面的边界：跨 Agent 仍需自己扇出合并，`metadata` 仍然只能写一次。
-
-最后一个边界：session 隔离的是对话历史，不隔离沙箱里的文件——同一个 agent 的所有 session 共享一个 `/workspace`。多用户产品需要文件和记忆隔离时，见[每用户一个 agent](./per-user-agents.md)。
+显式 active 模式在创建时固定当前配置；省略该字段时后续 turn 解析 active 配置。`idle_compaction` 可为 true、false 或 null；省略时保留服务端默认值。

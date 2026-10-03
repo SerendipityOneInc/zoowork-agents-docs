@@ -1,82 +1,71 @@
 ---
-description: Learn what ZooWork Managed Agents provides, when to use it, and how agents, sessions, and events work together.
+description: Understand the core resources, execution flow, and use cases for ZooWork Managed Agents.
 ---
 
 # ZooWork Managed Agents overview
 
-ZooWork Managed Agents lets you run agents from your own application through the TypeScript
-SDK, Python SDK, or HTTP API. An agent can work through a task using tools, such as writing
-a file, running a command, or calling a configured external service.
+ZooWork Managed Agents provides a managed runtime for agents that work through tasks using
+models and tools. Define an Agent, send it a task, and receive progress and results through
+the TypeScript SDK, Python SDK, or HTTP API.
 
-You define the agent's instructions and available tools, send tasks, and present the results
-to your users. ZooWork manages the model and tool loop, conversation history, sandbox
-execution, and event storage. Your application receives progress and responses through an
-event stream.
+Your application supplies instructions, business tools, and user access checks. ZooWork
+manages the model and tool loop, conversation history, sandbox execution, and saved events.
+To get started, [create an API key and add funds](./authentication.md) in ZooWork Platform, then follow the [Quickstart](./quickstart.md) to run a report task.
 
-To run your first task, follow the [Quickstart](./quickstart.md).
+## Core concepts
 
-## When to use Managed Agents
-
-Use Managed Agents when your application needs to:
-
-- **Delegate tasks with multiple steps.** Let an agent choose and run tools to complete work,
-  such as creating and checking a report.
-- **Continue a conversation.** Send follow-up messages in the same Session with its saved
-  conversation history.
-- **Follow execution as it happens.** Display responses and tool progress, read saved events,
-  and reconnect to the event stream.
-- **Run code and file operations in a managed sandbox.** Configure the agent without building
-  your own tool execution infrastructure.
-
-## Runtime primitives
+Managed Agents uses four resources:
 
 | Concept | What it represents |
 |---|---|
-| **Agent** | A reusable configuration with instructions, model selection, tools, and Skills, plus a start/stop lifecycle. |
+| **Agent** | Reusable instructions, model selection, tools, and Skills, with a start/stop lifecycle and persistent workspace. |
+| **Environment** | Sandbox packages, files, and network policy. Agents use a managed default sandbox; custom Environment management is not available with Platform keys. |
 | **Session** | A persistent conversation belonging to one Agent. Send another message to continue it. |
-| **Event** | A message or execution update saved in a Session, including responses, tool activity, and turn completion. |
+| **Event** | A message or execution update in a Session, including responses, tool activity, and turn completion. |
 
-For example, an Agent configured to prepare reports can have a Session for a sales report.
-Your request, its tool activity, and its response appear as Events in that Session.
-See [Agents](../build/agents.md), [Sessions](../build/sessions.md), and
-[Events and streaming](../build/events.md) for each resource's lifecycle and wire shape.
+For example, a report Agent can have a Session for a sales report. The request, tool activity,
+and response appear as Events. Sessions on the same Agent share its workspace by default;
+use [an Agent per user](../build/per-user-agents.md) when users need separate workspaces.
 
 ## How it works
 
-1. **Create and start an Agent.** Define its configuration and start it so it can accept Sessions.
-2. **Create a Session.** Start a conversation with that Agent.
-3. **Send a message.** Describe the task you want it to complete.
-4. **Read the event stream.** ZooWork runs the model and tools; your application receives
-   responses, tool activity, and a `run.finished` event with the turn's termination status.
-5. **Continue the conversation.** Send the next message to the same Session. Its history
-   remains available after a turn finishes.
+1. **Define and start an Agent.** Configure instructions and tools, then start it so it can accept Sessions.
+2. **Start a Session.** Create a conversation and supply its first user message.
+3. **Send events and stream responses.** ZooWork runs the model and tools. Your application receives responses, tool progress, and run completion events.
+4. **Continue or interrupt work.** Send another message to the same Session or explicitly interrupt execution. Closing the stream alone does not stop the run.
 
-The default sandbox is managed on demand. You do not need to create an Environment for your
-first task. For a closer look at execution and persistent state, see [Architecture](./architecture.md).
-To see how that execution history becomes useful for evaluation and model improvement, see
-[Agent trajectories](./trajectories.md).
+A `run.finished` event describes the end of one run. Inspect its termination fields before
+presenting the task as complete; a run may yield while waiting for more work. See
+[Events and streaming](../build/events.md).
 
-## Configure your agent
+Conversation history and workspace files have lifecycles separate from active sandbox
+compute. [Architecture](./architecture.md) explains how persistent state and managed
+execution fit together. [Agent trajectories](./trajectories.md) explains how saved execution
+records can support your application's evaluation workflow.
 
-- [Agents](../build/agents.md): configure instructions and model selection.
-- [Tools](../build/tools.md): control built-in tools and add tools executed by your application.
-- [MCP servers](../build/mcp.md): connect tools hosted on remote servers.
-- [Permission policies](../build/permissions.md): choose which MCP calls require approval.
-- [Skills](../build/skills.md): add reusable task instructions and resources.
-- [Environments](../build/environments.md): customize sandbox dependencies and network rules.
+## When to use Managed Agents
 
-Sessions on the same Agent share its workspace by default. For separate user workspaces,
-follow [An agent per user](../build/per-user-agents.md).
+Use Managed Agents for applications that need:
 
-## Usage and billing
+- **Tasks with multiple steps:** let an Agent choose and run tools to produce and check a result.
+- **Managed Cloud execution:** run code and file operations without building sandbox infrastructure.
+- **Persistent conversations:** continue tasks with saved conversation history and workspace files.
+- **Asynchronous progress:** follow work through saved events, streaming responses, or webhooks.
+- **Recurring tasks:** use Schedules for work that should run at a configured cadence.
 
-Managed Agents does not currently expose a public Usage API through the SDKs or HTTP API.
+## Configure capabilities
+
+Choose [built-in or application-executed tools](../build/tools.md), connect
+[MCP servers](../build/mcp.md), set [Permission policies](../build/permissions.md), and attach
+[Skills](../build/skills.md). The [Cloud sandbox reference](../build/cloud-sandbox-reference.md) describes the default execution environment.
+
+Public resource access depends on the available routes and service configuration. See
+[Availability and limits](../reference/capabilities.md) before depending on a workflow.
 
 ## Next steps
 
-- [Quickstart](./quickstart.md): create an Agent and complete a report task.
-- [Architecture](./architecture.md): understand the managed runtime and sandbox lifecycle.
-- [Agent trajectories](./trajectories.md): connect production execution to evaluation and post-training.
-- [TypeScript SDK](../reference/typescript-sdk.md): look up TypeScript client methods and options.
-- [Python SDK](https://github.com/SerendipityOneInc/zoowork-sdk-python): install the async Python client and read its package guide.
-- [Errors](../reference/errors.md): handle API failures and safe retries.
+- [Quickstart](./quickstart.md): get an API key and complete your first task.
+- [Migration](./migration.md): move an application-owned agent loop to Managed Agents.
+- [Agent configuration](../build/agents.md): define and manage the reusable Agent.
+- [Start a session](../build/sessions.md): send tasks and continue conversations.
+- [Session operations](../build/session-operations.md): read execution state and manage stored conversations.

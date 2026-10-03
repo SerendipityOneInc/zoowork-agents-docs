@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 78239e1ec4e4a6885ef9e687d6ef44313a7576a13855c13881ef553195962ef0
+source_hash: 577e7a301d0e2b3dd5f47789a5ab084c0b27d158d93f1668a4293d5879604e52
 ---
 
 # 错误与重试
@@ -58,13 +58,13 @@ if (e instanceof ZooworkError && e.type === 'agent_not_running') await zc.startA
 
 你的请求会先经过一个网关，它认证你的 key 并把你限定在你的组织范围内，然后才到达 API。**两者都可能产生错误，而且各用各的信封。**
 
-**API 的错误被原样透传。** 最常见的那种 API 信封是：
+**runtime 的 500 以下响应会转发，5xx 失败会归一化。** runtime 5xx 会变成 gateway HTTP 502，code 为 `agent.runtime_error`。认证和 scope 检查也可能在转发前失败。常见的 runtime 409 响应是：
 
 ```json
 { "error": { "type": "agent_not_running", "message": "agent is not running" } }
 ```
 
-**网关对认证和租户相关的失败发自己的信封** ——这些检查在它转发你的请求之前就跑完了。被拒绝的 key 返回 `401`，type 是 `service_token.invalid`，那是一个网关的代码，不是 API 的。
+**网关对认证和租户相关的失败使用自己的信封**。这些检查在转发请求之前完成。无效 API key 返回 `401 platform.api_key_invalid`。缺少或不受支持的 Bearer credential 可以返回 `401 service_token.required`。
 
 API 这一侧本身就分两族，不是一族。session、定时任务、environment 返回 `{ error: { type, message } }`，代码不带点（`agent_not_running`、`session_archived`）；agent 这一族返回 `{ code, detail }`，代码带点（`service_api.not_found`）。两种最后都落到 `ZooworkError` 上，而且代码原样保留——SDK 不会替它们发明一套统一词表——所以在用 `===` 比较 type 之前，先看下面 `not_found` 那一行。
 
@@ -94,11 +94,10 @@ if (e instanceof ZooworkError) {
 |---|---:|---|---|
 | `agent_not_running` | 409 | 对一个 `status.desired_state` 不是 `running` 的 agent 调 `createSession()` 或 `postEvents()`。新创建的 agent 是停止的，你自己停掉的也一样。 | 调 `startAgent()`，轮询 `status.desired_state` 直到它是 `running`，再重试。永远不要轮询 `actual_state`。 |
 | `model_not_selectable` | 409 | create 或 update 选择了一个仍保留给已有引用、但不再接受新选择的模型目录条目。 | 重新调用 `listModels()`，选择 `selectable` 不为 `false` 的条目；目录提供 `expired_fallback_to` 时使用它。不要原样重试同一个 alias。 |
-| `not_found` / `service_api.not_found` | 404 | 未知的 agent 或 session id、已软删除的，**或者属于其他组织的** 。两种拼写都存在：agent 这一族返回 `service_api.not_found`，session、定时任务、environment 这一族返回不带点的 `not_found`。 | 两种拼写都匹配，或者干脆按 `status === 404` 分支。不要把它读成「已删除」：跨租户读取被隐藏成 404，而不是被拒绝成 403。你创建的 id 自己记一份。 |
-| `service_token.invalid` | 401 | key 缺失、格式不对、已吊销，或者它绑定的用户离开了组织。由网关发出，用网关的信封。 | 修凭证。不要重试——重试会一模一样地失败。用 `listModels()` 验证。 |
+| `not_found` / `service_api.not_found` | 404 | 未知或已删除的 Agent、Session ID，或者资源不在 key 的组织、Project 或 owner 范围内。Agent 路由使用 `service_api.not_found`；Session 和 Schedule 路由可能使用 `not_found`。 | 匹配两种拼写，或按 `status === 404` 处理。404 不能证明资源已删除。保存创建的 ID，并使用对应范围的 key。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
 | `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本。 | 改请求。原样重试会一模一样地失败。 |
-| *（可能没有 type）* | 404 | `putAgentSkill()` 传入 global 目录里的 skill id。只有当前租户上传的 skill 可以安装，而 global 目录已经挂在每个新 Agent 上。 | 按 `status === 404` 分支，因为这个响应可能省略 `type`。见 [Skills](../build/skills.md)。 |
+| *（可能没有 type）* | 404 | `putAgentSkill()` 使用未知 Skill ID，或 Skill 不在 key 的可见范围内。 | 按 `status === 404` 分支，因为这个响应可能省略 `type`。检查 Skill 的可见范围；见 [Skills](../build/skills.md)。 |
 
 ### 更多 400
 
@@ -122,7 +121,27 @@ if (e instanceof ZooworkError) {
 | `payload_too_large` | 413 | 请求体或 skill 负载超限。 |
 | `quota_exceeded` | 429 | 频率或数量超限。 |
 | `internal_error` | 500 | 服务端故障。读操作退避后重试；写操作先对账。 |
-| `not_configured` | 501 | 这个环境没有配置对应的后端服务。不要原样重试。 |
+| `agent.runtime_error` | 502 | runtime 依赖返回 server failure。读取可 backoff 后重试；写入需先核对结果。 |
+
+## Platform 与 Usage 错误
+
+同时检查 HTTP status 和 code。runtime credential 或 billing 前置条件未满足时，原样重试无法解决。
+
+| Code | HTTP | 操作 |
+|---|---:|---|
+| `service_token.required` | 401 | 传入受支持的 Bearer credential。 |
+| `platform.api_key_invalid` | 401 | 检查 secret、撤销状态、组织、Project 和 owner 状态。 |
+| `platform.authentication_unavailable` | 503 | 认证依赖不可用，稍后重试。 |
+| `platform.key_credentials_not_bound` | Agent 创建时为 409 | 请组织 owner 登录 Platform，创建替代 key 并更新应用。见 [Authentication](../get-started/authentication.md#替换或撤销-key)。 |
+| `platform.billing_not_ready` | 409 | 登录 Platform，等待组织 billing 设置完成。失败时选择 **Retry billing setup**。不能仅凭这个 code 判断余额不足。 |
+| `platform.runtime_credentials_unavailable` | 503 | runtime credential 依赖不可用，稍后重试。 |
+| `usage.access_denied` | 403 | 只查询 key Usage scope 内的数据。 |
+| `usage.snapshot_expired` | 409 | 发起新的 Usage 查询。 |
+| `usage.invalid_query` | 400 | 修正查询参数。 |
+| `usage.busy` | 429 | 读取请求 backoff 后重试。 |
+| `usage.unavailable` | 503 | 稍后重试，不要把不完整响应当成零消耗。 |
+
+见 [Authentication](../get-started/authentication.md) 和 [Usage](./usage.md)。诊断用的 request ID 是可选值，公共 gateway 不保证每个响应都返回 Engine request-ID header。
 
 ## 什么可以安全重试
 
@@ -134,17 +153,15 @@ if (e instanceof ZooworkError) {
 | `startAgent`、`stopAgent` | **先核对结果** | 成功回执可能带 warnings，但非 2xx 仍然抛错；stop 可能在 desired state 已写入后才失败。先 `getAgent` 对账，再决定是否重试。 |
 | `deleteAgent` | **能** | 软删除。重复调用都会成功。 |
 | `streamEvents` | **能** | 用最后一个事件的续传令牌重连——`{ cursor: ev.cursor }`。服务端续传日志；处理成功后再保存游标，应用副作用不因此获得 exactly-once 保证。**不要**用 `{ after: lastSeq }` 重连：那会切到废弃的 engine-only 通道，它会丢掉你自己发的 input 事件（`user.message`、`user.interrupt`、`user.tool_confirmation`、`user.custom_tool_result`、`system.message`）。 |
-| `createAgent`、`createSession`、`createEnvironment`、`createEnvironmentVersion` | **复用 key 与 body** | HTTP `Idempotency-Key` 的创建契约；不要每次重试都换 key。 |
+| `createAgent`、`createSession` | **复用 key 与 body** | HTTP `Idempotency-Key` 的创建契约；不要每次重试都换 key。 |
 | `createSchedule` | **稳定 ID 与相同定义** | 同 `schedule_id`、同定义可收敛，不同定义冲突；不是靠 key 创建唯一性。 |
-| `uploadSkill` | **先读回** | 同 scope、同 name 再创建为 409，不是 upsert。 |
-| `uploadSkillVersion` | **核对内容与版本** | 相同内容去重，不是 HTTP key 保证；读回版本确认结果。 |
 | `updateAgent`、`putAgentSkill`、`deleteAgentSkill` | **不能** | 每次成功都会 bump `config_version`。超时之后先 `getAgent()` 对账，再决定怎么办。 |
 | `updateSchedule`、`deleteSchedule` | **不能** | 这两条都不提供跨超时的幂等保证。超时之后请列出这个 agent 的定时任务、读它们的运行记录来对账，不要把这次写入再发一遍。 |
 | `postEvents` | **复用逐事件 key** | key 在每条事件 body 的 `idempotency_key`，不是 HTTP header。保持同 key、同内容；没有 key 的盲重试可能重复投递。 |
 
 ### create 调用上的 `Idempotency-Key`
 
-不同操作使用不同的幂等机制。HTTP key、event key、稳定资源 ID 和内容去重相互独立，都不提供 exactly-once 保证。SDK 有七个方法可以发送 `Idempotency-Key` 请求头：`createAgent`、`createSession`、`createSchedule`、`createEnvironment`、`createEnvironmentVersion`、`uploadSkill`、`uploadSkillVersion`。前五个把它作为最后一个参数传入，两个上传方法把它放在 options 对象的 `idempotencyKey` 字段里。最常用的两个例子是：
+不同操作使用不同的幂等机制。HTTP key、event key、稳定资源 ID 和内容去重相互独立，都不提供 exactly-once 保证。`createAgent` 和 `createSession` 将 HTTP `Idempotency-Key` 作为最后一个参数传入。两个常用例子是：
 
 ```ts
 const created = await zc.createAgent(
@@ -167,7 +184,7 @@ agent 创建的唯一性域是 `(agent.create, key)`。同一个 key、同一份
 
 很容易想用这个版本号判断一次写有没有落地。它在两个方向上都不成立。
 
-- **每一次成功的 PUT 都会 bump 它，哪怕内容一字节不差。** 没有空操作检测，所以「版本号变了」不代表你的值改变了任何东西。
+- **配置写入会增加版本，即使内容相同；仅修改 ownership 不会。** 没有空操作检测，所以「版本号变了」不代表你的值改变了任何东西。
 - **不是你发起的写也会 bump 它。** `createAgent()` 之后网关立刻替 agent 代种模型凭证，每一次都 bump 一次版本：创建回执上写着 `1`，紧接着第一次 `getAgent()` 常常已经是 `3` 了。
 
 ```ts
@@ -180,7 +197,7 @@ const second = (await zc.getAgent(agentId)).status?.config_version   // 6 - bump
 
 把它当成一个不透明的单调递增计数器。要判断一次超时的 `updateAgent()` 到底有没有落地，就把值从 `declared` 里读回来自己比对。
 
-也没有乐观并发控制：`updateAgent()` 不接受任何版本前置条件，两个并发写入方永远看不到冲突。它们会静默地按小节后写覆盖先写。
+`updateAgent()` 接受 `expected_config_version`。它与写入一起做原子检查，过期的正整数版本返回 `409 active_config_changed`。先读取当前状态，再决定是否重试。省略该字段时，仍按小节后写覆盖先写。
 
 ## 一个完整示例
 
@@ -218,7 +235,7 @@ async function openSession(agentId: string, text: string, jobId: string) {
     }
 
     if (e.status === 401) {
-      // Gateway envelope; e.type is service_token.invalid. Retrying will not help.
+      // Authentication failure; check the API key.
       throw new Error('API key rejected - check ZOOWORK_API_KEY')
     }
 

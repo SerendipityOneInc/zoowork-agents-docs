@@ -1,167 +1,52 @@
 ---
-description: Post events, stream SSE, resume with cursors, and interpret the event vocabulary.
+description: Send Session events, stream responses, interpret turn termination, and resume from durable cursors.
 ---
 
-# Events and streaming
+# Session event stream
 
-Everything that happens inside a session is an event. You drive the session by posting a
-small set of inbound events, and you read the whole conversation back from one event log —
-your own inputs included, echoed alongside the engine's output — either as a durable list or
-as a live SSE stream.
+Send user events to start or continue work, then read saved events or the live SSE stream.
+Events flow in two directions: `user.*` and `system.message` are inputs; Agent and run events
+report responses, tool activity, and execution progress. Inputs are echoed on the durable log.
 
-The event log is per session. Each event carries a `seq` that is strictly increasing within
-that session and never reused (gaps are normal). Pagination and stream resume both run on
-cursors: `next_cursor` from a list page, or each streamed event's `cursor` token.
+The log belongs to one Session. Its `seq` increases without reuse, but gaps are normal.
+Resume with opaque cursor tokens from streamed events or list pages, rather than deriving
+one from a sequence number. See [Start a session](./sessions.md) if you need to create it first.
 
-```ts
-import {
-  createZooworkClient,
-  assistantText,
-  isRunFinished,
-  runOutcome,
-} from '@zoowork-ai/sdk'
+Use the `client` configured in [Authentication](../get-started/authentication.md) and your
+Agent and Session IDs. Python `await` examples run inside an async function.
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
-
-for await (const ev of zc.streamEvents(agentId, sessionId)) {
-  process.stdout.write(assistantText(ev))
-  if (isRunFinished(ev)) {
-    console.log(`\nturn ${runOutcome(ev)}`)
-    break
-  }
-}
-```
-
-## The event envelope
-
-The SDK normalizes every event, from either transport, into one shape:
-
-```ts
-interface SessionEvent {
-  /** Durable per-session sequence: strictly increasing, not necessarily contiguous. */
-  seq: number
-  eventType: SessionEventType | PublicInputEventType | string
-  payload: Record<string, unknown>
-  runId?: string
-  turn?: number
-  createdAt?: string
-  id?: string
-  processedAt?: string | null
-  cursor?: string
-}
-```
-
-| Field | Type | Notes |
-|---|---|---|
-| `seq` | `number` | Strictly increasing within the session, assigned server-side; gaps are normal. `-1` if the frame carried no sequence at all, which should not happen on the durable stream. |
-| `eventType` | `string` | One of the values in the tables below. Typed loosely on purpose: unknown types pass through instead of throwing, because the API is Developer Preview and may add types within a version. |
-| `payload` | `Record<string, unknown>` | Type-specific body, always an object. Always `{}` rather than `undefined` when absent. Its keys are camelCase. |
-| `runId` | `string \| undefined` | The turn's run. All events of one turn share it. Input events carry none. |
-| `turn` | `number \| undefined` | Turn index within the session. |
-| `createdAt` | `string \| undefined` | ISO 8601 timestamp. |
-| `id` | `string \| undefined` | Event id, when the server sends one. |
-| `processedAt` | `string \| null \| undefined` | Input events only: `null` while queued, a timestamp once the agent has consumed it. |
-| `cursor` | `string \| undefined` | Resume token, present on streamed events — pass it to `streamEvents({ cursor })`. |
-
-There is no top-level `type` field, no `stop_reason`, and no `session.status_*` event. If you
-are porting code that switches on `event.type`, switch on `event.eventType` instead.
-
-`payload` is deliberately loose. Read the fields you need and ignore the rest; the server adds
-fields within a version.
-
-## The wire underneath
-
-::: info The SDK normalizes wire formats
-On the unified lane both transports send the same snake_case object
-(`event_type`, `run_id`, `processed_at`, `created_at`), with the SSE `id:` line carrying the
-resume token. The SDK's `normalizeEvent` converts this into the `SessionEvent` shape used by
-both `listEvents` and `streamEvents`.
-
-Direct HTTP integrations should also accept camelCase fields from the legacy `after` SSE lane.
-Use `eventType`; the wire object does not include a top-level `type`.
-:::
-
-The server writes a `: ping` comment line every 20 seconds as a keepalive, so any socket read
-timeout or proxy idle timeout below that kills a healthy stream, and a hand-written parser that
-does not skip comment lines hits `JSON.parse('')` and throws - `parseSSE` is exported if you
-would rather not write one.
-
-`normalizeEvent` is exported, so you can reuse it if you have your own transport:
-
-```ts
-import { normalizeEvent } from '@zoowork-ai/sdk'
-
-const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // sseIdLine is the seq fallback
-```
-
-## The event vocabulary
-
-These are the outbound event types, the full contents of `SESSION_EVENT_TYPES` (a fixed list
-of 20), plus the five input types under [Your inputs, echoed](#your-inputs-echoed). The
-`types=` filter on history accepts both sets and rejects anything else with
-`400 invalid_request`.
-
-### `run.*` - turn bookkeeping
-
-| Type | Fires | `payload` |
-|---|---|---|
-| `run.started` | A turn begins, before any model call. | `trigger`, `inboundMessageId`, `agentId` |
-| `run.finished` | The turn is over. This is the last event of the turn. | `status`: `succeeded` \| `failed` \| `aborted` |
-
-### `agent.*` - what happened inside the turn
-
-| Type | Fires | `payload` |
-|---|---|---|
-| `agent.lifecycle` | Bookends the agent loop inside a turn. | `phase`: `start` \| `end`. Scheduled agents can also emit `phase: 'heartbeat-skipped'` with `reason`, `scheduleId`, `firedAt`. |
-| `agent.assistant` | One assistant message segment is committed. | `message` (`{ role, content[] }`), `segment` (1-based step index), optional `artifacts`. Use `assistantText()`. |
-| `agent.thinking` | Reasoning text for the segment just committed. | `text` |
-| `agent.tool` | A tool call changes phase. See [Tool call phases](#tool-call-phases). | `phase`, `toolCallId`, `toolName`; `args` on start; `isError`, `resultPreview`, `executionStarted` on end; `policyId`, `deniedReason` on blocked. |
-| `agent.item` | Internal loop markers, not conversation. | `kind`: `assistant_segment` (with `phase`, `segment`) or `llm_request` (captured provider request/response). Safe to ignore when rendering a chat. |
-| `agent.plan` | Reserved in the vocabulary. The core loop does not emit it. | - |
-| `agent.approval` | A tool call needs approval, or that approval resolved. | `phase`: `requested` \| `resolved`; `approvalId`, `toolCallId`, `toolName`, `arguments`, optional `stake`, `timeoutAt`; on `resolved`, `resolution` plus optional `resolvedBy`, `resolutionChannel`. |
-| `agent.custom_tool_use` | An application-executed custom tool is requested or resolved. | `phase`: `requested` \| `resolved`; `callId`; request fields include `toolCallId`, `name`, `input`, `timeoutAt`; resolved fields include `outcome`, optional `isError`, `resolvedBy`, `resolutionChannel`. Use `customToolUse()`. |
-| `agent.command_output` | A command-running tool produced stdout/stderr, at result granularity. | `toolCallId`, `toolName`, plus the captured output fields. |
-| `agent.patch` | An `apply_patch` tool call succeeded. | `toolCallId` plus the patch summary. |
-| `agent.compaction` | History was compacted to fit the context window. | `firstKeptEntryId`, `tokensBefore`, `reason` |
-| `agent.error` | An error occurred inside the turn. | `errorMessage`, sometimes `kind` (for example `mcp_connection_failed` or `mcp_authentication_failed`), `server`, and optional `reason`. Preserve unknown reasons. This event is not a verdict on the turn; read `run.finished`. |
-
-### Other
-
-| Type | Fires | `payload` |
-|---|---|---|
-| `attachment.created` | A tool produced a file or attachment. | `source`, `toolName`, `toolCallId`, `index`, plus the storage reference fields. |
-| `message.outbound` | The agent sent a proactive message (message tool, schedule announce, or heartbeat) rather than replying in-session. | `source`, `sourceRef`, `delivery`, `text`, `action`, `index`, `computerId`, `agentId`, optional `card`, `artifacts`. |
-
-### Your inputs, echoed
-
-Your own inputs come back on the same log as `user.message`, `user.interrupt`,
-`user.tool_confirmation`, `user.custom_tool_result`, and `system.message` (exported as
-`PUBLIC_INPUT_EVENT_TYPES`). A
-`user.message` payload is `{ content: [...] }` — text blocks plus
-`{ type: 'attachment', mime, name, size }` stubs — and its `processedAt` flips from `null` to
-a timestamp once the agent has consumed it. The write-side rules for all five are under
-[Inbound events](#inbound-events).
-
-### Preview events: `chat.*`
-
-`chat.delta`, `chat.final`, `chat.aborted`, and `chat.error` are delivered on a separate
-per-run preview lane through the `?deltas=` query parameter described at the end of this page.
-Use the durable `run.started` and `run.finished` events for turn lifecycle logic.
-
-## Inbound events
+## Send events {#inbound-events}
 
 There are exactly five event types you can post. Anything else is rejected with
 `400 invalid_event` and a message naming the five.
 
-```ts
-const res = await zc.postEvents(agentId, sessionId, [
+::: code-group
+
+```ts [TypeScript]
+const receipt = await client.postEvents(agentId, sessionId, [
   { type: 'user.message', content: 'Summarize the last three findings.' },
 ])
-// res.events -> accepted events come back as the full event object (with seq);
-//               a user.interrupt with no run in flight is { id, type, accepted: false }
+console.log(receipt.events)
 ```
 
-`postEvents` returns `202` with one entry per submitted event. `accepted` is the field that
+```python [Python]
+receipts = await client.post_events(agent_id, session_id, [
+    {"type": "user.message", "content": "Summarize the last three findings."},
+])
+print(receipts)
+```
+
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"events":[{"type":"user.message","content":"Summarize the last three findings."}]}'
+```
+
+:::
+
+`postEvents` returns an object with an `events` array; Python `post_events` returns that
+array directly. The HTTP response is `202` with one entry per submitted event. `accepted` is the field that
 matters.
 
 ### `user.message`
@@ -190,6 +75,321 @@ context. IM sessions reject `actor`; `actor.token`, unknown actor keys and malfo
 return HTTP 400. Never accept a supplied actor as proof of identity.
 :::
 
+## Streaming a turn
+
+`streamEvents` is an async generator over the live session stream.
+
+```ts
+streamEvents(
+  agentId: string,
+  sessionId: string,
+  opts?: { after?: number; cursor?: string; signal?: AbortSignal },
+): AsyncGenerator<SessionEvent>
+```
+
+::: info A Session stream can carry multiple turns
+`run.finished` is the end of the *turn*, not the end of the *stream*. The connection stays open
+waiting for the next turn, and the server only drops it when the connection goes idle long
+enough.
+
+If you `for await` to completion, or `await` an array collected from the generator, you will
+wait until the server times the connection out. Break on `isRunFinished(ev)` when you only
+need the current turn. A successful `run.finished` can also have
+`turnEndReason: "yielded"` and `outputType: "not_required"`: the turn ended while task work
+continues. Check [turn outcomes and yielded work](#turn-outcomes) before presenting completion.
+:::
+
+Read the response to the message sent above, with a client read timeout:
+
+::: code-group
+
+```ts [TypeScript]
+import { assistantText, thinkingText, toolCall, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
+
+const ctl = new AbortController()
+const readTimeout = setTimeout(() => ctl.abort(), 120_000)
+let text = ''
+let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
+let cursor: string | undefined
+
+try {
+  for await (const ev of client.streamEvents(agentId, sessionId, { signal: ctl.signal })) {
+    cursor = ev.cursor ?? cursor
+    const think = thinkingText(ev)
+    const tool = toolCall(ev)
+    if (think) console.log(`[${ev.seq}] thinking: ${think.slice(0, 60)}`)
+    else if (tool) console.log(`[${ev.seq}] tool ${tool.toolName} ${tool.phase}`)
+    else console.log(`[${ev.seq}] ${ev.eventType}`)
+    text += assistantText(ev)
+    if (isRunFinished(ev)) {
+      outcome = runOutcome(ev)
+      break
+    }
+  }
+} finally {
+  clearTimeout(readTimeout)
+  ctl.abort()
+}
+console.log(outcome, text.trim())
+```
+
+```python [Python]
+import asyncio
+from contextlib import aclosing
+from zoowork import assistant_text, thinking_text, tool_call, is_run_finished, run_outcome
+
+async def read_one_turn():
+    text = ""
+    outcome = None
+    cursor = None
+    async with aclosing(client.stream_events(agent_id, session_id)) as stream:
+        async for event in stream:
+            cursor = event.cursor or cursor
+            think = thinking_text(event)
+            tool = tool_call(event)
+            if think:
+                print(f"[{event.seq}] thinking: {think[:60]}")
+            elif tool:
+                print(f"[{event.seq}] tool {tool.tool_name} {tool.phase}")
+            else:
+                print(f"[{event.seq}] {event.event_type}")
+            text += assistant_text(event)
+            if is_run_finished(event):
+                outcome = run_outcome(event)
+                break
+    return text, cursor, outcome
+
+text, cursor, outcome = await asyncio.wait_for(read_one_turn(), timeout=120)
+print(outcome, text.strip())
+```
+
+```bash [curl]
+curl -N --max-time 120 "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Accept: text/event-stream'
+```
+
+:::
+
+Notes on the mechanics:
+
+- Aborting the stream closes your read connection. It does not send `user.interrupt`, stop
+  the server's run, or enforce a spending cap. To stop work, post an interrupt and observe the
+  terminal event on a new or resumed stream.
+- In TypeScript, aborting the `signal` ends the generator cleanly. Python
+  `asyncio.wait_for` raises `asyncio.TimeoutError` on timeout and `aclosing` closes the stream.
+  Curl prints raw frames until its timeout or until you stop it; it does not break on
+  `run.finished`.
+- The generator drops any event whose `seq` is at or below the highest it has already yielded,
+  so a boundary event replayed on reconnect is not delivered twice.
+- Everything `streamEvents` yields is durable.
+- For a multi-turn session, open a new stream per turn with the last `cursor` you saw, or keep
+  one stream open and keep counting `run.finished` events. The first is easier to reason about.
+
+## Turn outcomes
+
+A turn ends with exactly one `run.finished`. Its `payload.status` is one of:
+
+| `status` | Meaning |
+|---|---|
+| `succeeded` | The turn ended successfully. Check `turnEndReason` for a yield. |
+| `failed` | The turn errored out. Usually preceded by an `agent.error` carrying `errorMessage`. |
+| `aborted` | The turn was cancelled, including by a `user.interrupt`. |
+
+::: info Read the run outcome independently from tool results
+An `agent.tool` event with `phase: 'end'` and `isError: true` is still followed by
+`run.finished` with `status: 'succeeded'`. The model saw the tool error, worked around it, and
+produced an answer. That is a successful turn.
+
+Use `runOutcome()` for the turn result rather than deriving it from individual tool events.
+:::
+
+```ts
+if (isRunFinished(ev)) {
+  const outcome = runOutcome(ev)
+  if (outcome !== 'succeeded') {
+    // the turn itself failed or was aborted
+  }
+  break
+}
+```
+
+If you want to surface tool trouble to your user, collect it separately as you stream, and
+report it alongside the outcome rather than instead of it.
+
+### When a turn yields
+
+Asynchronous work can outlive the turn that started it. A yielded turn can end with
+`status: "succeeded"`, `turnEndReason: "yielded"`, and `outputType: "not_required"` while
+the task is still waiting. This is an ended turn, not a final answer for the task.
+
+```ts
+if (isRunFinished(ev)) {
+  if (ev.payload.turnEndReason === 'yielded') {
+    // Persist ev.cursor and the task correlation fields, then keep observing.
+  } else {
+    // This run ended; inspect its outcome and output.
+  }
+}
+```
+
+| Optional payload field | Use |
+|---|---|
+| `taskRunId` | Correlates runs belonging to the continuing task. |
+| `parentRunId` | Identifies the preceding run in the continuation lineage. |
+| `waitingOn` | Summary of asynchronous work the yielded turn is waiting for. |
+| `waitingOnComplete` | Whether that summary is complete. False must not be treated as an empty wait list. |
+
+Persist these fields with the event cursor. Follow subsequent runs and inspect their terminal
+outcome and [run output](./session-operations.md#read-output-for-one-run). The output endpoint's
+`output_complete` is scoped to a run; it does not make a yielded task complete.
+
+These observability fields do not provide a public API for configuring subagent rosters,
+advisors, or session threads. See [Not supported](../reference/not-supported.md) for those
+boundaries. For business-quality checks on scheduled results, see
+[Scheduled outcomes](./schedules.md#evaluate-a-scheduled-result).
+
+## Resuming
+
+Every durable frame carries its resume token in the SSE `id:` line, and the SDK hands it back
+as `ev.cursor`. Pass `{ cursor }` and the server replays the log from right after that event
+before continuing live. This is **server-side resume**: no client-side buffer, no
+de-duplication pass, no gap when the reconnect takes a while.
+
+::: code-group
+
+```ts [TypeScript]
+for await (const ev of client.streamEvents(agentId, sessionId, { cursor: savedCursor })) {
+  savedCursor = ev.cursor ?? savedCursor
+}
+```
+
+```python [Python]
+from contextlib import aclosing
+
+async with aclosing(client.stream_events(agent_id, session_id, cursor=saved_cursor)) as stream:
+    async for event in stream:
+        saved_cursor = event.cursor or saved_cursor
+```
+
+```bash [curl]
+curl -N -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Accept: text/event-stream' \
+  --data-urlencode "cursor=$EVENT_CURSOR"
+```
+
+:::
+
+Use the stored token as `savedCursor`, `saved_cursor`, or `EVENT_CURSOR` above.
+When calling the public HTTP endpoint, use `?cursor=`. The public gateway does not forward
+`Last-Event-ID`, so browser EventSource's automatic header replay is not sufficient. `{ after: seq }` still resumes the deprecated engine-only lane —
+keep it for old stored cursors only.
+
+### A reconnect loop that survives a dropped connection
+
+The SDK does not reconnect automatically. Reconnect from the last processed cursor:
+
+```ts
+import {
+  ZooworkError,
+  assistantText,
+  isRunFinished,
+  runOutcome,
+  type ZooworkClient,
+} from '@zoowork-ai/sdk'
+
+async function runTurnWithResume(
+  client: ZooworkClient,
+  agentId: string,
+  sessionId: string,
+  startCursor?: string,
+  maxAttempts = 6,
+): Promise<{ outcome?: 'succeeded' | 'failed' | 'aborted'; text: string; cursor?: string }> {
+  let cursor = startCursor
+  let text = ''
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      for await (const ev of client.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
+        cursor = ev.cursor ?? cursor
+        text += assistantText(ev)
+        if (isRunFinished(ev)) {
+          const outcome = runOutcome(ev)
+          return { ...(outcome ? { outcome } : {}), text, ...(cursor ? { cursor } : {}) }
+        }
+      }
+      // The generator returned without run.finished: the server closed the
+      // connection. Nothing is lost - reconnect from the last cursor.
+    } catch (e) {
+      // 4xx is a real problem (bad id, archived session, expired key). Retrying
+      // will not fix it.
+      if (e instanceof ZooworkError && e.status >= 400 && e.status < 500) throw e
+    }
+    await new Promise((r) => setTimeout(r, Math.min(1_000 * 2 ** attempt, 15_000)))
+  }
+
+  return { text, ...(cursor ? { cursor } : {}) }
+}
+```
+
+Persist the cursor next to your session id. It is valid across process restarts, so a worker
+that crashes mid-turn picks the turn back up exactly where it stopped.
+
+### The history read uses the same cursor
+
+`listEvents` reads the same durable log over REST, and a list page's `next_cursor` is the
+same kind of token as a streamed event's `cursor`.
+
+```ts
+listEvents(
+  agentId: string,
+  sessionId: string,
+  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+): Promise<SessionEvent[]>
+```
+
+`limit` defaults to **100** server-side and is capped at **500**, and the call returns **one
+page** without the page's `has_more`/`next_cursor` fields (`listEventsPage` is the same call
+keeping them, for paging by hand). The page-returning methods expose the continuation token:
+
+::: code-group
+
+```ts [TypeScript]
+const page = await client.listEventsPage(agentId, sessionId, { limit: 100 })
+```
+
+```python [Python]
+events, has_more, next_cursor = await client.list_events_page(
+    agent_id, session_id, limit=100,
+)
+```
+
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events?limit=100" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
+
+:::
+
+For all pages, `listAllEvents()` / `list_all_events()` follows the server cursor for you.
+In HTTP, keep reading with `next_cursor` while `has_more` is true.
+
+`types` filters server-side on both calls and must contain only vocabulary members; an unknown
+one is `400 invalid_request`.
+
+```ts
+const replies = await client.listAllEvents(agentId, sessionId, { types: ['agent.assistant'] })
+```
+
+`listAllEvents` de-duplicates page boundaries and stops if a cursor does not advance.
+Its `pageSize` controls the per-request limit, with default and maximum 500.
+
+The text assembled from the REST replay is byte-identical to the text assembled from the
+stream.
+
+## Interrupt and respond to tools {#respond-to-tools}
+
 ### `user.interrupt`
 
 Aborts the run that is currently in flight.
@@ -198,16 +398,36 @@ Aborts the run that is currently in flight.
 { "type": "user.interrupt" }
 ```
 
-No other fields. With a live run, it comes back `accepted: true` and the turn ends with
+You can also send an event-level `idempotency_key`. With a live run, it comes back `accepted: true` and the turn ends with
 `run.finished` `status: 'aborted'`. With **no** run in flight it comes back `accepted: false`.
 That is a no-op, not an error, and the HTTP status is still `202`.
 
-```ts
-const r = await zc.postEvents(agentId, sessionId, [{ type: 'user.interrupt' }])
-if (r.events[0]?.accepted === false) {
-  // nothing was running; not a failure
-}
+::: code-group
+
+```ts [TypeScript]
+const receipt = await client.postEvents(agentId, sessionId, [{ type: 'user.interrupt' }])
+if (receipt.events[0]?.accepted === false) console.log('No run was in flight')
 ```
+
+```python [Python]
+receipts = await client.post_events(agent_id, session_id, [{"type": "user.interrupt"}])
+if receipts and receipts[0].get("accepted") is False:
+    print("No run was in flight")
+```
+
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"events":[{"type":"user.interrupt"}]}'
+```
+
+:::
+
+Use the same `idempotency_key` when retrying an interrupt after a transport failure. Its
+accepted receipt can be replayed even after the targeted run has ended. Do not replace an
+explicit interrupt with a new `user.message` and assume they have identical cancellation
+behavior.
 
 ### `user.tool_confirmation`
 
@@ -250,287 +470,11 @@ application owns, pushed in without appearing as a user turn.
 the `user.message` it should affect.
 
 ```ts
-await zc.postEvents(agentId, sessionId, [
+await client.postEvents(agentId, sessionId, [
   { type: 'system.message', text: "Operator note: the user's plan is Enterprise." },
   { type: 'user.message', content: 'Which limits apply to me?' },
 ])
 ```
-
-## Streaming a turn
-
-`streamEvents` is an async generator over the live session stream.
-
-```ts
-streamEvents(
-  agentId: string,
-  sessionId: string,
-  opts?: { after?: number; cursor?: string; signal?: AbortSignal },
-): AsyncGenerator<SessionEvent>
-```
-
-::: info A Session stream can carry multiple turns
-`run.finished` is the end of the *turn*, not the end of the *stream*. The connection stays open
-waiting for the next turn, and the server only drops it when the connection goes idle long
-enough.
-
-If you `for await` to completion, or `await` an array collected from the generator, you will
-wait until the server times the connection out. Break on `isRunFinished(ev)` when you only
-need the current turn.
-:::
-
-A complete single turn, with a wall-clock budget so a stuck run cannot hang your process:
-
-```ts
-import {
-  createZooworkClient,
-  assistantText,
-  thinkingText,
-  toolCall,
-  isRunFinished,
-  runOutcome,
-} from '@zoowork-ai/sdk'
-
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
-
-const session = await zc.createSession(agentId, {
-  metadata: { source: 'docs-example' },
-  initial_events: [{ type: 'user.message', content: 'What can you do? One sentence.' }],
-})
-
-const ctl = new AbortController()
-const budget = setTimeout(() => ctl.abort(), 120_000)
-
-let text = ''
-let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
-let cursor: string | undefined
-
-try {
-  for await (const ev of zc.streamEvents(agentId, session.session_id, { signal: ctl.signal })) {
-    cursor = ev.cursor ?? cursor
-
-    const think = thinkingText(ev)
-    const tool = toolCall(ev)
-    if (think) console.log(`[${ev.seq}] thinking: ${think.slice(0, 60)}`)
-    else if (tool) console.log(`[${ev.seq}] tool ${tool.toolName} ${tool.phase}`)
-    else console.log(`[${ev.seq}] ${ev.eventType}`)
-
-    text += assistantText(ev)
-
-    if (isRunFinished(ev)) {
-      outcome = runOutcome(ev)
-      break // required: the stream will not end on its own
-    }
-  }
-} finally {
-  clearTimeout(budget)
-  ctl.abort() // releases the HTTP connection
-}
-
-console.log(outcome, text.trim())
-```
-
-Notes on the mechanics:
-
-- Aborting the `signal` ends the generator cleanly. The SDK swallows the abort rather than
-  throwing, so you do not need a `catch` for your own cancellation.
-- The generator drops any event whose `seq` is at or below the highest it has already yielded,
-  so a boundary event replayed on reconnect is not delivered twice.
-- Everything `streamEvents` yields is durable.
-- For a multi-turn session, open a new stream per turn with the last `cursor` you saw, or keep
-  one stream open and keep counting `run.finished` events. The first is easier to reason about.
-
-## Resuming
-
-Every durable frame carries its resume token in the SSE `id:` line, and the SDK hands it back
-as `ev.cursor`. Pass `{ cursor }` and the server replays the log from right after that event
-before continuing live. This is **server-side resume**: no client-side buffer, no
-de-duplication pass, no gap when the reconnect takes a while.
-
-```ts
-for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: saved })) {
-  saved = ev.cursor ?? saved
-}
-```
-
-When calling the public HTTP endpoint, use `?cursor=`. The public gateway does not forward
-`Last-Event-ID`, so browser EventSource's automatic header replay is not sufficient. `{ after: seq }` still resumes the deprecated engine-only lane —
-keep it for old stored cursors only.
-
-### A reconnect loop that survives a dropped connection
-
-The SDK does not reconnect for you. Sixteen lines does it:
-
-```ts
-import {
-  ZooworkError,
-  assistantText,
-  isRunFinished,
-  runOutcome,
-  type ZooworkClient,
-} from '@zoowork-ai/sdk'
-
-async function runTurnWithResume(
-  zc: ZooworkClient,
-  agentId: string,
-  sessionId: string,
-  startCursor?: string,
-  maxAttempts = 6,
-): Promise<{ outcome?: 'succeeded' | 'failed' | 'aborted'; text: string; cursor?: string }> {
-  let cursor = startCursor
-  let text = ''
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
-      for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
-        cursor = ev.cursor ?? cursor
-        text += assistantText(ev)
-        if (isRunFinished(ev)) {
-          const outcome = runOutcome(ev)
-          return { ...(outcome ? { outcome } : {}), text, ...(cursor ? { cursor } : {}) }
-        }
-      }
-      // The generator returned without run.finished: the server closed the
-      // connection. Nothing is lost - reconnect from the last cursor.
-    } catch (e) {
-      // 4xx is a real problem (bad id, archived session, expired key). Retrying
-      // will not fix it.
-      if (e instanceof ZooworkError && e.status >= 400 && e.status < 500) throw e
-    }
-    await new Promise((r) => setTimeout(r, Math.min(1_000 * 2 ** attempt, 15_000)))
-  }
-
-  return { text, ...(cursor ? { cursor } : {}) }
-}
-```
-
-Persist the cursor next to your session id. It is valid across process restarts, so a worker
-that crashes mid-turn picks the turn back up exactly where it stopped.
-
-### The history read uses the same cursor
-
-`listEvents` reads the same durable log over REST, and a list page's `next_cursor` is the
-same kind of token as a streamed event's `cursor`.
-
-```ts
-listEvents(
-  agentId: string,
-  sessionId: string,
-  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
-): Promise<SessionEvent[]>
-```
-
-`limit` defaults to **100** server-side and is capped at **500**, and the call returns **one
-page** without the page's `has_more`/`next_cursor` fields (`listEventsPage` is the same call
-keeping them, for paging by hand). Otherwise read the log with `listAllEvents`, which follows
-the server's cursor for you:
-
-```ts
-const all = await zc.listAllEvents(agentId, sessionId)
-```
-
-`types` filters server-side on both calls and must contain only vocabulary members; an unknown
-one is `400 invalid_request`.
-
-```ts
-const replies = await zc.listAllEvents(agentId, sessionId, { types: ['agent.assistant'] })
-```
-
-The text assembled from the REST replay is byte-identical to the text assembled from the
-stream.
-
-## Helpers
-
-All exported from `@zoowork-ai/sdk`. Each one is a pure function over a `SessionEvent` and
-returns a harmless empty value for events of the wrong type, so you can call them
-unconditionally in one loop.
-
-**`assistantText(e)`** - assistant text for an `agent.assistant` event, `''` for anything else.
-
-```ts
-text += assistantText(ev)
-```
-
-**`thinkingText(e)`** - reasoning text for an `agent.thinking` event, `''` for anything else.
-
-```ts
-if (thinkingText(ev)) console.log('thinking:', thinkingText(ev))
-```
-
-**`toolCall(e)`** - a `ToolCall` for an `agent.tool` event, `undefined` for anything else.
-
-```ts
-const tool = toolCall(ev)
-if (tool?.phase === 'end' && tool.isError) console.warn(`${tool.toolName} failed`)
-```
-
-**`isRunFinished(e)`** - `true` for `run.finished`. Your loop exit condition.
-
-```ts
-if (isRunFinished(ev)) break
-```
-
-**`runOutcome(e)`** - `'succeeded' | 'failed' | 'aborted'` for a `run.finished` event,
-`undefined` for anything else (and for an unrecognized status).
-
-```ts
-const outcome = runOutcome(ev) // undefined unless ev is run.finished
-```
-
-**`messageText(message)`** - text of a `{ role, content }` message object. Use it on transcript
-rows from `getSession(agentId, sessionId, { history: true })`, where the message sits at
-`entry.message` rather than inside an event payload. Handles both the block array and the plain
-string form.
-
-```ts
-const s = await zc.getSession(agentId, sessionId, { history: true, limit: 50 })
-const transcript = (s.history ?? [])
-  .filter((row) => row.entry_type === 'message')
-  .map((row) => messageText(row.entry.message))
-```
-
-The `ToolCall` shape:
-
-```ts
-interface ToolCall {
-  phase: 'start' | 'end' | 'blocked'
-  toolName: string
-  toolCallId: string
-  args?: Record<string, unknown>
-  isError?: boolean
-  resultPreview?: string
-}
-```
-
-## Turn outcomes
-
-A turn ends with exactly one `run.finished`. Its `payload.status` is one of:
-
-| `status` | Meaning |
-|---|---|
-| `succeeded` | The loop ran to completion. |
-| `failed` | The turn errored out. Usually preceded by an `agent.error` carrying `errorMessage`. |
-| `aborted` | A `user.interrupt` landed on the live run. |
-
-::: info Read the run outcome independently from tool results
-An `agent.tool` event with `phase: 'end'` and `isError: true` is still followed by
-`run.finished` with `status: 'succeeded'`. The model saw the tool error, worked around it, and
-produced an answer. That is a successful turn.
-
-Use `runOutcome()` for the turn result rather than deriving it from individual tool events.
-:::
-
-```ts
-if (isRunFinished(ev)) {
-  const outcome = runOutcome(ev)
-  if (outcome !== 'succeeded') {
-    // the turn itself failed or was aborted
-  }
-  break
-}
-```
-
-If you want to surface tool trouble to your user, collect it separately as you stream, and
-report it alongside the outcome rather than instead of it.
 
 ## Tool call phases
 
@@ -554,7 +498,7 @@ Two rules:
 ```ts
 const pending = new Map<string, ToolCall>() // toolCallId -> latest state
 
-for await (const ev of zc.streamEvents(agentId, sessionId)) {
+for await (const ev of client.streamEvents(agentId, sessionId)) {
   const tool = toolCall(ev)
   if (tool) {
     if (tool.phase === 'end') pending.delete(tool.toolCallId)
@@ -585,3 +529,193 @@ When preview streaming is unavailable, requesting `deltas` returns `501 not_conf
 before the stream opens. Handle it as a regular JSON error.
 
 For finished text, use `agent.assistant` events, which are durable and resumable.
+
+## Reference details
+
+The following tables describe the normalized SDK shape, wire formats, event catalog, and helpers.
+Use the integration flow above before looking up individual fields here.
+
+### The event envelope
+
+The TypeScript SDK normalizes every event, from either transport, into this shape.
+Python uses snake_case attributes such as `event_type`, `run_id`, `created_at`, and
+`processed_at`; `seq`, `payload`, and `cursor` keep the same names:
+
+```ts
+interface SessionEvent {
+  /** Durable per-session sequence: strictly increasing, not necessarily contiguous. */
+  seq: number
+  eventType: SessionEventType | PublicInputEventType | string
+  payload: Record<string, unknown>
+  runId?: string
+  turn?: number
+  createdAt?: string
+  id?: string
+  processedAt?: string | null
+  cursor?: string
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `seq` | `number` | Strictly increasing within the session, assigned server-side; gaps are normal. `-1` if the frame carried no sequence at all, which should not happen on the durable stream. |
+| `eventType` | `string` | One of the values in the tables below. Typed loosely on purpose: unknown types pass through instead of throwing, because the API is Developer Preview and may add types within a version. |
+| `payload` | `Record<string, unknown>` | Type-specific body, always an object. Always `{}` rather than `undefined` when absent. Its keys are camelCase. |
+| `runId` | `string \| undefined` | The turn's run. All events of one turn share it. Input events carry none. |
+| `turn` | `number \| undefined` | Turn index within the session. |
+| `createdAt` | `string \| undefined` | ISO 8601 timestamp. |
+| `id` | `string \| undefined` | Event id, when the server sends one. |
+| `processedAt` | `string \| null \| undefined` | Input events only: `null` while queued, a timestamp once the agent has consumed it. |
+| `cursor` | `string \| undefined` | Resume token, present on streamed events — pass it to `streamEvents({ cursor })`. |
+
+There is no top-level `type` field, no `stop_reason`, and no `session.status_*` event. Read
+the event type from `event.eventType` in TypeScript or `event.event_type` in Python.
+
+`payload` is deliberately loose. Read the fields you need and ignore the rest; the server adds
+fields within a version.
+
+### The wire underneath
+
+::: info The SDK normalizes wire formats
+On the unified lane both transports send the same snake_case object
+(`event_type`, `run_id`, `processed_at`, `created_at`), with the SSE `id:` line carrying the
+resume token. TypeScript's `normalizeEvent` and Python's `normalize_event` convert these
+objects into their SDK's `SessionEvent` shape for both history reads and streaming.
+
+Direct HTTP integrations should also accept camelCase fields from the legacy `after` SSE lane.
+Read `event_type` on the unified lane or `eventType` on the legacy lane; neither has a
+top-level `type`.
+:::
+
+The server writes a `: ping` comment line every 20 seconds as a keepalive, so any socket read
+timeout or proxy idle timeout below that kills a healthy stream, and a hand-written parser that
+does not skip comment lines hits `JSON.parse('')` and throws - `parseSSE` is exported if you
+would rather not write one.
+
+`normalizeEvent` is exported, so you can reuse it if you have your own transport:
+
+```ts
+import { normalizeEvent } from '@zoowork-ai/sdk'
+
+const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // the frame's SSE id value
+```
+
+### The event vocabulary
+
+These are the outbound event types, the full contents of `SESSION_EVENT_TYPES` (a fixed list
+of 20), plus the five input types under [Your inputs, echoed](#your-inputs-echoed). The
+`types=` filter on history accepts both sets and rejects anything else with
+`400 invalid_request`.
+
+#### `run.*` - turn bookkeeping
+
+| Type | Fires | `payload` |
+|---|---|---|
+| `run.started` | A turn begins, before any model call. | `trigger`, `inboundMessageId`, `agentId` |
+| `run.finished` | The turn is over. This is the last event of the turn. | `status`: `succeeded` or `failed` or `aborted` |
+
+#### `agent.*` - what happened inside the turn
+
+| Type | Fires | `payload` |
+|---|---|---|
+| `agent.lifecycle` | Bookends the agent loop inside a turn. | `phase`: `start` or `end`. Scheduled agents can also emit `phase: 'heartbeat-skipped'` with `reason`, `scheduleId`, `firedAt`. |
+| `agent.assistant` | One assistant message segment is committed. | `message` (`{ role, content[] }`), `segment` (1-based step index), optional `artifacts`. Use `assistantText()`. |
+| `agent.thinking` | Reasoning text for the segment just committed. | `text` |
+| `agent.tool` | A tool call changes phase. See [Tool call phases](#tool-call-phases). | `phase`, `toolCallId`, `toolName`; `args` on start; `isError`, `resultPreview`, `executionStarted` on end; `policyId`, `deniedReason` on blocked. |
+| `agent.item` | Internal loop markers, not conversation. | `kind`: `assistant_segment` (with `phase`, `segment`) or `llm_request` (captured provider request/response). Safe to ignore when rendering a chat. |
+| `agent.plan` | Reserved in the vocabulary. The core loop does not emit it. | - |
+| `agent.approval` | A tool call needs approval, or that approval resolved. | `phase`: `requested` or `resolved`; `approvalId`, `toolCallId`, `toolName`, `arguments`, optional `stake`, `timeoutAt`; on `resolved`, `resolution` plus optional `resolvedBy`, `resolutionChannel`. |
+| `agent.custom_tool_use` | An application-executed custom tool is requested or resolved. | `phase`: `requested` or `resolved`; `callId`; request fields include `toolCallId`, `name`, `input`, `timeoutAt`; resolved fields include `outcome`, optional `isError`, `resolvedBy`, `resolutionChannel`. Use `customToolUse()`. |
+| `agent.command_output` | A command-running tool produced stdout/stderr, at result granularity. | `toolCallId`, `toolName`, plus the captured output fields. |
+| `agent.patch` | An `apply_patch` tool call succeeded. | `toolCallId` plus the patch summary. |
+| `agent.compaction` | History was compacted to fit the context window. | `firstKeptEntryId`, `tokensBefore`, `reason` |
+| `agent.error` | An error occurred inside the turn. | `errorMessage`, sometimes `kind` (for example `mcp_connection_failed` or `mcp_authentication_failed`), `server`, and optional `reason`. Preserve unknown reasons. This event is not a verdict on the turn; read `run.finished`. |
+
+#### Other
+
+| Type | Fires | `payload` |
+|---|---|---|
+| `attachment.created` | A tool produced a file or attachment. | `source`, `toolName`, `toolCallId`, `index`, plus the storage reference fields. |
+| `message.outbound` | The agent sent a proactive message (message tool, schedule announce, or heartbeat) rather than replying in-session. | `source`, `sourceRef`, `delivery`, `text`, `action`, `index`, `computerId`, `agentId`, optional `card`, `artifacts`. |
+
+#### Your inputs, echoed
+
+Your own inputs come back on the same log as `user.message`, `user.interrupt`,
+`user.tool_confirmation`, `user.custom_tool_result`, and `system.message` (exported as
+`PUBLIC_INPUT_EVENT_TYPES`). A
+`user.message` payload is `{ content: [...] }` — text blocks plus
+`{ type: 'attachment', mime, name, size }` stubs — and its `processedAt` flips from `null` to
+a timestamp once the agent has consumed it. The write-side rules for all five are under
+[Inbound events](#inbound-events).
+
+#### Preview events: `chat.*`
+
+`chat.delta`, `chat.final`, `chat.aborted`, and `chat.error` are delivered on a separate
+per-run preview lane through the [`?deltas=` query parameter](#the-deltas-preview-lane).
+Use the durable `run.started` and `run.finished` events for turn lifecycle logic.
+
+### Helpers
+
+The names below are exported from `@zoowork-ai/sdk`. Python exports the corresponding
+`assistant_text`, `thinking_text`, `tool_call`, `is_run_finished`, `run_outcome`, and
+`message_text` helpers. Each one is a pure function over a `SessionEvent` and
+returns a harmless empty value for events of the wrong type, so you can call them
+unconditionally in one loop.
+
+**`assistantText(e)`** - assistant text for an `agent.assistant` event, `''` for anything else.
+
+```ts
+text += assistantText(ev)
+```
+
+**`thinkingText(e)`** - reasoning text for an `agent.thinking` event, `''` for anything else.
+
+```ts
+if (thinkingText(ev)) console.log('thinking:', thinkingText(ev))
+```
+
+**`toolCall(e)`** - a `ToolCall` for an `agent.tool` event, `undefined` for anything else.
+
+```ts
+const tool = toolCall(ev)
+if (tool?.phase === 'end' && tool.isError) console.warn(`${tool.toolName} failed`)
+```
+
+**`isRunFinished(e)`** - `true` for `run.finished`. Use it to finish reading one turn, while
+checking [yielded turns](#when-a-turn-yields) when the application tracks a longer task.
+
+```ts
+if (isRunFinished(ev)) break
+```
+
+**`runOutcome(e)`** - `'succeeded' | 'failed' | 'aborted'` for a `run.finished` event,
+`undefined` for anything else (and for an unrecognized status).
+
+```ts
+const outcome = runOutcome(ev) // undefined unless ev is run.finished
+```
+
+**`messageText(message)`** - text of a `{ role, content }` message object. Use it on transcript
+rows from `getSession(agentId, sessionId, { history: true })`, where the message sits at
+`entry.message` rather than inside an event payload. Handles both the block array and the plain
+string form.
+
+```ts
+const s = await client.getSession(agentId, sessionId, { history: true, limit: 50 })
+const transcript = (s.history ?? [])
+  .filter((row) => row.entry_type === 'message')
+  .map((row) => messageText(row.entry.message))
+```
+
+The `ToolCall` shape:
+
+```ts
+interface ToolCall {
+  phase: 'start' | 'end' | 'blocked'
+  toolName: string
+  toolCallId: string
+  args?: Record<string, unknown>
+  isError?: boolean
+  resultPreview?: string
+}
+```

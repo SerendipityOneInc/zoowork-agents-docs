@@ -1,187 +1,215 @@
 ---
-description: Provision an isolated agent for each user and roll out configuration updates safely.
+description: Give each application user a separate Agent workspace and authorize access through your backend.
 ---
 
 # An agent per user
 
-A common product shape: you build one agent, you run your own user accounts, and every user
-should get their own copy — its own sandbox, its own files, its own memory. Then you keep
-iterating on the agent's behaviour, and every copy should pick the change up without you
-touching each one.
+Create a separate Agent for each application user when their persisted files must remain
+separate. Your backend keeps the user-to-Agent mapping, authorizes each request, and opens
+Sessions against that user's Agent.
 
-This page is that pattern. The short version: **give every user their own agent, and put the
-behaviour you iterate on into an `org`-scope skill that each agent installs unpinned.** The
-fleet fans out; the skill stays in one place. Publishing a new skill version updates every
-agent by itself.
+Keep shared instructions, model selection, and tool policy in an application-owned
+configuration template. Each user's Agent receives its own copy.
 
-## Why an agent per user, and not one agent with many sessions
+## Workspace isolation
 
-For per-user *conversation* state, one agent with a session per conversation is enough, and it
-is the cheaper design — see [Sessions](./sessions.md). Reach for an agent per user when
-the users must not share what lives **outside** the transcript:
+A Session separates conversation history. It does not partition an Agent's persisted files:
 
-- **The sandbox.** An agent has one sandbox, and every session of that agent works in the same
-  persistent `/workspace`. Files one session writes, another session reads. With one shared
-  agent, that means files one *user* writes, another user's turn can read.
-- **Model-side memory.** API messages can select memory attribution with
-  `actor: { ref: 'customer-42' }`; omitting it uses the owner. This does not repartition old memory, erase session context,
-  authorize users or isolate files. See [Events](./events.md#usermessage).
+- `/workspace` belongs to the Agent. All its Sessions share those files, including when
+  `sandbox.scope` is `session`. Separate session sandboxes do not create a private workspace
+  for each end user.
+- API messages can select memory attribution with `actor: { ref: 'customer-42' }`;
+  omitting it uses the owner. An actor does not authorize access, clear an existing transcript,
+  or isolate files. See [Events](./events.md#user-message) and [Memory](./memory.md).
 
-There is no per-user sandbox inside a single agent, and no way to partition `/workspace` by
-end user. File isolation is drawn at the agent boundary, so users who must not share sandbox files
-need separate agents. Your application must still authorize every Agent/session access.
+There is no per-user workspace partition inside one Agent. Use separate Agents when users
+must not share persisted files, and authorize every Agent and Session access in your backend.
 
-The cost is also real: each agent is a separate sandbox to provision and start, and
-agent-level configuration (persona, model, tool policy) now exists in N copies. The rest of
-this page is about keeping those N copies from becoming N maintenance problems.
+## Provision an Agent for each user
 
-## Split the agent into a stable shell and a moving core
+Create a Platform API key in [ZooWork Platform](https://platform.zoowork.ai), then complete
+[Quickstart](../get-started/quickstart.md) to set up your SDK client or curl environment.
 
-Decide, before creating the fleet, which parts of the agent you expect to change:
+The examples use your application's authenticated user ID, mapping store, and shared
+`STABLE_PERSONA` instructions. `yourDb` and `your_db` stand for your own database access
+layer; their methods are application code. Python calls run inside an async function.
 
-| Part | Lives where | Updating the fleet |
-|---|---|---|
-| Skill content — instructions, workflows, reference files | The registry, once, as an `org` skill | Automatic: publish a version, done |
-| Persona / `agent.md`, model, tool policy | Each agent's own configuration | Manual: one `updateAgent` per agent |
+Read the existing mapping first. Create an Agent only when that user has no mapped Agent ID:
 
-The lever is obvious once it is in a table: **whatever you plan to iterate on belongs in a
-skill.** Keep the per-agent configuration a thin, stable shell — a short persona that rarely
-changes, plus the skill installations — and put the product's actual behaviour in skill
-bodies. A fleet whose persona changes weekly costs you a rollout script; a fleet whose skills
-change weekly costs you one `uploadSkillVersion` call.
+::: code-group
 
-## Why the update propagates
+```ts [TypeScript]
+const existingAgentId = (await yourDb.users.findById(user.id))?.agent_id
+let agentId = existingAgentId
 
-Three facts from [Skills](./skills.md) combine into the mechanism:
-
-1. An `org`-scope skill is **visible** to every agent under your organization, but attaches to
-   an agent only through an explicit install. Scope grants visibility, not effect — your other
-   agents, on other products, are untouched.
-2. An install without `versionPin` **follows latest**: when a new ready version is published,
-   the platform bumps each installed agent's `config_version` on its own.
-3. An agent reloads its configuration at the **next turn**. In-flight turns finish on the old
-   version; the next turn answers from the new one.
-
-So the builder-side loop is: publish a version, and stop. No per-agent PUT, no restart, no
-redeploy. Propagation is asynchronous and server-driven; to confirm a given agent has moved,
-read `listAgentSkills(agentId)` and compare `version` rather than assuming.
-
-## Onboarding: one call per new user
-
-When a user signs up, your backend creates their agent with the skills already in the
-create request:
-
-```ts
-import { createZooworkClient } from '@zoowork-ai/sdk'
-
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
-
-// At user signup:
-const agent = await zc.createAgent(
-  {
-    resource: {
-      name: `myproduct-${user.id}`,
-      labels: { end_user: user.id },
-      skills: [{ skill_id: PRODUCT_SKILL_ID }], // no version -> follows latest
-      persona: { docs: [{ name: 'agent.md', content: STABLE_PERSONA }] },
+if (!agentId) {
+  const agent = await client.createAgent(
+    {
+      resource: {
+        name: `myproduct-${user.id}`,
+        labels: { end_user: user.id },
+        persona: { docs: [{ name: 'AGENTS.md', content: STABLE_PERSONA }] },
+      },
     },
-  },
-  `user-${user.id}`, // idempotency key, stable per user
+    `user-${user.id}`,
+  )
+  agentId = agent.agent_id
+  await yourDb.users.update(user.id, { agent_id: agentId })
+}
+
+await client.startAgent(agentId)
+await client.waitUntilRunning(agentId)
+```
+
+```python [Python]
+existing = await your_db.users.find_by_id(user_id)
+agent_id = existing.get("agent_id") if existing else None
+
+if not agent_id:
+    agent = await client.create_agent(
+        {
+            "name": f"myproduct-{user_id}",
+            "labels": {"end_user": user_id},
+            "persona": {
+                "docs": [{"name": "AGENTS.md", "content": STABLE_PERSONA}]
+            },
+        },
+        idempotency_key=f"user-{user_id}",
+    )
+    agent_id = str(agent["agent_id"])
+    await your_db.users.update(user_id, {"agent_id": agent_id})
+
+await client.start_agent(agent_id)
+await client.wait_until_running(agent_id)
+```
+
+```bash [curl]
+# Your backend supplies USER_ID, STABLE_PERSONA, and any EXISTING_AGENT_ID.
+AGENT_ID="${EXISTING_AGENT_ID:-}"
+if [[ -z "$AGENT_ID" ]]; then
+  agent=$(jq -n \
+    --arg name "myproduct-$USER_ID" \
+    --arg user_id "$USER_ID" \
+    --arg persona "$STABLE_PERSONA" \
+    '{resource:{
+      name:$name,
+      onboarding:false,
+      labels:{end_user:$user_id},
+      persona:{docs:[{name:"AGENTS.md",content:$persona}]}
+    }}' |
+    curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents" \
+      -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+      -H 'Content-Type: application/json' \
+      -H "Idempotency-Key: user-$USER_ID" \
+      --data-binary @-)
+  AGENT_ID=$(jq -er '.agent_id' <<<"$agent")
+  # Save AGENT_ID in your application's user mapping before continuing.
+fi
+
+curl -sS --fail-with-body --request POST \
+  "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+
+(
+  readiness_deadline=$((SECONDS + 30))
+  while (( SECONDS < readiness_deadline )); do
+    current=$(curl -sS --fail-with-body --max-time 5 \
+      "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+      -H "Authorization: Bearer $ZOOWORK_API_KEY") || exit 1
+    if jq -e '.status.desired_state == "running"' <<<"$current" >/dev/null; then
+      exit 0
+    fi
+    sleep 1
+  done
+  echo 'Agent did not reach running before the deadline.' >&2
+  exit 1
 )
-await yourDb.users.update(user.id, { agent_id: agent.agent_id })
-
-await zc.startAgent(agent.agent_id)
-await zc.waitUntilRunning(agent.agent_id)
 ```
 
-Four points that keep this loop honest:
+:::
 
-- **Your database is the index.** Store `user.id → agent_id` at create. `listAgents` filters
-  by `labels`, which works as a recovery path, but it is scoped to your key's bound user and
-  pages at 100 — it is not your lookup table.
-- **Pass a stable idempotency key** derived from your user id, and treat your own stored
-  mapping as the source of truth: on any retry or re-signup, check your database for an
-  existing `agent_id` before creating.
-- **A created agent is stopped.** Without `startAgent` + `waitUntilRunning`, the first
-  session call answers `409 agent_not_running`. Wait on `desired_state` — see
-  [Agents](./agents.md).
-- **The API key never leaves your backend.** It is an organization credential with full
-  write over every agent in the org; there is no per-user or scoped variant. The browser
-  talks to your backend, and your backend talks to ZooWork.
+The curl tab shows the HTTP calls; your application still reads and writes the user mapping
+around them. Check each request succeeds before continuing. Save a newly returned Agent ID
+before opening the first Session.
 
-After onboarding, conversations are ordinary sessions against the user's own agent:
-`createSession(agentId, …)`, `postEvents`, `streamEvents`.
+Reuse the same create idempotency key and body for retries. Serialize provisioning for each
+user when concurrent requests can reach this code. Treat the mapping as the source of truth.
+If the mapped Agent has been deleted or is inaccessible, reconcile the mapping before
+creating a replacement.
 
-## Shipping an update
+`labels.end_user` helps recovery within your key's list scope; it does not authorize access.
+A new Agent is stopped. Start it and wait for `status.desired_state: 'running'` before
+[creating its first Session](./sessions.md).
 
-```ts
-await zc.uploadSkillVersion(PRODUCT_SKILL_ID, newZipBytes)
+## Authorize each Agent and Session request
+
+Keep the Platform API key in your backend. The browser sends tasks to your application,
+which looks up the authenticated user's Agent ID and checks Session ownership before calling
+`createSession`, `postEvents`, or `streamEvents`.
+
+Do not accept arbitrary Agent or Session IDs without checking the mapping. Labels and message
+actors are metadata, not authorization boundaries. The key's organization, Project, and owner
+scope still apply; see [Authentication](../get-started/authentication.md).
+
+## Update the shared configuration template
+
+When the template changes, read each Agent's declared configuration, compare the relevant
+sections, and update only those that differ. For Agents created by the template above,
+the persona update is:
+
+::: code-group
+
+```ts [TypeScript]
+await client.updateAgent(agentId, {
+  persona: { docs: [{ name: 'AGENTS.md', content: STABLE_PERSONA }] },
+})
 ```
 
-That is the whole rollout. Every agent that installed the skill unpinned follows the new
-version; each user's next turn runs the new behaviour. The users do nothing and notice
-nothing, which also means: **treat a skill version like a deploy, not like a draft.** Every
-active user is on latest.
+```python [Python]
+await client.update_agent(
+    agent_id,
+    {"persona": {"docs": [{"name": "AGENTS.md", "content": STABLE_PERSONA}]}},
+)
+```
+
+```bash [curl]
+jq -n --arg persona "$STABLE_PERSONA" \
+  '{persona:{docs:[{name:"AGENTS.md",content:$persona}]}}' |
+  curl -sS --fail-with-body --request PUT \
+    "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+    -H 'Content-Type: application/json' \
+    --data-binary @-
+```
+
+:::
+
+The `persona.docs` array is replaced. If an Agent has additional persona documents, include
+the complete intended list. Omitted sections are preserved, while `tool_policy` is replaced
+as a whole. Serialize updates for each Agent and retain the complete policy.
+
+Avoid writing Agents that already match the template: even an identical update increments
+`config_version`. See [Update an Agent](./agents.md#update-an-agent).
 
 ### Canary before fleet-wide
 
-`versionPin` turns the same mechanism into a staged rollout. Pin the fleet to the current
-version, leave your canary agents unpinned, publish, verify, then unpin the fleet:
+Apply a template change to a small set of Agents first. Test fresh Sessions with representative
+tasks and compare the resulting behavior with the intended instructions. After the check,
+update the remaining Agents and record which template revision each mapping uses.
 
-```ts
-// Before publishing: pin non-canary agents to the running version.
-await zc.putAgentSkill(agentId, PRODUCT_SKILL_ID, { versionPin: CURRENT_VERSION })
+Keep per-turn context in the Session. What a user just selected or which plan they are on
+belongs in a Session message, rather than a rewrite of every Agent's persona.
 
-// Publish. Only unpinned (canary) agents move.
-await zc.uploadSkillVersion(PRODUCT_SKILL_ID, newZipBytes)
+## Skills
 
-// Happy? Unpin the rest; they move to latest.
-await zc.putAgentSkill(agentId, PRODUCT_SKILL_ID, { versionPin: null })
-```
-
-Note that every `putAgentSkill` bumps the agent's `config_version`, changed or not, so a
-pin/unpin sweep across N agents is N configuration writes. That is what it costs; budget it,
-don't loop it casually.
-
-## Adding a second skill to an existing fleet
-
-Publishing a *new version* reaches everyone automatically; installing a *new skill* does not —
-the install row is per agent. This is the one place the fleet pattern asks for a sweep, and
-you can usually avoid doing it eagerly. Keep the list of skills a user's agent should have in
-your own backend, and reconcile when the user shows up:
-
-```ts
-// Before opening a session for this user:
-const installed = new Set(
-  (await zc.listAgentSkills(agentId))
-    .filter((s) => s.scope === 'org')
-    .map((s) => s.skill_id),
-)
-for (const skillId of DESIRED_ORG_SKILLS) {
-  if (!installed.has(skillId)) {
-    await zc.putAgentSkill(agentId, skillId)
-  }
-}
-```
-
-Diff first, then write — `putAgentSkill` bumps `config_version` even when it changes nothing,
-so a blind PUT-everything loop rewrites every agent's configuration on every session open.
-With the diff, active users converge on their next visit and dormant agents cost nothing.
-
-## What to keep in mind
-
-- **Detach a skill before deleting it.** Retire an org skill from your desired list and let
-  reconciliation remove it (`deleteAgentSkill`) before deleting the registry entry.
-- **Provision custom skills only.** Global catalog skills are already attached and managed by
-  the platform. See [Global skills are attached automatically](./skills.md#global-skills-are-attached-automatically).
-- **Skill eligibility is per agent.** After installing, confirm `eligible: true` in
-  `listAgentSkills` on a real agent rather than assuming the upload's success carries over.
-- **Per-turn context still belongs in the session.** The agent-per-user split covers identity
-  and isolation; what the user just clicked or which plan they are on is still best delivered
-  as a `system.message` in the session, not by rewriting N personas.
+Default global Skills are available without publishing your own Skill. Platform API keys
+can inspect attached Skills and manage assignments to existing visible Skills, but cannot
+upload Skills or publish registry versions. Use the shared configuration template for your
+product instructions. See [Skills](./skills.md) for assignment and visibility rules.
 
 ## Related
 
-- [Skills](./skills.md) — upload rules, version-follow semantics, and global catalog behavior.
-- [Agents](./agents.md) — `config_version`, start/stop, and `desired_state`.
-- [Sessions](./sessions.md) — the cheaper pattern when users only need separate conversations.
+- [Skills](./skills.md) — default global Skills and existing assignments.
+- [Agents](./agents.md) — configuration versions, start/stop, and desired state.
+- [Sessions](./sessions.md) — separate conversations within an Agent.
+- [Files and artifacts](./files.md) — persistence and file isolation.
