@@ -527,14 +527,16 @@ One tool call produces multiple `agent.tool` events that share a `toolCallId`.
 |---|---|---|
 | `start` | The call was proposed; policy and approval checks can still prevent execution. | `args` |
 | `end` | The call returned. | `isError`, `resultPreview`, `executionStarted` |
-| `blocked` | Policy rejected this call before execution. This is terminal for the call. | `policyId`, `deniedReason` |
+| `blocked` | The call ended without execution. This is terminal; inspect `deniedReason`. | `policyId`, `deniedReason` |
 
 Two rules:
 
 1. **Pair by `toolCallId`, not by adjacency.** When calls run concurrently, the `start` and
    `end` of one call are separated by events belonging to others.
 2. **`blocked` is terminal, not an approval wait.** No `end` follows for that blocked call.
-   Render it as rejected without execution, not as a successful result. Waiting for a human
+   Reasons include policy denial, approval denial (`approval-denied`), approval timeout
+   (`approval-timeout`), cancellation (`approval-cancelled`), or interruption (`interrupted`).
+   Read `ev.payload.deniedReason`; render the call as ended without execution, not successful. Waiting for a human
    decision is `agent.approval` with `phase: 'requested'`; `phase: 'resolved'` ends that wait.
    An approval resolution alone does not prove tool execution succeeded.
 

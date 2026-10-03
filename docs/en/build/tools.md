@@ -466,7 +466,7 @@ and pair call phases by id. See [cursor recovery](./events.md#existing-session-w
 if the checkpoint is missing:
 
 One tool call produces a sequence of `agent.tool` events that share a `toolCallId`, one per
-phase: `start`, `end`, and `blocked`. `blocked` is terminal rejection before execution, while approval waits use `agent.approval` / `requested`. Pair events by `toolCallId`, not by
+phase: `start`, `end`, and `blocked`. `blocked` ends a call without execution; the event payload's `deniedReason` distinguishes policy denial, approval denial/timeout/cancellation, or interruption. Approval waits use `agent.approval` / `requested`. Pair events by `toolCallId`, not by
 adjacency. When the model issues several calls concurrently, their events interleave. What
 each phase carries is in [Events and streaming](./events.md).
 
@@ -480,7 +480,7 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: savedCursor
   const call = toolCall(ev)
   if (call?.phase === 'start') pending.set(call.toolCallId, call.toolName)
   if (call?.phase === 'blocked') {
-    console.log(call.toolName + ' rejected before execution')
+    console.log(call.toolName + ' blocked before execution', ev.payload.deniedReason)
     pending.delete(call.toolCallId)
   }
   if (call?.phase === 'end') {

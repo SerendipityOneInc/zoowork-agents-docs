@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 流程使用的 TypeScript SDK 方法、类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: f066c9fcb678135c5d6e47cfe641f16ec5087ed5a2c9d12c86f41be45d5f5b08
+source_hash: c879cb9e4733db3a945e1db9b364b4066c634c217c8795638e51060c56d721d1
 ---
 
 # TypeScript SDK 参考
@@ -1214,7 +1214,7 @@ interface ToolCall {
 `agent.tool` 事件解码后的形态，由 `toolCall()` 返回。
 
 一次工具调用会产生**一串共享同一个 `toolCallId` 的事件，每个 phase 一个** ：`start` 带 `args`，
-`end` 带 `isError` 和 `resultPreview`。`blocked` 表示策略在执行前拒绝了调用，是该次调用的终态，后面不会再有 `end`。等待审批应读取 `agent.approval` 的 `requested`。
+`end` 带 `isError` 和 `resultPreview`。`blocked` 表示调用未执行即结束，是终态，后面不会再有 `end`。原因包括策略拒绝、审批拒绝、超时或取消，或被 interrupt 打断；具体读取原始事件 payload 的 `deniedReason`。等待审批应读取 `agent.approval` 的 `requested`。
 按 `toolCallId` 配对——并发调用时，它们在流里**不相邻** 。一个工具失败不会让 run 失败：
 `isError: true` 不保证最后的 run 会 `succeeded`。模型可能恢复后成功，也可能失败；应检查最终 run status 和 termination。见[事件](../build/events.md)。
 

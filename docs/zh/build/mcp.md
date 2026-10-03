@@ -2,7 +2,7 @@
 title: MCP Server
 description: 为 Agent 连接远程 MCP Server，选择工具、加载方式，并传递运行时 context。
 source: /en/build/mcp
-source_hash: dcfcd0f646a32000079ba6a9e8663cd4581a4ff1306835ed8efe77e5fa5238f6
+source_hash: c428b651f3fd03ec0b14a9b19894a0848909ad298532b3f351b3b915bc4956e9
 ---
 
 # MCP Server
@@ -14,8 +14,6 @@ Model Context Protocol（MCP）Server 为 Agent 提供运行在远程基础设�
 如果操作应由平台直接调用远程 Server，请使用 MCP。
 
 示例复用[快速开始](../get-started/quickstart.md)中的 client 和 Agent。Python 调用在 async 函数中运行。curl 先完成[鉴权](../get-started/authentication.md)中的环境变量设置。
-
-私有地址错误可能附带本地开发用的环境变量提示。该提示不是托管 API 用户可以设置的选项。请使用公共 MCP endpoint，或在自己的后端执行 application-executed custom tool；不要通过 Agent 配置尝试开启私网访问。
 
 ## 连接要求
 
@@ -206,6 +204,8 @@ JSON
 这些标识只提供请求上下文，不能作为调用方已经通过鉴权的证明。
 
 ## 处理连接错误
+
+私有地址错误可能附带本地开发用的环境变量提示。该提示不是托管 API 用户可以设置的选项。请使用公共 MCP endpoint，或在自己的后端执行 application-executed custom tool；不要通过 Agent 配置尝试开启私网访问。
 
 如果平台无法读取某个 Server 的工具目录，这个 Server 的工具不会出现在当前回合中。
 事件流可能包含 `agent.error`，其中 `kind` 有以下取值：

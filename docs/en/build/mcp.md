@@ -14,10 +14,6 @@ should call the remote server directly.
 
 Examples reuse the client and Agent from [Quickstart](../get-started/quickstart.md). Python calls run inside an async function. For curl, complete the environment setup in [Authentication](../get-started/authentication.md).
 
-A private-address error may include an environment-variable hint for local development.
-That hint is not a setting available to hosted API customers. Use a public MCP endpoint or
-an application-executed custom tool in your backend; do not try to enable private egress with Agent configuration.
-
 ## Connection requirements
 
 Configure a remote HTTP endpoint that is publicly reachable and accepts unauthenticated
@@ -211,6 +207,10 @@ happens before an individual tool call. Treat these identifiers as request conte
 proof that the caller is authorized.
 
 ## Handle connection errors
+
+A private-address error may include an environment-variable hint for local development.
+That hint is not a setting available to hosted API customers. Use a public MCP endpoint or
+an application-executed custom tool in your backend; do not try to enable private egress with Agent configuration.
 
 If the platform cannot load a server catalog, that server's tools are absent from the turn.
 The event stream can include `agent.error` with one of these `kind` values:

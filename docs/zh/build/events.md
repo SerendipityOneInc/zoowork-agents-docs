@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 27983eaa87c0897e990fa880d641991b4b641345cff1f577a05df25be192bac7
+source_hash: 0f222e45655766a7075265e39c2f79932251886374bbb9bd6165d43d759436a5
 ---
 
 # Session 事件流
@@ -463,12 +463,12 @@ await client.postEvents(agentId, sessionId, [
 |---|---|---|
 | `start` | 已提出工具调用，策略或审批仍可能阻止执行。 | `args` |
 | `end` | 调用已返回。 | `isError`、`resultPreview`、`executionStarted` |
-| `blocked` | 策略在执行前拒绝了调用；这是该次调用的终态。 | `policyId`、`deniedReason` |
+| `blocked` | 调用在执行前结束，未执行；这是终态，具体原因见 `deniedReason`。 | `policyId`、`deniedReason` |
 
 两条规则：
 
 1. **按 `toolCallId` 配对，不要按前后相邻配对。** 当多个调用并发执行时，同一次调用的 `start` 和 `end` 之间会夹着属于其他调用的事件。
-2. **`blocked` 是终态，不是等待审批。** 这次被拒绝的调用不会再出现 `end`。应显示为未执行且已拒绝，不能显示为成功。等待人工决定时，事件是 `agent.approval`，`phase` 为 `requested`；`resolved` 表示审批等待结束，但不证明工具执行成功。
+2. **`blocked` 是终态，不是等待审批。** 这次被拒绝的调用不会再出现 `end`。原因可能是策略规则拒绝、审批拒绝（`approval-denied`）、审批超时（`approval-timeout`）、审批取消（`approval-cancelled`）或被 interrupt 打断（`interrupted`）。读取 `ev.payload.deniedReason`，显示为未执行且已结束，不能显示为成功。等待人工决定时，事件是 `agent.approval`，`phase` 为 `requested`；`resolved` 表示审批等待结束，但不证明工具执行成功。
 
 ```ts
 import { toolCall, isRunFinished, type ToolCall } from '@zoowork-ai/sdk'

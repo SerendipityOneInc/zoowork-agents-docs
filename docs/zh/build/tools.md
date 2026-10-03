@@ -2,7 +2,7 @@
 title: 工具
 description: 配置内置工具和由应用执行的工具，并观察调用结果。
 source: /en/build/tools
-source_hash: 814fec0fc28f01921f47b6b91b5253690d4b8cf791ad659359626d546c06428b
+source_hash: 0b3f24fe33f296e6c487fe31e08aab2c524e309a001a7ee75351a3a43490b4f0
 ---
 
 # 工具
@@ -414,7 +414,7 @@ Typed `AgentResource` 不能配置 `imageModel` 或 `pdfModel`；见 [Models](..
 事件流记录 Agent 实际调用过的工具，不是全部可用工具的清单。
 同一时间只发起一轮对话时，从已有 Session 保存的 cursor 续读，并按调用 id 配对各个 phase。没有 checkpoint 时，见 [cursor 恢复](./events.md#existing-session-without-a-saved-cursor)：
 
-一次工具调用产生一系列共享同一个 `toolCallId` 的 `agent.tool` 事件，每个 phase 一个：`start`、`end` 和 `blocked`。`blocked` 是执行前拒绝的终态，等待审批使用 `agent.approval` 的 `requested`。按 `toolCallId` 关联事件，不要按相邻位置配。模型并发发出多个调用时，它们的事件会交错。每个 phase 各携带什么，见[事件与流式](./events.md)。
+一次工具调用产生一系列共享同一个 `toolCallId` 的 `agent.tool` 事件，每个 phase 一个：`start`、`end` 和 `blocked`。`blocked` 是未执行即结束的终态，原因可能是策略拒绝、审批拒绝、超时或取消，或被 interrupt 打断；具体读取事件 payload 的 `deniedReason`。等待审批使用 `agent.approval` 的 `requested`。按 `toolCallId` 关联事件，不要按相邻位置配。模型并发发出多个调用时，它们的事件会交错。每个 phase 各携带什么，见[事件与流式](./events.md)。
 
 ```ts
 import { toolCall, isRunFinished } from '@zoowork-ai/sdk'
@@ -426,7 +426,7 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: savedCursor
   const call = toolCall(ev)
   if (call?.phase === 'start') pending.set(call.toolCallId, call.toolName)
   if (call?.phase === 'blocked') {
-    console.log(call.toolName + ' rejected before execution')
+    console.log(call.toolName + ' blocked before execution', ev.payload.deniedReason)
     pending.delete(call.toolCallId)
   }
   if (call?.phase === 'end') {

@@ -19,6 +19,11 @@ This example creates an enabled daily digest at 09:00 in Shanghai. Automatic fir
 active immediately; a manual trigger adds an execution without changing that cadence.
 Choose the schedule and payload with that in mind.
 
+Test the task text in an ordinary Session first; this checks the task, not schedule dispatch.
+When testing the Schedule itself, choose a cadence whose next automatic firing is well after
+your test window, and pause or delete it as soon as the test is complete. A short interval
+keeps firing while enabled and can continue consuming credits.
+
 ::: code-group
 
 ```ts [TypeScript]

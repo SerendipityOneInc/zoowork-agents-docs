@@ -8,7 +8,7 @@ Use a supported integration path before depending on a feature available in anot
 
 | Capability | Current boundary | What to use instead |
 |---|---|---|
-| Agent Database viewer | Direct catalog and table-row inspection is unavailable in production, even though the SDK has methods. | Ask the Agent to query with `agent_db` and return results or publish an [Artifact](../build/data-storage.md). |
+| Agent Database viewer | Direct catalog and table-row inspection is unavailable in production, even though the SDK has methods. | Ask the Agent to query with `agent_db` and return results or publish an [Artifact](../build/files.md). |
 | Atomic Agent configuration updates | Production rejects `expected_config_version` on Agent updates. | Omit it, serialize writes in your backend, and [read back configuration](../build/agents.md). |
 | Custom Environment management | Custom Environment creation, image builds, and version management are not available to Platform API keys. | Use the [default managed Environment](../build/environments.md). |
 | Native chat-channel management | Chat-channel setup and management are not available to Platform API keys. | Connect your backend to chat platforms and forward messages through [API Sessions](../build/channels.md). |

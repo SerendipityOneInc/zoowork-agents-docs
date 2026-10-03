@@ -2,7 +2,7 @@
 title: Schedules
 description: 定时运行 Agent，检查执行记录，并评价定时结果。
 source: /en/build/schedules
-source_hash: 2ee5a79c0782ee47d78b02d8a39b0a4f967458428c7c9048610fb49b47f1c6e9
+source_hash: 05035c18b8d0cb82944992254c787683ee5706c657ed15a9d19eb71e3d4566ca
 ---
 
 # Schedules
@@ -14,6 +14,8 @@ Agent 需要在没有新的应用消息时运行，可以创建 schedule。每�
 ## 创建 Schedule {#create-a-schedule}
 
 下面的例子创建一个已启用的 schedule，在上海时区每天 09:00 生成 digest。创建后自动调度即生效；手动触发会额外执行一次，不改变原来的频率。选择频率和任务内容时要考虑这一点。
+
+建议先在普通 Session 中测试任务内容；这能验证任务本身，不能验证 schedule 派发。需要测试 Schedule 本身时，选择下一次自动触发时间在测试窗口之后的 cadence，并在测试结束后立即 pause 或删除。较短的 interval 在启用期间会持续自动触发，也会继续消耗 credits。
 
 ::: code-group
 

@@ -1302,7 +1302,8 @@ The decoded form of an `agent.tool` event, returned by `toolCall()`.
 
 One tool call produces a sequence of events sharing a `toolCallId`, one per phase: `start`
 carries `args`, `end` carries `isError` and `resultPreview`, and `blocked` is a terminal
-policy rejection without execution; no `end` follows that blocked call. Approval waiting uses
+block before execution; no `end` follows that call. Reasons include policy denial, approval
+denial/timeout/cancellation, or interruption. Read the raw event payload's `deniedReason`. Approval waiting uses
 `agent.approval` / `requested`, not `blocked`. Pair events by `toolCallId` - they are **not
 adjacent** in the stream when calls run concurrently. A tool error does not necessarily fail the run. The model may recover and finish with `succeeded`, but `isError: true` does not guarantee that outcome. Check the final run status and termination. See
 [Events](../build/events.md).
