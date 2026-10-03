@@ -2,7 +2,7 @@
 title: Skills
 description: 使用 Project API key 打包、上传、发布版本并挂载 Skill，了解 registry 权限和 SDK 兼容要求。
 source: /en/build/skills
-source_hash: 722c566ae2c55d0798603671f2dcb30209a32b0a057956dcc4774101deaa3120
+source_hash: 9f3137112120f1e8c21a8af288147599969baa4bc833547fe42f2341c8b43b8e
 ---
 
 # Skills
@@ -62,7 +62,7 @@ zip -r slide-layout.zip slide-layout/
 ```
 
 Description 写在 `SKILL.md` 中；创建时单独传入的 description 选项不会被转发。
-不要打包凭据或无关本地文件。Skill 上传用于注册包，不是通用二进制任务输入或 `/workspace` 文件上传。
+不要打包凭据或无关本地文件。Skill 上传用于注册包。要为某个任务给 Agent 一个文件，请[上传到 `/workspace`](./files.md#send-a-file-to-the-agent)。
 
 Default Project key（大多数新 key 都是这种）必须传 `scope=org`，具名 Project key 必须传
 `scope=project`。示例使用 `org`；如果你的 key 属于具名 Project，改成 `project`。

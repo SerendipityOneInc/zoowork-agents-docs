@@ -1,7 +1,7 @@
 ---
 description: 配置async Python SDK，管理client生命周期，并使用Agent、Session和event核心方法。
 source: /en/reference/python-sdk
-source_hash: ce95b19660459539b9d61fe25c478c1489d3ec7185da821a3b2308632c223876
+source_hash: 4ffb3616698049ef9ce2c2c2bbf19f6530997f6cd4c24be6e7ea8c6546b77e7f
 ---
 
 # Python SDK
@@ -55,6 +55,7 @@ asyncio.run(main())
 | `await client.create_session(agent_id, session, idempotency_key=...)` | 创建对话，保存 `session_id`。 |
 | `await client.get_session(agent_id, session_id, history=True, limit=...)` | 按需读取最近的 transcript rows。 |
 | `await client.post_events(agent_id, session_id, events)` | 发送受支持的 input event。 |
+| `await client.upload_file(agent_id, path, content)` | 把 `bytes` 或 `str` 复制到 Agent 的 `/workspace`，返回 `path`、`size` 和 `sha256`。见[文件](../build/files.md#send-a-file-to-the-agent)。 |
 | `async for event in client.stream_events(agent_id, session_id, cursor=...)` | 读取保存的 events，处理后保留 resume cursor。 |
 
 资源返回为 mapping，例如 `agent["agent_id"]`，不采用 TypeScript object 的属性访问方式。输入 mapping 中的 `initial_events`、`idempotency_key` 等字段保持原样。受支持的 create 方法中，Python 方法参数 `idempotency_key` 对应 HTTP header；逐事件 key 仍写在 event 自身中。
@@ -96,7 +97,7 @@ SDK 存在方法，不代表线上部署已经支持。
 
 - [Tools](../build/tools.md)：应用执行的调用及 tool results。
 - [Sessions](../build/sessions.md) 与 [Events](../build/events.md)：继续对话、取消、保存历史及 streaming。
-- [文件与产物](../build/files.md)：Agent 文件创建和已发布输出的获取。
+- [文件与产物](../build/files.md)：输入文件上传、Agent 文件创建和已发布输出的获取。
 - [Schedules](../build/schedules.md)：周期任务及受支持的 Outcome evaluation。
 - [PyPI package](https://pypi.org/project/zoowork/)：安装与发布文件。
 

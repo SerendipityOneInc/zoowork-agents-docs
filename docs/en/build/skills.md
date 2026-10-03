@@ -62,8 +62,8 @@ zip -r slide-layout.zip slide-layout/
 ```
 
 Put the description in `SKILL.md`; the separate create-time description option is not forwarded.
-Do not include credentials or unrelated local files. Skill upload registers a package; it is
-not general binary task input or a `/workspace` file upload.
+Do not include credentials or unrelated local files. Skill upload registers a package. To
+give an Agent a file for one task, [upload it into `/workspace`](./files.md#send-a-file-to-the-agent).
 
 A Default Project key, which is what most new keys use, must send `scope=org`. A named
 Project key must send `scope=project`. The examples use `org`; change it to `project` if your

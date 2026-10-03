@@ -15,7 +15,7 @@ Available features depend on your key's resource scope, enabled tools, and servi
 | Retrieve private knowledge | [Retrieval](../build/retrieval.md) | Your application or MCP service provides retrieval and data permissions. |
 | Reuse task instructions | [Skills](../build/skills.md) | Assign visible Skills; on supporting deployments, upload and version Skills within the key's registry write scope. |
 | Customize the sandbox | [Environments](../build/environments.md), [Cloud reference](../build/cloud-sandbox-reference.md) | Environment management is not available to Platform keys. |
-| Generate and retrieve files | [Files and artifacts](../build/files.md) | Ask the Agent to create a file and publish it as an Artifact before downloading. |
+| Send, generate, and retrieve files | [Files and artifacts](../build/files.md) | Upload input files into `/workspace`. Ask the Agent to publish an output as an Artifact before downloading. |
 | Store structured data | [Agent Database](../build/data-storage.md) | Use the `agent_db` tool through Sessions; the production read-only viewer is unavailable. |
 | Save Agent memory | [Memory](../build/memory.md) | Tools must be enabled and available; no automatic recall on every new turn is promised. |
 | Continue or cancel work | [Session operations](../build/session-operations.md), [Events](../build/events.md) | A stream disconnection does not cancel the run. |
