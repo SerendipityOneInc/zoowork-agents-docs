@@ -2,7 +2,7 @@
 title: 文件与产物
 description: 让 Agent 创建工作区文件，再发布和下载产物。
 source: /en/build/files
-source_hash: 9b5abdc5b30cca2c267606f13ff45d7c0e346bf5b1a54a997e41f53a3920856d
+source_hash: 156579af046bbc78ecae38e0948bd6a8877852ed6b08143f6f3423e0fca0ead9
 ---
 
 # 文件与产物
@@ -47,7 +47,7 @@ ORG_ID=$(jq -er '.ownership.org_id' <<<"$agent")
 ::: code-group
 
 ```ts [TypeScript]
-const session = await zc.createSession(agentId, {
+const session = await client.createSession(agentId, {
   "initial_events": [
     {
       "type": "user.message",
@@ -92,7 +92,7 @@ prompt 请求一次工具调用，不保证它一定发生。读取 event stream
 ```ts [TypeScript]
 import { isRunFinished } from '@zoowork-ai/sdk'
 
-for await (const event of zc.streamEvents(agentId, sessionId)) {
+for await (const event of client.streamEvents(agentId, sessionId)) {
   console.log(event)
   if (isRunFinished(event)) break
 }
@@ -127,7 +127,7 @@ curl -N -sS --fail-with-body \
 ::: code-group
 
 ```ts [TypeScript]
-const artifacts = await zc.listArtifacts(agentId, {
+const artifacts = await client.listArtifacts(agentId, {
   sessionId, sourcePath: '/workspace/report.md', page: 1, limit: 50,
 })
 const artifactId = artifacts.artifacts.find((item) => item.status === 'ready')?.artifact_id
@@ -170,7 +170,7 @@ page 包含 `{artifacts, page, has_more}`。分页从 1 开始；`limit` 默认 
 ```ts [TypeScript]
 import { writeFile } from 'node:fs/promises'
 
-const download = await zc.downloadArtifact(agentId, artifactId)
+const download = await client.downloadArtifact(agentId, artifactId)
 if (!download.url) throw new Error('No Artifact URL was returned')
 const response = await fetch(download.url)
 if (!response.ok) throw new Error(`Download failed: ${response.status}`)
@@ -213,7 +213,7 @@ SDK 已提供 `listArtifacts`、`getArtifact`、`downloadArtifact`、`deleteArti
 ::: code-group
 
 ```ts [TypeScript]
-await zc.deleteArtifact(agentId, artifactId)
+await client.deleteArtifact(agentId, artifactId)
 ```
 
 ```python [Python]

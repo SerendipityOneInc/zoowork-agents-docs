@@ -31,7 +31,7 @@ Agent owner's private `user_agent` memory.
 ::: code-group
 
 ```ts [TypeScript]
-let session = await zc.createSession(agentId, {
+let session = await client.createSession(agentId, {
   "initial_events": [
     {
       "type": "user.message",
@@ -76,7 +76,7 @@ Read the event stream and inspect the Memory tool result:
 ```ts [TypeScript]
 import { isRunFinished } from '@zoowork-ai/sdk'
 
-for await (const event of zc.streamEvents(agentId, sessionId)) {
+for await (const event of client.streamEvents(agentId, sessionId)) {
   console.log(event)
   if (isRunFinished(event)) break
 }
@@ -111,7 +111,7 @@ Create a new session under the same Agent. Omit `actor` again to use the owner's
 ::: code-group
 
 ```ts [TypeScript]
-session = await zc.createSession(agentId, {
+session = await client.createSession(agentId, {
   "initial_events": [
     {
       "type": "user.message",

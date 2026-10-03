@@ -55,7 +55,7 @@ normal runtime gates:
 ::: code-group
 
 ```ts [TypeScript]
-await zc.createAgent({
+await client.createAgent({
   resource: {
     name: 'report-agent-no-web-tools',
     tool_policy: { deny: ['web_fetch', 'web_search', 'web_image_search'] },
@@ -105,7 +105,7 @@ For an existing Agent, replace its policy to hide one tool:
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   tool_policy: { deny: ['web_search'] },
 })
 ```
@@ -150,7 +150,7 @@ and `exec` from that surface, subject to their normal runtime gates:
 ::: code-group
 
 ```ts [TypeScript]
-await zc.createAgent({
+await client.createAgent({
   resource: {
     name: 'report-agent',
     tool_policy: { allow: ['read', 'write', 'exec'] },
@@ -210,7 +210,7 @@ To remove all policy restrictions and return to the runtime's default tool surfa
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, { tool_policy: {} })
+await client.updateAgent(agentId, { tool_policy: {} })
 ```
 
 ```python [Python]
@@ -287,7 +287,7 @@ JSON Schema, and optional result timeout:
 ::: code-group
 
 ```ts [TypeScript]
-const agent = await zc.createAgent({
+const agent = await client.createAgent({
   resource: {
     name: 'pricing-agent',
     custom_tools: [
@@ -393,7 +393,7 @@ import { customToolUse } from '@zoowork-ai/sdk'
 const call = customToolUse(ev)
 if (call?.phase === 'requested') {
   const price = await pricing.lookup(call.input?.sku)
-  await zc.resolveCustomToolCall(agentId, call.callId, {
+  await client.resolveCustomToolCall(agentId, call.callId, {
     content: [{ type: 'json', value: price }],
     resolvedBy: 'pricing-service',
   })
@@ -476,7 +476,7 @@ import { toolCall, isRunFinished } from '@zoowork-ai/sdk'
 const pending = new Map<string, string>()
 
 // savedCursor is the last processed cursor for this Session.
-for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: savedCursor })) {
+for await (const ev of client.streamEvents(agentId, sessionId, { cursor: savedCursor })) {
   const call = toolCall(ev)
   if (call?.phase === 'start') pending.set(call.toolCallId, call.toolName)
   if (call?.phase === 'blocked') {
@@ -495,7 +495,7 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: savedCursor
 To audit a session after the fact, filter the REST read instead:
 
 ```ts
-const toolEvents = await zc.listAllEvents(agentId, sessionId, { types: ['agent.tool'] })
+const toolEvents = await client.listAllEvents(agentId, sessionId, { types: ['agent.tool'] })
 ```
 
 ::: warning `listEvents` returns one page

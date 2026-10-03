@@ -32,11 +32,11 @@ Preserve the Agent's existing policy, then add an approval requirement for `exec
 ::: code-group
 
 ```ts [TypeScript]
-const agent = await zc.getAgent(agentId)
+const agent = await client.getAgent(agentId)
 const policy = (agent.declared?.tool_policy ?? {}) as Record<string, unknown>
 const permissions = (policy.permissions ?? {}) as Record<string, unknown>
 
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   tool_policy: {
     ...policy,
     permissions: { ...permissions, exec: 'always_ask' },
@@ -75,7 +75,7 @@ Set `permission` on the MCP declaration to apply one policy to the server's tool
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [
     {
       name: 'github',
@@ -129,7 +129,7 @@ Use `tools` to override the server default for exact native MCP tool names:
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [
     {
       name: 'github',
@@ -214,7 +214,7 @@ or `deny`. Present only records this user may review and decisions allowed by th
 ```ts [TypeScript]
 import { requestApprovalDecision } from './approval-ui.js'
 
-const approvals = await zc.listApprovals(agentId, { status: 'pending' })
+const approvals = await client.listApprovals(agentId, { status: 'pending' })
 const { approvalId, decision } = await requestApprovalDecision(approvals)
 const approval = approvals.find((item) => item.approval_id === approvalId)
 if (!approval) throw new Error('Select a pending approval')
@@ -222,7 +222,7 @@ if (Array.isArray(approval.allowed_decisions) && !approval.allowed_decisions.inc
   throw new Error('This decision is not allowed for the selected call')
 }
 
-await zc.resolveApproval(agentId, approvalId, {
+await client.resolveApproval(agentId, approvalId, {
   decision,
   resolvedBy: 'user_42',
 })
@@ -286,7 +286,7 @@ needs a fresh decision:
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [{
     name: 'documents',
     url: 'https://mcp.example.com/documents',

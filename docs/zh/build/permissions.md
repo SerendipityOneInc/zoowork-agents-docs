@@ -2,7 +2,7 @@
 title: 权限策略
 description: 配置工具审批、MCP 默认策略、逐次确认，以及 pending approval 的处理。
 source: /en/build/permissions
-source_hash: 1d4b3d16952745e761e6efed7b051674f1ba47f350072464757a67444e6b7daf
+source_hash: 7a569aad0dd73c857ced98aa17be4b003bd9217eeffe4f7ffbb808452c25c614
 ---
 
 # 权限策略
@@ -32,11 +32,11 @@ source_hash: 1d4b3d16952745e761e6efed7b051674f1ba47f350072464757a67444e6b7daf
 ::: code-group
 
 ```ts [TypeScript]
-const agent = await zc.getAgent(agentId)
+const agent = await client.getAgent(agentId)
 const policy = (agent.declared?.tool_policy ?? {}) as Record<string, unknown>
 const permissions = (policy.permissions ?? {}) as Record<string, unknown>
 
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   tool_policy: {
     ...policy,
     permissions: { ...permissions, exec: 'always_ask' },
@@ -74,7 +74,7 @@ jq '{tool_policy: ((.declared.tool_policy // {}) |
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [
     {
       name: 'github',
@@ -128,7 +128,7 @@ JSON
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [
     {
       name: 'github',
@@ -208,7 +208,7 @@ JSON
 ```ts [TypeScript]
 import { requestApprovalDecision } from './approval-ui.js'
 
-const approvals = await zc.listApprovals(agentId, { status: 'pending' })
+const approvals = await client.listApprovals(agentId, { status: 'pending' })
 const { approvalId, decision } = await requestApprovalDecision(approvals)
 const approval = approvals.find((item) => item.approval_id === approvalId)
 if (!approval) throw new Error('Select a pending approval')
@@ -216,7 +216,7 @@ if (Array.isArray(approval.allowed_decisions) && !approval.allowed_decisions.inc
   throw new Error('This decision is not allowed for the selected call')
 }
 
-await zc.resolveApproval(agentId, approvalId, {
+await client.resolveApproval(agentId, approvalId, {
   decision,
   resolvedBy: 'user_42',
 })
@@ -278,7 +278,7 @@ REST approval record 和 Session event payload 的字段名、大小写风格不
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [{
     name: 'documents',
     url: 'https://mcp.example.com/documents',

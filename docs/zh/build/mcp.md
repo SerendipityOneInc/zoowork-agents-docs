@@ -2,7 +2,7 @@
 title: MCP Server
 description: 为 Agent 连接远程 MCP Server，选择工具、加载方式，并传递运行时 context。
 source: /en/build/mcp
-source_hash: c428b651f3fd03ec0b14a9b19894a0848909ad298532b3f351b3b915bc4956e9
+source_hash: 0bb925b1f87b2a7734f203c7b2f3045af1ce90f07c277f0d44c9fea606e30351
 ---
 
 # MCP Server
@@ -34,7 +34,7 @@ URL 不能指向 loopback、私有网络或 cloud metadata 地址，也不能经
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [
     {
       name: 'pricing',
@@ -146,7 +146,7 @@ MCP 工具调用可以携带当前 Agent 和 Session 的标识：
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [
     {
       name: 'pricing',

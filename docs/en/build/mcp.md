@@ -35,7 +35,7 @@ The following configuration exposes the `quote` and `inventory` tools from one s
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [
     {
       name: 'pricing',
@@ -148,7 +148,7 @@ MCP calls can include identifiers for the current Agent and Session:
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   mcp: [
     {
       name: 'pricing',

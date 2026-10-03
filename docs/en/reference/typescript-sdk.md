@@ -42,7 +42,7 @@ including the SSE stream. Use it to bind a runtime-specific fetch, to add tracin
 serve canned responses in tests.
 
 ```ts
-const zc = createZooworkClient({
+const client = createZooworkClient({
   apiKey: process.env.ZOOWORK_API_KEY,
   fetch: async (input, init) => {
     const started = Date.now()
@@ -70,7 +70,7 @@ with a bad key succeeds; the first call fails with `401`.
 ```ts
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 Clients are cheap. Create one per process and share it.
@@ -236,7 +236,7 @@ synthesized locally, so no server response explains it.
 a `409`. `schedule` is the cadence. The example uses `payload.kind: 'agentTurn'`. The management HTTP parser also accepts `systemEvent` and `command`; these have different execution and caller restrictions. Follow [Schedules](../build/schedules.md) rather than assuming the kinds are interchangeable.
 
 ```ts
-await zc.createSchedule(agentId, {
+await client.createSchedule(agentId, {
   schedule_id: 'daily-digest',
   schedule: { kind: 'cron', expr: '0 9 * * *', tz: 'Asia/Shanghai' },
   payload: { kind: 'agentTurn', message: 'Summarise yesterday.' },
@@ -289,7 +289,7 @@ All snippets below assume:
 ```ts
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 ---
@@ -304,7 +304,7 @@ No parameters. Returns the runtime model catalog as a flat array; the SDK accept
 bare-array and the `{ models: [...] }` wire shapes and always hands you an array.
 
 ```ts
-const models = await zc.listModels()
+const models = await client.listModels()
 const selectable = models.filter((model) => model.selectable !== false)
 console.log(selectable.length, selectable[0]?.model)
 ```
@@ -350,7 +350,7 @@ Returns the **create receipt**: a flat object with `agent_id`, a top-level `conf
 `ownership`, and `resolved_skills`. It carries no `declared` and no `status`.
 
 ```ts
-const created = await zc.createAgent(
+const created = await client.createAgent(
   {
     resource: {
       name: 'research-agent',
@@ -397,14 +397,14 @@ Await the request to get one page, or use `for await` directly on it to fetch al
 agents. The resolved page also supports async iteration and `iterPages()`.
 
 ```ts
-const page = await zc.listAgents({ labels: { app: 'support' } })
+const page = await client.listAgents({ labels: { app: 'support' } })
 console.log(page.data, page.total, page.next_page)
 if (page.hasNextPage()) {
   const next = await page.getNextPage()
   console.log(next.data)
 }
 
-for await (const agent of zc.listAgents({ labels: { app: 'support' } })) {
+for await (const agent of client.listAgents({ labels: { app: 'support' } })) {
   console.log(agent.agent_id)
 }
 ```
@@ -416,8 +416,8 @@ label filters and rejects when there is no next page. Breaking iteration stops f
 requests. HTTP errors and invalid or non-advancing pagination metadata reject the operation.
 Concurrent additions or deletions can shift page contents; iteration is not a snapshot.
 
-**Migration:** change `const agents = await zc.listAgents(opts)` to
-`const { data: agents } = await zc.listAgents(opts)` for one page. Use `for await` for all
+**Migration:** change `const agents = await client.listAgents(opts)` to
+`const { data: agents } = await client.listAgents(opts)` for one page. Use `for await` for all
 matches. See [List your agents](../build/agents.md#list-your-agents) for the full example.
 
 ---
@@ -433,7 +433,7 @@ configuration is under `declared`, the version is at `status.config_version`, an
 top-level `config_version` and no top-level `name`.
 
 ```ts
-const agent = await zc.getAgent(agentId)
+const agent = await client.getAgent(agentId)
 
 console.log(agent.declared?.name)            // 'research-agent'
 console.log(agent.status?.desired_state)     // 'running'
@@ -466,7 +466,7 @@ PUTs the declared sections you name and returns the read projection.
 and scalars replace. For example, with existing labels `{ tier: 'free', region: 'apac' }`:
 
 ```ts
-const updated = await zc.updateAgent(agentId, { labels: { tier: 'paid' } })
+const updated = await client.updateAgent(agentId, { labels: { tier: 'paid' } })
 
 console.log(updated.declared?.name)   // unchanged - `name` was not in the body
 console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - omitted key preserved
@@ -509,7 +509,7 @@ Flips `desired_state` to `running`. This is the precondition for `createSession(
 `postEvents()`.
 
 ```ts
-const { warnings } = await zc.startAgent(agentId)
+const { warnings } = await client.startAgent(agentId)
 console.log(warnings)
 // [] or informational messages about follow-up work
 ```
@@ -522,7 +522,7 @@ Then wait for `status.desired_state === 'running'`, and never for `status.actual
 wait is a method - do not write the loop yourself:
 
 ```ts
-const agent = await zc.waitUntilRunning(agentId)
+const agent = await client.waitUntilRunning(agentId)
 console.log(agent.status?.desired_state) // 'running'
 ```
 
@@ -556,7 +556,7 @@ Flips `desired_state` to `stopped`, with the same warning behaviour as `startAge
 a stop, `createSession()` on that agent returns `409 agent_not_running`.
 
 ```ts
-const { warnings } = await zc.stopAgent(agentId)
+const { warnings } = await client.stopAgent(agentId)
 ```
 
 A stop request can fail after the desired state changes. Read the Agent again before retrying;
@@ -578,7 +578,7 @@ Returns the skills resolved and merged onto the agent, unwrapped from the wire's
 `{ skills: [...] }` envelope.
 
 ```ts
-const skills = await zc.listAgentSkills(agentId)
+const skills = await client.listAgentSkills(agentId)
 console.log(skills.length, skills.map((s) => s.name).slice(0, 5))
 ```
 
@@ -602,7 +602,7 @@ putAgentSkill(
 | `opts.versionPin` | `number \| null` | `null` | Sent as `version_pin` in the body. |
 
 ```ts
-const { config_version } = await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true })
+const { config_version } = await client.putAgentSkill(agentId, 'skl_yourown', { enabled: true })
 ```
 
 The Skill must be visible to the key: global Skills, organization Skills in the same organization, Project Skills in the same organization and named Project, or personal Skills owned by the key's owner with no organization or the same organization. An unknown or inaccessible ID returns 404. Registry content management is separate and follows the key-specific write scope on supporting deployments.
@@ -620,7 +620,7 @@ deleteAgentSkill(agentId: string, skillId: string): Promise<void>
 Deletes the explicit assignment and resolves with nothing. Subject to the same visibility rule as `putAgentSkill()`. Deleting a global Skill's assignment restores its default behavior; it does not remove the Skill from the global catalog. To exclude it, use an assignment with `enabled: false`.
 
 ```ts
-await zc.deleteAgentSkill(agentId, 'skl_yourown')
+await client.deleteAgentSkill(agentId, 'skl_yourown')
 ```
 
 ---
@@ -642,7 +642,7 @@ createSession(
 | `idempotencyKey` | `string` | Sent as the `Idempotency-Key` header. |
 
 ```ts
-const session = await zc.createSession(
+const session = await client.createSession(
   agentId,
   {
     initial_events: [{ type: 'user.message', content: 'Summarize this brief.' }],
@@ -686,7 +686,7 @@ getSession(
 ```ts
 import { messageText } from '@zoowork-ai/sdk'
 
-const s = await zc.getSession(agentId, sessionId, { history: true, limit: 20 })
+const s = await client.getSession(agentId, sessionId, { history: true, limit: 20 })
 
 console.log(s.run_status)  // 'succeeded'  <- latest run state
 console.log(s.status)      // null         <- legacy field
@@ -719,7 +719,7 @@ The write path accepts five types: `user.message`, `user.interrupt`, `system.mes
 alternative to `resolveCustomToolCall()`; see [Tools](../build/tools.md#application-executed-custom-tools).
 
 ```ts
-await zc.postEvents(agentId, sessionId, [
+await client.postEvents(agentId, sessionId, [
   { type: 'user.message', content: 'What is my display name?' },
 ])
 ```
@@ -731,7 +731,7 @@ await zc.postEvents(agentId, sessionId, [
 the run ends with `run.finished` whose `payload.status` is `aborted`.
 
 ```ts
-const r = await zc.postEvents(agentId, sessionId, [{ type: 'user.interrupt' }])
+const r = await client.postEvents(agentId, sessionId, [{ type: 'user.interrupt' }])
 console.log(r.events[0]?.accepted)
 ```
 
@@ -767,7 +767,7 @@ Every entry is passed through `normalizeEvent()`, so REST and SSE hand you the i
 `SessionEvent` shape.
 
 ```ts
-const events = await zc.listEvents(agentId, sessionId, { types: ['user.message', 'agent.assistant'] })
+const events = await client.listEvents(agentId, sessionId, { types: ['user.message', 'agent.assistant'] })
 ```
 
 ::: warning One page per call
@@ -790,7 +790,7 @@ Feed `nextCursor` back as `cursor` to page by hand; unless you are, use `listAll
 to walking `after` on servers without cursor pagination:
 
 ```ts
-const all = await zc.listAllEvents(agentId, sessionId)
+const all = await client.listAllEvents(agentId, sessionId)
 ```
 
 ```ts
@@ -844,7 +844,7 @@ async function readReply(savedCursor?: string) {
   let text = ''
   let cursor = savedCursor
   try {
-    for await (const ev of zc.streamEvents(agentId, sessionId, { cursor, signal: ctl.signal })) {
+    for await (const ev of client.streamEvents(agentId, sessionId, { cursor, signal: ctl.signal })) {
       text += assistantText(ev)
       cursor = ev.cursor ?? cursor // Persist after processing with the Session ID.
       if (isRunFinished(ev)) return { text, cursor, outcome: runOutcome(ev) }
@@ -1317,7 +1317,7 @@ you can pass a client into your own helpers:
 ```ts
 import type { ZooworkClient } from '@zoowork-ai/sdk'
 
-async function reply(zc: ZooworkClient, agentId: string, text: string) { /* ... */ }
+async function reply(client: ZooworkClient, agentId: string, text: string) { /* ... */ }
 ```
 
 ### `ZooworkError`
@@ -1367,7 +1367,7 @@ events:
 ```ts
 import { messageText } from '@zoowork-ai/sdk'
 
-const s = await zc.getSession(agentId, sessionId, { history: true })
+const s = await client.getSession(agentId, sessionId, { history: true })
 for (const row of s.history ?? []) {
   if (row.entry_type === 'message') console.log(messageText(row.entry.message))
 }

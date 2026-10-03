@@ -2,7 +2,7 @@
 title: Agent Memory
 description: 让已启用 Memory 的 Agent 跨 session 保存和查找长期事实，并理解 Agent 与 actor 的作用域。
 source: /en/build/memory
-source_hash: 1bc3d7fc9684418a8ee83a6778688cd11c1c286188adf2cec724c9f8e949ee02
+source_hash: e8fdf0487f9068024451be53ea2b9081d850f6582195df4a31f9bd9c61024ea0
 ---
 
 # Agent Memory
@@ -28,7 +28,7 @@ key 必须有权访问 Agent，包括适用时的 project scope，见[鉴权](..
 ::: code-group
 
 ```ts [TypeScript]
-let session = await zc.createSession(agentId, {
+let session = await client.createSession(agentId, {
   "initial_events": [
     {
       "type": "user.message",
@@ -73,7 +73,7 @@ SESSION_ID=$(jq -er '.session_id' <<<"$session")
 ```ts [TypeScript]
 import { isRunFinished } from '@zoowork-ai/sdk'
 
-for await (const event of zc.streamEvents(agentId, sessionId)) {
+for await (const event of client.streamEvents(agentId, sessionId)) {
   console.log(event)
   if (isRunFinished(event)) break
 }
@@ -106,7 +106,7 @@ curl -N -sS --fail-with-body \
 ::: code-group
 
 ```ts [TypeScript]
-session = await zc.createSession(agentId, {
+session = await client.createSession(agentId, {
   "initial_events": [
     {
       "type": "user.message",

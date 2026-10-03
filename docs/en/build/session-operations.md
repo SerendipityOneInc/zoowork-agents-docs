@@ -348,9 +348,9 @@ Sessions separate conversation history. For application-user file and memory iso
 ::: code-group
 
 ```ts [TypeScript]
-const output = await zc.getRunOutput(agentId, sessionId, runId, { limit: 50 })
-const approvals = await zc.listApprovalPage(agentId, { sessionId, limit: 50 })
-const calls = await zc.listCustomToolCallPage(agentId, { sessionId, limit: 50 })
+const output = await client.getRunOutput(agentId, sessionId, runId, { limit: 50 })
+const approvals = await client.listApprovalPage(agentId, { sessionId, limit: 50 })
+const calls = await client.listCustomToolCallPage(agentId, { sessionId, limit: 50 })
 ```
 
 ```python [Python]
