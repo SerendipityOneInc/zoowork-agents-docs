@@ -1,5 +1,5 @@
 ---
-description: Use default global Skills, inspect attached Skills, and manage existing visible Skill assignments.
+description: Package, upload, version, and attach Skills with Project API keys; understand registry permissions and SDK compatibility.
 ---
 
 # Skills
@@ -14,9 +14,24 @@ per-Session Skill override.
 ## API availability
 
 Use a Platform API key from [ZooWork Platform](https://platform.zoowork.ai).
-These keys can inspect an Agent's attached Skills and manage assignments to existing Skills
-visible within the key's scope. They cannot list the root Skill registry, upload a custom
-Skill, publish a version, or delete a registry entry.
+These keys can inspect attached Skills and manage visible assignments. On deployments with
+Project-key Skill registry support, they can also list the registry, upload ZIP packages,
+publish versions, and delete Skills within their write scope.
+
+The registry contract below is **source-reviewed, not live-verified by this guide**. Confirm
+support on the target deployment before treating the workflow as available there. Older
+server deployments reject Project-key registry requests; an SDK method alone does not prove
+server support. Read and write permissions differ:
+
+| Key | Create, publish versions, delete |
+|---|---|
+| Named Project key | `project` Skills in the same Project and Organization. |
+| Default Project key | `org` Skills in the same Organization; these are Organization-shared. |
+
+The API derives ownership from the key. A wrong create scope, including `personal` or `global`,
+returns `400 service_api.invalid_body`. A visible Skill is not necessarily writable: named
+Project keys cannot edit org, global, or personal registry content. Non-writable IDs return
+`404 service_api.not_found`. Assignment to an Agent is a separate permission check.
 
 Start with the default global Skills. For shared product instructions, use
 [persona documents](./agents.md#the-resource-fields) in your application-owned Agent template;
@@ -27,6 +42,129 @@ Examples reuse the client and Agent from [Quickstart](../get-started/quickstart.
 In TypeScript, set `const agentId = agent.agent_id`; Python reuses `agent_id` and runs inside
 an async function. The curl examples reuse your configured
 `ZOOWORK_API_KEY`, `ZOOWORK_BASE_URL`, and `AGENT_ID`.
+
+## Upload a custom Skill
+
+Package each local Skill separately. Include a nonempty `SKILL.md` with YAML `name` and
+`description`, plus the scripts and resources it references. Either place `SKILL.md` at the
+ZIP root, or put everything in one top-level directory matching the frontmatter name:
+
+```text
+slide-layout/
+  SKILL.md       # frontmatter name: slide-layout
+  resources/
+```
+
+Create a fresh archive; updating an old ZIP can retain removed files:
+
+```bash
+zip -r slide-layout.zip slide-layout/
+```
+
+Put the description in `SKILL.md`; the separate create-time description option is not forwarded.
+Do not include credentials or unrelated local files. Skill upload registers a package; it is
+not general binary task input or a `/workspace` file upload.
+
+For a named Project key, send `scope=project`. A Default Project key must use `scope=org`.
+Do not send caller-selected `org_id` or `project_id`. These examples create a resource;
+execute them as an authorized upload, not as a capability probe.
+
+::: code-group
+
+```python [Python]
+from pathlib import Path
+
+skill = await client.upload_skill(
+    Path("slide-layout.zip").read_bytes(),
+    scope="project",  # Use "org" for a Default Project key.
+    file_name="slide-layout.zip",
+)
+skill_id = skill["skill_id"]
+```
+
+```bash [curl]
+curl -sS --fail-with-body "${ZOOWORK_BASE_URL%/}/skills" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -F 'scope=project' \
+  -F 'files[]=@slide-layout.zip;type=application/zip'
+```
+
+:::
+
+`ZOOWORK_BASE_URL` includes `/service/v1`. Let the HTTP client generate the multipart boundary.
+Save the returned `skill_id`, then follow [Installing and removing](#installing-and-removing).
+An uploaded Skill is not automatically attached to an Agent.
+
+**TypeScript compatibility:** inspect the installed `uploadSkill` declaration. If it accepts
+`project`, use `client.uploadSkill(zip, { scope: 'project', fileName: 'slide-layout.zip' })`.
+Older declarations accept only `org | personal`; use the curl request above for a named Project
+instead of a cast or a different scope. A Default Project can use `scope: 'org'`. Do not assume
+a minimum published SDK version without checking the package. Python's `scope` is a string.
+
+## List registry Skills
+
+`listSkills({ q, page })` / `list_skills(q=..., page=...)` return one array page; the HTTP
+response is `{skills: [...]}`. The API derives owner, Organization, and Project selectors from
+the key. Start with page 1 and continue as needed; a first-page miss does not prove absence.
+
+```ts
+const visible = await client.listSkills({ q: 'slide-layout', page: 1 })
+```
+
+Read visibility includes global Skills, same-Organization org Skills, same-Project project
+Skills, and eligible personal Skills owned by the key's owner. This is broader than registry
+write permission. Inspect the record's scope and ownership before updating it.
+
+A Skill upload's `Idempotency-Key` is not a replay guarantee. If the create result is uncertain,
+reconcile the existing record before retrying. A duplicate can return `409 skill_exists`.
+
+## Publish a version
+
+Keep the same frontmatter name and target the existing `skill_id`; do not repeat root create.
+The version response has `version` and `state`, not `latest_version` and `status`.
+
+::: code-group
+
+```ts [TypeScript]
+import { readFile } from 'node:fs/promises'
+
+const version = await client.uploadSkillVersion(
+  skillId, await readFile('slide-layout.zip'), { fileName: 'slide-layout.zip' },
+)
+if (version.state !== 'ready') throw new Error(`Skill version is ${version.state}`)
+const assigned = await client.listAgentSkills(agentId)
+```
+
+```python [Python]
+from pathlib import Path
+
+version = await client.upload_skill_version(
+    skill_id, Path("slide-layout.zip").read_bytes(), file_name="slide-layout.zip"
+)
+if version["state"] != "ready":
+    raise RuntimeError(f"Skill version is {version['state']}")
+assigned = await client.list_agent_skills(agent_id)
+```
+
+```bash [curl]
+curl -sS --fail-with-body "$ZOOWORK_BASE_URL/skills/$SKILL_ID/versions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -F 'files[]=@slide-layout.zip;type=application/zip'
+```
+
+:::
+
+Version publishing keeps the Skill's ownership. Unpinned mutable bindings follow new ready
+versions; pinned bindings keep their selected version. Inspect assignments and separately
+[test runtime use](#test-a-skill); upload success alone does not prove that the Agent read it.
+
+## Delete a registry Skill
+
+`deleteSkill(skillId)` / `delete_skill(skill_id)` sends `DELETE /skills/{skill_id}` and returns
+no value on HTTP 204. It deletes the registry Skill, rather than just one Agent's assignment.
+Check consumers before deleting an Organization-shared Skill. To detach only one Agent, use
+`deleteAgentSkill` / `delete_agent_skill`. The key's registry write scope applies to deletion;
+visible read-only Skills still return `404 service_api.not_found` when you try to delete them.
 
 ## Global skills are attached automatically
 
@@ -81,8 +219,8 @@ network access. An install step in metadata does not run automatically.
 ## Installing and removing
 
 Use an existing `skill_id` visible to your key and Agent. This operation changes an assignment;
-it does not create or upload a Skill. Take IDs from attached entries or a known existing Skill
-in your application, rather than calling the unavailable root registry.
+it does not create or upload a Skill. Take IDs from the upload response, the visible registry,
+or an existing attached entry. Upload once, then attach the same Skill to the Agents that need it.
 
 Set `skillId` in TypeScript, `skill_id` in Python, or `SKILL_ID` in curl to that ID.
 
@@ -211,7 +349,7 @@ For capabilities the sandbox cannot provide, expose an
 ## Handle assignment errors
 
 Unknown or inaccessible Skill IDs return `404`. Check key scope and the Skill's visibility
-before retrying. Registry operations remain unavailable with Platform API keys.
+before retrying. Registry writes additionally require the key's write scope from [API availability](#api-availability).
 
 If an assignment call returns `409 source_owned_skills`, the exact Skill list belongs to
 the Agent's declared configuration. Change that configuration through the application that

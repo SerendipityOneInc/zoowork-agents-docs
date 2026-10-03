@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 流程使用的 TypeScript SDK 方法、类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: c879cb9e4733db3a945e1db9b364b4066c634c217c8795638e51060c56d721d1
+source_hash: 8cb1ae9f8f7f6cac4151fbc55d7bd4960d9c74dd39a4dd0433357df6996de0d2
 ---
 
 # TypeScript SDK 参考
@@ -157,11 +157,11 @@ Platform key 不能调用 Agent channel 路由，这些方法返回 404。下表
 
 **Skill registry**
 
-Platform key 不能调用根 `/skills` 路由，这些方法返回 404。这不影响通过 `listAgentSkills()`、`putAgentSkill()` 和 `deleteAgentSkill()` 读取或修改 Agent 对已有可见 Skill 的 assignment。见 [Skills](../build/skills.md)。下表保留 registry 方法的 SDK 契约。
+在支持 Project key registry 的部署上，具名 Project key 创建和修改自己 Project 的 `project` Skill；Default Project key 创建和修改组织共享的 `org` Skill。列表也包含可见但只读的记录。对无写权限的 ID 发布版本或删除时返回 `404 service_api.not_found`，不是所有 Platform key 调用都返回 404。部署核验和完整流程见 [Skills](../build/skills.md)。
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | 提交 ZIP 和 metadata，创建 registry Skill。SDK 的 `opts.scope` 接受 `org` 或 `personal`。 |
+| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | 提交 ZIP 和 metadata，创建 registry Skill。具名 Project 上传用 `project`；Default Project 上传用 `org`。旧 SDK 类型只接受 `org` 或 `personal`；已安装类型不包含 `project` 时，使用文档中的 multipart HTTP 请求。 |
 | `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | 提交 ZIP，作为 registry Skill 的另一个版本。 |
 | `listSkills(opts?)` | `Promise<SkillRecord[]>` | 列出 registry 记录，可使用名称查询 `q` 和从 1 开始的 `page`。 |
 | `deleteSkill(skillId)` | `Promise<void>` | 请求删除 registry Skill。 |
@@ -587,7 +587,7 @@ putAgentSkill(
 const { config_version } = await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true })
 ```
 
-Skill 必须在 key 的可见范围内：global Skill、同组织的组织级 Skill、同组织且同 named Project 的 Project Skill，或者 owner 匹配且 org 为空或相同的 personal Skill。未知或不可访问的 ID 返回 404。Registry 内容管理是另一项操作，目前不能通过 Platform key 使用。
+Skill 必须在 key 的可见范围内：global Skill、同组织的组织级 Skill、同组织且同 named Project 的 Project Skill，或者 owner 匹配且 org 为空或相同的 personal Skill。未知或不可访问的 ID 返回 404。Registry 内容管理是另一项操作，在支持的部署上按 key 对应的写权限执行。
 
 更新 assignment 后，调用 `listAgentSkills()` 确认解析出的版本及 eligibility。
 
@@ -1072,7 +1072,7 @@ interface AgentSkill {
 }
 ```
 
-`scope` 描述可见范围，不等于 registry 内容编辑权限。Platform key 可以把已有可见的 global、组织、Project 和 personal Skill 赋给自己的 Agent，但不能管理 registry。保留未知 scope 值；见 [Skills](../build/skills.md)。
+`scope` 描述可见范围，不等于 registry 内容编辑权限。Platform key 可以把已有可见的 global、组织、Project 和 personal Skill 赋给自己的 Agent，Registry 写操作需要符合前述 key 写权限和部署要求。保留未知 scope 值；见 [Skills](../build/skills.md)。
 
 ### `SessionRecord`
 

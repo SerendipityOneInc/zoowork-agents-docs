@@ -2,7 +2,7 @@
 title: 每用户一个 Agent
 description: 为每个应用用户提供独立的 Agent workspace，并通过后端授权访问。
 source: /en/build/per-user-agents
-source_hash: 74725ac72fc72ccebff2a99265142e9c46c744c8da2eb681d6639d5b4bcec8fa
+source_hash: f056b13e7aa72ccfbf43a2002420f3f41b5831217348fafbe04b8f0dba7d274e
 ---
 
 # 每用户一个 Agent
@@ -203,9 +203,10 @@ jq -n --arg persona "$STABLE_PERSONA" \
 ## Skills {#skills}
 
 无需发布自己的 Skill，就能使用默认 global Skills。
-Platform API key 可以查看已挂载的 Skills，并管理已有可见 Skill 的安装关系，
-但不能上传 Skill 或发布 registry 版本。
-产品指令使用共享配置模板。安装和可见性规则见 [Skills](./skills.md)。
+应用需要打包指令、脚本和资源时，可以上传一次 Skill，再在允许的范围内把同一个 ID 挂载给多个 Agent。
+具名 Project key 写入 project Skill；Default Project key 写入组织共享的 org Skill。
+这要求服务端支持 Project key registry。Persona 指令继续放在共享配置模板中。
+上传、版本固定、部署核验和读写权限见 [Skills](./skills.md)。
 
 ## 相关 {#related}
 

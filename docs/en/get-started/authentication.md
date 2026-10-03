@@ -82,7 +82,7 @@ The key selects an organization and a Project. ZooWork derives Agent ownership f
 
 Keep the key in your backend. Authenticate your application's users and authorize their access to each Agent and Session before making requests on their behalf. The API key does not replace these checks.
 
-Keys support Agents and their available subresources, Models, and Usage. Some management resources, including custom Environments, Skill registry publishing, and native chat channels, are not exposed to Platform API keys. See [Availability and limits](../reference/capabilities.md) before using these methods.
+Keys support Agents and their available subresources, Models, and Usage. Skill registry publishing requires a supporting deployment and follows the key-specific [Skill write scope](../build/skills.md#api-availability). Custom Environments and native chat channels remain unavailable to Platform API keys. See [Availability and limits](../reference/capabilities.md) before using these methods.
 
 ## Replace or revoke a key
 
