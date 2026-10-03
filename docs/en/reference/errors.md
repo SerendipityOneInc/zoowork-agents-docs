@@ -162,7 +162,8 @@ Match the HTTP status as well as the code. A runtime-credential or billing prere
 | `platform.runtime_credentials_unavailable` | 503 | Retry later; a runtime-credential dependency is unavailable. |
 | `usage.access_denied` | 403 | Query only within the key's Usage scope. |
 | `usage.snapshot_expired` | 409 | Start a fresh Usage query. |
-| `usage.invalid_query` | 400 | Fix the query parameters. |
+| `usage.invalid_query` | 400 | Fix semantic query errors, such as an invalid timezone. |
+| *(may be absent)* | 422 | Usage query validation can return a `detail` array without a business error type, for example an unsupported range or out-of-bounds page size. Fix the parameters; do not retry unchanged. |
 | `usage.busy` | 429 | Retry the read with backoff. |
 | `usage.unavailable` | 503 | Retry later; do not interpret an incomplete response as zero usage. |
 
@@ -176,7 +177,7 @@ Retry safety is per operation, not per error. Nothing in the SDK retries for you
 |---|---|---|
 | `listModels`, `getAgent`, `getSession`, `listEvents`, `listAgentSkills`, and the other `list*` / `get*` reads | **Yes** | Reads. Retry on network errors and 5xx with exponential backoff. |
 | `startAgent`, `stopAgent` | **Reconcile first** | A failed stop can follow a desired-state change. Read back before retrying. Warnings belong to successful responses; non-2xx still throws. |
-| `deleteAgent` | **Yes** | Soft delete. Repeated calls succeed. |
+| `deleteAgent` | **Reconcile first** | First success is 204; repeated deletion returns 404. Treat it as cleanup complete only for an Agent you know belonged to the unchanged key scope; a general 404 also hides inaccessible resources. |
 | `streamEvents` | **Yes** | Reconnect with the last event's resume token — `{ cursor: ev.cursor }`. The server resumes the log; checkpoint after successful processing. This does not make application side effects exactly-once. Do **not** reconnect with `{ after: lastSeq }`: that selects the deprecated engine-only lane, which drops your own input events (`user.message`, `user.interrupt`, `user.tool_confirmation`, `user.custom_tool_result`, `system.message`). |
 | `createAgent`, `createSession` | **Reuse the HTTP key** | Reuse the same stable `Idempotency-Key` and body. A new key means a new request. |
 | `createSchedule` | **Stable ID and definition** | Reuse `schedule_id` with the same definition; a different definition conflicts. The HTTP key is not its deduplication mechanism. |
@@ -235,9 +236,10 @@ const second = (await zc.getAgent(agentId)).status?.config_version   // 6 - bump
 Treat it as an opaque monotonic counter. To find out whether a timed-out `updateAgent()`
 landed, read the values back out of `declared` and compare those.
 
-For optimistic concurrency, pass `expected_config_version` in `updateAgent()`. A stale
-positive integer returns `409 active_config_changed`; read fresh state and reconcile before
-retrying. Without this field, updates remain last-write-wins.
+Production `updateAgent()` rejects `expected_config_version` with `400 invalid_declared_key`.
+Omit it for ordinary last-write-wins updates and serialize competing writes in your application.
+A read followed by an update does not provide atomic optimistic concurrency.
+The separate `upgradeSystemPrompt()` precondition still uses `409 config_version_changed`.
 
 ## A worked example
 

@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 577e7a301d0e2b3dd5f47789a5ab084c0b27d158d93f1668a4293d5879604e52
+source_hash: b833085ecf75f5d1cc90a20f7e2eff1f849fdef0402b554682b3ec140c06ef71
 ---
 
 # 错误与重试
@@ -137,7 +137,8 @@ if (e instanceof ZooworkError) {
 | `platform.runtime_credentials_unavailable` | 503 | runtime credential 依赖不可用，稍后重试。 |
 | `usage.access_denied` | 403 | 只查询 key Usage scope 内的数据。 |
 | `usage.snapshot_expired` | 409 | 发起新的 Usage 查询。 |
-| `usage.invalid_query` | 400 | 修正查询参数。 |
+| `usage.invalid_query` | 400 | 修正无效 timezone 等查询错误。 |
+| *可能缺失* | 422 | Usage 的参数校验可能返回 `detail` 数组，没有业务 error type，例如不支持的 range 或越界的 per_page。修正参数，不要原样重试。 |
 | `usage.busy` | 429 | 读取请求 backoff 后重试。 |
 | `usage.unavailable` | 503 | 稍后重试，不要把不完整响应当成零消耗。 |
 
@@ -151,7 +152,7 @@ if (e instanceof ZooworkError) {
 |---|---|---|
 | `listModels`、`getAgent`、`getSession`、`listEvents`、`listAgentSkills`，以及其余的 `list*` / `get*` 读操作 | **能** | 都是读。网络错误和 5xx 用指数退避重试。 |
 | `startAgent`、`stopAgent` | **先核对结果** | 成功回执可能带 warnings，但非 2xx 仍然抛错；stop 可能在 desired state 已写入后才失败。先 `getAgent` 对账，再决定是否重试。 |
-| `deleteAgent` | **能** | 软删除。重复调用都会成功。 |
+| `deleteAgent` | **先核对** | 首次成功为 204，重复删除返回 404。只有确认该 Agent 原本属于未变化的 key scope 时，才能把它作为清理完成处理；一般的 404 也可能表示资源无权访问。 |
 | `streamEvents` | **能** | 用最后一个事件的续传令牌重连——`{ cursor: ev.cursor }`。服务端续传日志；处理成功后再保存游标，应用副作用不因此获得 exactly-once 保证。**不要**用 `{ after: lastSeq }` 重连：那会切到废弃的 engine-only 通道，它会丢掉你自己发的 input 事件（`user.message`、`user.interrupt`、`user.tool_confirmation`、`user.custom_tool_result`、`system.message`）。 |
 | `createAgent`、`createSession` | **复用 key 与 body** | HTTP `Idempotency-Key` 的创建契约；不要每次重试都换 key。 |
 | `createSchedule` | **稳定 ID 与相同定义** | 同 `schedule_id`、同定义可收敛，不同定义冲突；不是靠 key 创建唯一性。 |
@@ -197,7 +198,7 @@ const second = (await zc.getAgent(agentId)).status?.config_version   // 6 - bump
 
 把它当成一个不透明的单调递增计数器。要判断一次超时的 `updateAgent()` 到底有没有落地，就把值从 `declared` 里读回来自己比对。
 
-`updateAgent()` 接受 `expected_config_version`。它与写入一起做原子检查，过期的正整数版本返回 `409 active_config_changed`。先读取当前状态，再决定是否重试。省略该字段时，仍按小节后写覆盖先写。
+production 的 `updateAgent()` 当前拒绝 `expected_config_version`，返回 `400 invalid_declared_key`。普通更新应省略该字段，并在应用中串行处理竞争写入。先读再写不是原子并发检查。独立的 `upgradeSystemPrompt()` 仍支持版本前置条件，冲突返回 `409 config_version_changed`。
 
 ## 一个完整示例
 

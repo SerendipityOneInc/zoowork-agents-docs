@@ -44,6 +44,11 @@ Choose the `model` alias from a selectable row and set it as `resource.model.pri
 | `expired_fallback_to` | Suggested replacement alias when supplied; read its catalog row before selecting it. |
 | `revision`, `default_for` | Catalog revision and default-category metadata when supplied. |
 
+`default_for` names Agent configuration slots, such as `model`, `imageModel`,
+`imageGenerationModel`, and `pdfModel`; fallback entries can include a `.fallbacks.N` suffix.
+It does not describe input modalities. For the primary chat default, look for `model`, not
+`text`. Read the current catalog rather than hardcoding which model occupies a slot.
+
 On `409 model_not_selectable`, refresh the catalog and select an available alias. Repeating the same create or update unchanged will not fix it.
 
 Use [Files and artifacts](../build/files.md) for supported input/output flows and [Usage](./usage.md) for consumption queries.

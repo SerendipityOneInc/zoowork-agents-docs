@@ -16,7 +16,7 @@ Available features depend on your key's resource scope, enabled tools, and servi
 | Reuse task instructions | [Skills](../build/skills.md) | Configure visible Skill assignments; registry publishing is not available through the public API. |
 | Customize the sandbox | [Environments](../build/environments.md), [Cloud reference](../build/cloud-sandbox-reference.md) | Environment management is not available to Platform keys. |
 | Generate and retrieve files | [Files and artifacts](../build/files.md) | Ask the Agent to create a file and publish it as an Artifact before downloading. |
-| Store structured data | [Agent Database](../build/data-storage.md) | Native database tools and the read-only viewer have different access and configuration requirements. |
+| Store structured data | [Agent Database](../build/data-storage.md) | Use the `agent_db` tool through Sessions; the production read-only viewer is unavailable. |
 | Save Agent memory | [Memory](../build/memory.md) | Tools must be enabled and available; no automatic recall on every new turn is promised. |
 | Continue or cancel work | [Session operations](../build/session-operations.md), [Events](../build/events.md) | A stream disconnection does not cancel the run. |
 | Receive server notifications | [Webhooks](../build/webhooks.md) | Service configuration and signature verification are required. |

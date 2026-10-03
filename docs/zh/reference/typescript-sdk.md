@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 流程使用的 TypeScript SDK 方法、类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 54984d74d262e2575ca3ab6c9e2e0b6112b2935e78ee739375fed2c170b295bc
+source_hash: f066c9fcb678135c5d6e47cfe641f16ec5087ed5a2c9d12c86f41be45d5f5b08
 ---
 
 # TypeScript SDK 参考
@@ -227,7 +227,7 @@ Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些�
 | `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | 读取一个定时任务，用的是 camelCase 的读取词表。使用公共 `schedule_id`；触发节奏从规范化的 projection 读取。 |
 | `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | 替换定义。要改触发节奏就发 `schedule`，绝不要把读到的 `scheduleSpec` 发回去——那个会返回 `200` 然后被静默忽略。SDK 会把六个被拒的字段全部剥掉，所以「读出来、改一改、再写回去」这套在 JavaScript 里也能成立。 |
 | `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | 删除一个定时任务。和 `updateSchedule` 一样，它不提供跨超时的幂等保证——超时之后靠列出来对账，不要盲目重试。 |
-| `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | 带外地立刻触发一次。不影响原来的节奏。 |
+| `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | 请求对已启用的 schedule 额外执行一次。disabled schedule 即使返回 `triggered: true` 也会被跳过；回执不是运行结果。 |
 | `listScheduleRuns(agentId, scheduleId, opts?)` | `Promise<ScheduleRun[]>` | 过去的触发记录，从新到旧。`limit` 默认 20，上限 100。行有两种形状——按 `source` 分支。 |
 | `wake(agentId, input)` | `Promise<WakeResult>` | 往 agent 的 heartbeat 队列里塞一条提醒。`next-heartbeat`（默认）只写入待处理记录；`now` 还会去踢 heartbeat 定时任务，没有启用 heartbeat 时返回 `409`。还有第三个选项 `deliverToUser: false`，让这条提醒只留在 agent 自己的推理里。`WakeResult` 是 `{ mode, queued, triggered }`；`triggered` 只在 `now` 模式下有意义，表示 heartbeat 到底有没有被踢起来。 |
 
@@ -315,7 +315,7 @@ console.log(selectable.length, selectable[0]?.model)
     "lifecycle_status": "active",
     "selectable": true,
     "revision": 3,
-    "default_for": ["text"]
+    "default_for": ["model"]
   }
 ]
 ```
@@ -466,7 +466,7 @@ console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - shal
 连这条规则都有例外，就是 `tool_policy` 和 `system_prompt`：任何点到它们的 PUT 都会整体替换。
 见[工具](../build/tools.md)。
 
-**配置写入会增加 `config_version`，即使值相同；仅修改 ownership 时不会。** 可选 `expected_config_version` 与写入一起原子检查，过期时返回 `409 active_config_changed`。
+**配置写入会增加 `config_version`，即使值相同；仅修改 ownership 时不会。** production 当前拒绝 `expected_config_version`，返回 `400 invalid_declared_key`。普通更新应省略该字段，应用应串行处理竞争写入；先读再写不是原子检查。
 见[错误处理](./errors.md)。
 
 PUT 请求体里出现 `skills`、`credentials` 以及未知字段，都返回 `400`。
@@ -479,7 +479,7 @@ PUT 请求体里出现 `skills`、`credentials` 以及未知字段，都返回 `
 deleteAgent(agentId: string): Promise<void>
 ```
 
-软删除该 agent，resolve 时不带任何值。重复调用会成功。删除之后，`getAgent()` 返回 `404 not_found`。
+软删除该 Agent，首次 204 成功时 resolve 不带值。公共 API 重复删除返回 404，处理条件见[错误与重试](./errors.md#what-is-safe-to-retry)。删除之后，`getAgent()` 返回 `404 not_found`。
 
 它**不会** 停止 agent、不会取消正在跑的 workflow、不会删除定时任务、也不会释放 sandbox——
 先停再删。见 [Agents](../build/agents.md)。
@@ -804,30 +804,28 @@ streamEvents(
 | `opts.after` | `number` | 废弃的 engine-only 通道的续传游标。只留给旧存量游标。 |
 | `opts.signal` | `AbortSignal` | 中止底层请求。当 signal 已经处于 aborted 状态时，生成器会安静返回，而不是抛错。 |
 
-一个产出 `SessionEvent` 的异步生成器。用 `for await` 消费它。
+一个产出 `SessionEvent` 的异步生成器。已有 Session 要传入保存的 cursor，只有新 Session 的第一轮才能省略。不带 cursor 会从开头重放旧答复和 `run.finished`。见[两轮对话示例](../build/events.md#streaming-a-turn)和[丢失 cursor 后的恢复限制](../build/events.md#existing-session-without-a-saved-cursor)。
 
 ```ts
 import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
 
-const ctl = new AbortController()
-const budget = setTimeout(() => ctl.abort(), 120_000)
-
-let text = ''
-let cursor: string | undefined
-let outcome: string | undefined
-
-for await (const ev of zc.streamEvents(agentId, sessionId, { signal: ctl.signal })) {
-  cursor = ev.cursor ?? cursor
-  text += assistantText(ev)
-  if (isRunFinished(ev)) {
-    outcome = runOutcome(ev)
-    break
+async function readReply(savedCursor?: string) {
+  const ctl = new AbortController()
+  const timeout = setTimeout(() => ctl.abort(), 120_000)
+  let text = ''
+  let cursor = savedCursor
+  try {
+    for await (const ev of zc.streamEvents(agentId, sessionId, { cursor, signal: ctl.signal })) {
+      text += assistantText(ev)
+      cursor = ev.cursor ?? cursor // Persist after processing with the Session ID.
+      if (isRunFinished(ev)) return { text, cursor, outcome: runOutcome(ev) }
+    }
+    throw new Error('Read ended before run.finished')
+  } finally {
+    clearTimeout(timeout)
+    ctl.abort()
   }
 }
-
-clearTimeout(budget)
-ctl.abort()
-console.log(outcome, text)
 ```
 
 四条值得知道的行为：
@@ -1216,7 +1214,7 @@ interface ToolCall {
 `agent.tool` 事件解码后的形态，由 `toolCall()` 返回。
 
 一次工具调用会产生**一串共享同一个 `toolCallId` 的事件，每个 phase 一个** ：`start` 带 `args`，
-`end` 带 `isError` 和 `resultPreview`，`blocked` 表示这次调用停在审批上、**还没有** 执行。
+`end` 带 `isError` 和 `resultPreview`。`blocked` 表示策略在执行前拒绝了调用，是该次调用的终态，后面不会再有 `end`。等待审批应读取 `agent.approval` 的 `requested`。
 按 `toolCallId` 配对——并发调用时，它们在流里**不相邻** 。一个工具失败不会让 run 失败：
 `isError: true` 不保证最后的 run 会 `succeeded`。模型可能恢复后成功，也可能失败；应检查最终 run status 和 termination。见[事件](../build/events.md)。
 
@@ -1539,9 +1537,9 @@ import {
 
 ## Developer API 方法
 
+SDK 中的数据库 viewer 方法在 production 当前不可用，因此不列入下面的可用方法。通过 Session 让 Agent 使用 `agent_db`；见 [Agent Database](../build/data-storage.md)。
+
 ```ts
-  getAgentDatabase(agentId: string): Promise<AgentDatabase>
-  getAgentDatabaseRows(agentId: string, tableName: string, opts?: { limit?: number; offset?: number }): Promise<AgentDatabaseRows>
   getUsage(opts?: UsageOptions): Promise<UsageResult>
   getRunOutput(agentId: string, sessionId: string, runId: string, opts?: CursorOptions): Promise<RunOutput>
   getApproval(agentId: string, approvalId: string): Promise<ApprovalRecord>

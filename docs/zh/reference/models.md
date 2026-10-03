@@ -1,7 +1,7 @@
 ---
 description: 从当前模型目录选择可用alias，并处理生命周期变化。
 source: /en/reference/models
-source_hash: 464b568dad3e25edb6f410f84e107b986af0dd8db75aa0ff63f32ffbc779b887
+source_hash: 2af2c22cbb518973272783a5d3e3834c29bfe7659381d6e0bf2eeb7974dcd5d4
 ---
 
 # Models
@@ -45,6 +45,8 @@ SDK 配置与 HTTP 示例使用的变量见 [Authentication](../get-started/auth
 | `lifecycle_status`、`expired_at`、`retired_at`、`retire_not_before` | 返回时表示生命周期元数据；保留未来可能出现的新状态值。 |
 | `expired_fallback_to` | 返回时表示建议的替代 alias，选择前仍需读取它的目录条目。 |
 | `revision`、`default_for` | 返回时表示目录版本及默认类别元数据。 |
+
+`default_for` 表示 Agent 配置槽位，例如 `model`、`imageModel`、`imageGenerationModel`、`pdfModel`；fallback 条目可能带 `.fallbacks.N` 后缀。它不表示输入类型。选择默认聊天模型时查找 `model`，不要查找 `text`。以当前 catalog 为准，不要固定某个槽位的模型名称。
 
 遇到 `409 model_not_selectable`，刷新目录并选择可用 alias。原样重试 create 或 update 无法解决这个问题。
 

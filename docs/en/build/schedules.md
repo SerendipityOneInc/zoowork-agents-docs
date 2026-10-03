@@ -15,8 +15,9 @@ the Agent before expecting it to execute scheduled work.
 
 ## Create a schedule
 
-This example creates a daily digest at 09:00 in Shanghai. It starts disabled so you can
-inspect and trigger it before enabling automatic firings:
+This example creates an enabled daily digest at 09:00 in Shanghai. Automatic firings are
+active immediately; a manual trigger adds an execution without changing that cadence.
+Choose the schedule and payload with that in mind.
 
 ::: code-group
 
@@ -27,7 +28,7 @@ await client.createSchedule(agentId, {
   schedule: { kind: 'cron', expr: '0 9 * * *', tz: 'Asia/Shanghai' },
   payload: { kind: 'agentTurn', message: 'Summarise yesterday and include source links.' },
   sessionTarget: 'isolated',
-  enabled: false,
+  enabled: true,
 })
 ```
 
@@ -38,7 +39,7 @@ await client.create_schedule(agent_id, {
     "schedule": {"kind": "cron", "expr": "0 9 * * *", "tz": "Asia/Shanghai"},
     "payload": {"kind": "agentTurn", "message": "Summarise yesterday and include source links."},
     "sessionTarget": "isolated",
-    "enabled": False,
+    "enabled": True,
 })
 ```
 
@@ -51,7 +52,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
     "schedule":{"kind":"cron","expr":"0 9 * * *","tz":"Asia/Shanghai"},
     "payload":{"kind":"agentTurn","message":"Summarise yesterday and include source links."},
     "sessionTarget":"isolated",
-    "enabled":false
+    "enabled":true
   }'
 ```
 
@@ -63,7 +64,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
 | `schedule` | Cadence. This example uses `kind: "cron"`, a cron `expr`, and an IANA `tz`. |
 | `payload` | Work to dispatch. `agentTurn` uses a non-empty `message`. |
 | `sessionTarget` | `isolated` creates a fresh session per firing. Omission has the same default. |
-| `enabled` | Controls automatic firings. It does not report the result of a run. |
+| `enabled` | Must be true for automatic and manual executions. It does not report a run result. |
 
 The 201 receipt includes the public `schedule_id`. An older `schedule_name` field is retained
 for compatibility; use `schedule_id` when addressing the endpoints below. Read the saved
@@ -107,7 +108,8 @@ Read responses use a different vocabulary from create requests. They include the
 `schedule_id` alongside compatibility fields. Change the cadence through `schedule`, not by
 copying a read response's `scheduleSpec` back into an update.
 
-Trigger a manual firing without changing the cadence:
+Trigger a manual firing of the enabled schedule without changing the cadence. If you paused
+the schedule, [enable it](#enable-pause-and-delete) first; doing so also activates automatic firings:
 
 ::: code-group
 
@@ -126,8 +128,10 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID/trigger"
 
 :::
 
-The trigger receipt reports whether dispatch was requested. It does not contain the Agent's
-answer. Inspect recent firings next:
+The trigger receipt acknowledges a request, not execution or completion. A disabled schedule
+can return `triggered: true` and then be skipped with `schedule.skipped` / `reason: "disabled"`.
+Do not use a disabled schedule as a manual-only test mode. Its run list can also lack `status`
+and `session_id`; missing fields are not evidence of success. Inspect recent firings next:
 
 ::: code-group
 
@@ -155,7 +159,7 @@ and later failed.
 
 ## Enable, pause, and delete
 
-After checking the manual result, enable automatic firings:
+To resume a paused schedule, enable it before a manual trigger. This also enables automatic firings:
 
 ::: code-group
 
@@ -176,7 +180,7 @@ curl -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 
 :::
 
-Use the same update with `enabled:false` to pause future automatic firings. Pausing does not
+Use the same update with `enabled:false` to pause future executions, including manual triggers. Pausing does not
 cancel work already dispatched; use a [session interrupt](./events.md#user-interrupt) when
 you also need to stop its current run.
 

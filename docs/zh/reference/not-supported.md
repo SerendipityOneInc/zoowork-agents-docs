@@ -1,7 +1,7 @@
 ---
 description: 核对当前公共API边界，为secrets、集成、budget和self-hosting选择已有方案。
 source: /en/reference/not-supported
-source_hash: 0b30d55e5aec104f8429e52e8ea5976454fd67ab671efdfe1152dd77c2356858
+source_hash: 909053db1112dc0f0c74b48d92fe62d16a10eef97bd625f749340c317f0fb90a
 ---
 
 # 当前公共 API 边界
@@ -10,6 +10,8 @@ source_hash: 0b30d55e5aec104f8429e52e8ea5976454fd67ab671efdfe1152dd77c2356858
 
 | 能力 | 当前边界 | 替代方案 |
 |---|---|---|
+| Agent Database viewer | production 不提供直接读取 catalog 和 table rows 的流程，SDK 方法存在不代表可用。 | 让 Agent 使用 `agent_db` 查询，并返回结果或发布 [Artifact](../build/data-storage.md)。 |
+| Agent 配置原子更新 | production 的 Agent 更新拒绝 `expected_config_version`。 | 省略该字段，在后端串行写入，并[读回配置核对](../build/agents.md)。 |
 | 自定义 Environment 管理 | Platform API key 不开放自定义 Environment 创建、镜像构建和版本管理。 | 使用[默认托管 Environment](../build/environments.md)。 |
 | 原生聊天渠道管理 | Platform API key 不开放聊天渠道配置和管理。 | 在后端对接聊天平台，再通过 [API Session](../build/channels.md)转发消息。 |
 | Skill registry 发布 | 公共 API 不开放 registry 上传、版本发布和删除。 | 配置[可见的 Skill assignment](../build/skills.md)，或在 Agent persona 文档中维护应用指令。 |

@@ -1,7 +1,7 @@
 ---
 description: 配置async Python SDK，管理client生命周期，并使用Agent、Session和event核心方法。
 source: /en/reference/python-sdk
-source_hash: 087eab517d2926f9ce11d8132c788328ba5927d96d52287908e3b2dc41739ea3
+source_hash: 16c846181c0ade3bd61e868b6928b1c648aa9d554aec6dcc90a9803a7d5bee62
 ---
 
 # Python SDK
@@ -90,12 +90,12 @@ SDK 不会自动重试业务操作。幂等和重试前读取核对的规则见[
 - [Sessions](../build/sessions.md) 与 [Events](../build/events.md)：继续对话、取消、保存历史及 streaming。
 - [文件与产物](../build/files.md)：Agent 文件创建和已发布输出的获取。
 - [Schedules](../build/schedules.md)：周期任务及受支持的 Outcome evaluation。
-- [Package guide](https://github.com/SerendipityOneInc/zoowork-sdk-python)：其他 package 接口。
+- [PyPI package](https://pypi.org/project/zoowork/)：安装与发布文件。
 
 ## Developer API 方法
 
-- `get_agent_database(agent_id: str)`
-- `get_agent_database_rows(agent_id: str, table_name: str, *, limit: int | None=None, offset: int | None=None)`
+已安装 package 中的数据库 viewer 方法在 production 当前不可用。可用的工具流程见 [Agent Database](../build/data-storage.md)。
+
 - `get_usage(*, range: Literal['24h', '7d', '30d'] | None=None, timezone: str | None=None, group_by: Literal['session', 'api_key'] | None=None, view: Literal['groups', 'records', 'both'] | None=None, session_id: str | None=None, api_key_id: str | None=None, root_session_id: str | None=None, attribution: Literal['exact', 'shared', 'non_api', 'unattributed'] | None=None, page: int | None=None, per_page: int | None=None, as_of: str | None=None, snapshot: str | None=None, cursor: str | None=None)`
 - `get_run_output(agent_id: str, session_id: str, run_id: str, *, cursor: str | None=None, limit: int | None=None)`
 - `get_approval(agent_id: str, approval_id: str)`

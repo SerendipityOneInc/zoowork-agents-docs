@@ -88,12 +88,12 @@ Omitted `secret` reads `ZOOWORK_WEBHOOK_SECRET`; explicit secrets can be a strin
 - [Sessions](../build/sessions.md) and [Events](../build/events.md): continuation, cancellation, saved history, and streaming.
 - [Files and artifacts](../build/files.md): Agent file creation and published output retrieval.
 - [Schedules](../build/schedules.md): recurring tasks and supported Outcome evaluation.
-- [Package guide](https://github.com/SerendipityOneInc/zoowork-sdk-python): additional package interfaces.
+- [PyPI package](https://pypi.org/project/zoowork/): installation and release files.
 
 ## Developer API methods
 
-- `get_agent_database(agent_id: str)`
-- `get_agent_database_rows(agent_id: str, table_name: str, *, limit: int | None=None, offset: int | None=None)`
+Database viewer methods in the installed package are unavailable in production. See [Agent Database](../build/data-storage.md) for the supported tool flow.
+
 - `get_usage(*, range: Literal['24h', '7d', '30d'] | None=None, timezone: str | None=None, group_by: Literal['session', 'api_key'] | None=None, view: Literal['groups', 'records', 'both'] | None=None, session_id: str | None=None, api_key_id: str | None=None, root_session_id: str | None=None, attribution: Literal['exact', 'shared', 'non_api', 'unattributed'] | None=None, page: int | None=None, per_page: int | None=None, as_of: str | None=None, snapshot: str | None=None, cursor: str | None=None)`
 - `get_run_output(agent_id: str, session_id: str, run_id: str, *, cursor: str | None=None, limit: int | None=None)`
 - `get_approval(agent_id: str, approval_id: str)`

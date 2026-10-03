@@ -1,12 +1,12 @@
 ---
-description: Use the agent_db tool for agent-owned structured data and inspect its tables through the public API.
+description: Use the agent_db tool for Agent-owned structured data; direct database inspection is unavailable in production.
 ---
 
 # Agent Database
 
 Agent Database gives an Agent its own managed libSQL database. The Agent uses `agent_db`
-to create tables, write rows, and query them during a task. Your application can inspect
-existing tables through a read-only public API.
+to create tables, write rows, and query them during a task. Ask the Agent to query its data
+and return the result in a Session response or publish a report as an Artifact.
 
 The database belongs to the Agent across its sessions. A new Session or `actor.ref` does not
 create a separate database. Use [an Agent per user](./per-user-agents.md) when users must not
@@ -16,8 +16,8 @@ share agent-owned data.
 
 These examples reuse the SDK client and running Agent from [Quickstart](../get-started/quickstart.md). For curl, use the environment variables from [Authentication](../get-started/authentication.md).
 
-The deployment must provide the `agent_db` tool and the database viewer; they can be
-available independently. The Agent's tool policy must allow `agent_db`. Complete
+The Agent's tool policy must allow `agent_db`. The production database viewer is unavailable,
+independently of this working tool. Complete
 [Quickstart](../get-started/quickstart.md), then reuse its running Agent and API Session.
 
 Run the following blocks in Bash on your backend, with curl 7.76+ and jq 1.6+. The key must
@@ -42,7 +42,7 @@ Send a task that explicitly selects Agent Database:
 ::: code-group
 
 ```ts [TypeScript]
-const receipt = await zc.postEvents(agentId, sessionId, [
+const receipt = await client.postEvents(agentId, sessionId, [
   {
     "type": "user.message",
     "content": "Use agent_db to create a sales table with month TEXT PRIMARY KEY and amount INTEGER NOT NULL. Insert or replace January=100, February=120, and March=80 using SQL parameters, then query the total. Use Agent Database, not a workspace SQLite file.",
@@ -80,8 +80,9 @@ curl -sS --fail-with-body \
 
 :::
 
-Check the receipt's `events[0].accepted`, then read the [event stream](./events.md#streaming-a-turn)
-until `run.finished`. Inspect the `agent_db` results for the table, rows, and total.
+Check `receipt.events[0].accepted` in TypeScript or `receipt[0]["accepted"]` in Python,
+then read the [event stream](./events.md#streaming-a-turn) from the last processed cursor
+for this existing Session until the new turn's `run.finished`. Inspect the `agent_db` results for the table, rows, and total.
 An accepted message alone does not prove that the tool ran or provisioned a database.
 
 For example, after creating the table, the Agent can insert a row with these tool arguments:
@@ -93,43 +94,16 @@ For example, after creating the table, the Agent can insert a row with these too
 This is a tool input, not a public SQL request body. Schema initialization and data changes
 are performed through the Agent's tool calls.
 
-### Inspect existing tables
+### Database viewer availability
 
-Read the Agent's database catalog:
+The production database viewer is unavailable. Its catalog and table-row requests return
+404 even when `agent_db` has created data successfully. The published SDK contains viewer
+methods, but they are not a supported production integration path. Changing pagination or
+creating another table does not enable the viewer.
 
-```bash
-curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/database" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
-```
-
-A ready response contains `status: "ready"` and `tables`, with each table's `name` and `kind`.
-If no database has been provisioned, the response is:
-
-```json
-{"status":"not_provisioned"}
-```
-
-The viewer does not provision a database. If viewer support is unavailable, the request can
-return `404`. First check that the same key can read the Agent before interpreting that
-response as a database availability result.
-
-Once `sales` exists, read its rows:
-
-```bash
-curl -sS --fail-with-body --get \
-  "$ZOOWORK_BASE_URL/agents/$AGENT_ID/database/tables/sales/rows" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  --data-urlencode 'limit=20' \
-  --data-urlencode 'offset=0'
-```
-
-The response contains `status`, `table`, `schema`, `columns`, `rows`, `limit`, and `offset`.
-`limit` defaults to 100 and accepts integers from 1 through 100. `offset` defaults to 0
-and must be a non-negative integer. An unknown table returns `404`; invalid pagination
-returns `400`; a database removed during inspection can return `409 database_unavailable`.
-
-These endpoints are read-only and do not expose arbitrary SQL execution or writes.
-Use `getAgentDatabase()` / `get_agent_database()` and table-row helpers, or HTTP.
+To inspect data now, ask the Agent to query it with `agent_db` and return the result through
+[Session events](./events.md), or create and publish a report through [Artifacts](./files.md).
+These are Agent-mediated results, not a direct database query API for your application.
 
 ## Other data sources
 
@@ -143,21 +117,3 @@ Agent Database stores structured rows; it does not create a managed document ind
 API. Connect an existing application database or retrieval service through
 [custom tools](./tools.md#application-executed-custom-tools) or [MCP](./mcp.md).
 See [Retrieval and data connections](./retrieval.md) for that integration pattern.
-
-## SDK calls
-
-::: code-group
-
-```ts [TypeScript]
-const catalog = await zc.getAgentDatabase(agentId)
-const page = await zc.getAgentDatabaseRows(agentId, 'results', { limit: 100, offset: 0 })
-```
-
-```python [Python]
-catalog = await client.get_agent_database(agent_id)
-page = await client.get_agent_database_rows(agent_id, "results", limit=100, offset=0)
-```
-
-:::
-
-These read-only helpers never provision a missing database. Preserve `status: "not_provisioned"` and unknown fields.

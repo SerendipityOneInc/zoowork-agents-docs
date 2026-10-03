@@ -2,7 +2,7 @@
 title: 权限策略
 description: 配置工具审批、MCP 默认策略、逐次确认，以及 pending approval 的处理。
 source: /en/build/permissions
-source_hash: 9055af066f027ee44fa97db60978014ace9b61ac07f92c7ff10220cce11ac4d4
+source_hash: 84e1f73b0b1dfb471423dadc005b9f7339af7e4639e381ec147017b83e63af95
 ---
 
 # 权限策略
@@ -197,7 +197,7 @@ JSON
 
 ## 处理 pending approval
 
-等待审批的工具调用会产生一个 `phase: 'blocked'` 的 `agent.tool` 事件。
+等待审批时产生的是 `agent.approval`，其 `phase` 为 `requested`。用 `approvalId` 和 `toolCallId` 关联待审批状态，在 `resolved` 时清除等待标记，再继续观察工具和 run 的结果。`agent.tool: blocked` 表示策略拒绝，是该次工具调用的终态，不是等待审批的信号。
 列出 pending approvals，向有权审批的用户展示工具和参数，再让用户选择调用和 decision。
 下面的 `requestApprovalDecision()` 是你的应用 UI 函数，不是 SDK 方法。
 它返回 `approvalId` 和 `allow-once`、`allow-always`、`deny` 之一。
@@ -386,4 +386,4 @@ Agent 发出 `agent.custom_tool_use` 后，应用先决定是否执行实际操�
 
 - [MCP Server](./mcp.md)——连接和选择远程工具。
 - [工具](./tools.md)——配置内置工具和应用执行的工具。
-- [事件与流式](./events.md)——跟踪 blocked 调用和回合结束。
+- [事件与流式](./events.md)——跟踪审批请求、工具结果和回合结束。
