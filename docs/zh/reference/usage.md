@@ -1,7 +1,7 @@
 ---
 description: 通过公共HTTP API查询Usage，理解key scope、筛选与分页。
 source: /en/reference/usage
-source_hash: 7d100ed3a86b88b1b44c27faeaa5e842f768ab9a7e847ca810909f6ee163d3e3
+source_hash: d2316a560e91e298a1d411709996b95aed1abd5ac8e9a4a07b19f3fa7609c864
 ---
 
 # Usage
@@ -59,8 +59,6 @@ Platform key 只能读取归属于自身的 Usage。省略 `api_key_id` 就查�
 认证失败和安全重试规则见[错误与重试](./errors.md)。定时工作见 [Schedules](../build/schedules.md)，run 状态见 [Session 操作](../build/session-operations.md)。它们都不提供服务端强制执行的花费上限。
 
 ## SDK 调用
-
-以下示例要求安装包含该方法的 SDK release。先检查已安装的 exports；缺少方法时使用本页 HTTP 示例。
 
 ::: code-group
 

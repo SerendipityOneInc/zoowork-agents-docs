@@ -1,12 +1,14 @@
 ---
 description: 配置async Python SDK，管理client生命周期，并使用Agent、Session和event核心方法。
 source: /en/reference/python-sdk
-source_hash: ef21989756e2617187e15e7a0a474a275ae632bdaddecc321c52c79d938d0b9b
+source_hash: 087eab517d2926f9ce11d8132c788328ba5927d96d52287908e3b2dc41739ea3
 ---
 
 # Python SDK
 
 `zoowork` 是 ZooWork 公共 API 的 async Python client，要求 Python 3.10+。request 和 response 字段保留 API 拼写；Python 方法名和 keyword argument 使用 `snake_case`。
+
+本参考适用于 Python SDK **0.5.0+**。
 
 ```bash
 python -m pip install zoowork
@@ -76,7 +78,7 @@ SDK 不会自动重试业务操作。幂等和重试前读取核对的规则见[
 
 ## Webhook 接收 helpers
 
-`zoowork` **0.4.0+** 导出同步的 `verify_webhook_signature` 和 `unwrap_webhook`。keyword arguments 包括 `headers`、`raw_body` 和可选的 `secret`、`now`、`tolerance_seconds`、`max_body_bytes`。保留原始 body bytes。`now` 和签名 timestamp 使用 Unix **秒**；默认 tolerance 为 300 秒，body limit 为 16 KiB。
+`zoowork` 导出同步的 `verify_webhook_signature` 和 `unwrap_webhook`。keyword arguments 包括 `headers`、`raw_body` 和可选的 `secret`、`now`、`tolerance_seconds`、`max_body_bytes`。保留原始 body bytes。`now` 和签名 timestamp 使用 Unix **秒**；默认 tolerance 为 300 秒，body limit 为 16 KiB。
 
 `verify_webhook_signature(...)` 返回 `(event_id, timestamp)`。`unwrap_webhook(...)` 返回 `WebhookEvent`，包含已校验的基础 envelope 和 data mapping。未知 event type 和 data field 会保留，任意未知顶层字段不会保留。应用仍需验证 event-specific data；helper 不检查 body `id` 是否等于 `webhook-id`。验证失败会抛 `WebhookSignatureError`。
 
@@ -91,8 +93,6 @@ SDK 不会自动重试业务操作。幂等和重试前读取核对的规则见[
 - [Package guide](https://github.com/SerendipityOneInc/zoowork-sdk-python)：其他 package 接口。
 
 ## Developer API 方法
-
-使用这些新增方法前检查已安装 SDK source；缺少方法时使用文档中的 HTTP。
 
 - `get_agent_database(agent_id: str)`
 - `get_agent_database_rows(agent_id: str, table_name: str, *, limit: int | None=None, offset: int | None=None)`

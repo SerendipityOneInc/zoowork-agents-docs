@@ -19,6 +19,8 @@ This guide uses the default model and managed sandbox. No separate Environment i
 
 ## Prerequisites
 
+The SDK examples in this documentation use TypeScript SDK **0.10.0+** and Python SDK **0.5.0+**.
+
 - An API key and a funded organization balance. Follow [Authentication and API keys](./authentication.md) to create the key and add funds in ZooWork Platform.
 - **TypeScript:** Node.js **22.20+** and npm.
 - **Python:** Python **3.10+** and pip.

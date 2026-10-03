@@ -6,6 +6,8 @@ description: Configure the async Python SDK, manage its client lifetime, and use
 
 The `zoowork` package is an async Python client for the public ZooWork API. Use Python 3.10 or later. Request and response fields retain their API spelling; Python method names and keyword arguments use `snake_case`.
 
+This reference applies to Python SDK **0.5.0+**.
+
 ```bash
 python -m pip install zoowork
 ```
@@ -74,7 +76,7 @@ The SDK does not automatically retry business operations. Follow [Errors and ret
 
 ## Webhook receiving helpers
 
-`zoowork` **0.4.0+** exports synchronous `verify_webhook_signature` and `unwrap_webhook` helpers. They receive keyword arguments `headers`, `raw_body`, and optional `secret`, `now`, `tolerance_seconds`, and `max_body_bytes`. Preserve the original body bytes. `now` and signed timestamps use Unix **seconds**; the default tolerance is 300 seconds and the body limit is 16 KiB.
+`zoowork` exports synchronous `verify_webhook_signature` and `unwrap_webhook` helpers. They receive keyword arguments `headers`, `raw_body`, and optional `secret`, `now`, `tolerance_seconds`, and `max_body_bytes`. Preserve the original body bytes. `now` and signed timestamps use Unix **seconds**; the default tolerance is 300 seconds and the body limit is 16 KiB.
 
 `verify_webhook_signature(...)` returns `(event_id, timestamp)`. `unwrap_webhook(...)` returns a `WebhookEvent` with the verified base envelope and its data mapping. Unknown event types and data fields are retained, but arbitrary unknown top-level fields are not. Validate event-specific data yourself; the helper does not assert that body `id` equals `webhook-id`. Verification failures raise `WebhookSignatureError`.
 
@@ -89,8 +91,6 @@ Omitted `secret` reads `ZOOWORK_WEBHOOK_SECRET`; explicit secrets can be a strin
 - [Package guide](https://github.com/SerendipityOneInc/zoowork-sdk-python): additional package interfaces.
 
 ## Developer API methods
-
-Check installed SDK source before using these additive helpers; use documented HTTP when a method is absent.
 
 - `get_agent_database(agent_id: str)`
 - `get_agent_database_rows(agent_id: str, table_name: str, *, limit: int | None=None, offset: int | None=None)`
