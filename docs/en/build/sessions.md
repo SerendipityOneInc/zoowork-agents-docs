@@ -278,7 +278,7 @@ or archive and delete them.
 ::: code-group
 
 ```ts [TypeScript]
-const session = await zc.createSession(agentId, { runtime_mode: 'active', idle_compaction: false })
+const session = await client.createSession(agentId, { runtime_mode: 'active', idle_compaction: false })
 ```
 
 ```python [Python]

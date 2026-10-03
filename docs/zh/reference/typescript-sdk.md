@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 流程使用的 TypeScript SDK 方法、类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 8cb1ae9f8f7f6cac4151fbc55d7bd4960d9c74dd39a4dd0433357df6996de0d2
+source_hash: 504bb94fc2ecc77da695f384b4b9230c0c5ca99a8d04e921b930b276e4a12c62
 ---
 
 # TypeScript SDK 参考
@@ -44,7 +44,7 @@ npm install @zoowork-ai/sdk
 用它来绑定某个运行时特有的 fetch、加埋点，或者在测试里返回预置响应。
 
 ```ts
-const zc = createZooworkClient({
+const client = createZooworkClient({
   apiKey: process.env.ZOOWORK_API_KEY,
   fetch: async (input, init) => {
     const started = Date.now()
@@ -71,7 +71,7 @@ function createZooworkClient(cfg?: ZooworkConfig): ZooworkClient
 ```ts
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 客户端很轻。一个进程建一个，然后共用。
@@ -236,7 +236,7 @@ Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些�
 `schedule` 是触发节奏。本例使用 `payload.kind: 'agentTurn'`。管理 HTTP parser 还接受 `systemEvent` 和 `command`，但执行方式及调用方限制不同。按 [Schedules](../build/schedules.md) 使用，不要把三种 kind 视为可互换。
 
 ```ts
-await zc.createSchedule(agentId, {
+await client.createSchedule(agentId, {
   schedule_id: 'daily-digest',
   schedule: { kind: 'cron', expr: '0 9 * * *', tz: 'Asia/Shanghai' },
   payload: { kind: 'agentTurn', message: 'Summarise yesterday.' },
@@ -285,7 +285,7 @@ Platform key 不能调用根 `/environments` 路由，这些方法返回 404。A
 ```ts
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 ---
@@ -300,7 +300,7 @@ listModels(): Promise<ModelInfo[]>
 交给你的永远是一个数组。
 
 ```ts
-const models = await zc.listModels()
+const models = await client.listModels()
 const selectable = models.filter((model) => model.selectable !== false)
 console.log(selectable.length, selectable[0]?.model)
 ```
@@ -343,7 +343,7 @@ createAgent(
 `resolved_skills`。它不带 `declared`，也不带 `status`。
 
 ```ts
-const created = await zc.createAgent(
+const created = await client.createAgent(
   {
     resource: {
       name: 'research-agent',
@@ -390,14 +390,14 @@ interface AgentPagePromise extends Promise<AgentPage>, AsyncIterable<AgentRecord
 已经获取的分页对象也支持异步迭代和 `iterPages()`。
 
 ```ts
-const page = await zc.listAgents({ labels: { app: 'support' } })
+const page = await client.listAgents({ labels: { app: 'support' } })
 console.log(page.data, page.total, page.next_page)
 if (page.hasNextPage()) {
   const next = await page.getNextPage()
   console.log(next.data)
 }
 
-for await (const agent of zc.listAgents({ labels: { app: 'support' } })) {
+for await (const agent of client.listAgents({ labels: { app: 'support' } })) {
   console.log(agent.agent_id)
 }
 ```
@@ -408,8 +408,8 @@ for await (const agent of zc.listAgents({ labels: { app: 'support' } })) {
 HTTP 失败、分页信息无效或响应页码未前进都会使操作抛错。并发新增或删除可能使页面内容移动；
 遍历不提供快照保证。
 
-**迁移：**只读一页时，将 `const agents = await zc.listAgents(opts)` 改成
-`const { data: agents } = await zc.listAgents(opts)`。读取所有匹配项则使用 `for await`。
+**迁移：**只读一页时，将 `const agents = await client.listAgents(opts)` 改成
+`const { data: agents } = await client.listAgents(opts)`。读取所有匹配项则使用 `for await`。
 完整示例见[列出你的 agent](../build/agents.md#列出你的-agent)。
 
 ---
@@ -424,7 +424,7 @@ getAgent(agentId: string): Promise<AgentRecord>
 没有顶层的 `config_version`，也没有顶层的 `name`。
 
 ```ts
-const agent = await zc.getAgent(agentId)
+const agent = await client.getAgent(agentId)
 
 console.log(agent.declared?.name)            // 'research-agent'
 console.log(agent.status?.desired_state)     // 'running'
@@ -457,7 +457,7 @@ PUT 你点名的那些 declared section，返回读取投影。
 例如已有 labels 为 `{ tier: 'free', region: 'apac' }`，只更新 tier 会保留 region。
 
 ```ts
-const updated = await zc.updateAgent(agentId, { labels: { tier: 'paid' } })
+const updated = await client.updateAgent(agentId, { labels: { tier: 'paid' } })
 
 console.log(updated.declared?.name)   // unchanged - `name` was not in the body
 console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - shallow merge
@@ -495,7 +495,7 @@ startAgent(agentId: string): Promise<{ warnings: string[] }>
 把 `desired_state` 翻成 `running`。这是 `createSession()` 和 `postEvents()` 的前置条件。
 
 ```ts
-const { warnings } = await zc.startAgent(agentId)
+const { warnings } = await client.startAgent(agentId)
 console.log(warnings)
 // [] 或后续处理的提示信息
 ```
@@ -507,7 +507,7 @@ console.log(warnings)
 就是一个方法——不要自己写这个循环：
 
 ```ts
-const agent = await zc.waitUntilRunning(agentId)
+const agent = await client.waitUntilRunning(agentId)
 console.log(agent.status?.desired_state) // 'running'
 ```
 
@@ -540,7 +540,7 @@ stopAgent(agentId: string): Promise<{ warnings: string[] }>
 `createSession()` 返回 `409 agent_not_running`。
 
 ```ts
-const { warnings } = await zc.stopAgent(agentId)
+const { warnings } = await client.stopAgent(agentId)
 ```
 
 stop 请求可能先写入 desired state，后续步骤才失败。超时或 HTTP 错误后，先用 `getAgent()` 读取状态，再决定是否重试。不能把失败回执当成状态完全没变。
@@ -560,7 +560,7 @@ listAgentSkills(agentId: string, opts?: { verbose?: boolean }): Promise<AgentSki
 返回已解析并合并到这个 Agent 上的 Skills。SDK 会自动拆开 `{ skills: [...] }` 响应信封。
 
 ```ts
-const skills = await zc.listAgentSkills(agentId)
+const skills = await client.listAgentSkills(agentId)
 console.log(skills.length, skills.map((s) => s.name).slice(0, 5))
 ```
 
@@ -584,7 +584,7 @@ putAgentSkill(
 | `opts.versionPin` | `number \| null` | `null` | 在请求体里作为 `version_pin` 发送。 |
 
 ```ts
-const { config_version } = await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true })
+const { config_version } = await client.putAgentSkill(agentId, 'skl_yourown', { enabled: true })
 ```
 
 Skill 必须在 key 的可见范围内：global Skill、同组织的组织级 Skill、同组织且同 named Project 的 Project Skill，或者 owner 匹配且 org 为空或相同的 personal Skill。未知或不可访问的 ID 返回 404。Registry 内容管理是另一项操作，在支持的部署上按 key 对应的写权限执行。
@@ -602,7 +602,7 @@ deleteAgentSkill(agentId: string, skillId: string): Promise<void>
 删除显式 assignment，resolve 时不带任何值。可见范围检查和 `putAgentSkill()` 相同。删除 global Skill 的 assignment 会恢复它的默认行为，不会从 global catalog 删除 Skill。需要排除它时，设置 `enabled: false` 的 assignment。
 
 ```ts
-await zc.deleteAgentSkill(agentId, 'skl_yourown')
+await client.deleteAgentSkill(agentId, 'skl_yourown')
 ```
 
 ---
@@ -624,7 +624,7 @@ createSession(
 | `idempotencyKey` | `string` | 作为 `Idempotency-Key` 头发送。 |
 
 ```ts
-const session = await zc.createSession(
+const session = await client.createSession(
   agentId,
   {
     initial_events: [{ type: 'user.message', content: 'Summarize this brief.' }],
@@ -667,7 +667,7 @@ getSession(
 ```ts
 import { messageText } from '@zoowork-ai/sdk'
 
-const s = await zc.getSession(agentId, sessionId, { history: true, limit: 20 })
+const s = await client.getSession(agentId, sessionId, { history: true, limit: 20 })
 
 console.log(s.run_status)  // 'succeeded'  <- 最近一次 run 的状态
 console.log(s.status)      // null         <- 旧字段
@@ -699,7 +699,7 @@ postEvents(
 `resolveCustomToolCall()` 的事件形式替代方案；见[工具](../build/tools.md#应用执行的自定义工具)。
 
 ```ts
-await zc.postEvents(agentId, sessionId, [
+await client.postEvents(agentId, sessionId, [
   { type: 'user.message', content: 'What is my display name?' },
 ])
 ```
@@ -710,7 +710,7 @@ await zc.postEvents(agentId, sessionId, [
 `run.finished` 结束，其 `payload.status` 是 `aborted`。
 
 ```ts
-const r = await zc.postEvents(agentId, sessionId, [{ type: 'user.interrupt' }])
+const r = await client.postEvents(agentId, sessionId, [{ type: 'user.interrupt' }])
 console.log(r.events[0]?.accepted)
 ```
 
@@ -744,7 +744,7 @@ listEvents(
 每一条都会过一遍 `normalizeEvent()`，所以 REST 和 SSE 交给你的是完全相同的 `SessionEvent` 形状。
 
 ```ts
-const events = await zc.listEvents(agentId, sessionId, { types: ['user.message', 'agent.assistant'] })
+const events = await client.listEvents(agentId, sessionId, { types: ['user.message', 'agent.assistant'] })
 ```
 
 ::: warning 一次调用只返回一页
@@ -765,7 +765,7 @@ listEventsPage(
 `listAllEvents` 跟着服务端的 `next_cursor` 一直走到 `has_more` 为 false，对没有游标分页的服务端回落到走 `after`：
 
 ```ts
-const all = await zc.listAllEvents(agentId, sessionId)
+const all = await client.listAllEvents(agentId, sessionId)
 ```
 
 ```ts
@@ -815,7 +815,7 @@ async function readReply(savedCursor?: string) {
   let text = ''
   let cursor = savedCursor
   try {
-    for await (const ev of zc.streamEvents(agentId, sessionId, { cursor, signal: ctl.signal })) {
+    for await (const ev of client.streamEvents(agentId, sessionId, { cursor, signal: ctl.signal })) {
       text += assistantText(ev)
       cursor = ev.cursor ?? cursor // Persist after processing with the Session ID.
       if (isRunFinished(ev)) return { text, cursor, outcome: runOutcome(ev) }
@@ -1227,7 +1227,7 @@ interface ToolCall {
 ```ts
 import type { ZooworkClient } from '@zoowork-ai/sdk'
 
-async function reply(zc: ZooworkClient, agentId: string, text: string) { /* ... */ }
+async function reply(client: ZooworkClient, agentId: string, text: string) { /* ... */ }
 ```
 
 ### `ZooworkError`
@@ -1275,7 +1275,7 @@ content 回来时就是这种形态。
 ```ts
 import { messageText } from '@zoowork-ai/sdk'
 
-const s = await zc.getSession(agentId, sessionId, { history: true })
+const s = await client.getSession(agentId, sessionId, { history: true })
 for (const row of s.history ?? []) {
   if (row.entry_type === 'message') console.log(messageText(row.entry.message))
 }

@@ -1,7 +1,7 @@
 ---
 description: 通过公共HTTP API查询Usage，理解key scope、筛选与分页。
 source: /en/reference/usage
-source_hash: e996abd86cd76ba43d7f8b1662161125f3cc1db187e80a4b02d64baef35b6da0
+source_hash: 1f77b4e7bfac34b583cd8be671f3250edec6fce51777a0ece78662584f6f1886
 ---
 
 # Usage
@@ -70,7 +70,7 @@ Project key 的 Usage 只包含所选时间范围内归属于该 key 的消耗�
 ::: code-group
 
 ```ts [TypeScript]
-const usage = await zc.getUsage({ range: '7d', groupBy: 'session', view: 'both', perPage: 50 })
+const usage = await client.getUsage({ range: '7d', groupBy: 'session', view: 'both', perPage: 50 })
 ```
 
 ```python [Python]

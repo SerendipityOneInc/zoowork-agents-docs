@@ -303,12 +303,12 @@ Caller-supplied organization, owner, or project query parameters never widen key
 ::: code-group
 
 ```ts [TypeScript]
-const created = await zc.createAgentWebhook(agentId, {
+const created = await client.createAgentWebhook(agentId, {
   url: 'https://receiver.example/webhook', event_types: ['run.finished'],
 }, 'register-hook-v1')
-const page = await zc.listAgentWebhooks(agentId) // page.webhooks
-const receipt = await zc.testAgentWebhook(agentId, created.endpoint.id, 'test-hook-v1')
-const deliveries = await zc.listAgentWebhookDeliveries(agentId, created.endpoint.id, { eventType: 'webhook.test' })
+const page = await client.listAgentWebhooks(agentId) // page.webhooks
+const receipt = await client.testAgentWebhook(agentId, created.endpoint.id, 'test-hook-v1')
+const deliveries = await client.listAgentWebhookDeliveries(agentId, created.endpoint.id, { eventType: 'webhook.test' })
 ```
 
 ```python [Python]

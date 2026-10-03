@@ -2,7 +2,7 @@
 title: 工具
 description: 配置内置工具和由应用执行的工具，并观察调用结果。
 source: /en/build/tools
-source_hash: 0b3f24fe33f296e6c487fe31e08aab2c524e309a001a7ee75351a3a43490b4f0
+source_hash: edc4cd4ae7e0f462eb820cee5e7abb5dfc4feaab17699f140d7c85118be6cd20
 ---
 
 # 工具
@@ -48,7 +48,7 @@ ZooWork 在 `tool_policy` 中使用 `allow` 和 `deny` 工具名，不使用逐�
 ::: code-group
 
 ```ts [TypeScript]
-await zc.createAgent({
+await client.createAgent({
   resource: {
     name: 'report-agent-no-web-tools',
     tool_policy: { deny: ['web_fetch', 'web_search', 'web_image_search'] },
@@ -98,7 +98,7 @@ JSON
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, {
+await client.updateAgent(agentId, {
   tool_policy: { deny: ['web_search'] },
 })
 ```
@@ -141,7 +141,7 @@ JSON
 ::: code-group
 
 ```ts [TypeScript]
-await zc.createAgent({
+await client.createAgent({
   resource: {
     name: 'report-agent',
     tool_policy: { allow: ['read', 'write', 'exec'] },
@@ -198,7 +198,7 @@ JSON
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agentId, { tool_policy: {} })
+await client.updateAgent(agentId, { tool_policy: {} })
 ```
 
 ```python [Python]
@@ -260,7 +260,7 @@ Agent resource 里的 `sandbox: { scope: 'agent' | 'session' }` 与工具是否�
 ::: code-group
 
 ```ts [TypeScript]
-const agent = await zc.createAgent({
+const agent = await client.createAgent({
   resource: {
     name: 'pricing-agent',
     custom_tools: [
@@ -359,7 +359,7 @@ import { customToolUse } from '@zoowork-ai/sdk'
 const call = customToolUse(ev)
 if (call?.phase === 'requested') {
   const price = await pricing.lookup(call.input?.sku)
-  await zc.resolveCustomToolCall(agentId, call.callId, {
+  await client.resolveCustomToolCall(agentId, call.callId, {
     content: [{ type: 'json', value: price }],
     resolvedBy: 'pricing-service',
   })
@@ -422,7 +422,7 @@ import { toolCall, isRunFinished } from '@zoowork-ai/sdk'
 const pending = new Map<string, string>()
 
 // savedCursor is the last processed cursor for this Session.
-for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: savedCursor })) {
+for await (const ev of client.streamEvents(agentId, sessionId, { cursor: savedCursor })) {
   const call = toolCall(ev)
   if (call?.phase === 'start') pending.set(call.toolCallId, call.toolName)
   if (call?.phase === 'blocked') {
@@ -441,7 +441,7 @@ for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: savedCursor
 事后审计一个 session，改用带过滤的 REST 读取：
 
 ```ts
-const toolEvents = await zc.listAllEvents(agentId, sessionId, { types: ['agent.tool'] })
+const toolEvents = await client.listAllEvents(agentId, sessionId, { types: ['agent.tool'] })
 ```
 
 ::: warning `listEvents` 只返回一页

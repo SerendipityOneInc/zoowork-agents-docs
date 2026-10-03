@@ -2,7 +2,7 @@
 title: Webhooks
 description: 注册 webhook receiver，验证签名事件，检查并重试投递。
 source: /en/build/webhooks
-source_hash: 4b9a146bdfc0f7b355a6b994601f394c3ee6820ed5b83272f284914913c60d78
+source_hash: 46496d49f50d00dfaddb03fb0106c7640034a010e11b745a2b68d0f91601b0f2
 ---
 
 # 订阅 Webhooks
@@ -239,12 +239,12 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/update" \
 ::: code-group
 
 ```ts [TypeScript]
-const created = await zc.createAgentWebhook(agentId, {
+const created = await client.createAgentWebhook(agentId, {
   url: 'https://receiver.example/webhook', event_types: ['run.finished'],
 }, 'register-hook-v1')
-const page = await zc.listAgentWebhooks(agentId) // page.webhooks
-const receipt = await zc.testAgentWebhook(agentId, created.endpoint.id, 'test-hook-v1')
-const deliveries = await zc.listAgentWebhookDeliveries(agentId, created.endpoint.id, { eventType: 'webhook.test' })
+const page = await client.listAgentWebhooks(agentId) // page.webhooks
+const receipt = await client.testAgentWebhook(agentId, created.endpoint.id, 'test-hook-v1')
+const deliveries = await client.listAgentWebhookDeliveries(agentId, created.endpoint.id, { eventType: 'webhook.test' })
 ```
 
 ```python [Python]

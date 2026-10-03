@@ -2,7 +2,7 @@
 title: 通过工具接入知识库
 description: 通过 custom tools 或 MCP，把 Agent 连接到应用中的知识服务。
 source: /en/build/retrieval
-source_hash: 477be59df1e52747b813e4891e4248a3da1ad99a70043914913afd6ecf146353
+source_hash: 38f864cf57912148d0c8762634638a8cd48c90168737f336f69b61c7efb6504c
 ---
 
 # 通过工具接入知识库
@@ -36,9 +36,9 @@ Agent 需要产品文档、客户记录或已有知识库里的事实时，给�
 ```ts [TypeScript]
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
-const agent = await zc.createAgent({
+const agent = await client.createAgent({
   resource: {
     name: 'support-assistant',
     persona: {
@@ -59,8 +59,8 @@ const agent = await zc.createAgent({
   },
 })
 
-await zc.startAgent(agent.agent_id)
-await zc.waitUntilRunning(agent.agent_id)
+await client.startAgent(agent.agent_id)
+await client.waitUntilRunning(agent.agent_id)
 ```
 
 ```python [Python]
@@ -160,14 +160,14 @@ curl -sS --fail-with-body --request POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sta
 import { customToolUse, isRunFinished } from '@zoowork-ai/sdk'
 import { searchSupportDocuments } from './knowledge-service.js'
 
-const session = await zc.createSession(agent.agent_id, {
+const session = await client.createSession(agent.agent_id, {
   initial_events: [{
     type: 'user.message',
     content: 'What response time does our Enterprise support plan provide?',
   }],
 })
 
-for await (const ev of zc.streamEvents(agent.agent_id, session.session_id)) {
+for await (const ev of client.streamEvents(agent.agent_id, session.session_id)) {
   const call = customToolUse(ev)
   if (call?.phase === 'requested' && call.name === 'search_knowledge') {
     const query = call.input?.query
@@ -182,7 +182,7 @@ for await (const ev of zc.streamEvents(agent.agent_id, session.session_id)) {
         result = { error: 'Document search is temporarily unavailable.' }
       }
     }
-    await zc.resolveCustomToolCall(agent.agent_id, call.callId, {
+    await client.resolveCustomToolCall(agent.agent_id, call.callId, {
       content: [{ type: 'json', value: result }],
       resolvedBy: 'knowledge-service',
     })
@@ -238,7 +238,7 @@ Retriever 提供满足[连接要求](./mcp.md#连接要求)的 MCP Server 时，
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agent.agent_id, {
+await client.updateAgent(agent.agent_id, {
   mcp: [{
     name: 'knowledge',
     url: 'https://mcp.example.com/knowledge',

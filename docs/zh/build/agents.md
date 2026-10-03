@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: 9a5436647494144756a8699667ea972fafca3ed70f2a59552c3083dcb23aca6a
+source_hash: efb116bad8beb5f5a569c854616e442b5f7b101da9869790a391c4de7300433e
 ---
 
 # Agents
@@ -20,7 +20,7 @@ agent 是一个持久化的配置对象：一个名字、一个模型、若干 p
 ```ts [TypeScript]
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 ```python [Python]
@@ -44,13 +44,13 @@ export AGENT_ID='your-agent-id'
 ```ts [TypeScript]
 import type { AgentRecord } from '@zoowork-ai/sdk'
 
-const models = await zc.listModels()
+const models = await client.listModels()
 const primary = models.find(
   (model) => model.model === 'litellm/gpt-5.6-terra' && model.selectable !== false,
 )?.model
 if (!primary) throw new Error('请从 listModels() 返回的模型中选择一个')
 
-const created: AgentRecord = await zc.createAgent(
+const created: AgentRecord = await client.createAgent(
   {
     resource: {
       name: 'research-agent',
@@ -64,8 +64,8 @@ const created: AgentRecord = await zc.createAgent(
 const agentId = created.agent_id
 console.log(agentId, created.config_version)
 
-await zc.startAgent(created.agent_id)
-await zc.waitUntilRunning(created.agent_id)
+await client.startAgent(created.agent_id)
+await client.waitUntilRunning(created.agent_id)
 ```
 
 ```python [Python]
@@ -126,7 +126,7 @@ Persona 文档、Skills、工具和沙箱配置见 [resource 字段](#resource-�
 ::: code-group
 
 ```ts [TypeScript]
-const agent = await zc.getAgent(created.agent_id)
+const agent = await client.getAgent(created.agent_id)
 console.log(agent.declared?.name, agent.status?.desired_state)
 ```
 
@@ -156,7 +156,7 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
 ```ts [TypeScript]
 // 修改前 labels 是 { tier: 'free', region: 'apac' }。
 // This PUT sends only `labels`.
-const updated = await zc.updateAgent(agent.agent_id, {
+const updated = await client.updateAgent(agent.agent_id, {
   labels: { tier: 'paid' },
 })
 
@@ -206,11 +206,11 @@ JSON
 const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
 
-const before = configVersion(await zc.getAgent(agentId))          // 4
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })
-const first = configVersion(await zc.getAgent(agentId))           // 5
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })         // identical body
-const second = configVersion(await zc.getAgent(agentId))          // 6 - bumped anyway
+const before = configVersion(await client.getAgent(agentId))          // 4
+await client.updateAgent(agentId, { labels: { probe: 'x' } })
+const first = configVersion(await client.getAgent(agentId))           // 5
+await client.updateAgent(agentId, { labels: { probe: 'x' } })         // identical body
+const second = configVersion(await client.getAgent(agentId))          // 6 - bumped anyway
 ```
 
 配置没有变化时，避免每个 turn 都执行 PUT。`config_version` 是单调计数器，
@@ -255,7 +255,7 @@ Session 调用要求 desired state 为 running。
 ::: code-group
 
 ```ts [TypeScript]
-const { warnings } = await zc.stopAgent(agentId)
+const { warnings } = await client.stopAgent(agentId)
 // HTTP 失败会抛错；先读回结果，再决定是否重试。
 ```
 
@@ -278,8 +278,8 @@ curl -sS --fail-with-body --request POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sto
 ::: code-group
 
 ```ts [TypeScript]
-await zc.stopAgent(agentId)   // do this first
-await zc.deleteAgent(agentId) // then this
+await client.stopAgent(agentId)   // do this first
+await client.deleteAgent(agentId) // then this
 ```
 
 ```python [Python]
@@ -305,9 +305,9 @@ curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" 
 ::: code-group
 
 ```ts [TypeScript]
-const skills = await zc.listAgentSkills(agentId)                 // attached skills, resolved and merged
-await zc.putAgentSkill(agentId, 'skl_visible', { enabled: true }) // configure a visible Skill
-await zc.deleteAgentSkill(agentId, 'skl_visible')                 // detach it
+const skills = await client.listAgentSkills(agentId)                 // attached skills, resolved and merged
+await client.putAgentSkill(agentId, 'skl_visible', { enabled: true }) // configure a visible Skill
+await client.deleteAgentSkill(agentId, 'skl_visible')                 // detach it
 ```
 
 ```python [Python]
@@ -339,7 +339,7 @@ Global Skills 默认可用。你可以配置当前 key 可见的 Skill assignmen
 ::: code-group
 
 ```ts [TypeScript]
-for await (const agent of zc.listAgents({ labels: { workspace_id: 'wsp_example' } })) {
+for await (const agent of client.listAgents({ labels: { workspace_id: 'wsp_example' } })) {
   console.log(agent.agent_id)
 }
 ```

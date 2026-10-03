@@ -73,7 +73,7 @@ See [Errors and retries](./errors.md) for authentication failures and safe retry
 ::: code-group
 
 ```ts [TypeScript]
-const usage = await zc.getUsage({ range: '7d', groupBy: 'session', view: 'both', perPage: 50 })
+const usage = await client.getUsage({ range: '7d', groupBy: 'session', view: 'both', perPage: 50 })
 ```
 
 ```python [Python]

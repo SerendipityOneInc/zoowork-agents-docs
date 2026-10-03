@@ -28,7 +28,7 @@ class ZooworkError extends Error {
 import { ZooworkError } from '@zoowork-ai/sdk'
 
 try {
-  await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
+  await client.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
 } catch (e) {
   if (e instanceof ZooworkError) {
     console.error(e.status, e.type, e.message)
@@ -50,10 +50,10 @@ differs between the API and the gateway, and it can change without notice.
 
 ```ts
 // Wrong. Breaks the first time someone rewords the string.
-if (e.message.includes('not running')) await zc.startAgent(agentId)
+if (e.message.includes('not running')) await client.startAgent(agentId)
 
 // Right.
-if (e instanceof ZooworkError && e.type === 'agent_not_running') await zc.startAgent(agentId)
+if (e instanceof ZooworkError && e.type === 'agent_not_running') await client.startAgent(agentId)
 ```
 
 The one qualification, which the next section is about: `type` is not always present.
@@ -193,12 +193,12 @@ Agent and Session create methods take an HTTP key as a trailing argument. Two
 common examples:
 
 ```ts
-const created = await zc.createAgent(
+const created = await client.createAgent(
   { resource: { name: 'research-agent' } },
   'provision-research-agent-1',
 )
 
-const session = await zc.createSession(
+const session = await client.createSession(
   agentId,
   { initial_events: [{ type: 'user.message', content: userInput }] },
   `chat-${incomingMessageId}`,
@@ -226,11 +226,11 @@ work in either direction.
   is commonly followed by a first `getAgent()` saying `3`.
 
 ```ts
-const before = (await zc.getAgent(agentId)).status?.config_version   // 4
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })
-const first  = (await zc.getAgent(agentId)).status?.config_version   // 5
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })            // identical body
-const second = (await zc.getAgent(agentId)).status?.config_version   // 6 - bumped anyway
+const before = (await client.getAgent(agentId)).status?.config_version   // 4
+await client.updateAgent(agentId, { labels: { probe: 'x' } })
+const first  = (await client.getAgent(agentId)).status?.config_version   // 5
+await client.updateAgent(agentId, { labels: { probe: 'x' } })            // identical body
+const second = (await client.getAgent(agentId)).status?.config_version   // 6 - bumped anyway
 ```
 
 Treat it as an opaque monotonic counter. To find out whether a timed-out `updateAgent()`
@@ -249,11 +249,11 @@ create that may or may not have landed.
 ```ts
 import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 async function openSession(agentId: string, text: string, jobId: string) {
   try {
-    return await zc.createSession(
+    return await client.createSession(
       agentId,
       { initial_events: [{ type: 'user.message', content: text }] },
       `job-${jobId}`, // stable key: a retry converges on the first session
@@ -262,10 +262,10 @@ async function openSession(agentId: string, text: string, jobId: string) {
     if (!(e instanceof ZooworkError)) throw e // network or abort, not an API answer
 
     if (e.type === 'agent_not_running') {
-      await zc.startAgent(agentId)      // warnings here are informational
+      await client.startAgent(agentId)      // warnings here are informational
       // Polls desired_state, the only field that gates session calls. Throws 408/'timeout'.
-      await zc.waitUntilRunning(agentId)
-      return zc.createSession(
+      await client.waitUntilRunning(agentId)
+      return client.createSession(
         agentId,
         { initial_events: [{ type: 'user.message', content: text }] },
         `job-${jobId}`,

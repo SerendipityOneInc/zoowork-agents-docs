@@ -2,7 +2,7 @@
 title: Skills
 description: 使用 Project API key 打包、上传、发布版本并挂载 Skill，了解 registry 权限和 SDK 兼容要求。
 source: /en/build/skills
-source_hash: b7962571b85e03910e3137aef318422f2dd63b5998f94aa49e159eae8cbf52d3
+source_hash: 722c566ae2c55d0798603671f2dcb30209a32b0a057956dcc4774101deaa3120
 ---
 
 # Skills
@@ -64,17 +64,28 @@ zip -r slide-layout.zip slide-layout/
 Description 写在 `SKILL.md` 中；创建时单独传入的 description 选项不会被转发。
 不要打包凭据或无关本地文件。Skill 上传用于注册包，不是通用二进制任务输入或 `/workspace` 文件上传。
 
-具名 Project key 传 `scope=project`，Default Project key 传 `scope=org`。
+Default Project key（大多数新 key 都是这种）必须传 `scope=org`，具名 Project key 必须传
+`scope=project`。示例使用 `org`；如果你的 key 属于具名 Project，改成 `project`。
 不要指定 `org_id` 或 `project_id`。下面的示例会创建资源，应在授权上传时执行，不要用于探测服务能力。
 
 ::: code-group
+
+```ts [TypeScript]
+import { readFile } from 'node:fs/promises'
+
+const skill = await client.uploadSkill(await readFile('slide-layout.zip'), {
+  scope: 'org', // 具名 Project key 使用 'project'。
+  fileName: 'slide-layout.zip',
+})
+const skillId = skill.skill_id
+```
 
 ```python [Python]
 from pathlib import Path
 
 skill = await client.upload_skill(
     Path("slide-layout.zip").read_bytes(),
-    scope="project",  # Default Project key 使用 "org"。
+    scope="org",  # 具名 Project key 使用 "project"。
     file_name="slide-layout.zip",
 )
 skill_id = skill["skill_id"]
@@ -83,7 +94,7 @@ skill_id = skill["skill_id"]
 ```bash [curl]
 curl -sS --fail-with-body "${ZOOWORK_BASE_URL%/}/skills" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -F 'scope=project' \
+  -F 'scope=org' \
   -F 'files[]=@slide-layout.zip;type=application/zip'
 ```
 
@@ -93,11 +104,9 @@ curl -sS --fail-with-body "${ZOOWORK_BASE_URL%/}/skills" \
 保存返回的 `skill_id`，然后按[安装与移除](#installing-and-removing)挂载到 Agent。
 上传成功不会自动完成挂载。
 
-**TypeScript 兼容性：**检查已安装 SDK 的 `uploadSkill` 类型。如果接受 `project`，使用
-`client.uploadSkill(zip, { scope: 'project', fileName: 'slide-layout.zip' })`。
-旧类型只接受 `org | personal`；具名 Project 使用上面的 curl 请求，不要强制类型转换或改成其他 scope。
-Default Project 可以使用 `scope: 'org'`。不要在未核对 package 时猜测最低已发布版本。
-Python 的 `scope` 参数是字符串。
+**TypeScript 兼容性：**TypeScript SDK 从 0.10.2 起，`uploadSkill` 接受 `scope: 'project'`。
+使用更早的 SDK 时，Default Project 仍可使用 `scope: 'org'`；具名 Project 请升级 SDK，或使用上面的
+curl 请求，不要强制类型转换。Python 的 `scope` 参数是字符串。
 
 ## 列出 registry Skills {#list-registry-skills}
 

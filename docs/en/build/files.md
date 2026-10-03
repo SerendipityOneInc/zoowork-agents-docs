@@ -59,7 +59,7 @@ to create the report and `artifact_publish` to publish it:
 ::: code-group
 
 ```ts [TypeScript]
-const session = await zc.createSession(agentId, {
+const session = await client.createSession(agentId, {
   "initial_events": [
     {
       "type": "user.message",
@@ -105,7 +105,7 @@ that the agent processed the file and published the result:
 ```ts [TypeScript]
 import { isRunFinished } from '@zoowork-ai/sdk'
 
-for await (const event of zc.streamEvents(agentId, sessionId)) {
+for await (const event of client.streamEvents(agentId, sessionId)) {
   console.log(event)
   if (isRunFinished(event)) break
 }
@@ -147,7 +147,7 @@ List the Artifacts from this session and source path:
 ::: code-group
 
 ```ts [TypeScript]
-const artifacts = await zc.listArtifacts(agentId, {
+const artifacts = await client.listArtifacts(agentId, {
   sessionId, sourcePath: '/workspace/report.md', page: 1, limit: 50,
 })
 const artifactId = artifacts.artifacts.find((item) => item.status === 'ready')?.artifact_id
@@ -195,7 +195,7 @@ Request an access URL, then download without adding your API key to the Artifact
 ```ts [TypeScript]
 import { writeFile } from 'node:fs/promises'
 
-const download = await zc.downloadArtifact(agentId, artifactId)
+const download = await client.downloadArtifact(agentId, artifactId)
 if (!download.url) throw new Error('No Artifact URL was returned')
 const response = await fetch(download.url)
 if (!response.ok) throw new Error(`Download failed: ${response.status}`)
@@ -247,7 +247,7 @@ Delete a ready Artifact when your application no longer needs it:
 ::: code-group
 
 ```ts [TypeScript]
-await zc.deleteArtifact(agentId, artifactId)
+await client.deleteArtifact(agentId, artifactId)
 ```
 
 ```python [Python]

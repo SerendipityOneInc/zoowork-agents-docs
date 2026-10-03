@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 读取 Session 状态和 transcript，获取 run output，列出、归档或删除 Session。
 source: /en/build/session-operations
-source_hash: 7d4c4407231157858f08dc6fd942b246fef282e854bbac4fd9364463809d67cd
+source_hash: 41f62f2c1ac8e2de8dade7fbe9d55f5c46948c693bb0ab599a6c339e9a4f30e8
 ---
 
 # Session 操作
@@ -296,9 +296,9 @@ Session 分开保存对话历史。应用用户需要文件和记忆隔离时，
 ::: code-group
 
 ```ts [TypeScript]
-const output = await zc.getRunOutput(agentId, sessionId, runId, { limit: 50 })
-const approvals = await zc.listApprovalPage(agentId, { sessionId, limit: 50 })
-const calls = await zc.listCustomToolCallPage(agentId, { sessionId, limit: 50 })
+const output = await client.getRunOutput(agentId, sessionId, runId, { limit: 50 })
+const approvals = await client.listApprovalPage(agentId, { sessionId, limit: 50 })
+const calls = await client.listCustomToolCallPage(agentId, { sessionId, limit: 50 })
 ```
 
 ```python [Python]

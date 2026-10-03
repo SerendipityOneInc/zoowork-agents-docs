@@ -20,7 +20,7 @@ Every snippet on this page assumes this client.
 ```ts [TypeScript]
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
 
 ```python [Python]
@@ -45,13 +45,13 @@ export AGENT_ID='your-agent-id'
 ```ts [TypeScript]
 import type { AgentRecord } from '@zoowork-ai/sdk'
 
-const models = await zc.listModels()
+const models = await client.listModels()
 const primary = models.find(
   (model) => model.model === 'litellm/gpt-5.6-terra' && model.selectable !== false,
 )?.model
 if (!primary) throw new Error('Choose a model returned by listModels()')
 
-const created: AgentRecord = await zc.createAgent(
+const created: AgentRecord = await client.createAgent(
   {
     resource: {
       name: 'research-agent',
@@ -65,8 +65,8 @@ const created: AgentRecord = await zc.createAgent(
 const agentId = created.agent_id
 console.log(agentId, created.config_version)
 
-await zc.startAgent(created.agent_id)
-await zc.waitUntilRunning(created.agent_id)
+await client.startAgent(created.agent_id)
+await client.waitUntilRunning(created.agent_id)
 ```
 
 ```python [Python]
@@ -129,7 +129,7 @@ For persona documents, Skills, tools, and sandbox settings, see [Resource fields
 ::: code-group
 
 ```ts [TypeScript]
-const agent = await zc.getAgent(created.agent_id)
+const agent = await client.getAgent(created.agent_id)
 console.log(agent.declared?.name, agent.status?.desired_state)
 ```
 
@@ -161,7 +161,7 @@ arrays and scalars inside them replace the old value.
 ```ts [TypeScript]
 // Before: labels are { tier: 'free', region: 'apac' }.
 // This PUT sends only `labels`.
-const updated = await zc.updateAgent(agent.agent_id, {
+const updated = await client.updateAgent(agent.agent_id, {
   labels: { tier: 'paid' },
 })
 
@@ -219,11 +219,11 @@ and increment the version.
 const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
 
-const before = configVersion(await zc.getAgent(agentId))          // 4
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })
-const first = configVersion(await zc.getAgent(agentId))           // 5
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })         // identical body
-const second = configVersion(await zc.getAgent(agentId))          // 6 - bumped anyway
+const before = configVersion(await client.getAgent(agentId))          // 4
+await client.updateAgent(agentId, { labels: { probe: 'x' } })
+const first = configVersion(await client.getAgent(agentId))           // 5
+await client.updateAgent(agentId, { labels: { probe: 'x' } })         // identical body
+const second = configVersion(await client.getAgent(agentId))          // 6 - bumped anyway
 ```
 
 Avoid a PUT on every turn when the configuration has not changed. `config_version` is a
@@ -272,7 +272,7 @@ so read back before retrying. That state alone does not prove resource cleanup.
 ::: code-group
 
 ```ts [TypeScript]
-const { warnings } = await zc.stopAgent(agentId)
+const { warnings } = await client.stopAgent(agentId)
 // HTTP failure throws; read back before deciding to retry.
 ```
 
@@ -298,8 +298,8 @@ no longer address.
 ::: code-group
 
 ```ts [TypeScript]
-await zc.stopAgent(agentId)   // do this first
-await zc.deleteAgent(agentId) // then this
+await client.stopAgent(agentId)   // do this first
+await client.deleteAgent(agentId) // then this
 ```
 
 ```python [Python]
@@ -328,9 +328,9 @@ Three methods, covered in full on [Skills](./skills.md).
 ::: code-group
 
 ```ts [TypeScript]
-const skills = await zc.listAgentSkills(agentId)                 // attached skills, resolved and merged
-await zc.putAgentSkill(agentId, 'skl_visible', { enabled: true }) // configure a visible Skill
-await zc.deleteAgentSkill(agentId, 'skl_visible')                 // detach it
+const skills = await client.listAgentSkills(agentId)                 // attached skills, resolved and merged
+await client.putAgentSkill(agentId, 'skl_visible', { enabled: true }) // configure a visible Skill
+await client.deleteAgentSkill(agentId, 'skl_visible')                 // detach it
 ```
 
 ```python [Python]
@@ -362,7 +362,7 @@ created for an application or workspace.
 ::: code-group
 
 ```ts [TypeScript]
-for await (const agent of zc.listAgents({ labels: { workspace_id: 'wsp_example' } })) {
+for await (const agent of client.listAgents({ labels: { workspace_id: 'wsp_example' } })) {
   console.log(agent.agent_id)
 }
 ```

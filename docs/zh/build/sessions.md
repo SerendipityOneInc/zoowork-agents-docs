@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 创建 Session、选择 Agent 配置、发送首条消息并继续对话。
 source: /en/build/sessions
-source_hash: f749418f250da39616c617a2847f77d8af8a4fd484c2e3124e74aa26c753e79f
+source_hash: faeade84715c1137923c78d2e973540a3ddde9b77957118598a187914f7dfe8d
 ---
 
 # 创建 Session
@@ -247,7 +247,7 @@ curl 中的 `EVENT_CURSOR` 是第一回合最后处理的 SSE `id:` 值。成功
 ::: code-group
 
 ```ts [TypeScript]
-const session = await zc.createSession(agentId, { runtime_mode: 'active', idle_compaction: false })
+const session = await client.createSession(agentId, { runtime_mode: 'active', idle_compaction: false })
 ```
 
 ```python [Python]

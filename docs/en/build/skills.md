@@ -65,18 +65,29 @@ Put the description in `SKILL.md`; the separate create-time description option i
 Do not include credentials or unrelated local files. Skill upload registers a package; it is
 not general binary task input or a `/workspace` file upload.
 
-For a named Project key, send `scope=project`. A Default Project key must use `scope=org`.
-Do not send caller-selected `org_id` or `project_id`. These examples create a resource;
-execute them as an authorized upload, not as a capability probe.
+A Default Project key, which is what most new keys use, must send `scope=org`. A named
+Project key must send `scope=project`. The examples use `org`; change it to `project` if your
+key belongs to a named Project. Do not send caller-selected `org_id` or `project_id`. These
+examples create a resource; execute them as an authorized upload, not as a capability probe.
 
 ::: code-group
+
+```ts [TypeScript]
+import { readFile } from 'node:fs/promises'
+
+const skill = await client.uploadSkill(await readFile('slide-layout.zip'), {
+  scope: 'org', // Use 'project' for a named Project key.
+  fileName: 'slide-layout.zip',
+})
+const skillId = skill.skill_id
+```
 
 ```python [Python]
 from pathlib import Path
 
 skill = await client.upload_skill(
     Path("slide-layout.zip").read_bytes(),
-    scope="project",  # Use "org" for a Default Project key.
+    scope="org",  # Use "project" for a named Project key.
     file_name="slide-layout.zip",
 )
 skill_id = skill["skill_id"]
@@ -85,7 +96,7 @@ skill_id = skill["skill_id"]
 ```bash [curl]
 curl -sS --fail-with-body "${ZOOWORK_BASE_URL%/}/skills" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -F 'scope=project' \
+  -F 'scope=org' \
   -F 'files[]=@slide-layout.zip;type=application/zip'
 ```
 
@@ -95,11 +106,9 @@ curl -sS --fail-with-body "${ZOOWORK_BASE_URL%/}/skills" \
 Save the returned `skill_id`, then follow [Installing and removing](#installing-and-removing).
 An uploaded Skill is not automatically attached to an Agent.
 
-**TypeScript compatibility:** inspect the installed `uploadSkill` declaration. If it accepts
-`project`, use `client.uploadSkill(zip, { scope: 'project', fileName: 'slide-layout.zip' })`.
-Older declarations accept only `org | personal`; use the curl request above for a named Project
-instead of a cast or a different scope. A Default Project can use `scope: 'org'`. Do not assume
-a minimum published SDK version without checking the package. Python's `scope` is a string.
+**TypeScript compatibility:** `uploadSkill` accepts `scope: 'project'` from TypeScript SDK
+0.10.2. With an older SDK, a Default Project can still use `scope: 'org'`; for a named Project,
+upgrade the SDK or use the curl request above instead of a cast. Python's `scope` is a string.
 
 ## List registry Skills
 

@@ -35,9 +35,9 @@ when retrieved facts are required:
 ```ts [TypeScript]
 import { createZooworkClient } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
-const agent = await zc.createAgent({
+const agent = await client.createAgent({
   resource: {
     name: 'support-assistant',
     persona: {
@@ -58,8 +58,8 @@ const agent = await zc.createAgent({
   },
 })
 
-await zc.startAgent(agent.agent_id)
-await zc.waitUntilRunning(agent.agent_id)
+await client.startAgent(agent.agent_id)
+await client.waitUntilRunning(agent.agent_id)
 ```
 
 ```python [Python]
@@ -160,14 +160,14 @@ trusted request context rather than a user or tenant id supplied by the model.
 import { customToolUse, isRunFinished } from '@zoowork-ai/sdk'
 import { searchSupportDocuments } from './knowledge-service.js'
 
-const session = await zc.createSession(agent.agent_id, {
+const session = await client.createSession(agent.agent_id, {
   initial_events: [{
     type: 'user.message',
     content: 'What response time does our Enterprise support plan provide?',
   }],
 })
 
-for await (const ev of zc.streamEvents(agent.agent_id, session.session_id)) {
+for await (const ev of client.streamEvents(agent.agent_id, session.session_id)) {
   const call = customToolUse(ev)
   if (call?.phase === 'requested' && call.name === 'search_knowledge') {
     const query = call.input?.query
@@ -182,7 +182,7 @@ for await (const ev of zc.streamEvents(agent.agent_id, session.session_id)) {
         result = { error: 'Document search is temporarily unavailable.' }
       }
     }
-    await zc.resolveCustomToolCall(agent.agent_id, call.callId, {
+    await client.resolveCustomToolCall(agent.agent_id, call.callId, {
       content: [{ type: 'json', value: result }],
       resolvedBy: 'knowledge-service',
     })
@@ -242,7 +242,7 @@ declare only the search tools the Agent needs:
 ::: code-group
 
 ```ts [TypeScript]
-await zc.updateAgent(agent.agent_id, {
+await client.updateAgent(agent.agent_id, {
   mcp: [{
     name: 'knowledge',
     url: 'https://mcp.example.com/knowledge',

@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: b833085ecf75f5d1cc90a20f7e2eff1f849fdef0402b554682b3ec140c06ef71
+source_hash: e76003509126f8511a3da4ae8183e908bcac168526280a4eca88ebc5d5eed6a6
 ---
 
 # 错误与重试
@@ -30,7 +30,7 @@ class ZooworkError extends Error {
 import { ZooworkError } from '@zoowork-ai/sdk'
 
 try {
-  await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
+  await client.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
 } catch (e) {
   if (e instanceof ZooworkError) {
     console.error(e.status, e.type, e.message)
@@ -46,10 +46,10 @@ try {
 
 ```ts
 // Wrong. Breaks the first time someone rewords the string.
-if (e.message.includes('not running')) await zc.startAgent(agentId)
+if (e.message.includes('not running')) await client.startAgent(agentId)
 
 // Right.
-if (e instanceof ZooworkError && e.type === 'agent_not_running') await zc.startAgent(agentId)
+if (e instanceof ZooworkError && e.type === 'agent_not_running') await client.startAgent(agentId)
 ```
 
 唯一要补的一句，也正是下一节的内容：`type` 不是永远都有。
@@ -165,12 +165,12 @@ if (e instanceof ZooworkError) {
 不同操作使用不同的幂等机制。HTTP key、event key、稳定资源 ID 和内容去重相互独立，都不提供 exactly-once 保证。`createAgent` 和 `createSession` 将 HTTP `Idempotency-Key` 作为最后一个参数传入。两个常用例子是：
 
 ```ts
-const created = await zc.createAgent(
+const created = await client.createAgent(
   { resource: { name: 'research-agent' } },
   'provision-research-agent-1',
 )
 
-const session = await zc.createSession(
+const session = await client.createSession(
   agentId,
   { initial_events: [{ type: 'user.message', content: userInput }] },
   `chat-${incomingMessageId}`,
@@ -189,11 +189,11 @@ agent 创建的唯一性域是 `(agent.create, key)`。同一个 key、同一份
 - **不是你发起的写也会 bump 它。** `createAgent()` 之后网关立刻替 agent 代种模型凭证，每一次都 bump 一次版本：创建回执上写着 `1`，紧接着第一次 `getAgent()` 常常已经是 `3` 了。
 
 ```ts
-const before = (await zc.getAgent(agentId)).status?.config_version   // 4
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })
-const first  = (await zc.getAgent(agentId)).status?.config_version   // 5
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })            // identical body
-const second = (await zc.getAgent(agentId)).status?.config_version   // 6 - bumped anyway
+const before = (await client.getAgent(agentId)).status?.config_version   // 4
+await client.updateAgent(agentId, { labels: { probe: 'x' } })
+const first  = (await client.getAgent(agentId)).status?.config_version   // 5
+await client.updateAgent(agentId, { labels: { probe: 'x' } })            // identical body
+const second = (await client.getAgent(agentId)).status?.config_version   // 6 - bumped anyway
 ```
 
 把它当成一个不透明的单调递增计数器。要判断一次超时的 `updateAgent()` 到底有没有落地，就把值从 `declared` 里读回来自己比对。
@@ -207,11 +207,11 @@ production 的 `updateAgent()` 当前拒绝 `expected_config_version`，返回 `
 ```ts
 import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
+const client = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 async function openSession(agentId: string, text: string, jobId: string) {
   try {
-    return await zc.createSession(
+    return await client.createSession(
       agentId,
       { initial_events: [{ type: 'user.message', content: text }] },
       `job-${jobId}`, // stable key: a retry converges on the first session
@@ -220,10 +220,10 @@ async function openSession(agentId: string, text: string, jobId: string) {
     if (!(e instanceof ZooworkError)) throw e // network or abort, not an API answer
 
     if (e.type === 'agent_not_running') {
-      await zc.startAgent(agentId)      // warnings here are informational
+      await client.startAgent(agentId)      // warnings here are informational
       // Polls desired_state, the only field that gates session calls. Throws 408/'timeout'.
-      await zc.waitUntilRunning(agentId)
-      return zc.createSession(
+      await client.waitUntilRunning(agentId)
+      return client.createSession(
         agentId,
         { initial_events: [{ type: 'user.message', content: text }] },
         `job-${jobId}`,
