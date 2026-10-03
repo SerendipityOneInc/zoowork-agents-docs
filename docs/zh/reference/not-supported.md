@@ -1,7 +1,7 @@
 ---
 description: 核对当前公共API边界，为secrets、集成、budget和self-hosting选择已有方案。
 source: /en/reference/not-supported
-source_hash: 98b9114460fb0a5eae16dc7653ddaf325b7f36d22e4df454d703519495555982
+source_hash: a43a0a3fb3ceba2ba82c5a33207c3064202ef0e17dad42bd49efd9a81dcefda5
 ---
 
 # 当前公共 API 边界
@@ -14,7 +14,7 @@ source_hash: 98b9114460fb0a5eae16dc7653ddaf325b7f36d22e4df454d703519495555982
 | Agent 配置原子更新 | production 的 Agent 更新拒绝 `expected_config_version`。 | 省略该字段，在后端串行写入，并[读回配置核对](../build/agents.md)。 |
 | 自定义 Environment 管理 | Platform API key 不开放自定义 Environment 创建、镜像构建和版本管理。 | 使用[默认托管 Environment](../build/environments.md)。 |
 | 原生聊天渠道管理 | Platform API key 不开放聊天渠道配置和管理。 | 在后端对接聊天平台，再通过 [API Session](../build/channels.md)转发消息。 |
-| Skill registry 发布 | 公共 API 不开放 registry 上传、版本发布和删除。 | 配置[可见的 Skill assignment](../build/skills.md)，或在 Agent persona 文档中维护应用指令。 |
+| 超出 key 的 Skill 范围的 registry 写操作 | 可见不代表可以发布版本或删除 global、personal 或其他 Project 的 Skill。具名 Project key 也不能修改 org Skill。 | 在支持的部署上，遵循 [Project key 上传和写权限规则](../build/skills.md#api-availability)。 |
 | Console Agent builder 和 Session runner | Agent 创建和 Session 执行使用 SDK 或 HTTP API。 | 使用[快速开始](../get-started/quickstart.md)和 SDK/HTTP API。 |
 | 公共组织、Project 或 API-key Admin API | `/service/v1` 不提供这一管理接口。 | 在 [Platform](../get-started/authentication.md) 管理。 |
 | 开箱即用的 ZooData/RAG/connector 配置 | ZooData retrieval 和 connectors 尚无已记录的公共 provisioning API。 | 用 [custom tools 或公开 MCP](../build/retrieval.md) 连接自己的服务。 |

@@ -1,7 +1,7 @@
 ---
 description: 查看 API key 要求、工具可用性与当前公共 API 限制。
 source: /en/reference/capabilities
-source_hash: 1129735b2a410a9d6a0cb2edff20d2d15cdb26dd380a45107dd470392a986b19
+source_hash: 06f974c479bae21f062e740296912b74e6800a24efabc94fd4ab57e7b11acfc4
 ---
 
 # 可用性与限制
@@ -15,7 +15,7 @@ source_hash: 1129735b2a410a9d6a0cb2edff20d2d15cdb26dd380a45107dd470392a986b19
 | 获取 key 并限定请求范围 | [Authentication](../get-started/authentication.md) | 在 Platform 创建 key；请求限定为 key owner 与 Project。 |
 | 配置 Agent 工具和审批 | [Tools](../build/tools.md)、[权限策略](../build/permissions.md) | deployment 提供的工具和应用业务授权是不同层次。 |
 | 检索私有知识 | [Retrieval](../build/retrieval.md) | 应用或 MCP 服务负责检索和数据权限。 |
-| 复用任务指令 | [Skills](../build/skills.md) | 配置可见的 Skill assignment；公共 API 不开放 registry 发布。 |
+| 复用任务指令 | [Skills](../build/skills.md) | 配置可见的 Skill assignment；在支持的部署上，按 key 的 registry 写权限上传和发布版本。 |
 | 自定义 sandbox | [Environments](../build/environments.md)、[Cloud 参考](../build/cloud-sandbox-reference.md) | Platform key 不能管理 Environment。 |
 | 生成并获取文件 | [文件与产物](../build/files.md) | 让 Agent 创建文件并发布为 Artifact，再下载结果。 |
 | 保存结构化数据 | [Agent Database](../build/data-storage.md) | 通过 Session 使用 `agent_db`；production 只读 viewer 当前不可用。 |

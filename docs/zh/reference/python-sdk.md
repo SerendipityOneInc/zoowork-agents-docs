@@ -1,7 +1,7 @@
 ---
 description: 配置async Python SDK，管理client生命周期，并使用Agent、Session和event核心方法。
 source: /en/reference/python-sdk
-source_hash: 16c846181c0ade3bd61e868b6928b1c648aa9d554aec6dcc90a9803a7d5bee62
+source_hash: ce95b19660459539b9d61fe25c478c1489d3ec7185da821a3b2308632c223876
 ---
 
 # Python SDK
@@ -83,6 +83,14 @@ SDK 不会自动重试业务操作。幂等和重试前读取核对的规则见[
 `verify_webhook_signature(...)` 返回 `(event_id, timestamp)`。`unwrap_webhook(...)` 返回 `WebhookEvent`，包含已校验的基础 envelope 和 data mapping。未知 event type 和 data field 会保留，任意未知顶层字段不会保留。应用仍需验证 event-specific data；helper 不检查 body `id` 是否等于 `webhook-id`。验证失败会抛 `WebhookSignatureError`。
 
 省略 `secret` 时读取 `ZOOWORK_WEBHOOK_SECRET`；显式 secret 可以是 string 或用于轮换的 sequence。这些 helpers 不注册 endpoint，也不发送事件。完整 receiver 和管理流程见 [Webhooks](../build/webhooks.md)。
+
+## Skill registry
+
+在支持 Project key registry 的部署上，`upload_skill(..., scope="project")` 为具名 Project
+创建 Skill；Default Project key 使用 `scope="org"`。Scope 参数是字符串。
+`list_skills` 读取一页可见目录；`upload_skill_version` 和 `delete_skill` 要求对应 Skill 的写权限。
+可见不等于可写。ZIP 打包、挂载、版本响应、错误和部署核验见 [Skills](../build/skills.md)。
+SDK 存在方法，不代表线上部署已经支持。
 
 ## 更多流程
 

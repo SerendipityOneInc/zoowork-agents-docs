@@ -1,8 +1,8 @@
 ---
 title: Skills
-description: 使用默认 global Skills，查看已挂载的 Skills，并管理已有可见 Skill 的安装关系。
+description: 使用 Project API key 打包、上传、发布版本并挂载 Skill，了解 registry 权限和 SDK 兼容要求。
 source: /en/build/skills
-source_hash: b4fd9f5ecebf6ef9ad49370edd45da3ee4dde75089cf22475a7bcc8aafe887a6
+source_hash: b7962571b85e03910e3137aef318422f2dd63b5998f94aa49e159eae8cbf52d3
 ---
 
 # Skills
@@ -17,8 +17,22 @@ Skill 挂载到 Agent。同一个 Agent 的所有 Sessions 使用同一组已挂
 ## API 可用范围 {#api-availability}
 
 使用在 [ZooWork Platform](https://platform.zoowork.ai) 创建的 Platform API key。
-这些 key 可以查看 Agent 已挂载的 Skills，并管理 key 范围内已有可见 Skill 的安装关系。
-它们不能列出根 Skill registry、上传自定义 Skill、发布版本或删除 registry 条目。
+这些 key 可以查看已挂载的 Skills，并管理可见 Skill 的安装关系。在支持 Project key
+Skill registry 的服务版本上，还可以列出 registry、上传 ZIP、发布版本，以及删除写权限范围内的 Skill。
+
+下面的 registry 契约已经过**源码核对，但本文没有完成线上验证**。使用前确认目标部署支持该契约。
+旧服务版本会拒绝 Project key 的 registry 请求；SDK 存在某个方法，不代表服务端已支持。
+读取权限和写入权限不同：
+
+| Key | 创建、发布版本、删除 |
+|---|---|
+| 具名 Project key | 同一个 Project、同一个组织的 `project` Skill。 |
+| Default Project key | 同组织的 `org` Skill；这些 Skill 在组织内共享。 |
+
+API 根据 key 确定归属。创建时传错 scope，包括 `personal` 或 `global`，返回
+`400 service_api.invalid_body`。可见不等于可写：具名 Project key 不能修改 org、global 或
+personal registry 内容。对无写权限的 ID 操作返回 `404 service_api.not_found`。
+把 Skill 挂载到 Agent 是另一项权限检查。
 
 先使用默认 global Skills。共享产品指令可以放在应用自有 Agent 模板的
 [persona 文档](./agents.md#resource-的字段)中，见[每用户一个 Agent](./per-user-agents.md)。
@@ -28,6 +42,124 @@ Key 的配置和范围见[鉴权](../get-started/authentication.md)。
 TypeScript 设置 `const agentId = agent.agent_id`；Python 复用 `agent_id`，并在 async function 内调用。
 curl 示例复用已配置的
 `ZOOWORK_API_KEY`、`ZOOWORK_BASE_URL` 和 `AGENT_ID`。
+
+## 上传自定义 Skill {#upload-a-custom-skill}
+
+每个本地 Skill 单独打包。ZIP 包含非空 `SKILL.md`、YAML frontmatter 中的 `name` 和
+`description`，以及引用的脚本和资源。可以把 `SKILL.md` 放在 ZIP 根目录，或者把所有文件
+放在一个与 frontmatter name 匹配的顶层目录中：
+
+```text
+slide-layout/
+  SKILL.md       # frontmatter name: slide-layout
+  resources/
+```
+
+创建新的 ZIP 文件；对旧 ZIP 增量打包可能保留已经删除的文件：
+
+```bash
+zip -r slide-layout.zip slide-layout/
+```
+
+Description 写在 `SKILL.md` 中；创建时单独传入的 description 选项不会被转发。
+不要打包凭据或无关本地文件。Skill 上传用于注册包，不是通用二进制任务输入或 `/workspace` 文件上传。
+
+具名 Project key 传 `scope=project`，Default Project key 传 `scope=org`。
+不要指定 `org_id` 或 `project_id`。下面的示例会创建资源，应在授权上传时执行，不要用于探测服务能力。
+
+::: code-group
+
+```python [Python]
+from pathlib import Path
+
+skill = await client.upload_skill(
+    Path("slide-layout.zip").read_bytes(),
+    scope="project",  # Default Project key 使用 "org"。
+    file_name="slide-layout.zip",
+)
+skill_id = skill["skill_id"]
+```
+
+```bash [curl]
+curl -sS --fail-with-body "${ZOOWORK_BASE_URL%/}/skills" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -F 'scope=project' \
+  -F 'files[]=@slide-layout.zip;type=application/zip'
+```
+
+:::
+
+`ZOOWORK_BASE_URL` 包含 `/service/v1`。让 HTTP client 自动生成 multipart boundary。
+保存返回的 `skill_id`，然后按[安装与移除](#installing-and-removing)挂载到 Agent。
+上传成功不会自动完成挂载。
+
+**TypeScript 兼容性：**检查已安装 SDK 的 `uploadSkill` 类型。如果接受 `project`，使用
+`client.uploadSkill(zip, { scope: 'project', fileName: 'slide-layout.zip' })`。
+旧类型只接受 `org | personal`；具名 Project 使用上面的 curl 请求，不要强制类型转换或改成其他 scope。
+Default Project 可以使用 `scope: 'org'`。不要在未核对 package 时猜测最低已发布版本。
+Python 的 `scope` 参数是字符串。
+
+## 列出 registry Skills {#list-registry-skills}
+
+`listSkills({ q, page })` / `list_skills(q=..., page=...)` 返回一页数组，HTTP 响应是
+`{skills: [...]}`。API 从 key 确定 owner、组织和 Project 选择条件。从第 1 页开始按需继续读取；
+第一页没有匹配结果，不代表 Skill 不存在。
+
+```ts
+const visible = await client.listSkills({ q: 'slide-layout', page: 1 })
+```
+
+可见范围包括 global、同组织的 org、同 Project 的 project，以及属于 key owner 且符合组织条件的
+personal Skills。读取范围比写入范围更大；修改前检查记录的 scope 和归属。
+
+Skill 上传的 `Idempotency-Key` 不保证重放得到相同结果。创建结果不确定时，先核对已有记录再重试。
+重复创建可能返回 `409 skill_exists`。
+
+## 发布新版本 {#publish-a-version}
+
+保持 frontmatter name 不变，向已有 `skill_id` 发布，不要重复创建根记录。
+版本响应使用 `version` 和 `state`，不是 `latest_version` 和 `status`。
+
+::: code-group
+
+```ts [TypeScript]
+import { readFile } from 'node:fs/promises'
+
+const version = await client.uploadSkillVersion(
+  skillId, await readFile('slide-layout.zip'), { fileName: 'slide-layout.zip' },
+)
+if (version.state !== 'ready') throw new Error(`Skill version is ${version.state}`)
+const assigned = await client.listAgentSkills(agentId)
+```
+
+```python [Python]
+from pathlib import Path
+
+version = await client.upload_skill_version(
+    skill_id, Path("slide-layout.zip").read_bytes(), file_name="slide-layout.zip"
+)
+if version["state"] != "ready":
+    raise RuntimeError(f"Skill version is {version['state']}")
+assigned = await client.list_agent_skills(agent_id)
+```
+
+```bash [curl]
+curl -sS --fail-with-body "$ZOOWORK_BASE_URL/skills/$SKILL_ID/versions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -F 'files[]=@slide-layout.zip;type=application/zip'
+```
+
+:::
+
+版本发布不改变 Skill 的归属。未固定版本的可变安装关系会跟随新的 ready 版本，固定版本则保持不变。
+检查安装关系，并单独[验证运行时使用](#test-a-skill)；上传成功不代表 Agent 读取过该 Skill。
+
+## 删除 registry Skill {#delete-a-registry-skill}
+
+`deleteSkill(skillId)` / `delete_skill(skill_id)` 发送 `DELETE /skills/{skill_id}`，HTTP 204 时无返回值。
+它删除的是 registry Skill，不是某一个 Agent 的安装关系。删除组织共享 Skill 前先检查使用者。
+只解除一个 Agent 的挂载时，使用 `deleteAgentSkill` / `delete_agent_skill`。
+删除也受 key 的 registry 写权限限制；尝试删除可见但只读的 Skill 仍返回 `404 service_api.not_found`。
 
 ## Global Skills 由平台自动挂载 {#global-skills-由平台自动挂载}
 
@@ -80,8 +212,8 @@ Metadata 中的安装步骤不会自动执行。
 ## 安装与移除 {#installing-and-removing}
 
 使用 key 和 Agent 都可见的已有 `skill_id`。这个操作修改安装关系，
-不会创建或上传 Skill。使用已挂载条目的 ID，或应用中已知的现有 Skill ID，
-不要调用当前不可用的根 registry。
+不会创建或上传 Skill。使用上传响应、可见 registry 或已有挂载条目中的 ID。
+先上传一次，再把同一个 Skill 挂载给需要它的 Agents。
 
 将这个 ID 赋给 TypeScript 的 `skillId`、Python 的 `skill_id`，或 curl 的 `SKILL_ID`。
 
@@ -208,7 +340,7 @@ Sandbox 无法提供的能力，可以通过
 ## 处理安装错误 {#handle-assignment-errors}
 
 不存在或不可访问的 Skill ID 返回 `404`。重试前检查 key 范围和 Skill 可见性。
-Platform API key 仍然不能使用 registry 操作。
+Registry 写操作还必须符合 [API 可用范围](#api-availability)中的 key 写权限。
 
 安装调用返回 `409 source_owned_skills` 时，精确 Skill 列表属于 Agent 的 declared 配置。
 应由管理 Agent 的应用修改这份配置，不要继续重试单独修改安装关系的调用。

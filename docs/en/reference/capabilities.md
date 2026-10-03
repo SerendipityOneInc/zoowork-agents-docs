@@ -13,7 +13,7 @@ Available features depend on your key's resource scope, enabled tools, and servi
 | Get a key and scope requests | [Authentication](../get-started/authentication.md) | Create a key in Platform; requests are scoped to its owner and Project. |
 | Configure Agent tools and approvals | [Tools](../build/tools.md), [Permissions](../build/permissions.md) | Deployment-provided tools and application authorization are separate. |
 | Retrieve private knowledge | [Retrieval](../build/retrieval.md) | Your application or MCP service provides retrieval and data permissions. |
-| Reuse task instructions | [Skills](../build/skills.md) | Configure visible Skill assignments; registry publishing is not available through the public API. |
+| Reuse task instructions | [Skills](../build/skills.md) | Assign visible Skills; on supporting deployments, upload and version Skills within the key's registry write scope. |
 | Customize the sandbox | [Environments](../build/environments.md), [Cloud reference](../build/cloud-sandbox-reference.md) | Environment management is not available to Platform keys. |
 | Generate and retrieve files | [Files and artifacts](../build/files.md) | Ask the Agent to create a file and publish it as an Artifact before downloading. |
 | Store structured data | [Agent Database](../build/data-storage.md) | Use the `agent_db` tool through Sessions; the production read-only viewer is unavailable. |

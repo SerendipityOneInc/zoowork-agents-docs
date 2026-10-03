@@ -82,6 +82,15 @@ The SDK does not automatically retry business operations. Follow [Errors and ret
 
 Omitted `secret` reads `ZOOWORK_WEBHOOK_SECRET`; explicit secrets can be a string or a sequence for rotation. These helpers do not register endpoints or send events. Follow [Webhooks](../build/webhooks.md) for the full receiver and management flow.
 
+## Skill registry
+
+On deployments with Project-key registry support, `upload_skill(..., scope="project")` creates
+Skills for a named Project; a Default Project key uses `scope="org"`. The scope parameter is a
+string. `list_skills` reads a visible catalog page, while `upload_skill_version` and `delete_skill`
+require write permission for that Skill. Visible records are not necessarily writable. See
+[Skills](../build/skills.md) for ZIP packaging, attachment, version response fields, errors,
+and deployment verification. Method availability is not proof of a live deployment.
+
 ## More workflows
 
 - [Tools](../build/tools.md): application-executed calls and tool results.

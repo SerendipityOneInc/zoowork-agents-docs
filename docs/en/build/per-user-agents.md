@@ -202,10 +202,12 @@ belongs in a Session message, rather than a rewrite of every Agent's persona.
 
 ## Skills
 
-Default global Skills are available without publishing your own Skill. Platform API keys
-can inspect attached Skills and manage assignments to existing visible Skills, but cannot
-upload Skills or publish registry versions. Use the shared configuration template for your
-product instructions. See [Skills](./skills.md) for assignment and visibility rules.
+Default global Skills are available without publishing your own Skill. For packaged application
+instructions and resources, upload a Skill once and bind its ID to Agents within the allowed
+scope. A named Project key writes project Skills; a Default Project key writes org Skills shared
+across its Organization. This requires a deployment with Project-key registry support.
+Keep persona instructions in the shared configuration template. See [Skills](./skills.md) for
+upload, version pinning, deployment verification, and read/write permissions.
 
 ## Related
 

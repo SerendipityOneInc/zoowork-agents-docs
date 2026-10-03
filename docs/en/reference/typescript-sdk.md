@@ -156,11 +156,11 @@ Platform keys cannot call the Agent channel routes; these methods return 404. Th
 
 **Skill registry**
 
-Platform keys cannot call the root `/skills` routes; these methods return 404. This does not prevent reading or changing an Agent's assignments for existing visible Skills through `listAgentSkills()`, `putAgentSkill()`, and `deleteAgentSkill()`. See [Skills](../build/skills.md). The table retains the registry methods' SDK contracts.
+On deployments with Project-key registry support, named Project keys create and modify their own `project` Skills; Default Project keys create and modify Organization-shared `org` Skills. Listing includes visible read-only records as well. Non-writable IDs return `404 service_api.not_found` for version publishing and deletion; this is not a blanket Platform-key restriction. See [Skills](../build/skills.md) for deployment verification and the complete workflow.
 
 | Method | Returns | What it does |
 |---|---|---|
-| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | Submits a ZIP and metadata to create a registry Skill. The SDK accepts `org` or `personal` in `opts.scope`. |
+| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | Submits a ZIP and metadata to create a registry Skill. Named Project uploads use `project`; Default Project uploads use `org`. Older installed SDK types only accept `org` or `personal`; use the documented multipart HTTP fallback if `project` is absent. |
 | `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | Submits a ZIP as another version of a registry Skill. |
 | `listSkills(opts?)` | `Promise<SkillRecord[]>` | Lists registry records, with name query `q` and 1-based `page` options. |
 | `deleteSkill(skillId)` | `Promise<void>` | Requests deletion of a registry Skill. |
@@ -605,7 +605,7 @@ putAgentSkill(
 const { config_version } = await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true })
 ```
 
-The Skill must be visible to the key: global Skills, organization Skills in the same organization, Project Skills in the same organization and named Project, or personal Skills owned by the key's owner with no organization or the same organization. An unknown or inaccessible ID returns 404. Registry content management is separate and is not available with Platform keys.
+The Skill must be visible to the key: global Skills, organization Skills in the same organization, Project Skills in the same organization and named Project, or personal Skills owned by the key's owner with no organization or the same organization. An unknown or inaccessible ID returns 404. Registry content management is separate and follows the key-specific write scope on supporting deployments.
 
 Call `listAgentSkills()` after updating the assignment to confirm its resolved version and eligibility.
 
@@ -1147,7 +1147,7 @@ interface AgentSkill {
 }
 ```
 
-`scope` describes visibility, not permission to edit registry content. Platform keys can assign existing visible global, organization, Project, and personal Skills to their Agents. Registry management is not available. Preserve unknown scope values; see [Skills](../build/skills.md).
+`scope` describes visibility, not permission to edit registry content. Platform keys can assign existing visible global, organization, Project, and personal Skills to their Agents. Registry writes require the key-specific write scope and deployment support described above. Preserve unknown scope values; see [Skills](../build/skills.md).
 
 ### `SessionRecord`
 
