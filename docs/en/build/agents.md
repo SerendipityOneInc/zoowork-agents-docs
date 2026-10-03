@@ -9,34 +9,40 @@ and a tool policy. You create it once, start it, and then open [sessions](./sess
 it. The configuration lives on the server, so every session inherits it without you resending
 anything.
 
-Three things about ZooWork agents surprise people who arrive from other managed-agent APIs.
-Read these before you write code.
-
-1. A newly created agent is **stopped**. You must call `startAgent()`, or `createSession()`
-   fails with `409 agent_not_running`.
-2. Wait for `status.desired_state === 'running'`. **Never** wait for `status.actual_state`:
-   it is a best-effort chat-channel health projection, not API readiness, and it never has a
-   `running` value.
-3. The same agent comes back in **two different shapes**. `createAgent()` returns a flat
-   receipt; `getAgent()` and `updateAgent()` return a projection. The version lives in a
-   different place in each.
+Examples reuse the client and Agent from [Quickstart](../get-started/quickstart.md). Python calls run inside an async function. For curl, complete the environment setup in [Authentication](../get-started/authentication.md).
 
 ## Setup
 
 Every snippet on this page assumes this client.
 
-```ts
-import { createZooworkClient, ZooworkError } from '@zoowork-ai/sdk'
+::: code-group
 
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY }) // zct_...
+```ts [TypeScript]
+import { createZooworkClient } from '@zoowork-ai/sdk'
+
+const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 ```
+
+```python [Python]
+from zoowork import create_zoowork_client
+
+client = create_zoowork_client()
+```
+
+```bash [curl]
+export AGENT_ID='your-agent-id'
+```
+
+:::
 
 ## Create an agent
 
 `createAgent(input, idempotencyKey?)` takes a `resource` (the configuration) and returns an
 `AgentRecord`.
 
-```ts
+::: code-group
+
+```ts [TypeScript]
 import type { AgentRecord } from '@zoowork-ai/sdk'
 
 const models = await zc.listModels()
@@ -56,16 +62,336 @@ const created: AgentRecord = await zc.createAgent(
   'provision-research-agent-1', // Idempotency-Key
 )
 
-console.log(created.agent_id, created.config_version)
+const agentId = created.agent_id
+console.log(agentId, created.config_version)
+
+await zc.startAgent(created.agent_id)
+await zc.waitUntilRunning(created.agent_id)
 ```
 
-The `Idempotency-Key` is scoped to `agent.create + key`: same key and same body converges on
-the first response, same key and a different body returns `409`. See
-[Errors](../reference/errors.md).
+```python [Python]
+models = await client.list_models()
+primary = next(
+    (model["model"] for model in models
+     if model["model"] == "litellm/gpt-5.6-terra" and model.get("selectable") is not False),
+    None,
+)
+if primary is None:
+    raise RuntimeError("Choose a model returned by list_models()")
+created = await client.create_agent(
+    {"name": "research-agent", "model": {"primary": primary}, "labels": {"app": "my-app"}},
+    idempotency_key="provision-research-agent-1",
+)
+agent_id = created["agent_id"]
+print(agent_id, created.get("config_version"))
+await client.start_agent(created["agent_id"])
+await client.wait_until_running(created["agent_id"])
+```
 
-The onboarding interview is always skipped, so the agent answers your first message directly.
+```bash [curl]
+models=$(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/models" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY")
+MODEL=$(jq -er '(if type == "array" then . else .models end) | [.[] | select(.model == "litellm/gpt-5.6-terra" and .selectable != false)][0].model' <<<"$models")
+agent=$(jq -n --arg model "$MODEL" \
+  '{resource:{name:"research-agent",model:{primary:$model},labels:{app:"my-app"}}}' |
+  curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+    -H 'Idempotency-Key: provision-research-agent-1' \
+    -H 'Content-Type: application/json' --data-binary @-)
+AGENT_ID=$(jq -er '.agent_id' <<<"$agent")
+curl -sS --fail-with-body --request POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
 
-### The `resource` fields
+:::
+
+A newly created Agent is stopped. Call `startAgent()` and wait for
+`status.desired_state === 'running'` before creating a Session. `waitUntilRunning()` performs
+that readiness check. The onboarding interview is skipped, so the first message starts the task.
+
+The `Idempotency-Key` is scoped to `agent.create + key`: the same key and body return the
+first response; a different body with that key returns `409`. See [Errors](../reference/errors.md).
+
+Next, [create a Session](./sessions.md) against `created.agent_id`.
+
+See [Models](../reference/models.md) for catalog fields, model selection, and lifecycle behavior.
+
+The whole `model` section is optional. If you omit it, create pins the platform defaults current
+at that moment. Defaults can differ by deployment and change over time. Use `listModels()` and
+persist an explicit selection when repeatable provisioning matters.
+
+For persona documents, Skills, tools, and sandbox settings, see [Resource fields](#the-resource-fields).
+
+## Read an agent
+
+`getAgent()` returns the current configuration in `declared` and lifecycle state in `status`:
+
+::: code-group
+
+```ts [TypeScript]
+const agent = await zc.getAgent(created.agent_id)
+console.log(agent.declared?.name, agent.status?.desired_state)
+```
+
+```python [Python]
+agent = await client.get_agent(created["agent_id"])
+print(agent.get("declared", {}).get("name"), agent.get("status", {}).get("desired_state"))
+```
+
+```bash [curl]
+curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
+
+:::
+
+A non-existent, soft-deleted, or other-tenant Agent id returns `404 not_found`.
+The create receipt has a different shape; see [Response shapes](#read-an-agent-and-the-two-response-shapes).
+
+## Update an agent
+
+`updateAgent(agentId, sections)` PUTs the declared sections you name. It returns the read
+projection.
+
+**Sections you omit are preserved.** Top-level object sections are merged one level deep;
+arrays and scalars inside them replace the old value.
+
+::: code-group
+
+```ts [TypeScript]
+// Before: labels are { tier: 'free', region: 'apac' }.
+// This PUT sends only `labels`.
+const updated = await zc.updateAgent(agent.agent_id, {
+  labels: { tier: 'paid' },
+})
+
+console.log(Object.keys(updated.declared ?? {}))
+// [ 'name', 'model', 'imageModel', 'imageGenerationModel', 'pdfModel', 'persona', 'labels', 'sandbox', ... ]
+
+console.log(updated.declared?.name)   // 'research-agent'  - survived
+console.log(updated.declared?.model)  // { primary: 'litellm/gpt-5.6-terra', ... } - survived
+console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - region survives
+```
+
+```python [Python]
+updated = await client.update_agent(agent["agent_id"], {"labels": {"tier": "paid"}})
+print(updated.get("declared", {}).get("labels"))
+```
+
+```bash [curl]
+curl -sS --fail-with-body --request PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data-binary @- <<'JSON'
+{
+  "labels": {
+    "tier": "paid"
+  }
+}
+JSON
+```
+
+:::
+
+`declared` is wider than what you sent. `imageModel`, `imageGenerationModel` and `pdfModel` are
+server-side defaults that appear there on every read; they are not members of `AgentResource`,
+and sending them is a type error.
+
+`name`, `model` and `persona` are untouched because they were omitted. Plain-object sections
+merge one level: omitted label keys survive. It is not recursive deep merge: an explicitly
+supplied `persona.docs` array replaces the previous array.
+
+### `tool_policy` and `system_prompt` are replaced wholesale
+
+Two sections are exceptions to the merge: every PUT that names `tool_policy` or
+`system_prompt` replaces the whole object. See [Tools](./tools.md).
+
+So there is no partial write for either. To add to a policy, read the current one out of
+`declared` and send the union yourself.
+
+### Configuration writes increment the version
+
+`config_version` increments on configuration writes, including byte-identical values. A write
+that changes only `visibility` or `project_id` does not increment it. Empty PUTs still rerender
+and increment the version.
+
+```ts
+const configVersion = (a: AgentRecord): number | undefined =>
+  a.status?.config_version ?? a.config_version
+
+const before = configVersion(await zc.getAgent(agentId))          // 4
+await zc.updateAgent(agentId, { labels: { probe: 'x' } })
+const first = configVersion(await zc.getAgent(agentId))           // 5
+await zc.updateAgent(agentId, { labels: { probe: 'x' } })         // identical body
+const second = configVersion(await zc.getAgent(agentId))          // 6 - bumped anyway
+```
+
+Avoid a PUT on every turn when the configuration has not changed. `config_version` is a
+monotonic counter, not a receipt for your own write: the first read can already have a higher
+version than the create receipt. The next turn reads the new version; turns already in flight
+keep the old one. See [Errors](../reference/errors.md).
+
+### What a PUT rejects
+
+`skills`, `credentials`, and any unknown field in the PUT body return `400`. Skills
+are managed through their own routes - see [Skills](./skills.md).
+
+### Manage configuration changes
+
+`config_version` increases after each update, but it is not a configuration-history API.
+Store the previous configuration in your application if you need comparison or rollback.
+
+`updateAgent()` accepts the optional `expected_config_version` field. Read the active version,
+send a positive integer with the update, and handle `409 active_config_changed` by reading
+fresh state before deciding whether to retry. The check is atomic with the write. The field
+is not stored in `declared`. Omit it for last-write-wins behavior.
+
+## Agent lifecycle
+
+### Start the agent
+
+`startAgent()` sets `desired_state` to `running`; `stopAgent()` sets it to `stopped`.
+Session calls require the running desired state.
+
+| Field | Meaning | Values |
+|---|---|---|
+| `desired_state` | Lifecycle intent and API readiness. | `running`, `stopped`, `deleted` |
+| `actual_state` | Best-effort chat-channel health. | `activating`, `active`, `degraded`, `error`, `stopped`, `deleting` |
+
+Use `waitUntilRunning()` to poll `desired_state`, rather than `actual_state`. Its default
+budget is 30 seconds, with 500 ms between polls. For timeout and cancellation options, see the
+[SDK reference](../reference/typescript-sdk.md#startagent-agentid).
+
+Successful start/stop calls return `{ warnings: string[] }`. Inspect warnings in context;
+non-2xx responses throw `ZooworkError`. A failed stop may already have changed `desired_state`,
+so read back before retrying. That state alone does not prove resource cleanup.
+
+### Stop and delete
+
+::: code-group
+
+```ts [TypeScript]
+const { warnings } = await zc.stopAgent(agentId)
+// HTTP failure throws; read back before deciding to retry.
+```
+
+```python [Python]
+result = await client.stop_agent(agent_id)
+print(result["warnings"])
+```
+
+```bash [curl]
+curl -sS --fail-with-body --request POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/stop" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
+
+:::
+
+After a stop, `createSession()` on that agent returns `409 agent_not_running` again.
+
+`deleteAgent()` is a **soft delete**. It marks the agent runtime deleted and returns `204`.
+It does not stop the agent, does not cancel running workflows, does not delete schedules, and
+does not release the sandbox. Deleting without stopping leaves resources running that you can
+no longer address.
+
+::: code-group
+
+```ts [TypeScript]
+await zc.stopAgent(agentId)   // do this first
+await zc.deleteAgent(agentId) // then this
+```
+
+```python [Python]
+await client.stop_agent(agent_id)
+await client.delete_agent(agent_id)
+```
+
+```bash [curl]
+curl -sS --fail-with-body --request POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/stop" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" &&
+curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
+
+:::
+
+Repeated deletes also return `204`. After deletion, `getAgent()` returns `404 not_found`.
+
+## Skills on an agent
+
+Three methods, covered in full on [Skills](./skills.md).
+
+::: code-group
+
+```ts [TypeScript]
+const skills = await zc.listAgentSkills(agentId)                 // attached skills, resolved and merged
+await zc.putAgentSkill(agentId, 'skl_visible', { enabled: true }) // configure a visible Skill
+await zc.deleteAgentSkill(agentId, 'skl_visible')                 // detach it
+```
+
+```python [Python]
+skills = await client.list_agent_skills(agent_id)
+await client.put_agent_skill(agent_id, "skl_visible", enabled=True)
+await client.delete_agent_skill(agent_id, "skl_visible")
+```
+
+```bash [curl]
+curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/skills" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+SKILL_ID='skl_visible'
+curl -sS --fail-with-body --request PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID/skills/$SKILL_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' -d '{"enabled":true}'
+curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/skills/$SKILL_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
+
+:::
+
+Global Skills are available by default. You can configure assignments for Skills visible to your key; see [Skills](./skills.md).
+
+## List your agents
+
+`listAgents({ labels, page })` lists Agents within your key's scope. Use labels to find Agents
+created for an application or workspace.
+
+::: code-group
+
+```ts [TypeScript]
+for await (const agent of zc.listAgents({ labels: { workspace_id: 'wsp_example' } })) {
+  console.log(agent.agent_id)
+}
+```
+
+```python [Python]
+async for agent in await client.list_agents(labels={"workspace_id": "wsp_example"}):
+    print(agent["agent_id"])
+```
+
+```bash [curl]
+page=1
+while true; do
+  result=$(curl -sS --fail-with-body --get "$ZOOWORK_BASE_URL/agents" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+    --data-urlencode 'label.workspace_id=wsp_example' \
+    --data-urlencode "page=$page") || break
+  jq -r '.agents[].agent_id' <<<"$result"
+  next_page=$(jq -r 'if .page * .page_size < .total then .page + 1 else empty end' <<<"$result")
+  [ -n "$next_page" ] || break
+  page=$next_page
+done
+```
+
+:::
+
+API keys limit reads and lists to the key owner and Project.
+
+The API uses numeric pages starting at 1, with 100 items per page. Pagination is not a
+snapshot: concurrent additions or deletions can shift results between pages. See the
+[SDK pagination reference](../reference/typescript-sdk.md#listagentsopts) for page objects,
+continuation, and migrating array callers.
+
+## The `resource` fields
 
 | Field | Type | Notes |
 |---|---|---|
@@ -79,46 +405,17 @@ The onboarding interview is always skipped, so the agent answers your first mess
 | `include_global_skills` | boolean | Defaults to `true`. Set `false` to disable automatic global Skills while keeping explicitly installed Skills. The setting persists across later updates and rerenders. |
 | `labels` | `Record<string, string>` | Your own key-value tags. Filterable with `listAgents({ labels })`. |
 | `tool_policy` | object | `{}` adds no policy restriction; runtime and configuration gates still apply. Exact names, global `*`, and one trailing `prefix*` are supported in the policy fields; `alsoAllow` remains exact-only. See [Tools](./tools.md). |
-| `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox is shared across the agent's sessions or created per session. Defaults to `agent`. |
+| `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox runtime is shared across sessions or created per session. Defaults to `agent`. The persisted workspace still belongs to the Agent. See [Cloud sandbox](./cloud-sandbox-reference.md). |
 | `mcp` | array | Remote MCP server declarations, including exposure, runtime context, and approval policies. See [MCP servers](./mcp.md) and [Permission policies](./permissions.md). |
+| `custom_tools` | array | Tools your application executes while the run waits for a result. See [Tools](./tools.md#application-executed-custom-tools). |
 
-The whole `model` section is optional. If you omit it, create pins the platform defaults current
-at that moment. Defaults can differ by deployment and change over time. Use `listModels()` and
-persist an explicit selection when repeatable provisioning matters.
-
-The model catalog also carries lifecycle metadata. Only choose a row whose `selectable` is not
-`false`. A draining or retired row can remain in the catalog so existing Agents keep working,
-but a new create or update that selects it returns `409 model_not_selectable`. When present,
-`expired_fallback_to` identifies the replacement alias. Refresh the catalog before retrying
-rather than repeatedly submitting the rejected alias.
-
-```ts
-const agent = await zc.createAgent({
-  resource: {
-    name: 'support-triage',
-    model: { primary, input: ['text', 'image'] },
-    userTimezone: 'Asia/Shanghai',
-    persona: {
-      docs: [
-        { name: 'AGENTS.md', content: 'You triage inbound support tickets. Be terse.' },
-        { name: 'SOUL.md', content: 'Dry, precise, never apologetic.' },
-      ],
-    },
-    tool_policy: { allow: ['read', 'web_search'] },
-    sandbox: { scope: 'session' },
-    labels: { tier: 'free' },
-  },
-})
-```
-
-`skills` at create time installs the skill, but
-neither the create receipt nor `getAgent`'s `declared` echoes the field - confirm the install
-with `listAgentSkills(agentId)`, not the receipt. See [Skills](./skills.md). `environment_id` and `environment_version` do work
-here; [Environments](./environments.md) has the resolution rules.
+`skills` at create time installs Skills, but the create receipt and `getAgent().declared` do
+not echo the assignments. Confirm them with `listAgentSkills(agentId)`.
+`environment_id` and `environment_version` are also supported; see [Environments](./environments.md).
 
 ## Read an agent, and the two response shapes
 
-This is the single most common source of `undefined` in ZooWork code. `POST /agents` answers
+`POST /agents` answers
 with a flat create receipt. `GET` and `PUT` answer with a projection. They are not the same
 object.
 
@@ -164,275 +461,6 @@ object.
 | version | `agent.config_version` | `agent.status.config_version` |
 | name | not present | `agent.declared.name` |
 | lifecycle state | not present | `agent.status.desired_state` |
-
-Write one accessor and use it everywhere:
-
-```ts
-const configVersion = (a: AgentRecord): number | undefined =>
-  a.status?.config_version ?? a.config_version
-```
-
-The number also jumps between the two reads: the first version you read back is commonly
-higher than the one on the create receipt, before you have written anything. Treat
-`config_version` as an opaque monotonic counter, never as a receipt for your own write.
-[Errors](../reference/errors.md) has the full rules.
-
-```ts
-const agent = await zc.getAgent(created.agent_id)
-console.log(agent.declared?.name, agent.status?.desired_state, configVersion(agent))
-```
-
-A non-existent, soft-deleted, or other-tenant agent id returns `404 not_found` - cross-tenant
-reads are hidden as 404, not rejected as 403.
-
-## Start the agent
-
-`startAgent()` flips `desired_state` to `running`. This is the precondition for every session
-call.
-
-```ts
-const { warnings } = await zc.startAgent(agent.agent_id)
-console.log(warnings)
-// A successful response may include warnings; inspect them in context.
-```
-
-### Warnings and HTTP failures
-
-Successful start/stop responses return `{ warnings: string[] }`; warnings are not guaranteed
-on every call. A non-2xx response throws `ZooworkError`, not a successful warning result.
-
-A stop request can fail after `desired_state` changes to `stopped`. Read the Agent again before
-retrying; that field alone does not prove runtime cleanup.
-
-### `desired_state` vs `actual_state`
-
-`AgentStatus` carries two state fields that sound interchangeable and are not.
-
-| Field | What it means | Values |
-|---|---|---|
-| `desired_state` | The lifecycle intent. **This is what gates the API.** | `running`, `stopped`, `deleted` |
-| `actual_state` | Chat-channel route health. | `activating`, `active`, `degraded`, `error`, `stopped`, `deleting` |
-
-`actual_state` is a best-effort channel-health projection. GET can report `active` with zero
-channel counts, or `activating` while health information is refreshing. `listAgents()` and GET
-can briefly differ. Sessions use `desired_state` for readiness; after you bind a
-[channel](./channels.md), `actual_state` can reflect that channel's connectivity.
-
-Poll `desired_state`, with a timeout. `waitUntilRunning()` is that loop, already written:
-
-```ts
-const agent = await zc.waitUntilRunning(agentId)
-console.log(agent.status?.desired_state)  // 'running'
-```
-
-It polls `status.desired_state` - never `actual_state` - and hands back the projection it read.
-The defaults are a 30s budget and 500ms between polls; both are adjustable, and an
-`AbortSignal` cancels the wait.
-
-```ts
-const ac = new AbortController()
-await zc.waitUntilRunning(agentId, { timeoutMs: 60_000, intervalMs: 1_000, signal: ac.signal })
-```
-
-A wait that runs out throws a `ZooworkError` with `status: 408` and `type: 'timeout'`; an
-aborted one throws `status: 0` and `type: 'aborted'`. Both are synthesized locally - the
-server never sends either, and an abort does not leak a `DOMException` at you.
-
-Both bounds cover an **in-flight** poll, not just the gap between polls: every request carries
-its own signal, fired by your `signal` or by whatever is left of the budget. A gateway that
-accepts the connection and then never answers therefore ends the wait on schedule instead of
-hanging it. That is the part a hand-rolled loop misses - `fetch` has no timeout of its own
-anywhere the SDK runs, so a `Date.now() >= deadline` check that only runs between requests
-never gets a turn.
-
-Full provisioning path:
-
-```ts
-const created = await zc.createAgent({
-  resource: { name: 'research-agent', model: { primary } },
-})
-
-await zc.startAgent(created.agent_id)      // warnings are informational
-await zc.waitUntilRunning(created.agent_id)
-
-const session = await zc.createSession(created.agent_id, {
-  initial_events: [{ type: 'user.message', content: 'Hello.' }],
-})
-```
-
-Skip the start and the next call tells you so:
-
-```ts
-try {
-  await zc.createSession(agentId, { initial_events: [{ type: 'user.message', content: 'hi' }] })
-} catch (e) {
-  if (e instanceof ZooworkError && e.type === 'agent_not_running') {
-    await zc.startAgent(agentId)
-    await zc.waitUntilRunning(agentId)
-  } else {
-    throw e
-  }
-}
-```
-
-Match on `e.type`, never on `e.message`. See [Errors](../reference/errors.md).
-
-## Update an agent
-
-`updateAgent(agentId, sections)` PUTs the declared sections you name. It returns the read
-projection.
-
-**Sections you omit are preserved.** Top-level object sections are merged one level deep;
-arrays and scalars inside them replace the old value.
-
-```ts
-// Before: labels are { tier: 'free', region: 'apac' }.
-// This PUT sends only `labels`.
-const updated = await zc.updateAgent(agent.agent_id, {
-  labels: { tier: 'paid' },
-})
-
-console.log(Object.keys(updated.declared ?? {}))
-// [ 'name', 'model', 'imageModel', 'imageGenerationModel', 'pdfModel', 'persona', 'labels', 'sandbox', ... ]
-
-console.log(updated.declared?.name)   // 'research-agent'  - survived
-console.log(updated.declared?.model)  // { primary: 'litellm/gpt-5.6-terra', ... } - survived
-console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - region survives
-```
-
-`declared` is wider than what you sent. `imageModel`, `imageGenerationModel` and `pdfModel` are
-server-side defaults that appear there on every read; they are not members of `AgentResource`,
-and sending them is a type error.
-
-`name`, `model` and `persona` are untouched because they were omitted. Plain-object sections
-merge one level: omitted label keys survive. It is not recursive deep merge: an explicitly
-supplied `persona.docs` array replaces the previous array.
-
-### `tool_policy` and `system_prompt` are replaced wholesale
-
-Two sections are exceptions to the merge: every PUT that names `tool_policy` or
-`system_prompt` replaces the whole object. See [Tools](./tools.md).
-
-So there is no partial write for either. To add to a policy, read the current one out of
-`declared` and send the union yourself.
-
-### Every PUT bumps the version
-
-`config_version` increments on every successful PUT, including one whose values are byte-identical
-to what is already stored. There is no no-op detection.
-
-```ts
-const before = configVersion(await zc.getAgent(agentId))          // 4
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })
-const first = configVersion(await zc.getAgent(agentId))           // 5
-await zc.updateAgent(agentId, { labels: { probe: 'x' } })         // identical body
-const second = configVersion(await zc.getAgent(agentId))          // 6 - bumped anyway
-```
-
-So a PUT-per-turn pattern churns the version endlessly, and you cannot use "the version did
-not change" to detect that your write was a no-op. The next turn reads the new version;
-turns already in flight keep the old one.
-
-### What a PUT rejects
-
-`skills`, `credentials`, and any unknown field in the PUT body return `400`. Skills
-are managed through their own routes - see [Skills](./skills.md).
-
-## Stop and delete
-
-```ts
-const { warnings } = await zc.stopAgent(agentId)
-// HTTP failure throws; read back before deciding to retry.
-```
-
-After a stop, `createSession()` on that agent returns `409 agent_not_running` again, stably.
-
-`deleteAgent()` is a **soft delete**. It marks the agent runtime deleted and returns `204`.
-It does not stop the agent, does not cancel running workflows, does not delete schedules, and
-does not release the sandbox. Deleting without stopping leaves resources running that you can
-no longer address.
-
-```ts
-await zc.stopAgent(agentId)   // do this first
-await zc.deleteAgent(agentId) // then this
-```
-
-Repeated deletes also return `204`. After deletion, `getAgent()` returns `404 not_found`.
-
-## Skills on an agent
-
-Three methods, covered in full on [Skills](./skills.md).
-
-```ts
-const skills = await zc.listAgentSkills(agentId)                 // attached skills, resolved and merged
-await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true }) // attach one your tenant owns
-await zc.deleteAgentSkill(agentId, 'skl_yourown')                 // detach it
-```
-
-A freshly created agent already has the entire global skill catalog attached, so
-`putAgentSkill()` on a global-scope skill returns `404` - do not retry it. See
-[Skills](./skills.md).
-
-## List your agents
-
-`listAgents({ labels, page })` enumerates the agents owned by the user your key is bound to.
-
-::: warning SDK version
-These pagination examples target the SDK change in [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26).
-SDK 0.5.2 returns a single-page array. Use a package release containing that change before
-using `.data` or async iteration.
-:::
-
-Use `for await` to read all matching agents. Subsequent pages are requested only as you
-consume the results; `break` stops further requests:
-
-```ts
-for await (const agent of zc.listAgents({ labels: { workspace_id: 'wsp_example' } })) {
-  console.log(agent.agent_id)
-}
-```
-
-For one page, await the request and read `page.data`. `next_page` is `null` at the end:
-
-```ts
-const page = await zc.listAgents()
-console.log(page.data, page.total, page.next_page)
-
-if (page.hasNextPage()) {
-  const next = await page.getNextPage()
-  console.log(next.data)
-}
-```
-
-Pages preserve `page`, `page_size`, and `total`. `getNextPage()` keeps the original label
-filters and rejects when there is no next page. A failed page request rejects iteration;
-missing or invalid pagination metadata raises an error rather than hiding an incomplete list.
-Resolved pages can also be iterated with `for await`, or page-by-page with `page.iterPages()`.
-
-The API still uses numeric pages starting at 1, with 100 items per page and no `limit`
-option. `next_page` is the next numeric page, derived by the SDK from the response metadata.
-For explicit continuation, pass it as `page` with the same `labels`. Concurrent additions or
-deletions can shift results between pages; a walk is not a snapshot.
-
-**Migrating array callers:** replace `const agents = await zc.listAgents(opts)` with
-`const { data: agents } = await zc.listAgents(opts)` to retain one-page behavior, or switch to
-`for await` for all matches. See the [SDK pagination reference](../reference/typescript-sdk.md#listagentsopts).
-
-The listing is scoped to your key, not to your organization. An agent a colleague created in
-the same org is readable by `getAgent()` if you know its id, but it never appears in your
-listing - so for anything that spans keys, keep your own record of the ids.
-
-`labels` filters on the labels you declared at create time, one `label.<key>` selector per
-entry. `{ labels: { workspace_id: '...' } }` is the one worth remembering: it turns the
-workspace id in a ZooWork chat URL - the first path segment - back into the agent behind it.
-
-## Manage configuration changes
-
-`config_version` increases after each update, but it is not a configuration-history API.
-Store the previous configuration in your application if you need comparison or rollback.
-
-`updateAgent()` has no version precondition. Concurrent updates to the same section use the
-last write, so serialize writers in your application when multiple processes can update one Agent.
 
 ## Next
 

@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: a0d4ea52a8976701e9394d8534b6db06c7f066d9b30329b63c0a1ed5c6f077f4
+source_hash: 89780a5b2ca24165b2abd7774b0db08ed748f1e25ef30dd4f82cf3f9beac5bf2
 ---
 
 # TypeScript SDK 参考
@@ -32,7 +32,7 @@ npm install @zoowork-ai/sdk
 
 | 运行时 | 说明 |
 |---|---|
-| Node 20 及以上 | 主要目标。`fetch` 和 `ReadableStream` 是内置的。 |
+| Node 20 及以上 | SDK runtime 要求，内置 `fetch` 和 `ReadableStream`。快速开始要求 Node 22.20+，用于直接运行 `.mts` 文件而不单独编译。 |
 | Cloudflare Workers、Deno、Bun 及其他边缘运行时 | 从构造上就支持。SSE 解析器是照着 Web Streams 写的，不是 Node streams。 |
 | 浏览器 | API Key 可访问你组织内的 Agent 和 Session。将 Key 保存在服务端，通过你自己的后端调用 ZooWork。 |
 
@@ -74,7 +74,7 @@ const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
 
 客户端很轻。一个进程建一个，然后共用。
 
-API Key 没有按用户授权或只读的版本。你的后端需要认证终端用户，并检查他们对每个 Agent 和 Session 的访问权限。
+在 [ZooWork Platform](https://platform.zoowork.ai) 获取 API key 并充值，配置方法见 [Authentication](../get-started/authentication.md)。key 对应一个组织和 Project，但不能代替应用的终端用户授权。后端需要认证用户，并检查每次 Agent 和 Session 访问。
 
 ### `ZooworkConfig`
 
@@ -92,8 +92,8 @@ interface ZooworkConfig {
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `apiKey` | `string` | 否 | 你那个 `zct_...` key。取值顺序：这个选项，然后 `ZOOWORK_API_KEY`。日常就用这个字段。 |
-| `baseUrl` | `string` | 否 | API 的 base，**要带版本前缀** 。取值顺序：这个选项，然后 `ZOOWORK_BASE_URL`，然后导出的 `DEFAULT_BASE_URL`（公开网关）。只有当你要指向另一套部署时才设置它。末尾的斜杠会被去掉；`/models`、`/agents/{id}/sessions` 这类路径会直接拼在后面。 |
+| `apiKey` | `string` | 否 | 从 ZooWork Platform 获取的 API key。取值顺序是这个选项，再到 `ZOOWORK_API_KEY`。 |
+| `baseUrl` | `string` | 否 | API 的 base，**要带版本前缀** 。取值顺序：这个选项，然后 `ZOOWORK_BASE_URL`，然后是 `DEFAULT_BASE_URL`（`https://clawapi.ecap.gsmo.ai/service/v1`）。只有当你要指向另一套部署时才设置它。末尾的斜杠会被去掉；`/models`、`/agents/{id}/sessions` 这类路径会直接拼在后面。 |
 | `auth` | `ZooworkAuth` | 否 | 进阶用法。这里传 `{ apiKey }` 等价于顶层的 `apiKey`；两个都传时以 `auth` 为准。见下。 |
 | `fetch` | function | 否 | 默认是 `globalThis.fetch`。 |
 
@@ -103,14 +103,11 @@ interface ZooworkConfig {
 type ZooworkAuth = { serviceToken: string } | { apiKey: string }
 ```
 
-**用 `{ apiKey }`。** 它就是你那个 `zct_...` 组织 service token，会以 `Authorization: Bearer zct_...`
-发在每一个请求上，SSE 流也不例外。
+**公共 API 请求使用 `{ apiKey }`。** client 在每个请求中发送 `Authorization: Bearer <key>`，包括 SSE 请求。
 
 ```ts
 auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 ```
-
-`{ serviceToken }` 变体仅供内部使用，不能和 API key 一起用；持 `zct_` key 一律传 `{ apiKey }`。
 
 ## 方法
 
@@ -122,14 +119,14 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `listModels()` | `Promise<ModelInfo[]>` | 列出你的组织能选的模型别名。检查一个 key 是否可用的最便宜的方式。 |
+| `listModels()` | `Promise<ModelInfo[]>` | 列出 key 可读取的模型目录。选择 `selectable` 不为 `false` 的 alias。 |
 
 **Agent**
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | 创建一个 agent。返回的是**扁平的创建回执** ，不是读取投影。返回的 agent 处于停止状态。 |
-| `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | 列出你的 key 所绑定的那个用户拥有的 agent。`opts.labels` 按 declared 里的 label 过滤，`opts.page` 从 1 开始，页大小固定为 100。作用域是 `owner_uid` **且** `org_id`，所以同事在你组织里建的 agent，按 id 读得到，却不会出现在这个列表里。 |
+| `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | 列出 key 的组织、Project 和 owner 范围内的 Agent，按 ID 访问也检查同样的范围。`opts.labels` 按 declared labels 筛选，`opts.page` 从 1 开始，每页 100 条。 |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | 读取一个 agent。返回的是**投影** ：配置在 `declared` 下，版本号在 `status.config_version`。 |
 | `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUT 你点名的 declared section，按 section 合并。每次调用都会 bump `config_version`。 |
 | `deleteAgent(agentId)` | `Promise<void>` | 软删除该 agent。不会停止它。 |
@@ -137,35 +134,35 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `stopped`。 |
 | `waitUntilRunning(agentId, opts?)` | `Promise<AgentRecord>` | 轮询 `status.desired_state`，直到它读到 `running`，然后把那份投影交给你。默认：30 秒预算，两次轮询间隔 500 毫秒。超时抛 `408`/`timeout`。 |
 | `listAgentSkills(agentId, opts?)` | `Promise<AgentSkill[]>` | 列出已解析到这个 agent 上的 skill。 |
-| `putAgentSkill(agentId, skillId, opts?)` | `Promise<{ config_version?: number; warnings?: string[] }>` | 安装一个你自己租户拥有的 skill。全局目录的 id 返回 404。 |
+| `putAgentSkill(agentId, skillId, opts?)` | `Promise<{ config_version?: number; warnings?: string[] }>` | 为 key 可见的 Skill 创建或更新 assignment。见 [Skills](../build/skills.md)。 |
 | `deleteAgentSkill(agentId, skillId)` | `Promise<void>` | 卸载一个 skill。 |
 
 **渠道**
 
-把一个聊天平台绑到用 API 创建出来的 agent 上，这样同一个 agent 也能在聊天软件里回复人。
-飞书 / Lark、企业微信、微信三家都有服务端驱动的扫码流程。Slack 和钉钉走 `addChannel`，
-用你已经拿到的凭证绑定；微信正相反，扫码流是它唯一的路径。平台对照表和注意事项见[渠道](../build/channels.md)。
+Platform key 不能调用 Agent channel 路由，这些方法返回 404。下表保留 SDK 契约。需要连接聊天应用时，在自己的后端认证用户，再通过 [Session API](../build/sessions.md) 转发消息。见[渠道](../build/channels.md)。
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 这个 agent 已绑定的平台账号，带各自的 `health`、`status` 和可选 capability 状态。纯 API 的 agent 返回空数组。 |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 用 `config` 里的显式凭证绑定一个平台（201）。钉钉直接绑定使用 `platform: 'dingtalk-connector'` 和 `clientId`/`clientSecret`。飞书还接受 `permission_admin_enabled`。**201 的意思是存下了，不是能用了**——绑定时不校验凭证，结论要从后续 `listChannels` 读取。 |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 修改一个绑定的 `dm_policy`、`group_policy`、`enabled` 或飞书的 `permission_admin_enabled`，并返回新状态。公共网关忽略 `allow_from`，它不构成发送者 ACL。这个方法不幂等：平台上没有对应绑定时返回 `404 channel.not_found`。 |
-| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | 解绑一个 `platform` + `account`（`account` 默认 `'default'`）。和 `updateChannel` 不同，它是幂等的——删一个本来就不存在的绑定返回 `200 { ok: true }`。 |
-| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | 在 `'feishu'` / `'wecom'` / `'weixin'` 上发起扫码注册。飞书返回 `verification_uri_complete` 和 `poll_interval`，`expires_in: 600`；企业微信和微信返回 `qrcode_url`，没有 `poll_interval`，`expires_in: 300`，而且微信的 `qrcode_url` 可能是内嵌的 `data:image/…`。UI 归你自己做：把返回的那个渲染出来，通常是渲染成二维码。`brand: 'lark'`（只有飞书有）会把 URI 的 host 换成 `open.larksuite.com`，而且必须和扫码那个人所在的 workspace 对得上。 |
-| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | 轮询这个 session 一次。被取消或已经消失的 session 返回的是 `404 channel.{platform}_session_not_found`，不是某个终态，所以自己写的轮询循环要把这个 404 当成结束条件，而不是一个该重试的传输错误。 |
-| `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | 放弃一个 setup session。之后再轮询它就是 404。 |
-| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | 替你把轮询循环跑完，直到这个 session 离开 `pending`，然后把那次终态的轮询结果交给你。被拒绝是一种结果，不是异常：`expired`、`denied`、`error` 都从 `status` 里回来。默认值：10 分钟预算，间隔听服务端的（平台不给间隔时本地按 5 秒）。 |
-| `startFeishuSetup` / `pollFeishuSetup` / `cancelFeishuSetup` / `waitForFeishuSetup` | 同上 | 只针对飞书的旧拼写，为 0.3.x-0.4.x 写的调用方保留，内部就是用 `platform: 'feishu'` 调上面四个。 |
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 通过 channel 路由列出渠道绑定。 |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 提交渠道绑定配置。 |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 提交渠道绑定的修改。 |
+| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | 请求删除一个 platform/account 绑定。 |
+| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | 为选择的 `GuidedSetupPlatform` 发起引导配置请求。 |
+| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | 读取一个配置请求的状态。 |
+| `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | 取消配置请求。 |
+| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | SDK helper，重复调用配置状态路由，直到完成或超时。 |
+| `startFeishuSetup` / `pollFeishuSetup` / `cancelFeishuSetup` / `waitForFeishuSetup` | 同上 | 上面四个引导配置方法的 Feishu 别名。 |
 
 **Skill registry**
 
+Platform key 不能调用根 `/skills` 路由，这些方法返回 404。这不影响通过 `listAgentSkills()`、`putAgentSkill()` 和 `deleteAgentSkill()` 读取或修改 Agent 对已有可见 Skill 的 assignment。见 [Skills](../build/skills.md)。下表保留 registry 方法的 SDK 契约。
+
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | 以 zip 上传一个 skill 包；一次调用同时创建 skill 记录**和**版本 1。`opts.scope` 只能是 `org` 或 `personal`，其他值返回 400。创建 description 来自 ZIP frontmatter，`options.description` 不会覆盖它。zip 中唯一的顶层目录名必须和 `SKILL.md` frontmatter 的 `name` 一致。 |
-| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | 返回包含 `skill_id`、`version`、`state` 的版本行，不是根 skill 行。这里的 description 可以覆盖 frontmatter；未 pin 的 Agent 跟随新版本。 |
-| `listSkills(opts?)` | `Promise<SkillRecord[]>` | 你的 key 能看到的 registry 目录：global skill，加上你自己的 org 和 personal。`q` 按名字匹配，`page` 从 1 开始，页大小固定为 100。 |
-| `deleteSkill(skillId)` | `Promise<void>` | 删除 registry 里的一个 skill（204）。org 和 personal scope 没有占用检查：装了它的 agent 直接失去它。 |
+| `uploadSkill(zip, opts)` | `Promise<SkillRecord>` | 提交 ZIP 和 metadata，创建 registry Skill。SDK 的 `opts.scope` 接受 `org` 或 `personal`。 |
+| `uploadSkillVersion(skillId, zip, opts?)` | `Promise<SkillVersionRecord>` | 提交 ZIP，作为 registry Skill 的另一个版本。 |
+| `listSkills(opts?)` | `Promise<SkillRecord[]>` | 列出 registry 记录，可使用名称查询 `q` 和从 1 开始的 `page`。 |
+| `deleteSkill(skillId)` | `Promise<void>` | 请求删除 registry Skill。 |
 
 **Session 与事件**
 
@@ -216,7 +213,7 @@ Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些�
 |---|---|---|
 | `listArtifacts(agentId, opts?)` | `Promise<ArtifactPage>` | 一次一页（`{artifacts, page, has_more}`）——而且和 `listEvents` 不同，`has_more` 会告诉你截断了。`limit` 默认 50、上限 100；用 `sessionId`、`sourcePath`、`createdBefore` 过滤。 |
 | `getArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | 一行 artifact。它的 `status` 是 `pending`、`ready`、`failed` 或 `deleted`，只有 `ready` 的行才带得出一个可解析的 `url`。外部 id 和未知 id 都是 404。 |
-| `downloadArtifact(agentId, artifactId)` | `Promise<{ artifact_id?: string; url?: string }>` | 为 `ready` 的 artifact 换发一个新访问 URL。URL 是可撤销的 bearer capability——当密钥对待。从未 finalize 的行返回 `409 artifact_not_ready`。 |
+| `downloadArtifact(agentId, artifactId)` | `Promise<{ artifact_id?: string; url?: string }>` | 为 `ready` artifact 返回访问 URL，将它作为 bearer capability 保管。resolver URL 检查删除状态和 access version；已签发的 object-store presigned URL 不保证在删除时立即撤销。每次调用不一定更换 URL。未 finalize 的行返回 `409 artifact_not_ready`。见[文件与产物](../build/files.md)。 |
 | `deleteArtifact(agentId, artifactId)` | `Promise<ArtifactRecord>` | 删除一个 artifact，返回引擎留下的那行。 |
 
 **自动化：定时任务与 wake**
@@ -224,8 +221,8 @@ Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些�
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | 这个 agent 的定时任务。列表返回的是调度器自己的 describe 形状，上面再合并一层 camelCase 投影——防御性地读。 |
-| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | 创建一个定时任务。`201`，回执里只有 `schedule_name`，没有定义本身。定时任务比 `stopAgent()` 和 `deleteAgent()` 活得久；得你自己删。 |
-| `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | 读取一个定时任务，用的是 camelCase 的读取词表。你发进去的东西，没有一样按原来的名字回来。 |
+| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | 创建一个定时任务。`201`，回执包含公共 `schedule_id` 和兼容用的 deprecated `schedule_name`，不是完整定义。定时任务比 `stopAgent()` 和 `deleteAgent()` 活得久；得你自己删。 |
+| `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | 读取一个定时任务，用的是 camelCase 的读取词表。使用公共 `schedule_id`；触发节奏从规范化的 projection 读取。 |
 | `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | 替换定义。要改触发节奏就发 `schedule`，绝不要把读到的 `scheduleSpec` 发回去——那个会返回 `200` 然后被静默忽略。SDK 会把六个被拒的字段全部剥掉，所以「读出来、改一改、再写回去」这套在 JavaScript 里也能成立。 |
 | `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | 删除一个定时任务。和 `updateSchedule` 一样，它不提供跨超时的幂等保证——超时之后靠列出来对账，不要盲目重试。 |
 | `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | 带外地立刻触发一次。不影响原来的节奏。 |
@@ -234,7 +231,7 @@ Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些�
 
 `ScheduleInput` 有三个必填字段。`schedule_id` 由你自己取，要匹配
 `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`——用同一个 id 但**不同的**定义再创建一次是 `409`。
-`schedule` 是触发节奏。`payload.kind` 必须是 `'agentTurn'`，这是管理面唯一接受的 kind。
+`schedule` 是触发节奏。本例使用 `payload.kind: 'agentTurn'`。管理 HTTP parser 还接受 `systemEvent` 和 `command`，但执行方式及调用方限制不同。按 [Schedules](../build/schedules.md) 使用，不要把三种 kind 视为可互换。
 
 ```ts
 await zc.createSchedule(agentId, {
@@ -249,11 +246,7 @@ await zc.createSchedule(agentId, {
 `sessionTarget` 决定这个回合在哪里跑：不填或传 `'isolated'`，每次触发都开一个新 session；
 传 `session:<id>` 则打到这个 agent 已有的某个 session 上。它在创建之后**不可变**。
 
-然后你把它读回来，上面这些名字一个都没活下来。你的 `schedule_id` 变成 `name` 回来——
-这才是你传给 `getSchedule`、`updateSchedule` 和 `deleteSchedule` 的那个。`scheduleId` 字段是
-全限定名 `cron/{computer_id}/{agent_id}/{schedule_id}`，不是你取的那个 id。触发节奏在
-`scheduleSpec.cronExpressions[0]`，这是读取结果里唯一带节奏的地方；`sessionTarget` 读回来是
-`execution.kind`。
+后续操作使用 create、get 和 list 响应中的公共 `schedule_id`。旧 projection 还可能带 `name` 和全限定 `scheduleId`；它们是兼容字段，不是首选的公共 ID。触发节奏可从 `scheduleSpec.cronExpressions[0]` 读取，execution target 反映在 `execution.kind` 中。不要把读取投影直接发回作为 create/update 输入。
 
 `updateSchedule` 拒收六个字段，既是编译错误，运行时也会再剥一遍。其中两个就是刚说的读取形状：
 `scheduleSpec` 和 `sessionTarget`。另外四个——`execution`、`originMetadata`、`contextSnapshot`
@@ -272,14 +265,16 @@ await zc.createSchedule(agentId, {
 
 **Environment**
 
+Platform key 不能调用根 `/environments` 路由，这些方法返回 404。Agent 无需创建 Environment 就可以使用托管的默认 sandbox。下表保留 SDK 契约；可用性见 [Environments](../build/environments.md)。
+
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `listEnvironments(opts?)` | `Promise<EnvironmentRecord[]>` | 你的组织能看到的 Environment，`page` 从 1 开始。没动过的 agent 固定在上面的那个平台默认 Environment 不在里面。 |
-| `getEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 读取一个 Environment。你组织之外的一律 `404`，平台默认的那个也一样——这是选择器不匹配，不是权限问题。 |
-| `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | 创建一个 Environment 及其第一个版本。`resource.config` 只收 `packages`、`files`、`build`、`networking` 这四个键；出现别的键就是 `400 invalid_environment_config`。 |
-| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 归档它。SDK 会替你把 `{id}:archive` 里的冒号做百分号编码——裸的 `:` 会让引擎匹配不到这条路由、返回 404。 |
-| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | 给已有的 Environment 加一个不可变版本。SDK 会把你的 `config` 包成 `{ resource: { config } }`，和创建时一致。 |
-| `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | 读取版本 status，可用 `opts.resourceClass`（`starter`、`pro`、`ultra`）选择规格。`partial_ready` 不一定还在构建；轮询应有截止时间和取消信号。 |
+| `listEnvironments(opts?)` | `Promise<EnvironmentRecord[]>` | 列出 Environment 记录，可使用从 1 开始的 `page`。 |
+| `getEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 读取一个 Environment 记录。 |
+| `createEnvironment(input, idempotencyKey?)` | `Promise<EnvironmentRecord>` | 提交 Environment 定义和初始配置。 |
+| `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 请求归档 Environment。 |
+| `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | 为 Environment 提交另一个配置版本。 |
+| `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | 读取一个版本，可以用 `opts.resourceClass` 选择 `starter`、`pro` 或 `ultra`。 |
 
 只有下面单独成节的方法需要补充签名以外的行为。其余方法都是表格中描述的一次调用操作。
 
@@ -339,7 +334,7 @@ createAgent(
 | 参数 | 类型 | 说明 |
 |---|---|---|
 | `input.resource` | `AgentResource` | 配置。`name` 必填。 |
-| `input.ownership` | `Ownership` | 这里不要传。它在 `createEnvironment` 上是**必填**的，那边从一份 agent 记录的 `ownership` 里取。 |
+| `input.ownership` | `Ownership` | 创建 Agent 时不要传。公共网关从 key 派生 ownership。 |
 | `idempotencyKey` | `string` | 作为 `Idempotency-Key` 头发送。你不传它时，这个头完全不会出现。 |
 
 返回**创建回执** ：一个扁平对象，带 `agent_id`、顶层的 `config_version`、`ownership` 和
@@ -370,7 +365,6 @@ console.log(created.agent_id, created.config_version) // "agt_...", 1
 ### `listAgents(opts?)` {#listagentsopts}
 
 ::: warning SDK 版本
-此返回结构实现于 [SDK PR #26](https://github.com/SerendipityOneInc/zoowork-sdk-typescript/pull/26)。
 SDK 0.5.2 返回 `Promise<AgentRecord[]>`；使用以下示例前，需要安装包含该分页改动的发布版本。
 :::
 
@@ -448,7 +442,8 @@ const configVersion = (a: AgentRecord): number | undefined =>
   a.status?.config_version ?? a.config_version
 ```
 
-未知的、已软删除的、或属于其他组织的 agent id，都返回 `404 not_found`。
+未知、已软删除或超出 key 范围的 Agent ID 返回 404。公共 Agent 路由使用
+`service_api.not_found`，判断时同时保留 HTTP status。见 [Errors](./errors.md)。
 
 ---
 
@@ -473,7 +468,7 @@ console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - shal
 连这条规则都有例外，就是 `tool_policy` 和 `system_prompt`：任何点到它们的 PUT 都会整体替换。
 见[工具](../build/tools.md)。
 
-**每一次成功的 PUT 都会 bump `config_version`，包括请求体和已存内容逐字节相同的那一次。**
+**配置写入会增加 `config_version`，即使值相同；仅修改 ownership 时不会。** 可选 `expected_config_version` 与写入一起原子检查，过期时返回 `409 active_config_changed`。
 见[错误处理](./errors.md)。
 
 PUT 请求体里出现 `skills`、`credentials` 以及未知字段，都返回 `400`。
@@ -571,7 +566,7 @@ const skills = await zc.listAgentSkills(agentId)
 console.log(skills.length, skills.map((s) => s.name).slice(0, 5))
 ```
 
-刚创建的 agent 已经挂上了整个全局目录，所以在你动手装任何东西之前，先调一下这个。
+Global Skills 默认参与解析，除非 `include_global_skills` 为 `false`。添加 assignment 前，先读取解析后的列表，检查条目是否 eligible。
 
 ---
 
@@ -594,10 +589,9 @@ putAgentSkill(
 const { config_version } = await zc.putAgentSkill(agentId, 'skl_yourown', { enabled: true })
 ```
 
-只有**你自己租户上传的** skill（`org` 或 `personal` scope）能通过公开网关安装。`global` 目录里的 id
-列得出来，但在这里回 `404`。那些全局 skill 在创建时就已经挂上了，所以既没有东西可装，也没有东西可卸。
+Skill 必须在 key 的可见范围内：global Skill、同组织的组织级 Skill、同组织且同 named Project 的 Project Skill，或者 owner 匹配且 org 为空或相同的 personal Skill。未知或不可访问的 ID 返回 404。Registry 内容管理是另一项操作，目前不能通过 Platform key 使用。
 
-安装 `org` 或 `personal` scope 的 skill 后，使用 `listAgentSkills()` 确认它已经挂到 Agent 上。
+更新 assignment 后，调用 `listAgentSkills()` 确认解析出的版本及 eligibility。
 
 ---
 
@@ -607,7 +601,7 @@ const { config_version } = await zc.putAgentSkill(agentId, 'skl_yourown', { enab
 deleteAgentSkill(agentId: string, skillId: string): Promise<void>
 ```
 
-卸载一个 skill，resolve 时不带任何值。scope 规则和 `putAgentSkill()` 相同。
+删除显式 assignment，resolve 时不带任何值。可见范围检查和 `putAgentSkill()` 相同。删除 global Skill 的 assignment 会恢复它的默认行为，不会从 global catalog 删除 Skill。需要排除它时，设置 `enabled: false` 的 assignment。
 
 ```ts
 await zc.deleteAgentSkill(agentId, 'skl_yourown')
@@ -620,7 +614,7 @@ await zc.deleteAgentSkill(agentId, 'skl_yourown')
 ```ts
 createSession(
   agentId: string,
-  input: { initial_events?: OutboundEvent[]; metadata?: Record<string, unknown> },
+  input: { initial_events?: OutboundEvent[]; metadata?: Record<string, unknown>; runtime_mode?: 'active'; idle_compaction?: boolean | null },
   idempotencyKey?: string,
 ): Promise<SessionRecord>
 ```
@@ -859,7 +853,7 @@ console.log(outcome, text)
 - 间隔定时任务写 `{ kind: 'every', everyMs: 60_000 }`，可选 epoch 毫秒 `anchorMs`。旧 `every` 字段需明确迁移，不猜单位。运行记录可带 `session_id`，缺失时不能推断关联。
 - `SkillVersionRecord` 是 `{ skill_id, version, state }`，不是根记录。创建重复 name 为 409；版本按内容去重；HTTP key 并非所有上传的幂等保证。
 - `run_status` 可为 null，`pending_approvals` 是数字。审批时间使用 `requested_at`；可选 preview 是字符串，另有 `allowed_decisions`、timeout 和 resolution 字段。202/signaled 表示决定已提交，最终状态应从审批记录读取。
-- Environment 的 `partial_ready` 可是过渡态或部分终态。创建新版本不是重试旧版本；轮询示例见 [Environments](../build/environments.md#构建状态)。
+- Platform key 不能管理自定义 Environment；使用默认 sandbox。见 [Environments](../build/environments.md)。
 - MCP 声明可通过 `context.meta` / `context.headers` 显式传运行时 context，并通过 server 级 `permission` 和按原始工具名精确匹配的 `tools` 设置审批行为。tool policy pattern 支持精确名称、全局 `*` 或一个末尾 `prefix*`；`alsoAllow` 仍只支持精确名称。
 - 钉钉直接绑定使用 `platform: 'dingtalk-connector'` 和 `clientId` / `clientSecret`。飞书请求接受 `permission_admin_enabled`，渠道响应可返回文档 capability 的同步、provider、缺失 scope 和管理员审批状态。
 
@@ -930,6 +924,7 @@ interface AgentRecord {
   environment_locked_at?: string | null
   status?: AgentStatus
   ownership?: Ownership
+  sandbox_resource_class?: string
   [k: string]: unknown
 }
 ```
@@ -983,7 +978,7 @@ interface AgentResource {
   userTimezone?: string
   model?: { primary: string; input?: string[]; max_tokens?: number }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
-  skills?: { skill_id: string; version?: number | 'latest' }[]
+  skills?: (({ skill_id: string; name?: string } | { name: string; skill_id?: string }) & { version?: number | 'latest' })[]
   include_global_skills?: boolean
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
@@ -1081,7 +1076,7 @@ interface AgentSkill {
 }
 ```
 
-`scope` 是决定你能不能管理这个 skill 的字段：通过公开网关，只有 `org` 和 `personal` 能安装。
+`scope` 描述可见范围，不等于 registry 内容编辑权限。Platform key 可以把已有可见的 global、组织、Project 和 personal Skill 赋给自己的 Agent，但不能管理 registry。保留未知 scope 值；见 [Skills](../build/skills.md)。
 
 ### `SessionRecord`
 
@@ -1163,7 +1158,7 @@ interface OutboundEvent {
 ```
 
 一个写入侧的事件。`type` 是 `user.message`、`user.interrupt`、`user.tool_confirmation`、
-`system.message` 之一。索引签名承载按类型不同的字段：`user.message` 用 `content`，
+`user.custom_tool_result`、`system.message` 之一。索引签名承载按类型不同的字段：`user.message` 用 `content`，
 `system.message` 用 `text`。
 
 `type` 的类型是 `string`，所以打错字也能编译过。服务端会拒绝它。
@@ -1197,11 +1192,15 @@ interface ModelInfo {
 interface Ownership {
   owner_uid: string
   org_id: string
+  project_id?: string | null
+  visibility?: 'private' | 'project'
 }
 ```
 
-一个持久化锚点，不是鉴权声明。`createAgent()` 里不要传，真实值从 `created.ownership` 读回来。
-真正**必填**它的是 `createEnvironment()`：把你从一份 agent 记录上读到的这两个值传过去。
+Ownership 标识资源所属的 owner 和组织，不会授予访问权限。`createAgent()` 不要传这个字段。
+需要使用时，从 `created.ownership` 读取实际值。
+
+TypeScript `createEnvironment()` 签名要求传入 `ownership`，但这个签名不意味着 Platform key 可以管理 Environment：根 `/environments` 路由返回 404。使用托管的默认 sandbox；见 [Environments](../build/environments.md)。
 
 ### `ToolCall`
 
@@ -1221,7 +1220,7 @@ interface ToolCall {
 一次工具调用会产生**一串共享同一个 `toolCallId` 的事件，每个 phase 一个** ：`start` 带 `args`，
 `end` 带 `isError` 和 `resultPreview`，`blocked` 表示这次调用停在审批上、**还没有** 执行。
 按 `toolCallId` 配对——并发调用时，它们在流里**不相邻** 。一个工具失败不会让 run 失败：
-带 `isError: true` 的事件后面，照样跟着 `succeeded` 的 `run.finished`。见[事件](../build/events.md)。
+`isError: true` 不保证最后的 run 会 `succeeded`。模型可能恢复后成功，也可能失败；应检查最终 run status 和 termination。见[事件](../build/events.md)。
 
 ### 配置类型
 
@@ -1363,19 +1362,32 @@ for await (const msg of parseSSE(res.body!)) {
 
 丢掉 `id:` 行会让你的续传游标卡死，这就是解析器把它暴露出来的原因。
 
+## Webhook helpers
+
+`@zoowork-ai/sdk` **0.9.0+** 提供接收 helpers。它们验证和解析收到的 delivery，不是 webhook endpoint 管理方法。注册和 delivery 管理见 [Webhooks](../build/webhooks.md)。
+
+| Helper | 行为 |
+|---|---|
+| `await verifyWebhookSignature(input)` | 验证 raw-body 签名和 timestamp，返回 `{eventId, timestamp}`。 |
+| `await unwrapWebhook(input)` | 验签并解析 `WebhookEvent` envelope。 |
+| `isKnownWebhookEventType(type)` | 根据 SDK 认识的 event name 收窄类型。 |
+| `knownWebhookEvent(event)` | 返回带 known-type cast 的同一个 event，未知时返回 `undefined`，不验证每个 `data` 字段。 |
+| `await signWebhook({eventId, timestamp, body, secret})` | 为离线 receiver test 构造 signature headers，不发送或发布 platform event。 |
+
+验证 input 包含 `headers`、原始 `rawBody`（`Uint8Array` 或 string），以及可选的 `secret`、`now`、`toleranceSeconds`、`maxBodyBytes`。省略 `secret` 时读取 `ZOOWORK_WEBHOOK_SECRET`；显式 secret 可以是一个 string，也可以是用于轮换的 readonly array。`now` 使用**毫秒**，签名及返回的 timestamp 使用 Unix **秒**。默认 tolerance 为 300 秒，body limit 为 16 KiB。
+
+验签前不要解析或重新序列化 JSON。`unwrapWebhook` 检查基础 envelope，同时保留未知 event type 和 data field；handler 仍需验证 event-specific data。它不检查 body `id` 是否等于 `webhook-id`。使用验签得到的 delivery ID 去重，并按应用要求检查两者相等。验证失败会抛 `ZooworkWebhookError`。SDK 的 event 常量是 parser 词表，不是 deployment 可用性保证。
+
 ## 完整导出清单
 
 ```ts
 import {
-  // client
   createZooworkClient,
   DEFAULT_BASE_URL,
   ZooworkError,
   type ZooworkClient,
   type ZooworkConfig,
   type ZooworkAuth,
-
-  // resource types
   type Ownership,
   type ModelInfo,
   type AgentResource,
@@ -1385,16 +1397,6 @@ import {
   type AgentPagePromise,
   type AgentStatus,
   type AgentSkill,
-  type CustomToolDeclaration,
-  type CustomToolResultImageMimeType,
-  type CustomToolResultContent,
-  type CustomToolResultEvent,
-  type CustomToolCallStatus,
-  type CustomToolCallRecord,
-  type SessionListPageOptions,
-  type SessionListPage,
-
-  // channels
   type AgentChannel,
   type AgentChannelCapabilitySync,
   type AgentChannelCapabilities,
@@ -1411,42 +1413,38 @@ import {
   type FeishuSetupInput,
   type FeishuSetupSession,
   type FeishuPollResult,
-
-  // more resource types
   type McpContextConfig,
   type McpServerDeclaration,
   type McpToolPermission,
   type McpToolPermissionOverride,
+  type CustomToolDeclaration,
+  type CustomToolResultImageMimeType,
+  type CustomToolResultContent,
+  type CustomToolResultEvent,
   type SkillRecord,
   type SkillVersionRecord,
   type SessionRecord,
+  type SessionListPageOptions,
+  type SessionListPage,
   type SessionHistoryEntry,
   type SessionEvent,
   type SessionEventPage,
   type OutboundEvent,
   type PostEventReceipt,
-
-  // approvals
   type ApprovalDecision,
   type ApprovalRecord,
-
-  // system prompt
+  type CustomToolCallStatus,
+  type CustomToolCallRecord,
+  type ArtifactPage,
+  type ArtifactRecord,
+  type ArtifactStatus,
+  type OutcomeConfig,
+  type OutcomeEvaluator,
   type SystemPromptDeclaration,
   type SystemPromptInfo,
   type SystemPromptPreview,
   type SystemPromptPreviewInput,
   type SystemPromptUpgrade,
-
-  // artifacts
-  type ArtifactStatus,
-  type ArtifactRecord,
-  type ArtifactPage,
-
-  // outcome
-  type OutcomeConfig,
-  type OutcomeEvaluator,
-
-  // schedules, wake, exec
   type ScheduleSpec,
   type SchedulePayload,
   type ScheduleInput,
@@ -1455,14 +1453,10 @@ import {
   type ScheduleRun,
   type WakeResult,
   type ExecResult,
-
-  // environments
   type EnvironmentConfig,
   type EnvironmentResource,
   type EnvironmentRecord,
   type EnvironmentVersionRecord,
-
-  // events
   SESSION_EVENT_TYPES,
   type SessionEventType,
   PUBLIC_INPUT_EVENT_TYPES,
@@ -1477,14 +1471,62 @@ import {
   type CustomToolUse,
   toolCall,
   type ToolCall,
-
-  // sse
   parseSSE,
   type SSEMessage,
+  WEBHOOK_EVENT_TYPES,
+  WEBHOOK_SCHEDULE_CONFIG_EVENT_TYPES,
+  type WebhookEventType,
+  isKnownWebhookEventType,
+  knownWebhookEvent,
+  verifyWebhookSignature,
+  unwrapWebhook,
+  signWebhook,
+  ZooworkWebhookError,
+  type WebhookErrorCode,
+  WEBHOOK_ID_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_SECRET_ENV,
+  WEBHOOK_TOLERANCE_SECONDS,
+  WEBHOOK_DEFAULT_MAX_BODY_BYTES,
+  type WebhookEvent,
+  type WebhookEventFor,
+  type KnownWebhookEvent,
+  type WebhookEventData,
+  type WebhookEventDataByType,
+  type WebhookEventAttribution,
+  type WebhookScheduleRunRef,
+  type WebhookWaitingOnRef,
+  type WebhookRunEventData,
+  type WebhookRunStartedData,
+  type WebhookRunFinishedData,
+  type WebhookRunYieldedData,
+  type WebhookApprovalEventData,
+  type WebhookApprovalRequestedData,
+  type WebhookApprovalResolvedData,
+  type WebhookCustomToolEventData,
+  type WebhookCustomToolRequestedData,
+  type WebhookCustomToolResolvedData,
+  type WebhookOutcomeEvaluatedData,
+  type WebhookSessionCreatedData,
+  type WebhookSessionArchivedData,
+  type WebhookSessionDeletedData,
+  type WebhookScheduleFireData,
+  type WebhookScheduleDispatchedData,
+  type WebhookScheduleDispatchFailedData,
+  type WebhookScheduleSkippedData,
+  type WebhookScheduleFinishedData,
+  type WebhookScheduleConfigData,
+  type WebhookTestData,
+  type WebhookHeaders,
+  type WebhookHeaderSource,
+  type WebhookSignatureHeaders,
+  type VerifyWebhookInput,
+  type VerifiedWebhook,
+  type SignWebhookInput,
 } from '@zoowork-ai/sdk'
 ```
 
-入口导出由一个集合断言测试固定——少一个符号、或者多出一个不该有的符号，它都会失败。
 `DEFAULT_BASE_URL` 就是那个会被 `ZOOWORK_BASE_URL` 和 `baseUrl` 选项覆盖掉的
 公开网关 base；把它导出来，是为了让你能拿它做比较，或者自己拼 URL。
 
@@ -1496,3 +1538,35 @@ import {
 - [错误处理](./errors.md) —— 值得拿来分支的 `ZooworkError.type` 取值。
 - [Agents](../build/agents.md) —— 创建、启动、修改，以及两种响应形状。
 - [Sessions](../build/sessions.md) —— 驱动一个回合、给事件日志翻页、读取会话记录。
+
+## Developer API 方法
+
+使用这些新增方法前检查已安装的 declarations。需要包含它们的 SDK release；缺少时使用 HTTP。
+
+```ts
+getWorkspaceFile(agentId: string, path: string, opts?: { showHidden?: boolean }): Promise<WorkspaceFile>
+  writeWorkspaceFile(agentId: string, path: string, content: string): Promise<ApiObject>
+  getWorkspaceFileContent(agentId: string, path: string, opts?: { download?: boolean }): Promise<Uint8Array>
+  getAgentDatabase(agentId: string): Promise<AgentDatabase>
+  getAgentDatabaseRows(agentId: string, tableName: string, opts?: { limit?: number; offset?: number }): Promise<AgentDatabaseRows>
+  getUsage(opts?: UsageOptions): Promise<UsageResult>
+  getRunOutput(agentId: string, sessionId: string, runId: string, opts?: CursorOptions): Promise<RunOutput>
+  getApproval(agentId: string, approvalId: string): Promise<ApprovalRecord>
+  getCustomToolCall(agentId: string, callId: string): Promise<CustomToolCallRecord>
+  listApprovalPage(agentId: string, opts?: ActionListOptions): Promise<ApprovalPage>
+  listCustomToolCallPage(agentId: string, opts?: ActionListOptions): Promise<CustomToolCallPage>
+  listAgentWebhooks(agentId: string, opts?: CursorOptions): Promise<AgentWebhookPage>
+  createAgentWebhook(agentId: string, input: AgentWebhookInput, idempotencyKey: string): Promise<AgentWebhookCreated>
+  getAgentWebhook(agentId: string, webhookId: string): Promise<AgentWebhookEndpoint>
+  updateAgentWebhook(agentId: string, webhookId: string, input: Partial<AgentWebhookInput>): Promise<AgentWebhookEndpoint>
+  deleteAgentWebhook(agentId: string, webhookId: string): Promise<void>
+  rotateAgentWebhookSecret(agentId: string, webhookId: string, input: { revoke_previous_after: 0 | 86400 }, idempotencyKey: string): Promise<AgentWebhookSecretRotation>
+  testAgentWebhook(agentId: string, webhookId: string, idempotencyKey: string): Promise<WebhookTestReceipt>
+  getAgentWebhookEvent(agentId: string, eventId: string): Promise<ApiObject>
+  listAgentWebhookDeliveries(agentId: string, webhookId: string, opts?: WebhookDeliveryOptions): Promise<WebhookDeliveryPage>
+  getAgentWebhookDelivery(agentId: string, webhookId: string, deliveryId: string): Promise<ApiObject>
+  redeliverAgentWebhookDelivery(agentId: string, webhookId: string, deliveryId: string, idempotencyKey: string): Promise<WebhookRedeliveryReceipt>
+  redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
+```
+
+响应保留未知字段。`AgentWebhookPage.webhooks` 是 endpoint 列表。action page 保留分页，原有数组方法保持返回类型。binary content 返回 `Uint8Array`。MCP tool override 接受 `requireConfirmation?: boolean`。

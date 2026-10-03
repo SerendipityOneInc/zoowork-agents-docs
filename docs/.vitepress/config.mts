@@ -225,6 +225,10 @@ interface PageSet {
   defineAgent: string
   configureEnvironment: string
   runSessions: string
+  manageContext: string
+  persistentMemory: string
+  orchestration: string
+  sessionOperations: string
   integrateProduct: string
   agents: string
   sessions: string
@@ -240,6 +244,18 @@ interface PageSet {
   reference: string
   sdk: string
   errors: string
+  authentication: string
+  migration: string
+  files: string
+  dataStorage: string
+  memory: string
+  webhooks: string
+  schedules: string
+  pythonSdk: string
+  models: string
+  usage: string
+  capabilities: string
+  notSupported: string
 }
 
 const EN: PageSet = {
@@ -251,10 +267,14 @@ const EN: PageSet = {
   build: 'Build',
   defineAgent: 'Define your agent',
   configureEnvironment: 'Configure the environment',
-  runSessions: 'Run sessions',
+  runSessions: 'Delegate work to your agent',
+  manageContext: 'Manage agent context',
+  persistentMemory: 'Build persistent memory',
+  orchestration: 'Advanced orchestration',
+  sessionOperations: 'Session operations',
   integrateProduct: 'Integrate your product',
   agents: 'Agent configuration',
-  sessions: 'Create and continue sessions',
+  sessions: 'Start a session',
   events: 'Events and streaming responses',
   channels: 'Connect chat channels',
   tools: 'Tools',
@@ -267,6 +287,18 @@ const EN: PageSet = {
   reference: 'Reference',
   sdk: 'TypeScript SDK',
   errors: 'Errors',
+  authentication: 'Authentication and API keys',
+  migration: 'Move an agent loop',
+  files: 'Files and artifacts',
+  dataStorage: 'Agent Database',
+  memory: 'Memory',
+  webhooks: 'Webhooks',
+  schedules: 'Schedules',
+  pythonSdk: 'Python SDK',
+  models: 'Models',
+  usage: 'Usage',
+  capabilities: 'Availability and limits',
+  notSupported: 'Current API boundaries',
 }
 
 const ZH: PageSet = {
@@ -278,10 +310,14 @@ const ZH: PageSet = {
   build: '构建',
   defineAgent: '定义 Agent',
   configureEnvironment: '配置运行环境',
-  runSessions: '运行 Session',
+  runSessions: '向 Agent 分配任务',
+  manageContext: '管理 Agent context',
+  persistentMemory: '构建持久化 Memory',
+  orchestration: '高级编排',
+  sessionOperations: 'Session 操作',
   integrateProduct: '集成到产品',
   agents: 'Agent 配置',
-  sessions: '创建和继续 Session',
+  sessions: '启动 Session',
   events: '事件与流式响应',
   channels: '连接聊天渠道',
   tools: '工具',
@@ -294,12 +330,29 @@ const ZH: PageSet = {
   reference: '参考',
   sdk: 'TypeScript SDK',
   errors: '错误处理',
+  authentication: 'Authentication 与 API key',
+  migration: '迁移 agent loop',
+  files: '文件与产物',
+  dataStorage: 'Agent Database',
+  memory: 'Memory',
+  webhooks: 'Webhooks',
+  schedules: 'Schedules',
+  pythonSdk: 'Python SDK',
+  models: 'Models',
+  usage: 'Usage',
+  capabilities: '可用性与限制',
+  notSupported: '当前 API 边界',
 }
 
 function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
   const referenceItems: DefaultTheme.SidebarItem[] = [
+    { text: t.authentication, link: `${base}/get-started/authentication` },
     { text: t.sdk, link: `${base}/reference/typescript-sdk` },
+    { text: t.pythonSdk, link: `${base}/reference/python-sdk` },
+    { text: t.models, link: `${base}/reference/models` },
+    { text: t.usage, link: `${base}/reference/usage` },
     { text: t.errors, link: `${base}/reference/errors` },
+    { text: t.capabilities, link: `${base}/reference/capabilities` },
   ]
 
   return [
@@ -310,6 +363,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
         { text: t.quickstart, link: `${base}/get-started/quickstart` },
         { text: t.architecture, link: `${base}/get-started/architecture` },
         { text: t.trajectories, link: `${base}/get-started/trajectories` },
+        { text: t.migration, link: `${base}/get-started/migration` },
       ],
     },
     {
@@ -333,8 +387,25 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
       text: t.runSessions,
       items: [
         { text: t.sessions, link: `${base}/build/sessions` },
+        { text: t.sessionOperations, link: `${base}/build/session-operations` },
         { text: t.events, link: `${base}/build/events` },
+        { text: t.webhooks, link: `${base}/build/webhooks` },
       ],
+    },
+    {
+      text: t.manageContext,
+      items: [
+        { text: t.files, link: `${base}/build/files` },
+        { text: t.dataStorage, link: `${base}/build/data-storage` },
+      ],
+    },
+    {
+      text: t.persistentMemory,
+      items: [{ text: t.memory, link: `${base}/build/memory` }],
+    },
+    {
+      text: t.orchestration,
+      items: [{ text: t.schedules, link: `${base}/build/schedules` }],
     },
     {
       text: t.integrateProduct,
@@ -490,7 +561,19 @@ export default defineConfig({
         workDir: 'en',
         excludeIndexPage: false,
         // AI pages are emitted relative to workDir, without the HTML locale prefix.
-        sidebar: sidebar(EN, ''),
+        sidebar: [
+          ...sidebar(EN, ''),
+          // These pages are linked from guides rather than the main navigation.
+          // Keep their roles explicit in the AI inventory instead of an `Other` bucket.
+          {
+            text: 'Additional reading',
+            items: [
+              { text: 'Retrieval with custom tools or MCP', link: '/build/retrieval' },
+              { text: EN.notSupported, link: '/reference/not-supported' },
+              { text: 'Documentation home', link: '/index' },
+            ],
+          },
+        ],
       }),
     ],
   },

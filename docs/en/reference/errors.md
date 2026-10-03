@@ -64,17 +64,16 @@ Your requests pass through a gateway that authenticates your key and scopes you 
 organization, then reach the API. **Both can produce an error, and they produce it in their
 own envelope.**
 
-**API errors are passed through unchanged.** The commonest API envelope is:
+**Runtime responses below 500 are relayed; runtime 5xx failures are normalized.** A runtime 5xx becomes gateway HTTP 502 with code `agent.runtime_error`. Authentication and scope checks can also fail before forwarding. A common runtime envelope for a 409 is:
 
 ```json
 { "error": { "type": "agent_not_running", "message": "agent is not running" } }
 ```
 
 **The gateway emits its own envelope for authentication and tenancy failures** - the checks
-it runs before it ever forwards your request. A rejected key answers `401` with the type
-`service_token.invalid`, which is a gateway code, not an API one.
+it runs before forwarding. An invalid API key returns `401 platform.api_key_invalid`. A missing or unsupported Bearer credential can return `401 service_token.required`.
 
-The API side is itself two families, not one. Sessions, schedules, and environments answer
+The API side is itself two families, not one. Sessions and schedules answer
 `{ error: { type, message } }` with a bare code (`agent_not_running`, `session_archived`); the
 agents family answers `{ code, detail }` with a dotted one (`service_api.not_found`). Both land
 on `ZooworkError`, and the codes are kept verbatim - the SDK does not invent a shared
@@ -85,8 +84,7 @@ Two cases leave you with no type at all:
 
 1. Any non-JSON error body - an HTML error page from an intermediary, an empty body, a proxy
    timeout. The SDK keeps a clean `HTTP <status>` message and no type.
-2. **Every SSE stream failure.** `streamEvents()` builds its error from the status line
-   alone, so `type` is always `undefined` there even when the body had one.
+2. **A non-JSON SSE connection error.** `streamEvents()` shares HTTP error parsing and retains a type from a recognized JSON error envelope. Non-JSON failures can have no type, and transport interruptions can raise runtime errors. Optional `requestId`, `contentType`, `bodySnippet`, `cfRay`, and `retryable` provide diagnostics; they are not guaranteed on every response.
 
 So branch on `status` as well as `type`, and always have a `status`-only fallback.
 :::
@@ -111,11 +109,10 @@ your catch block.
 |---|---:|---|---|
 | `agent_not_running` | 409 | `createSession()` or `postEvents()` on an agent whose `status.desired_state` is not `running`. A newly created agent is stopped, and so is one you stopped yourself. | Call `startAgent()`, poll `status.desired_state` until it reads `running`, then retry. Never poll `actual_state`. |
 | `model_not_selectable` | 409 | A create or update selects a model catalog row that remains visible for existing references but no longer accepts new selection. | Refresh `listModels()`, choose a row whose `selectable` is not `false`, and use `expired_fallback_to` when the catalog supplies one. Do not retry the same alias unchanged. |
-| `not_found` / `service_api.not_found` | 404 | Unknown agent or session id, a soft-deleted one, **or one that belongs to another organization**. Both spellings exist: the agents family answers `service_api.not_found`, the sessions, schedules, and environments family answers a bare `not_found`. | Match on both spellings, or prefer `status === 404`. Do not read this as "deleted": cross-tenant reads are hidden as 404, never rejected as 403. Keep your own record of the ids you create. |
-| `service_token.invalid` | 401 | The key is missing, malformed, revoked, or its bound user left the organization. Emitted by the gateway, in the gateway's envelope. | Fix the credential. Do not retry - it will fail identically. Verify with `listModels()`. |
+| `not_found` / `service_api.not_found` | 404 | Unknown or deleted Agent or Session ID, or a resource outside the key's organization, Project, or owner scope. The Agent routes use `service_api.not_found`; Session and Schedule routes can use `not_found`. | Match both spellings or use `status === 404`. A 404 does not prove deletion. Keep a record of the IDs you create and use the key for their scope. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
 | `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
-| *(may be absent)* | 404 | `putAgentSkill()` with a global-catalog skill id. Only skills your own tenant uploaded are installable here, and the global catalog is already attached to every new agent, so there is nothing to install. | Branch on `status === 404` because this response may omit `type`. See [Skills](../build/skills.md). |
+| *(may be absent)* | 404 | `putAgentSkill()` with an unknown Skill ID or one outside the key's visible scopes. | Branch on `status === 404` because this response may omit `type`. Check the Skill's visibility; see [Skills](../build/skills.md). |
 
 ### More 400s
 
@@ -149,7 +146,27 @@ above.
 | `payload_too_large` | 413 | Body or skill payload over the limit. |
 | `quota_exceeded` | 429 | Rate or quantity limit. |
 | `internal_error` | 500 | Server-side failure. Back off and retry reads; reconcile writes first. |
-| `not_configured` | 501 | The backing service is not configured in this environment. Do not retry as-is. |
+| `agent.runtime_error` | 502 | A runtime dependency returned a server failure. Retry reads with backoff; reconcile writes before retrying. |
+
+## Platform and Usage errors
+
+Match the HTTP status as well as the code. A runtime-credential or billing prerequisite is not fixed by retrying an unchanged request.
+
+| Code | HTTP | What to do |
+|---|---:|---|
+| `service_token.required` | 401 | Supply a supported Bearer credential. |
+| `platform.api_key_invalid` | 401 | Check the secret, revocation, organization, Project, and owner state. |
+| `platform.authentication_unavailable` | 503 | Retry later; an authentication dependency is unavailable. |
+| `platform.key_credentials_not_bound` | 409 on Agent creation | Ask the organization owner to sign in to Platform, create a replacement key, and update the application. See [Authentication](../get-started/authentication.md#replace-or-revoke-a-key). |
+| `platform.billing_not_ready` | 409 | Sign in to Platform and wait for organization billing setup to complete. If it fails, select **Retry billing setup**. This code alone does not mean the balance is insufficient. |
+| `platform.runtime_credentials_unavailable` | 503 | Retry later; a runtime-credential dependency is unavailable. |
+| `usage.access_denied` | 403 | Query only within the key's Usage scope. |
+| `usage.snapshot_expired` | 409 | Start a fresh Usage query. |
+| `usage.invalid_query` | 400 | Fix the query parameters. |
+| `usage.busy` | 429 | Retry the read with backoff. |
+| `usage.unavailable` | 503 | Retry later; do not interpret an incomplete response as zero usage. |
+
+See [Authentication](../get-started/authentication.md) and [Usage](./usage.md). Diagnostic request IDs are optional; the public gateway does not guarantee an Engine request-ID header on every response.
 
 ## What is safe to retry
 
@@ -161,10 +178,8 @@ Retry safety is per operation, not per error. Nothing in the SDK retries for you
 | `startAgent`, `stopAgent` | **Reconcile first** | A failed stop can follow a desired-state change. Read back before retrying. Warnings belong to successful responses; non-2xx still throws. |
 | `deleteAgent` | **Yes** | Soft delete. Repeated calls succeed. |
 | `streamEvents` | **Yes** | Reconnect with the last event's resume token — `{ cursor: ev.cursor }`. The server resumes the log; checkpoint after successful processing. This does not make application side effects exactly-once. Do **not** reconnect with `{ after: lastSeq }`: that selects the deprecated engine-only lane, which drops your own input events (`user.message`, `user.interrupt`, `user.tool_confirmation`, `user.custom_tool_result`, `system.message`). |
-| `createAgent`, `createSession`, `createEnvironment`, `createEnvironmentVersion` | **Reuse the HTTP key** | Reuse the same stable `Idempotency-Key` and body. A new key means a new request. |
+| `createAgent`, `createSession` | **Reuse the HTTP key** | Reuse the same stable `Idempotency-Key` and body. A new key means a new request. |
 | `createSchedule` | **Stable ID and definition** | Reuse `schedule_id` with the same definition; a different definition conflicts. The HTTP key is not its deduplication mechanism. |
-| `uploadSkill` | **Read back first** | A successful create retried under the same active scope/name can return `409 skill_exists`. An HTTP key does not promise response replay. |
-| `uploadSkillVersion` | **Same skill and content** | Identical content is deduplicated for that skill, not by the HTTP key. Confirm the resulting version; do not infer an exactly-once guarantee. |
 | `updateAgent`, `putAgentSkill`, `deleteAgentSkill` | **No** | Each success bumps `config_version`. After a timeout, `getAgent()` first and reconcile before you decide. |
 | `updateSchedule`, `deleteSchedule` | **No** | Neither carries a cross-timeout idempotency guarantee. After a timeout, reconcile by listing the agent's schedules and reading their runs rather than sending the write again. |
 | `postEvents` | **Reuse each event's key** | Retry the same message with its stable `idempotency_key` in the event body, not an HTTP header. Without it, a blind retry can deliver twice. |
@@ -173,7 +188,7 @@ Retry safety is per operation, not per error. Nothing in the SDK retries for you
 
 Idempotency works differently across operations. HTTP keys, event keys, stable resource IDs,
 and content deduplication are separate mechanisms; none creates an exactly-once guarantee.
-Agent, Session, and Environment create methods take an HTTP key as a trailing argument. Two
+Agent and Session create methods take an HTTP key as a trailing argument. Two
 common examples:
 
 ```ts
@@ -203,7 +218,7 @@ call that needs to converge on the first one.
 The temptation is to use the version number to work out whether a write landed. It does not
 work in either direction.
 
-- **Every successful PUT bumps it, including a byte-identical one.** There is no no-op
+- **Configuration writes bump it, including a byte-identical one.** Ownership-only writes do not. There is no no-op
   detection, so "the version changed" does not mean your values changed anything.
 - **Writes you did not make bump it too.** Right after `createAgent()` the gateway seeds the
   agent's model credentials, and each of those bumps the version: a create receipt saying `1`
@@ -220,8 +235,9 @@ const second = (await zc.getAgent(agentId)).status?.config_version   // 6 - bump
 Treat it as an opaque monotonic counter. To find out whether a timed-out `updateAgent()`
 landed, read the values back out of `declared` and compare those.
 
-There is also no optimistic concurrency: `updateAgent()` takes no version precondition, and
-two concurrent writers never see a conflict. They silently last-write-wins, per section.
+For optimistic concurrency, pass `expected_config_version` in `updateAgent()`. A stale
+positive integer returns `409 active_config_changed`; read fresh state and reconcile before
+retrying. Without this field, updates remain last-write-wins.
 
 ## A worked example
 
@@ -260,7 +276,7 @@ async function openSession(agentId: string, text: string, jobId: string) {
     }
 
     if (e.status === 401) {
-      // Gateway envelope; e.type is service_token.invalid. Retrying will not help.
+      // Authentication failure; check the API key.
       throw new Error('API key rejected - check ZOOWORK_API_KEY')
     }
 

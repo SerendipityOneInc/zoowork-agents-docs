@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: bb6406c4a8ad825f66b49084d30be6e2269b09423217f1b72156f743673e941d
+source_hash: ef6033fe093fcf8609bbb8000fdd26489423f47a0983852661eb22e27eebdf88
 ---
 
 # 快速开始
@@ -18,12 +18,11 @@ source_hash: bb6406c4a8ad825f66b49084d30be6e2269b09423217f1b72156f743673e941d
 | Session | 与 Agent 的一段会话，保存你的消息和它的工作过程。 |
 | Events | 通过 Session 交换的消息、工具调用、回复和回合结果。 |
 
-本例使用默认模型和沙箱，无需单独创建 Environment。
-需要自定义沙箱时，可以[配置 Environment](../build/environments.md)。
+本例使用默认模型和托管沙箱，无需单独创建 Environment。
 
 ## 前置条件
 
-- 一个 ZooWork 组织 API Key（`zct_...`）。[获取 API Key](https://zoowork.ai/identity?tab=account-api-keys)。
+- 一个 API key，以及已充值的组织余额。按 [Authentication 与 API key](./authentication.md) 在 ZooWork Platform 创建 key 并充值。
 - **TypeScript：** Node.js **22.20+** 和 npm。
 - **Python：** Python **3.10+** 和 pip。
 - **curl：** Bash、curl **7.76+** 和 `jq` **1.6+**。
@@ -52,7 +51,7 @@ jq --version
 在终端中设置 API Key：
 
 ```bash
-export ZOOWORK_API_KEY='zct_...'
+export ZOOWORK_API_KEY='zwp_live_...'
 ```
 
 ::: warning 保护 API Key
@@ -65,15 +64,13 @@ export ZOOWORK_API_KEY='zct_...'
 **Python：** 将下方 Python 代码块按顺序复制到 `quickstart.py`。代码块已经保留所需缩进，
 最后使用页面末尾的命令运行。
 
-**curl：** 在同一个 Bash 终端里逐块执行。确认每次请求成功后再继续，
-命令会保存返回的 ID，供下一步使用。
+**curl：** 先完成 [Authentication 中的 HTTP 配置](./authentication.md#使用-http)，包括 `ZOOWORK_BASE_URL`。在同一个 Bash 终端里逐块执行。确认每次请求成功后再继续，命令会保存返回的 ID，供下一步使用。
 
 ## 创建第一个 Session
 
 ### 1. 创建 Agent
 
-创建 Agent 并保存它的 ID。SDK 读取 `ZOOWORK_API_KEY`，默认使用公开 API 地址。
-curl 示例显式设置这个地址。
+创建 Agent 并保存它的 ID。SDK 读取 `ZOOWORK_API_KEY`；curl 示例复用 Authentication 中配置的变量。
 
 ::: code-group
 
@@ -178,7 +175,7 @@ data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
 
 ::: tip 回合未成功时
 如果结果为 `failed`、`aborted`，或连接在收到 `run.finished` 前关闭，
-请先检查[会话历史](../build/sessions.md)再重试。仍可使用下方请求清理 Agent。
+请先检查[会话历史](../build/session-operations.md#the-transcript-getsession-history-true)再重试。仍可使用下方请求清理 Agent。
 :::
 
 ## 执行过程中发生了什么
@@ -224,7 +221,8 @@ curl 用户在按 Ctrl+C 关闭事件流后执行清理。两个 SDK 程序退�
 
 - [架构](./architecture.md)：了解托管执行、状态持久保存和计算按需启停。
 - [Agents](../build/agents.md)：选择模型、工具和 Skills。
-- [Sessions](../build/sessions.md)：继续对话、读取历史。
+- [启动 Session](../build/sessions.md)：创建并继续对话。
+- [Session 操作](../build/session-operations.md)：读取历史并管理已保存的 Session。
 - [事件与流式](../build/events.md)：处理事件、超时和重新连接。
 - [示例应用](https://github.com/SerendipityOneInc/zoowork-quickstarts)：构建完整应用。
 - [编码助手 Skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills)：为编码助手提供 ZooWork SDK 使用说明。

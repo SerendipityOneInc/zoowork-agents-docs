@@ -6,13 +6,12 @@ description: Check the languages, database clients, utilities, and resource size
 
 The default ZooWork cloud sandbox is an isolated Linux environment for an agent's commands,
 files, and browser-based work. It runs on the managed E2B backend. The software below is
-available without creating a custom [Environment](./environments.md).
+available without a separate setup step.
 
-This page describes the default sandbox image. A custom Environment starts from the managed
-base image and can add apt, npm, and pip packages, files, and build steps. Exact versions within
-the listed language and tool series can change when the base image is rebuilt. If your
-application requires an exact version, check it in the sandbox or pin the needed dependency in
-a custom Environment.
+This page describes the default sandbox image. Exact versions within the listed language and
+tool series can change when the base image is rebuilt. Check the runtime when your application
+requires an exact version. Custom Environment management is currently unavailable with
+Platform API keys; see [Environments](./environments.md#api-availability).
 
 ## Programming languages
 
@@ -46,9 +45,10 @@ actual runtime before depending on another version or tool.
 | Redis | `redis-cli` client. No Redis server is preinstalled or started. |
 | SQLite | `sqlite3` command and language bindings such as Python's `sqlite3` module. |
 
-`psql` and `redis-cli` can connect to a service that you provide, subject to the Environment's
-[network policy](./environments.md#what-an-environment-holds). Their presence does not create
-a local database service.
+`psql` and `redis-cli` can connect to a service that you provide, subject to the sandbox's
+network access. Their presence does not create
+a local database service. For the separate managed database available through the
+`agent_db` tool, see [Agent Database](./data-storage.md).
 
 ## Utilities
 
@@ -73,8 +73,7 @@ a local database service.
 
 The image includes Chromium and the Node.js `playwright-core` package. Chromium is stored in
 the shared Playwright browser cache, selected by `PLAYWRIGHT_BROWSERS_PATH`; it is not a
-standalone browser command promised on `PATH`. The base image does not include Firefox or
-WebKit as part of its verified browser baseline.
+standalone browser command on `PATH`. Firefox and WebKit are not included in the default image.
 
 ## Sandbox specifications
 
@@ -83,10 +82,16 @@ WebKit as part of its verified browser baseline.
 | Operating system | Ubuntu 22.04 |
 | Architecture | x86_64 (amd64) |
 | Default user and working directory | Non-root `user`, with `/workspace` as the working directory. `sudo` runs without a password. |
-| Compute classes | `starter`: 2 vCPU, 2 GiB; `pro`: 4 vCPU, 4 GiB; `ultra`: 8 vCPU, 8 GiB |
-| Network access | Set by the Environment's `networking` policy; omitting it defaults to `unrestricted`. |
+| Compute | 4 vCPU, 4 GiB (`pro`) for Agents created with Platform API keys. |
+| Network access | The default Environment uses `unrestricted` sandbox outbound access. |
 
-The platform selects the resource class for an agent. The sandbox's software comes from its
-resolved Environment version, so inspect that version when comparing agents built at different
-times. See [Environments](./environments.md) to add dependencies and pin an Environment to an
-agent.
+The platform assigns the compute class; Platform API keys cannot change it. An Agent pins
+the default Environment when it is created, so Agents created at different times can use
+different base-image revisions. See [Environments](./environments.md) for the default workflow
+and current customization limits.
+
+## Workspace and session scope
+
+An Agent's sessions share its `/workspace`, including sessions that use separate sandbox
+instances. See [Files and artifacts](./files.md#file-isolation) for persistence and file
+isolation, and [Sessions](./sessions.md) for the conversation lifecycle.

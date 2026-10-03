@@ -74,10 +74,10 @@ Today, read the complete ordered event history and stored transcript through eit
 
 Keep your own task identifier, result reference, and outcome beside those records.
 
-::: info Store outcomes in your application
-Managed Agents captures the runtime side of this loop. Store outcome labels and dataset
-membership beside the Agent and Session ids in your application, then pass the curated data
-to your training workflow.
+::: info Application outcomes and scheduled Outcomes
+Store general task-quality labels and dataset membership beside the Agent and Session IDs
+in your application. The scheduled `agentTurn` [Outcome flow](../build/schedules.md) provides
+a narrower runtime check for scheduled tasks. It is not a general outcome or training-job API.
 :::
 
 ## Outcomes turn trajectories into learning data

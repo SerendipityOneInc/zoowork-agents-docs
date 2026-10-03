@@ -2,7 +2,7 @@
 title: Agent 轨迹
 description: 了解托管执行如何形成 Agent 轨迹、outcome 如何标注轨迹，以及两者如何支持评估和后训练。
 source: /en/get-started/trajectories
-source_hash: 8e235029fc632ddfe8fb3fb16fd454d6597d1ab0a2f498d52817897a46f27741
+source_hash: 65e21c7fbd14bcbcb36712c96bb0b245c543565fdff5464b2133225585cab132
 ---
 
 # Agent 轨迹
@@ -68,8 +68,10 @@ Trace 用于检查执行如何运作；轨迹用于把这次行为作为一条�
 
 请将你自己的任务标识、产出引用和 outcome 与这些记录一起保存。
 
-::: info 在应用中保存 Outcome
-Managed Agents 记录这个闭环的运行时部分。请在应用中把 outcome 标签和数据集归属与 Agent、Session id 一起保存，再把整理后的数据交给训练流程。
+::: info 应用的 outcome 与定时任务的 Outcome
+通用的任务质量标签和 dataset membership 由应用保存，并与 Agent、Session ID 关联。
+定时 `agentTurn` 的 [Outcome 流程](../build/schedules.md)提供范围更小的 runtime 检查，
+用于定时任务。它不是通用 outcome API，也不提供 training-job API。
 :::
 
 ## Outcome 让轨迹变成学习数据

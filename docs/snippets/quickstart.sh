@@ -2,8 +2,6 @@
 # After checking run.finished in the stream, press Ctrl+C and run cleanup.
 
 #region create
-ZOOWORK_BASE_URL="${ZOOWORK_BASE_URL:-https://clawapi.ecap.gsmo.ai/service/v1}"
-
 agent=$(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
   -H 'Content-Type: application/json' \

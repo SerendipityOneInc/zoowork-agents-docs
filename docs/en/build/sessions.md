@@ -1,131 +1,187 @@
 ---
-description: Create, continue, list, archive, and delete sessions, then read their transcripts.
+description: Create a Session, select its Agent configuration, send the first message, and continue the conversation.
 ---
 
-# Sessions
+# Start a session
 
-A session is one conversation with one agent. You create it, post `user.message` events
-into it, and read the agent's work back out as events or as a transcript. The agent keeps
-the conversation server-side - you never resend prior turns.
+A Session is a persistent conversation with one Agent. Create the Session, then send a
+`user.message` to start work. You can combine those steps with `initial_events`.
+The conversation stays on the server, so later messages do not need to resend its history.
 
-Every session route is nested under an agent:
+Sessions belong to Agents. Store `agent_id` and `session_id` beside your application's
+conversation ID; every Session call uses both. A Session separates conversation history,
+while Sessions on the same Agent share its workspace by default. See
+[An agent per user](./per-user-agents.md) when users need separate file workspaces.
 
-```
-POST   /agents/{agent_id}/sessions
-GET    /agents/{agent_id}/sessions/{session_id}
-POST   /agents/{agent_id}/sessions/{session_id}/events
-GET    /agents/{agent_id}/sessions/{session_id}/events
-```
+## Prerequisites
 
-The SDK mirrors that nesting in its signatures, so `agentId` is the first argument of every
-session call:
+Use a backend [API key](../get-started/authentication.md) and an existing Agent.
+A newly created Agent is stopped: start it before creating a Session, or creation returns
+`409 agent_not_running`. API readiness uses `status.desired_state`, rather than channel health.
+See [Agent lifecycle](./agents.md).
 
-```ts
-createSession(agentId, input, idempotencyKey?)
-getSession(agentId, sessionId, opts?)
-postEvents(agentId, sessionId, events)
-listEvents(agentId, sessionId, opts?)
-```
+The SDK examples use the `client` configured in [Authentication](../get-started/authentication.md).
+Use your Agent ID as `agentId` in TypeScript, `agent_id` in Python, or `AGENT_ID` in curl.
+Run Python `await` examples inside an async function. Start the Agent:
 
-There is no top-level `/sessions` collection: a session exists only under its agent, and the
-agent id threads through every call. Code written against an API where sessions are top-level
-will not compile here until you pass the agent id through.
+::: code-group
 
-All examples on this page use one client:
-
-```ts
-import {
-  createZooworkClient,
-  assistantText,
-  isRunFinished,
-  runOutcome,
-  messageText,
-  type SessionEvent,
-} from '@zoowork-ai/sdk'
-
-const zc = createZooworkClient({ apiKey: process.env.ZOOWORK_API_KEY })
-
-const agentId = process.env.AGENT_ID!
+```ts [TypeScript]
+await client.startAgent(agentId)
 ```
 
-::: info Approval counters and actor attribution
-`run_status` can be null when there is no latest run. `pending_approvals` and
-`pending_custom_tool_calls` are optional numbers, not lists; use `listApprovals` and
-`listCustomToolCalls` for records. A resolve receipt with 202/`signaled` can remain pending
-and does not prove a tool executed.
+```python [Python]
+await client.start_agent(agent_id)
+```
 
-Initial `user.message` events can carry `actor: { ref }`, just like later messages.
-Choose a stable ref from authenticated backend state; metadata alone does not select it.
-Attribution is not authorization or file/session isolation, and IM sessions reject caller actor.
-See [Events](./events.md) for validation rules.
+```bash [curl]
+curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/start" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
+
 :::
 
-## Precondition: the agent must be running
-
-`createSession` fails on an agent that is not running:
-
-```
-409  error.type = "agent_not_running"
-```
-
-A newly created Agent is stopped, so call `startAgent` before creating a Session. Use
-`status.desired_state === 'running'` for API readiness. `status.actual_state` reports
-chat-channel health and can be `active` with no channels or `activating` while health
-information is refreshing.
-
-```ts
-const agent = await zc.getAgent(agentId)
-if (agent.status?.desired_state !== 'running') {
-  await zc.startAgent(agentId)
-}
-```
+The default Cloud sandbox is managed on demand. You do not need to create an Environment
+for this example; custom dependencies belong in the [Agent's Environment](./environments.md).
 
 ## Create a session
 
-```ts
-const session = await zc.createSession(agentId, {
-  initial_events: [{ type: 'user.message', content: 'Summarize the attached brief.' }],
-  metadata: { source: 'my-app', tenant: 'acme' },
-})
+::: code-group
 
-console.log(session.session_id)   // "0123456789abcdef0123456789abcdef"
-console.log(session.session_key)  // "api:0123456789abcdef0123456789abcdef"
+```ts [TypeScript]
+const session = await client.createSession(agentId, {
+  metadata: { source: 'my-app', conversation_id: 'conversation-42' },
+})
+const sessionId = session.session_id
 ```
 
-`session_id` is opaque. Do not require a resource prefix; `api:` belongs to `session_key`.
+```python [Python]
+session = await client.create_session(agent_id, {
+    "metadata": {"source": "my-app", "conversation_id": "conversation-42"},
+})
+session_id = session["session_id"]
+```
 
-Creating with `initial_events` starts the first turn immediately - there is no separate
-"send" step for the opening message.
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"metadata":{"source":"my-app","conversation_id":"conversation-42"}}'
+```
 
-**`initial_events` accepts only `user.message`.** No other event type is valid there; post
-everything else with `postEvents` after the session exists. The API accepts at most 50
-initial events. `content` must be a non-empty string.
+:::
 
-`metadata` is an arbitrary JSON object stored with the session and echoed back by
-`getSession`. It is yours to use for correlation - a tenant id, a request id, the name of
-the surface the conversation came from. Nothing in the platform interprets it.
+For curl, save the response's `session_id` as `SESSION_ID`.
+
+An empty Session waits for input. `session_id` is opaque; `api:` belongs to its
+`session_key`, not its ID. There is no top-level `/sessions` collection: HTTP creation is
+`POST /agents/{agent_id}/sessions` relative to the `/service/v1` base.
+
+`metadata` is an application-owned JSON object. Set it at creation for correlation;
+it does not select a user identity or provide access control. See
+[Session operations](./session-operations.md#store-session-metadata) for its write-once behavior.
 
 ### Idempotency-Key
 
-`createSession` takes an optional third argument, sent as the `Idempotency-Key` header.
-Replaying the same key returns the existing session instead of creating a second one and
-running the opening turn twice. [Errors and retries](../reference/errors.md) has the rules for
-choosing and reusing a key.
+The optional third argument to TypeScript's `createSession`, or Python's
+`idempotency_key` keyword argument to `create_session`, becomes the `Idempotency-Key` header.
+Retry a lost create response with the same key to recover the same Session. Give later
+input events their own stable `idempotency_key`. See [Errors and retries](../reference/errors.md).
 
-The event write path takes a per-event key instead of a header: give each event an
-`idempotency_key` (any stable string) and a `postEvents` retried after a timeout will not
-deliver it twice.
+### Choose a configuration snapshot
 
-## Multi-turn
+Omitting `runtime_mode` lets subsequent turns resolve the active Agent configuration.
+To pin the current active configuration at Session creation, set `runtime_mode: "active"`
+through the SDK or HTTP:
 
-To continue a conversation, post another `user.message` to the same session. Do not resend
-the history - the agent holds it server-side.
+```bash
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"runtime_mode":"active","metadata":{"source":"my-app"}}'
+```
 
-```ts
-async function runTurn(sessionId: string, cursor?: string) {
+| Create request | Configuration selection |
+|---|---|
+| Omit `runtime_mode` | Resolve the active Agent configuration for later turns. |
+| Set `runtime_mode: "active"` | Pin the current active configuration at creation. |
+
+Neither form accepts caller-supplied `config_version`. Other runtime modes have different
+selection rules. These forms select a saved configuration; they do not introduce
+Session-local `model`, `system`, `tools`, `mcp_servers`, `skills`, or Environment overrides.
+Change [Agent configuration](./agents.md) for those settings.
+
+### Include the first message
+
+Use `initial_events` instead of the empty create request above when the first message is ready:
+
+::: code-group
+
+```ts [TypeScript]
+const seeded = await client.createSession(agentId, {
+  initial_events: [{ type: 'user.message', content: 'My display name is Ada.' }],
+})
+```
+
+```python [Python]
+seeded = await client.create_session(agent_id, {
+    "initial_events": [{"type": "user.message", "content": "My display name is Ada."}],
+})
+```
+
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"initial_events":[{"type":"user.message","content":"My display name is Ada."}]}'
+```
+
+:::
+
+Use this response's Session ID for later calls if you choose this form. Only `user.message` is accepted here, with at most 50 events. `content` must be a non-empty
+string. Post interrupts and tool replies after the Session exists. Message actor rules are
+explained with [message inputs](./events.md#user-message).
+
+## Send work and read the response
+
+For the empty Session created above, send the first message:
+
+::: code-group
+
+```ts [TypeScript]
+await client.postEvents(agentId, sessionId, [
+  { type: 'user.message', content: 'My display name is Ada.', idempotency_key: 'conversation-42-turn-1' },
+])
+```
+
+```python [Python]
+await client.post_events(agent_id, session_id, [{
+    "type": "user.message", "content": "My display name is Ada.",
+    "idempotency_key": "conversation-42-turn-1",
+}])
+```
+
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"events":[{"type":"user.message","content":"My display name is Ada.","idempotency_key":"conversation-42-turn-1"}]}'
+```
+
+:::
+
+The 202 receipt confirms queuing, not completed execution. Read saved events or connect to
+the stream to observe the response. The following helper reads one ordinary turn:
+
+::: code-group
+
+```ts [TypeScript]
+import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
+
+async function readTurn(sessionId: string, cursor?: string) {
   let text = ''
   let outcome: string | undefined
-  for await (const ev of zc.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
+  for await (const ev of client.streamEvents(agentId, sessionId, cursor ? { cursor } : {})) {
     cursor = ev.cursor ?? cursor
     text += assistantText(ev)
     if (isRunFinished(ev)) {
@@ -136,247 +192,101 @@ async function runTurn(sessionId: string, cursor?: string) {
   return { text, cursor, outcome }
 }
 
-// Turn 1 - opens with the session.
-const session = await zc.createSession(agentId, {
-  initial_events: [{ type: 'user.message', content: 'My display name is Ada.' }],
-})
-const first = await runTurn(session.session_id)
-console.log(first.outcome, first.text)   // "succeeded" ...
+const first = await readTurn(sessionId)
+console.log(first.outcome, first.text)
+```
 
-// Turn 2 - same session, new message. Resume the stream from the last cursor you saw.
-await zc.postEvents(agentId, session.session_id, [
-  { type: 'user.message', content: 'What is my display name?' },
+```python [Python]
+from contextlib import aclosing
+from zoowork import assistant_text, is_run_finished, run_outcome
+
+async def read_turn(session_id: str, cursor: str | None = None):
+    text = ""
+    outcome = None
+    async with aclosing(client.stream_events(agent_id, session_id, cursor=cursor)) as stream:
+        async for event in stream:
+            cursor = event.cursor or cursor
+            text += assistant_text(event)
+            if is_run_finished(event):
+                outcome = run_outcome(event)
+                break
+    return {"text": text, "cursor": cursor, "outcome": outcome}
+
+first = await read_turn(session_id)
+print(first["outcome"], first["text"])
+```
+
+```bash [curl]
+curl -N "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Accept: text/event-stream'
+```
+
+:::
+
+The SDK readers break after one `run.finished`; curl prints raw SSE frames and stays open
+until you stop it. Save the last SSE `id:` value for resuming. `run.finished` ends one turn,
+while the Session and stream can remain open. A turn that
+yields to asynchronous work can also end successfully. Read
+[termination and yielded turns](./events.md#turn-outcomes) before treating it as task completion.
+
+## Continue the conversation {#multi-turn}
+
+Send the next message to the same Session. Resume from the last event cursor you consumed:
+
+::: code-group
+
+```ts [TypeScript]
+await client.postEvents(agentId, sessionId, [
+  { type: 'user.message', content: 'What is my display name?', idempotency_key: 'conversation-42-turn-2' },
 ])
-const second = await runTurn(session.session_id, first.cursor)
-console.log(second.text)                 // mentions "Ada"
+const second = await readTurn(sessionId, first.cursor)
+console.log(second.text) // mentions Ada
 ```
 
-`postEvents` returns `202` and an object wrapping the per-event results - the array is under
-`events`, not the response itself. An accepted event comes back as the full event object the
-history will show (with its `seq`); a `user.interrupt` with no run in flight comes back as
-`{ id, type, accepted: false }`. Acceptance means the event was queued, not that the turn has
-finished. A turn ends when you see `run.finished`, whose `payload.status` is `succeeded`,
-`failed`, or `aborted` - see [Events and streaming](./events.md).
-
-The write path accepts five event types: `user.message`, `user.interrupt`, `system.message`,
-`user.tool_confirmation`, and `user.custom_tool_result`. Use the last one to return an
-application-executed custom tool result; see [Tools](./tools.md#application-executed-custom-tools).
-
-## Read a session
-
-```ts
-const s = await zc.getSession(agentId, session.session_id)
+```python [Python]
+await client.post_events(agent_id, session_id, [{
+    "type": "user.message", "content": "What is my display name?",
+    "idempotency_key": "conversation-42-turn-2",
+}])
+second = await read_turn(session_id, first["cursor"])
+print(second["text"])
 ```
 
-Example response:
+```bash [curl]
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"events":[{"type":"user.message","content":"What is my display name?","idempotency_key":"conversation-42-turn-2"}]}'
 
-```json
-{
-  "session_id": "0123456789abcdef0123456789abcdef",
-  "session_key": "api:0123456789abcdef0123456789abcdef",
-  "channel": "api",
-  "run_status": "succeeded",
-  "updated_at": "2026-01-01T00:00:00.000Z",
-  "metadata": { "source": "docs-example" },
-  "archived": false,
-  "status": null,
-  "pending_approvals": 0
-}
+curl -N -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Accept: text/event-stream' \
+  --data-urlencode "cursor=$EVENT_CURSOR"
 ```
 
-| Field | Meaning |
-|---|---|
-| `session_id` | The id you pass to every other session call. |
-| `session_key` | Channel-qualified key. Sessions you create through the API are `api:<session_id>`. |
-| `channel` | `api` for sessions created through this API. |
-| `run_status` | The state of the most recent run - this is the field you want. |
-| `updated_at` | ISO timestamp of the last change. |
-| `metadata` | Exactly what you passed to `createSession`. |
-| `archived` | Boolean. |
-| `pending_approvals` | Count of tool calls waiting on approval. Read the records with `listApprovals()`. |
-| `status` | A legacy Session field; the current `getSession()` path returns `null`. See below. |
-
-::: info Read run state from `run_status`
-`status` is a legacy Session field and may be `null`. Use `run_status` to read or poll the
-state of the most recent run.
 :::
 
-Responses may carry additional fields beyond those listed. Ignore what you do not recognize
-rather than failing on it.
+In curl, `EVENT_CURSOR` is the last processed SSE `id:` value from the first turn.
+Store the cursor after successful processing, keeping it opaque. See
+[Events and streaming](./events.md) for timeouts, reconnection, interrupts, and tool responses.
+Use [Session operations](./session-operations.md) to retrieve state and history, list Sessions,
+or archive and delete them.
 
-## The transcript: `getSession({ history: true })`
+## SDK calls
 
-Passing `history: true` adds the at-rest transcript, read from the session's stored
-conversation rows:
+These examples require an SDK release containing the helper. Check the installed exports first; use the HTTP examples if the installed release lacks it.
 
-```ts
-const s = await zc.getSession(agentId, session.session_id, { history: true, limit: 20 })
+::: code-group
 
-for (const row of s.history ?? []) {
-  if (row.entry_type !== 'message') continue
-  const msg = row.entry.message as { role?: string }
-  console.log(row.seq, msg.role, messageText(row.entry.message))
-}
+```ts [TypeScript]
+const session = await zc.createSession(agentId, { runtime_mode: 'active', idle_compaction: false })
 ```
 
-Each entry is `{ seq, entry_type, entry, created_at }`. For `entry_type: 'message'` the
-conversation lives at `entry.message` as `{ role, content }`, where `content` is an array of
-blocks and only `{ type: 'text', text }` blocks carry text. `messageText()` handles both the
-array and the plain-string form.
-
-`limit` is the number of most recent rows to return, default 100, maximum 500. Rows come back
-in ascending `seq` order.
-
-Example assistant row:
-
-```json
-{
-  "seq": 2,
-  "entry_type": "message",
-  "entry": {
-    "type": "message",
-    "message": {
-      "role": "assistant",
-      "model": "litellm/gpt-5.6-terra",
-      "responseModel": "qwen35-122B",
-      "usage": {
-        "input": 15212,
-        "output": 40,
-        "cacheRead": 0,
-        "cacheWrite": 0,
-        "totalTokens": 15252,
-        "cost": { "input": 0, "output": 0, "total": 0 }
-      },
-      "content": [
-        { "type": "text", "text": "" },
-        { "type": "thinking", "thinking": "..." },
-        { "type": "text", "text": "\n\nPROBE-ONE" }
-      ],
-      "stopReason": "stop"
-    }
-  },
-  "created_at": "2026-01-01T00:00:00.000Z"
-}
+```python [Python]
+session = await client.create_session(agent_id, {"runtime_mode": "active", "idle_compaction": False})
 ```
 
-Two things this buys you that nothing else does:
-
-- **Token usage.** `entry.message.usage` is the only place a turn's token counts are exposed.
-  Note that every field of `usage.cost` is currently `0` - do not build a spend display on it.
-- **The model that actually answered.** `model` is what the agent is configured with;
-  `responseModel` is what served the request. A deployment can map a configured alias onto a
-  substitute, so the two differ in the sample above. Trust `responseModel` when the answer
-  feeds billing, evaluation, or a compliance record.
-
-This is the transcript, not the event log. It holds conversational messages, not
-`run.started` / `agent.tool` / `run.finished`. Use it to recover an answer whose events you
-missed; use `listEvents` when you want the event stream. Other `entry_type` values exist
-(session anchors, compaction markers, model changes); filter for `message` and skip the rest.
-
-## `listEvents` and pagination
-
-`listEvents` returns the durable event log for a session — your own inputs (`user.message`
-and friends) included, so the whole conversation reconstructs from this one surface —
-normalized to a single `SessionEvent` shape (`seq`, `eventType`, `payload`, `runId`, `turn`,
-`createdAt`, plus `id` and `processedAt` where the server sends them).
-
-```ts
-const events = await zc.listEvents(agentId, session.session_id, {
-  types: ['user.message', 'agent.assistant'],
-})
-```
-
-::: warning One page per call
-The server returns **100 events by default and at most 500**, and `listEvents` returns one
-page without the page's `has_more`/`next_cursor` fields. Anything that reconstructs a whole
-conversation should use `listAllEvents`, or page by hand with `listEventsPage`.
 :::
 
-`listAllEvents` is that paging loop. It follows the server's `next_cursor` until `has_more`
-is false (and falls back to walking `after` on servers without cursor pagination):
-
-```ts
-const all: SessionEvent[] = await zc.listAllEvents(agentId, session.session_id)
-```
-
-It is stricter than the obvious loop: it de-duplicates across page boundaries, and it stops
-rather than spinning if the cursor fails to advance. `pageSize` is the per-request `limit`
-(default and maximum 500); `types` means what it means on `listEvents`.
-
-Passing `after` — here or on `listEvents`/`streamEvents` — selects the deprecated
-engine-only lane: no user inputs, no pagination flags. Keep it for old stored cursors only.
-`seq` is durable and strictly increasing but not necessarily contiguous; to resume an SSE
-stream use each streamed event's `cursor` token (`streamEvents({ cursor })`). `types` filters
-server-side and composes with `cursor` and `limit`.
-
-## Store Session metadata
-
-A Session's `metadata` is written when you call `createSession()`. The SDK has no
-`patchSession`, and `PATCH` on a Session returns `405`.
-
-Keep your own record of the `session_id` values you create - store them alongside whatever
-they belong to in your application - and put anything you need to search on into `metadata`
-at create time, because you cannot add it later.
-
-Session listing is scoped to one Agent. Store Agent ids in your application when you need to
-find Sessions across several Agents.
-
-Per-agent listing has two compatible lanes. `listSessions(agentId, { page })` keeps the old
-numeric page: 50 rows, newest by `updated_at`, with `page` starting at 1. Python calls the same
-lane with `list_sessions(agent_id, page=...)`.
-
-Use `listSessionPage()` / `list_session_page()` when you need filters or resumable scanning:
-
-```ts
-let cursor: string | undefined
-do {
-  const page = await zc.listSessionPage(agentId, {
-    cursor,
-    limit: 100,
-    excludeChannels: ['api'],
-    includeSurfaces: ['inbox'],
-    runtimeModes: ['active'],
-    includeArchived: false,
-    includeDeleted: true,
-  })
-  for (const session of page.sessions) await index(session)
-  cursor = page.next_cursor ?? undefined
-} while (cursor)
-```
-
-```python
-cursor = "sls1:0"
-while cursor is not None:
-    page = await client.list_session_page(
-        agent_id,
-        cursor=cursor,
-        limit=100,
-        exclude_channels=["api"],
-        include_surfaces=["inbox"],
-        runtime_modes=["active"],
-        include_deleted=True,
-    )
-    for session in page.sessions:
-        await index(session)
-    cursor = page.next_cursor
-```
-
-The initial cursor is `sls1:0`. Treat every cursor as opaque and keep all filters unchanged;
-the cursor is bound to the Agent and filter scope, and invalid reuse returns
-`400 invalid_cursor`. `limit` is 1–100. `runtime_modes` accepts `active`, `preview`,
-`authoring`, and `evaluation`. Each row has `list_cursor`, so a consumer that stops partway
-through a page can resume after the last processed row. `next_cursor` is null at the end.
-
-Deleted Sessions are omitted by default. Set `includeDeleted: true` in TypeScript or
-`include_deleted=True` in Python when a reconciliation job needs deletion tombstones. Those
-rows carry `deleted: true`, and the page confirms the mode with `includes_deleted: true`.
-The option is part of the cursor scope: keep it unchanged while continuing from a cursor.
-Tombstones identify deleted Session ids; do not treat them as readable Session resources.
-
-`archiveSession(agentId, sessionId)` and `deleteSession(agentId, sessionId)` provide lifecycle
-operations. None of these methods changes the boundaries above: you still fan out across Agents
-yourself, and `metadata` is still write-once.
-
-One last boundary: a session isolates conversation history, not files - every session of an agent
-shares one `/workspace`. When a multi-user product needs file and memory isolation, see
-[An agent per user](./per-user-agents.md).
+Explicit active mode pins the current configuration at creation. Omission resolves the active configuration on later turns. `idle_compaction` accepts true, false or null; omission preserves the server default.

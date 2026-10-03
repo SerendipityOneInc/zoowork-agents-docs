@@ -2,17 +2,17 @@
 title: 云沙箱参考
 description: 查看 ZooWork 默认云沙箱中的编程语言、数据库客户端、实用工具和资源规格。
 source: /en/build/cloud-sandbox-reference
-source_hash: 9c7ed30021bc4e69f19d4d2b9e4c48a7c815bcc15a843332ca5342cd2c35a1bb
+source_hash: 3fa416cf30e3cc668e9f1c30d4cd621327feb07fae14586348007432beaaa06a
 ---
 
 # 云沙箱参考
 
 ZooWork 默认云沙箱是 Agent 执行命令、处理文件和使用浏览器的隔离 Linux 环境，由托管的 E2B
-backend 提供。下面列出的软件无需创建自定义 [Environment](./environments.md) 就能使用。
+backend 提供。下面列出的软件无需单独配置就能使用。
 
-本页描述默认沙箱镜像。自定义 Environment 以托管基础镜像为起点，可以添加 apt、npm、pip
-包、文件和构建步骤。基础镜像重建后，所列语言和工具系列中的具体版本可能变化。如果应用依赖精确版本，
-请在沙箱内检查，或在自定义 Environment 中固定所需依赖。
+本页描述默认沙箱镜像。基础镜像重建后，所列语言和工具系列中的具体版本可能变化。
+应用依赖精确版本时，请检查实际 runtime。Platform API key 目前不能管理自定义 Environment，
+见 [Environments](./environments.md#api-availability)。
 
 ## 编程语言
 
@@ -44,8 +44,9 @@ python-pptx、pypdf、ReportLab、pdfplumber、pdf2image、pytesseract、markitd
 | Redis | `redis-cli` 客户端；没有预装或启动 Redis 服务端。 |
 | SQLite | `sqlite3` 命令，以及 Python `sqlite3` 模块等语言绑定。 |
 
-`psql` 和 `redis-cli` 可以连接你提供的服务，但还要遵守 Environment 的
-[网络策略](./environments.md#一个-environment-里有什么)。客户端存在，不表示沙箱内有本地数据库服务。
+`psql` 和 `redis-cli` 可以连接你提供的服务，但还要遵守 sandbox 的网络访问条件。
+客户端存在，不表示沙箱内有本地数据库服务。
+通过 `agent_db` 工具使用的独立托管数据库，见 [Agent Database](./data-storage.md)。
 
 ## 实用工具
 
@@ -70,7 +71,7 @@ python-pptx、pypdf、ReportLab、pdfplumber、pdf2image、pytesseract、markitd
 
 镜像包含 Chromium 和 Node.js 的 `playwright-core` 包。Chromium 位于共享的 Playwright
 浏览器缓存中，由 `PLAYWRIGHT_BROWSERS_PATH` 指向；这里不保证它作为独立命令出现在
-`PATH`。Firefox 和 WebKit 不在基础镜像已验证的浏览器清单中。
+`PATH`。默认镜像不包含 Firefox 和 WebKit。
 
 ## 沙箱规格
 
@@ -79,9 +80,13 @@ python-pptx、pypdf、ReportLab、pdfplumber、pdf2image、pytesseract、markitd
 | 操作系统 | Ubuntu 22.04 |
 | 架构 | x86_64（amd64） |
 | 默认用户与工作目录 | 非 root 用户 `user`，工作目录为 `/workspace`；`sudo` 无需密码。 |
-| 计算规格 | `starter`：2 vCPU、2 GiB；`pro`：4 vCPU、4 GiB；`ultra`：8 vCPU、8 GiB |
-| 网络访问 | 由 Environment 的 `networking` 策略决定；省略时默认 `unrestricted`。 |
+| 计算规格 | 通过 Platform API key 创建的 Agent 使用 4 vCPU、4 GiB（`pro`）。 |
+| 网络访问 | 默认 Environment 的 sandbox 出站访问为 `unrestricted`。 |
 
-平台为 Agent 选择计算规格。沙箱内的软件来自它解析到的 Environment version；比较不同时间
-创建的 Agent 时，应查看各自固定的版本。添加依赖和绑定 Environment 的方法见
-[Environments](./environments.md)。
+计算规格由平台分配，Platform API key 不能修改它。
+Agent 在创建时固定默认 Environment，因此不同时间创建的 Agent 可能使用不同的基础镜像 revision。
+默认流程和当前自定义限制见 [Environments](./environments.md)。
+
+## 工作区与 Session scope {#workspace-and-session-scope}
+
+一个 Agent 的 sessions 共享其 `/workspace`，使用不同 sandbox 实例的 sessions 也是如此。持久化和文件隔离见[文件与产物](./files.md#file-isolation)，对话生命周期见 [Sessions](./sessions.md)。

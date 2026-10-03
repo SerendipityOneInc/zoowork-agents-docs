@@ -104,8 +104,27 @@ const sitemap = existsSync(sitemapPath) ? readFileSync(sitemapPath, 'utf8') : ''
 const tocEntries = [...llms.matchAll(/^- \[([^\]]+)]\((\/docs\/[^)]+\.md)\): (.+)$/gm)]
 
 if (!llms.startsWith('# ZooWork Managed Agents\n')) fail('llms.txt has an unexpected title')
-if (tocEntries.length !== 18) {
-  fail(`llms.txt should describe 18 English pages, found ${tocEntries.length}`)
+
+const englishSourceRoot = resolve('docs/en')
+const chineseSourceRoot = resolve('docs/zh')
+const englishSourcePages = filesUnder(englishSourceRoot, '.md')
+const expectedAiTargets = new Set(
+  englishSourcePages.map((file) => `/docs/${relative(englishSourceRoot, file).replace(/\\/g, '/')}`),
+)
+const chinesePages = new Set(
+  filesUnder(chineseSourceRoot, '.md').map((file) => relative(chineseSourceRoot, file).replace(/\\/g, '/')),
+)
+const englishPages = new Set(
+  englishSourcePages.map((file) => relative(englishSourceRoot, file).replace(/\\/g, '/')),
+)
+for (const page of englishPages) {
+  if (!chinesePages.has(page)) fail(`Chinese translation is missing: ${page}`)
+}
+for (const page of chinesePages) {
+  if (!englishPages.has(page)) fail(`Chinese page has no English source: ${page}`)
+}
+if (tocEntries.length !== expectedAiTargets.size) {
+  fail(`llms.txt should describe ${expectedAiTargets.size} English source pages, found ${tocEntries.length}`)
 }
 
 const tocTargets = new Set()
@@ -116,6 +135,13 @@ for (const [, title, url, description] of tocEntries) {
 
   const target = join('dist', url)
   if (!existsSync(target)) fail(`llms.txt target does not exist: ${url}`)
+}
+
+for (const target of expectedAiTargets) {
+  if (!tocTargets.has(target)) fail(`llms.txt is missing source page ${target}`)
+}
+for (const target of tocTargets) {
+  if (!expectedAiTargets.has(target)) fail(`llms.txt contains an unexpected page ${target}`)
 }
 
 const markdownFiles = filesUnder(outputRoot, '.md')
@@ -159,9 +185,6 @@ const expectedHtmlPages = filesUnder(resolve('docs'), '.md')
     return `https://zoowork.ai/docs/${route}`
   })
 
-if (expectedHtmlPages.length !== 36) {
-  fail(`source should contain 36 locale pages, found ${expectedHtmlPages.length}`)
-}
 const expectedHtmlPageSet = new Set(expectedHtmlPages)
 if (expectedHtmlPageSet.size !== expectedHtmlPages.length) {
   fail('source locale pages resolve to duplicate production URLs')
@@ -253,8 +276,8 @@ for (const forbidden of ['zooclaw.ai', 'localhost', '127.0.0.1']) {
 }
 
 const sitemapEntries = [...sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)].map((match) => match[1])
-if (sitemapEntries.length !== 36) {
-  fail(`sitemap.xml should contain exactly 36 URL entries, found ${sitemapEntries.length}`)
+if (sitemapEntries.length !== expectedHtmlPages.length) {
+  fail(`sitemap.xml should contain exactly ${expectedHtmlPages.length} URL entries, found ${sitemapEntries.length}`)
 }
 
 const sitemapUrls = []
