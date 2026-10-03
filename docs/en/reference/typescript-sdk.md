@@ -6,7 +6,7 @@ description: Look up TypeScript SDK methods, types, helpers, and errors for publ
 
 Client methods, resource types, and helpers exported by `@zoowork-ai/sdk`.
 
-This reference applies to TypeScript SDK **0.10.0+**.
+This reference applies to TypeScript SDK **0.11.1+**.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
