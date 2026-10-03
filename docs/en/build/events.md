@@ -99,77 +99,105 @@ need the current turn. A successful `run.finished` can also have
 continues. Check [turn outcomes and yielded work](#turn-outcomes) before presenting completion.
 :::
 
-Read the response to the message sent above, with a client read timeout:
+The examples below assume the message above is the first turn in a **new Session**. They
+then send a second message and reuse the first turn's cursor. For an existing Session, load
+its last processed cursor before sending another message and pass it to the first read too.
+Without a cursor, the stream replays from the beginning, including old `run.finished` events.
+These examples use one outstanding turn at a time; autonomous or concurrent runs need their
+own run correlation and the [turn-outcome checks](#turn-outcomes).
 
 ::: code-group
 
 ```ts [TypeScript]
-import { assistantText, thinkingText, toolCall, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
+import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
 
-const ctl = new AbortController()
-const readTimeout = setTimeout(() => ctl.abort(), 120_000)
-let text = ''
-let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
-let cursor: string | undefined
-
-try {
-  for await (const ev of client.streamEvents(agentId, sessionId, { signal: ctl.signal })) {
-    cursor = ev.cursor ?? cursor
-    const think = thinkingText(ev)
-    const tool = toolCall(ev)
-    if (think) console.log(`[${ev.seq}] thinking: ${think.slice(0, 60)}`)
-    else if (tool) console.log(`[${ev.seq}] tool ${tool.toolName} ${tool.phase}`)
-    else console.log(`[${ev.seq}] ${ev.eventType}`)
-    text += assistantText(ev)
-    if (isRunFinished(ev)) {
-      outcome = runOutcome(ev)
-      break
+async function readOneTurn(startCursor?: string) {
+  const ctl = new AbortController()
+  const timeout = setTimeout(() => ctl.abort(), 120_000)
+  let cursor = startCursor
+  let text = ''
+  try {
+    for await (const ev of client.streamEvents(agentId, sessionId, {
+      cursor: startCursor, signal: ctl.signal,
+    })) {
+      text += assistantText(ev)
+      cursor = ev.cursor ?? cursor // Save after processing, alongside the Session ID.
+      if (isRunFinished(ev)) {
+        if (!cursor) throw new Error('Missing resume cursor')
+        if (runOutcome(ev) !== 'succeeded') throw new Error(`run ${runOutcome(ev)}`)
+        return { text, cursor }
+      }
     }
+    throw new Error('Read ended before run.finished; reconnect from the saved cursor')
+  } finally {
+    clearTimeout(timeout)
+    ctl.abort()
   }
-} finally {
-  clearTimeout(readTimeout)
-  ctl.abort()
 }
-console.log(outcome, text.trim())
+
+// First message in a new Session: replay starts at the beginning.
+const first = await readOneTurn()
+console.log(first.text)
+// Persist first.cursor before sending a follow-up. One outstanding turn at a time.
+const receipt = await client.postEvents(agentId, sessionId, [
+  { type: 'user.message', content: 'Explain the second finding in more detail.' },
+])
+if (receipt.events[0]?.accepted !== true) throw new Error('Message was not accepted')
+const second = await readOneTurn(first.cursor)
+console.log(second.text)
+// Persist second.cursor for the next turn.
 ```
 
 ```python [Python]
 import asyncio
 from contextlib import aclosing
-from zoowork import assistant_text, thinking_text, tool_call, is_run_finished, run_outcome
+from zoowork import assistant_text, is_run_finished, run_outcome
 
-async def read_one_turn():
+async def read_one_turn(start_cursor=None):
     text = ""
-    outcome = None
-    cursor = None
-    async with aclosing(client.stream_events(agent_id, session_id)) as stream:
+    cursor = start_cursor
+    async with aclosing(client.stream_events(
+        agent_id, session_id, cursor=start_cursor,
+    )) as stream:
         async for event in stream:
-            cursor = event.cursor or cursor
-            think = thinking_text(event)
-            tool = tool_call(event)
-            if think:
-                print(f"[{event.seq}] thinking: {think[:60]}")
-            elif tool:
-                print(f"[{event.seq}] tool {tool.tool_name} {tool.phase}")
-            else:
-                print(f"[{event.seq}] {event.event_type}")
             text += assistant_text(event)
+            cursor = event.cursor or cursor  # Save after processing with the Session ID.
             if is_run_finished(event):
-                outcome = run_outcome(event)
-                break
-    return text, cursor, outcome
+                if not cursor:
+                    raise RuntimeError("Missing resume cursor")
+                if run_outcome(event) != "succeeded":
+                    raise RuntimeError(f"run {run_outcome(event)}")
+                return text, cursor
+    raise RuntimeError("Read ended before run.finished; reconnect from the saved cursor")
 
-text, cursor, outcome = await asyncio.wait_for(read_one_turn(), timeout=120)
-print(outcome, text.strip())
+# First message in a new Session; one outstanding turn at a time.
+text, cursor = await asyncio.wait_for(read_one_turn(), timeout=120)
+print(text)
+# Persist cursor before sending a follow-up.
+receipts = await client.post_events(agent_id, session_id, [
+    {"type": "user.message", "content": "Explain the second finding in more detail."},
+])
+if not receipts or receipts[0].get("accepted") is not True:
+    raise RuntimeError("Message was not accepted")
+text, cursor = await asyncio.wait_for(read_one_turn(cursor), timeout=120)
+print(text)
+# Persist cursor for the next turn.
 ```
 
 ```bash [curl]
-curl -N --max-time 120 "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+# Existing Session: EVENT_CURSOR is the last processed SSE id, saved by your app.
+curl -N --max-time 120 --get \
+  "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -H 'Accept: text/event-stream'
+  -H 'Accept: text/event-stream' \
+  --data-urlencode "cursor=$EVENT_CURSOR"
 ```
 
 :::
+
+For a new Session only, omit the curl `cursor` parameter. Save each processed SSE `id:` for later reads.
+
+These snippets keep the cursor in memory. In a service, persist processed event state and its cursor after each event, so timeout or process restart does not discard the checkpoint.
 
 Notes on the mechanics:
 
@@ -181,10 +209,25 @@ Notes on the mechanics:
   Curl prints raw frames until its timeout or until you stop it; it does not break on
   `run.finished`.
 - The generator drops any event whose `seq` is at or below the highest it has already yielded,
-  so a boundary event replayed on reconnect is not delivered twice.
+  within that generator. A new generator has no application checkpoint; pass the saved cursor.
 - Everything `streamEvents` yields is durable.
 - For a multi-turn session, open a new stream per turn with the last `cursor` you saw, or keep
   one stream open and keep counting `run.finished` events. The first is easier to reason about.
+
+### Existing Session without a saved cursor
+
+There is no current-tail cursor helper. REST events and `postEvents` receipts do not carry
+an event cursor, and the final REST page has `next_cursor: null`. Do not derive an opaque
+cursor from `seq`, or switch to the deprecated `after` lane to work around this.
+
+If you already processed a turn and retained its verified `run.finished` webhook, its
+`data.event_cursor` can supply that turn's checkpoint when present. It is not a query for the
+current tail, and resuming after it skips the preceding output; do not use it to skip unread work.
+
+Preserve a cursor from the first streamed turn. If it was lost, replay the durable stream
+and reconstruct state using your application's recorded inputs/runs; do not treat the first
+replayed `run.finished` as a new answer. Starting a new Session is an alternative only when
+you intentionally want a new conversation. A new stream without a cursor does not start at “now”.
 
 ## Turn outcomes
 
@@ -482,27 +525,32 @@ One tool call produces multiple `agent.tool` events that share a `toolCallId`.
 
 | `phase` | Meaning | Carries |
 |---|---|---|
-| `start` | The call was dispatched. | `args` |
+| `start` | The call was proposed; policy and approval checks can still prevent execution. | `args` |
 | `end` | The call returned. | `isError`, `resultPreview`, `executionStarted` |
-| `blocked` | The call is **waiting on an approval and has not run**. | `policyId`, `deniedReason` |
+| `blocked` | The call ended without execution. This is terminal; inspect `deniedReason`. | `policyId`, `deniedReason` |
 
 Two rules:
 
 1. **Pair by `toolCallId`, not by adjacency.** When calls run concurrently, the `start` and
    `end` of one call are separated by events belonging to others.
-2. **`blocked` is pending, not complete.** It means an approval gate stopped the call before
-   execution. The matching `agent.approval` event carries the request, and an `end` still
-   follows once the approval resolves. Rendering `blocked` as a finished call will show your
-   user a tool that never ran as if it had.
+2. **`blocked` is terminal, not an approval wait.** No `end` follows for that blocked call.
+   Reasons include policy denial, approval denial (`approval-denied`), approval timeout
+   (`approval-timeout`), cancellation (`approval-cancelled`), or interruption (`interrupted`).
+   Read `ev.payload.deniedReason`; render the call as ended without execution, not successful. Waiting for a human
+   decision is `agent.approval` with `phase: 'requested'`; `phase: 'resolved'` ends that wait.
+   An approval resolution alone does not prove tool execution succeeded.
 
 ```ts
+import { toolCall, isRunFinished, type ToolCall } from '@zoowork-ai/sdk'
+
+// savedCursor is the application's checkpoint for this Session.
 const pending = new Map<string, ToolCall>() // toolCallId -> latest state
 
-for await (const ev of client.streamEvents(agentId, sessionId)) {
+for await (const ev of client.streamEvents(agentId, sessionId, { cursor: savedCursor })) {
   const tool = toolCall(ev)
   if (tool) {
-    if (tool.phase === 'end') pending.delete(tool.toolCallId)
-    else pending.set(tool.toolCallId, tool) // start AND blocked are both in flight
+    if (tool.phase === 'end' || tool.phase === 'blocked') pending.delete(tool.toolCallId)
+    else pending.set(tool.toolCallId, tool) // start remains pending
   }
   if (isRunFinished(ev)) break
 }

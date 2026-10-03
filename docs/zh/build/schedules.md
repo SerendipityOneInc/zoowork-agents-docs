@@ -2,7 +2,7 @@
 title: Schedules
 description: 定时运行 Agent，检查执行记录，并评价定时结果。
 source: /en/build/schedules
-source_hash: 01869597f7f0b5895e2143d991a270233e11a3ccf9f48ef42124f964033868f7
+source_hash: 05035c18b8d0cb82944992254c787683ee5706c657ed15a9d19eb71e3d4566ca
 ---
 
 # Schedules
@@ -13,7 +13,9 @@ Agent 需要在没有新的应用消息时运行，可以创建 schedule。每�
 
 ## 创建 Schedule {#create-a-schedule}
 
-下面的例子在上海时区每天 09:00 生成 digest。先以 disabled 状态创建，检查并手动触发后再开启自动运行：
+下面的例子创建一个已启用的 schedule，在上海时区每天 09:00 生成 digest。创建后自动调度即生效；手动触发会额外执行一次，不改变原来的频率。选择频率和任务内容时要考虑这一点。
+
+建议先在普通 Session 中测试任务内容；这能验证任务本身，不能验证 schedule 派发。需要测试 Schedule 本身时，选择下一次自动触发时间在测试窗口之后的 cadence，并在测试结束后立即 pause 或删除。较短的 interval 在启用期间会持续自动触发，也会继续消耗 credits。
 
 ::: code-group
 
@@ -24,7 +26,7 @@ await client.createSchedule(agentId, {
   schedule: { kind: 'cron', expr: '0 9 * * *', tz: 'Asia/Shanghai' },
   payload: { kind: 'agentTurn', message: 'Summarise yesterday and include source links.' },
   sessionTarget: 'isolated',
-  enabled: false,
+  enabled: true,
 })
 ```
 
@@ -35,7 +37,7 @@ await client.create_schedule(agent_id, {
     "schedule": {"kind": "cron", "expr": "0 9 * * *", "tz": "Asia/Shanghai"},
     "payload": {"kind": "agentTurn", "message": "Summarise yesterday and include source links."},
     "sessionTarget": "isolated",
-    "enabled": False,
+    "enabled": True,
 })
 ```
 
@@ -48,7 +50,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
     "schedule":{"kind":"cron","expr":"0 9 * * *","tz":"Asia/Shanghai"},
     "payload":{"kind":"agentTurn","message":"Summarise yesterday and include source links."},
     "sessionTarget":"isolated",
-    "enabled":false
+    "enabled":true
   }'
 ```
 
@@ -60,7 +62,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
 | `schedule` | 运行频率。本例使用 `kind: "cron"`、cron `expr`、IANA `tz`。 |
 | `payload` | 派发的工作。`agentTurn` 使用非空 `message`。 |
 | `sessionTarget` | `isolated` 每次触发创建新 session，省略时也采用这个默认值。 |
-| `enabled` | 控制自动触发，不表示 run 的结果。 |
+| `enabled` | 自动和手动执行都要求为 true；它不表示 run 的结果。 |
 
 201 receipt 带有公共 `schedule_id`。旧 `schedule_name` 保留用于兼容；使用 `schedule_id` 访问下面的 endpoint。Create receipt 不包含完整定义，需要通过 GET 读取。
 
@@ -95,7 +97,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 
 Read response 与 create request 使用不同字段形式。响应带公共 `schedule_id` 和兼容字段。修改频率时传 `schedule`，不要把 read response 的 `scheduleSpec` 原样放回 update。
 
-手动触发一次，不改变运行频率：
+对已启用的 schedule 手动触发一次，不改变运行频率。如果之前暂停了 schedule，请先[启用](#enable-pause-and-delete)；启用也会恢复自动调度：
 
 ::: code-group
 
@@ -114,7 +116,7 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID/trigger"
 
 :::
 
-Trigger receipt 表示是否请求了派发，不包含 Agent 答复。接着检查最近触发记录：
+Trigger receipt 只表示请求被接受，不证明执行或完成。disabled schedule 也可能返回 `triggered: true`，随后产生 `schedule.skipped`，`reason` 为 `disabled`。不能用 disabled schedule 作为仅手动执行的测试模式。运行列表还可能没有 `status` 和 `session_id`；字段缺失不代表成功。接着检查最近触发记录：
 
 ::: code-group
 
@@ -137,7 +139,7 @@ SDK 方法直接返回 run 列表；HTTP response 将列表放在 `runs` 数组�
 
 ## 开启、暂停和删除 {#enable-pause-and-delete}
 
-检查手动结果后，开启自动触发：
+恢复已暂停的 schedule 时，先启用再手动触发。启用也会恢复自动调度：
 
 ::: code-group
 
@@ -158,7 +160,7 @@ curl -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 
 :::
 
-用相同 update 传 `enabled:false`，暂停后续自动触发。暂停不会取消已经派发的工作；同时需要停止当前 run 时，使用 [session interrupt](./events.md#user-interrupt)。
+用相同 update 传 `enabled:false`，暂停后续执行，包括手动触发。暂停不会取消已经派发的工作；同时需要停止当前 run 时，使用 [session interrupt](./events.md#user-interrupt)。
 
 不再需要时删除 schedule：
 

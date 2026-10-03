@@ -1,7 +1,7 @@
 ---
 description: 通过公共HTTP API查询Usage，理解key scope、筛选与分页。
 source: /en/reference/usage
-source_hash: d2316a560e91e298a1d411709996b95aed1abd5ac8e9a4a07b19f3fa7609c864
+source_hash: e996abd86cd76ba43d7f8b1662161125f3cc1db187e80a4b02d64baef35b6da0
 ---
 
 # Usage
@@ -24,6 +24,12 @@ curl -sS --fail-with-body --get "$ZOOWORK_BASE_URL/usage" \
 Usage 查询可以使用 `getUsage()` / `get_usage()` 或 HTTP。
 
 Platform key 只能读取归属于自身的 Usage。省略 `api_key_id` 就查询这一 scope；传入其他 key 的 ID 会被拒绝。组织管理员使用 Platform 的 Usage 页面查看组织整体 Usage，包括共享 sandbox 成本。API key 不会继承 UI 的组织级权限。
+
+## Credits 与账户余额 {#credits-and-account-balance}
+
+`credits` 表示 Platform credits 消耗，不是 token 数、美元分或请求次数。Platform 钱包使用 **200 credits/USD**；例如 100 credits 对应 USD 0.50。这是单位换算，不是每次模型调用或每个 Session 的固定价格。
+
+Project key 的 Usage 只包含所选时间范围内归属于该 key 的消耗，不是 Organization 的剩余余额。其他 key、共享 sandbox 费用、充值和报表时间差都会影响对账，不能用某次余额直接减去这份结果来推算当前余额。组织余额和组织范围的 Usage 请在 Platform 查看。
 
 ## 查询参数
 
@@ -49,7 +55,8 @@ Platform key 只能读取归属于自身的 Usage。省略 `api_key_id` 就查�
 
 | HTTP / code | 操作 |
 |---|---|
-| 400 / `usage.invalid_query` | 修正参数或 timezone。 |
+| 400 / `usage.invalid_query` | 修正无效 timezone 等查询错误。 |
+| 422 / 无业务 type | 修正参数校验错误，例如 `range=1y` 或 `per_page=1000`。响应为 `detail` 数组，SDK 的 `type` 可能缺失；不要原样重试。 |
 | 403 / `usage.access_denied` | 只查询 key scope 内的 Usage。 |
 | 409 / `usage.snapshot_expired` | 使用新的分页状态重新查询。 |
 | 409 / `platform.billing_not_ready` | 完成组织的 billing 设置；这个 code 本身不表示余额不足。 |

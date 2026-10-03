@@ -227,7 +227,7 @@ synthesized locally, so no server response explains it.
 | `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | Reads one schedule, in the camelCase read vocabulary. Use the public `schedule_id`; read cadence from the normalized projection. |
 | `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | Replaces the definition. To change the cadence send `schedule`, never the `scheduleSpec` a read hands you - that one answers `200` and is silently ignored. The SDK strips all six refused fields, so a read-tweak-write round trip works from JavaScript too. |
 | `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | Deletes a schedule. Like `updateSchedule`, it carries no cross-timeout idempotency guarantee - reconcile by listing rather than blind-retrying. |
-| `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | Fires it once, now, out of band. Does not disturb the cadence. |
+| `triggerSchedule(agentId, scheduleId)` | `Promise<{ schedule_name?: string; triggered: boolean }>` | Requests one extra firing of an enabled schedule. Disabled schedules are skipped even if the receipt says `triggered: true`; the receipt is not a run result. |
 | `listScheduleRuns(agentId, scheduleId, opts?)` | `Promise<ScheduleRun[]>` | Past fires, newest first. `limit` defaults to 20 and is capped at 100. Rows mix two shapes - switch on `source`. |
 | `wake(agentId, input)` | `Promise<WakeResult>` | Pushes a reminder into the agent's heartbeat queue. `next-heartbeat` (the default) only writes the pending row; `now` also kicks the heartbeat schedule and is `409` when no heartbeat is enabled. A third option, `deliverToUser: false`, keeps the reminder internal to the agent's own reasoning. `WakeResult` is `{ mode, queued, triggered }`; `triggered` is meaningful only in `now` mode, and reports whether the heartbeat was actually kicked. |
 
@@ -319,7 +319,7 @@ console.log(selectable.length, selectable[0]?.model)
     "lifecycle_status": "active",
     "selectable": true,
     "revision": 3,
-    "default_for": ["text"]
+    "default_for": ["model"]
   }
 ]
 ```
@@ -476,8 +476,9 @@ console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - omit
 replaces it wholesale. See [Tools](../build/tools.md).
 
 **Configuration writes increment `config_version`, including identical values; ownership-only
-writes do not.** Pass `expected_config_version` for an atomic precondition; a stale value returns
-`409 active_config_changed`. See [Errors and retries](./errors.md).
+writes do not.** Production rejects `expected_config_version` with `400 invalid_declared_key`.
+Omit it for ordinary last-write-wins updates and serialize competing writes in your application.
+See [Errors and retries](./errors.md).
 
 `skills`, `credentials`, and unknown fields in the PUT body return `400`.
 
@@ -489,7 +490,8 @@ writes do not.** Pass `expected_config_version` for an atomic precondition; a st
 deleteAgent(agentId: string): Promise<void>
 ```
 
-Soft-deletes the agent and resolves with nothing. Repeated calls succeed. After deletion,
+Soft-deletes the Agent and resolves with nothing on the first 204. Repeated deletion returns
+404 through the public API; see [safe retry conditions](./errors.md#what-is-safe-to-retry). After deletion,
 `getAgent()` returns `404 not_found`.
 
 It does **not** stop the agent, cancel running workflows, delete schedules, or release the
@@ -828,30 +830,31 @@ streamEvents(
 | `opts.after` | `number` | Resume for the deprecated engine-only lane. Old stored cursors only. |
 | `opts.signal` | `AbortSignal` | Aborts the underlying request. When the signal is already aborted the generator returns quietly instead of throwing. |
 
-An async generator of `SessionEvent`. Consume it with `for await`.
+An async generator of `SessionEvent`. For an existing Session, pass its saved cursor.
+Only omit it for a new Session's first turn. Without it, old answers and `run.finished`
+replay from the beginning. See the [two-turn example](../build/events.md#streaming-a-turn)
+and [missing-cursor recovery limits](../build/events.md#existing-session-without-a-saved-cursor).
 
 ```ts
 import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
 
-const ctl = new AbortController()
-const budget = setTimeout(() => ctl.abort(), 120_000)
-
-let text = ''
-let cursor: string | undefined
-let outcome: string | undefined
-
-for await (const ev of zc.streamEvents(agentId, sessionId, { signal: ctl.signal })) {
-  cursor = ev.cursor ?? cursor
-  text += assistantText(ev)
-  if (isRunFinished(ev)) {
-    outcome = runOutcome(ev)
-    break
+async function readReply(savedCursor?: string) {
+  const ctl = new AbortController()
+  const timeout = setTimeout(() => ctl.abort(), 120_000)
+  let text = ''
+  let cursor = savedCursor
+  try {
+    for await (const ev of zc.streamEvents(agentId, sessionId, { cursor, signal: ctl.signal })) {
+      text += assistantText(ev)
+      cursor = ev.cursor ?? cursor // Persist after processing with the Session ID.
+      if (isRunFinished(ev)) return { text, cursor, outcome: runOutcome(ev) }
+    }
+    throw new Error('Read ended before run.finished')
+  } finally {
+    clearTimeout(timeout)
+    ctl.abort()
   }
 }
-
-clearTimeout(budget)
-ctl.abort()
-console.log(outcome, text)
 ```
 
 Four behaviours worth knowing:
@@ -1298,8 +1301,10 @@ interface ToolCall {
 The decoded form of an `agent.tool` event, returned by `toolCall()`.
 
 One tool call produces a sequence of events sharing a `toolCallId`, one per phase: `start`
-carries `args`, `end` carries `isError` and `resultPreview`, and `blocked` means the call is
-parked on an approval and has **not** run. Pair them by `toolCallId` - they are **not
+carries `args`, `end` carries `isError` and `resultPreview`, and `blocked` is a terminal
+block before execution; no `end` follows that call. Reasons include policy denial, approval
+denial/timeout/cancellation, or interruption. Read the raw event payload's `deniedReason`. Approval waiting uses
+`agent.approval` / `requested`, not `blocked`. Pair events by `toolCallId` - they are **not
 adjacent** in the stream when calls run concurrently. A tool error does not necessarily fail the run. The model may recover and finish with `succeeded`, but `isError: true` does not guarantee that outcome. Check the final run status and termination. See
 [Events](../build/events.md).
 
@@ -1631,9 +1636,10 @@ That is the entire public surface. Session metadata is set when you call `create
 
 ## Developer API methods
 
+Database viewer methods in the package are unavailable in production and are omitted here.
+Use the Agent's `agent_db` tool through a Session; see [Agent Database](../build/data-storage.md).
+
 ```ts
-  getAgentDatabase(agentId: string): Promise<AgentDatabase>
-  getAgentDatabaseRows(agentId: string, tableName: string, opts?: { limit?: number; offset?: number }): Promise<AgentDatabaseRows>
   getUsage(opts?: UsageOptions): Promise<UsageResult>
   getRunOutput(agentId: string, sessionId: string, runId: string, opts?: CursorOptions): Promise<RunOutput>
   getApproval(agentId: string, approvalId: string): Promise<ApprovalRecord>

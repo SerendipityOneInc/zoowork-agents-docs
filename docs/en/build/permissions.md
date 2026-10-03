@@ -199,7 +199,11 @@ to 64 overrides.
 
 ## Resolve a pending approval
 
-A tool call waiting for approval appears as an `agent.tool` event with `phase: 'blocked'`.
+A tool call waiting for approval emits `agent.approval` with `phase: 'requested'`.
+Use `approvalId` and `toolCallId` to render the pending decision; clear the approval-wait state
+on `phase: 'resolved'`, then observe the tool/run result. `agent.tool: blocked` ends a call without execution; it is not the approval-wait signal.
+The reason can be policy denial, approval denial/timeout/cancellation, or interruption.
+Inspect the event payload's `deniedReason`; see [tool call phases](./events.md#tool-call-phases).
 List pending approvals, show the authorized user the tool and arguments, and ask them to
 select a call and a decision. `requestApprovalDecision()` below is your application's UI
 function, not an SDK method. It returns an `approvalId` and one of `allow-once`, `allow-always`,
@@ -394,4 +398,4 @@ Platform approval does not replace your application's user authorization or busi
 
 - [MCP servers](./mcp.md) - connect and select remote tools.
 - [Tools](./tools.md) - configure built-in and application-executed tools.
-- [Events and streaming](./events.md) - follow blocked calls and turn completion.
+- [Events and streaming](./events.md) - follow approval requests, tool results and turn completion.

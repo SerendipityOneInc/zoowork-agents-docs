@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
 source: /en/build/agents
-source_hash: 7da7c19aa4dd375c3d4db8397f7886fc26474f90a845ac55d78998156bb845f7
+source_hash: 9a5436647494144756a8699667ea972fafca3ed70f2a59552c3083dcb23aca6a
 ---
 
 # Agents
@@ -226,7 +226,9 @@ PUT body 里的 `skills`、`credentials`，以及任何未知字段，都返回 
 `config_version` 会在配置更新后递增；仅修改 ownership 时不递增，但它不是配置历史 API。需要比较或回滚时，
 请在自己的应用中保存上一份配置。
 
-`updateAgent()` 接受可选 `expected_config_version`。正整数版本与写入一起原子检查，过期时返回 `409 active_config_changed`。先读取新状态，再决定是否重试；省略时仍是后写覆盖先写。
+production 的 Agent 更新当前拒绝 `expected_config_version`，返回 `400 invalid_declared_key`。普通更新应省略该字段，仍采用后写覆盖先写的行为。应用应串行处理竞争写入；先 GET 再 PUT 不构成原子检查。响应不确定时，先读回 `declared` 再决定是否重试。
+
+这一限制不影响 `upgradeSystemPrompt()`：它独立的版本前置条件已受支持。
 
 ## Agent 生命周期
 
@@ -294,7 +296,7 @@ curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" 
 
 :::
 
-重复删除同样返回 `204`。删除之后，`getAgent()` 返回 `404 not_found`。
+首次成功删除返回 `204`。通过公共 API 重复删除返回 `404 service_api.not_found`；删除后 `getAgent()` 也返回 404。资源不在当前 key 的范围内同样可能返回 404。恢复自己发起的删除时，保留原 Agent ID 和 key scope，不能将任意 404 当成删除证明。见[重试说明](../reference/errors.md#what-is-safe-to-retry)。
 
 ## agent 上的 skill
 

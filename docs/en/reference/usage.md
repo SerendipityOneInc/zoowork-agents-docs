@@ -23,6 +23,17 @@ Use `getUsage()` / `get_usage()` or HTTP for Usage queries.
 
 A Platform key can read only usage attributed to that key. Omit `api_key_id` to query that scope. Passing another key's ID is rejected. Organization administrators use Platform's Usage page for organization-wide usage, including shared sandbox costs; an API key does not inherit that UI access.
 
+## Credits and account balance
+
+`credits` measures consumption in Platform credits, not tokens, cents, or a request count.
+The Platform wallet uses **200 credits per USD**; 100 credits corresponds to USD 0.50 in
+that unit. This is a unit conversion, not a fixed price per model call or per Session.
+
+Usage for a Project key includes only consumption attributed to that key and the selected
+query range. It is not the Organization's remaining balance. Other keys, shared sandbox
+costs, top-ups and reporting timing mean subtracting this result from a previous balance
+is not a reliable wallet reconciliation. Check the Organization balance and Usage in Platform.
+
 ## Query parameters
 
 | Parameter | Accepted values | Default or behavior |
@@ -47,7 +58,8 @@ Keep filters and returned pagination state together when continuing a query. Do 
 
 | HTTP / code | Action |
 |---|---|
-| 400 / `usage.invalid_query` | Fix the parameters or timezone. |
+| 400 / `usage.invalid_query` | Fix semantic query errors, such as an invalid timezone. |
+| 422 / no business type | Fix query validation errors, such as `range=1y` or `per_page=1000`. The response has a `detail` array; SDK `type` may be absent. Do not retry unchanged. |
 | 403 / `usage.access_denied` | Query only usage within the key's scope. |
 | 409 / `usage.snapshot_expired` | Restart the query with fresh pagination state. |
 | 409 / `platform.billing_not_ready` | Complete the organization's billing setup; this code alone does not mean insufficient balance. |

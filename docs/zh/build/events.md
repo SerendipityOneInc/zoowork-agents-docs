@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 825c8adf4058528732c1a9f3ff9de6903655340c0b2e908ad5af11f635818186
+source_hash: 0f222e45655766a7075265e39c2f79932251886374bbb9bd6165d43d759436a5
 ---
 
 # Session 事件流
@@ -85,85 +85,118 @@ streamEvents(
 
 成功的 `run.finished` 也可能带有 `turnEndReason: "yielded"` 和 `outputType: "not_required"`：turn 已结束，但任务仍有后续工作。展示任务完成前，检查 [turn 结果和 yielded work](#turn-outcomes)。
 
-读取上面已发送消息的响应，并设置客户端读取 timeout：
+下面假设前面发送的消息是**新 Session 的第一轮**，然后发送第二条消息，并复用第一轮的 cursor。如果是已有 Session，发送新消息前先取出上次处理完成的 cursor，第一次读取也要传入它。不带 cursor 会从开头重放，包括旧的 `run.finished`。
+
+示例同一时间只发起一轮对话。自主执行或并发 run 需要额外关联 run，并检查 [turn 结果](#turn-outcomes)。
 
 ::: code-group
 
 ```ts [TypeScript]
-import { assistantText, thinkingText, toolCall, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
+import { assistantText, isRunFinished, runOutcome } from '@zoowork-ai/sdk'
 
-const ctl = new AbortController()
-const readTimeout = setTimeout(() => ctl.abort(), 120_000)
-let text = ''
-let outcome: 'succeeded' | 'failed' | 'aborted' | undefined
-let cursor: string | undefined
-
-try {
-  for await (const ev of client.streamEvents(agentId, sessionId, { signal: ctl.signal })) {
-    cursor = ev.cursor ?? cursor
-    const think = thinkingText(ev)
-    const tool = toolCall(ev)
-    if (think) console.log(`[${ev.seq}] thinking: ${think.slice(0, 60)}`)
-    else if (tool) console.log(`[${ev.seq}] tool ${tool.toolName} ${tool.phase}`)
-    else console.log(`[${ev.seq}] ${ev.eventType}`)
-    text += assistantText(ev)
-    if (isRunFinished(ev)) {
-      outcome = runOutcome(ev)
-      break
+async function readOneTurn(startCursor?: string) {
+  const ctl = new AbortController()
+  const timeout = setTimeout(() => ctl.abort(), 120_000)
+  let cursor = startCursor
+  let text = ''
+  try {
+    for await (const ev of client.streamEvents(agentId, sessionId, {
+      cursor: startCursor, signal: ctl.signal,
+    })) {
+      text += assistantText(ev)
+      cursor = ev.cursor ?? cursor // Save after processing, alongside the Session ID.
+      if (isRunFinished(ev)) {
+        if (!cursor) throw new Error('Missing resume cursor')
+        if (runOutcome(ev) !== 'succeeded') throw new Error(`run ${runOutcome(ev)}`)
+        return { text, cursor }
+      }
     }
+    throw new Error('Read ended before run.finished; reconnect from the saved cursor')
+  } finally {
+    clearTimeout(timeout)
+    ctl.abort()
   }
-} finally {
-  clearTimeout(readTimeout)
-  ctl.abort()
 }
-console.log(outcome, text.trim())
+
+// First message in a new Session: replay starts at the beginning.
+const first = await readOneTurn()
+console.log(first.text)
+// Persist first.cursor before sending a follow-up. One outstanding turn at a time.
+const receipt = await client.postEvents(agentId, sessionId, [
+  { type: 'user.message', content: 'Explain the second finding in more detail.' },
+])
+if (receipt.events[0]?.accepted !== true) throw new Error('Message was not accepted')
+const second = await readOneTurn(first.cursor)
+console.log(second.text)
+// Persist second.cursor for the next turn.
 ```
 
 ```python [Python]
 import asyncio
 from contextlib import aclosing
-from zoowork import assistant_text, thinking_text, tool_call, is_run_finished, run_outcome
+from zoowork import assistant_text, is_run_finished, run_outcome
 
-async def read_one_turn():
+async def read_one_turn(start_cursor=None):
     text = ""
-    outcome = None
-    cursor = None
-    async with aclosing(client.stream_events(agent_id, session_id)) as stream:
+    cursor = start_cursor
+    async with aclosing(client.stream_events(
+        agent_id, session_id, cursor=start_cursor,
+    )) as stream:
         async for event in stream:
-            cursor = event.cursor or cursor
-            think = thinking_text(event)
-            tool = tool_call(event)
-            if think:
-                print(f"[{event.seq}] thinking: {think[:60]}")
-            elif tool:
-                print(f"[{event.seq}] tool {tool.tool_name} {tool.phase}")
-            else:
-                print(f"[{event.seq}] {event.event_type}")
             text += assistant_text(event)
+            cursor = event.cursor or cursor  # Save after processing with the Session ID.
             if is_run_finished(event):
-                outcome = run_outcome(event)
-                break
-    return text, cursor, outcome
+                if not cursor:
+                    raise RuntimeError("Missing resume cursor")
+                if run_outcome(event) != "succeeded":
+                    raise RuntimeError(f"run {run_outcome(event)}")
+                return text, cursor
+    raise RuntimeError("Read ended before run.finished; reconnect from the saved cursor")
 
-text, cursor, outcome = await asyncio.wait_for(read_one_turn(), timeout=120)
-print(outcome, text.strip())
+# First message in a new Session; one outstanding turn at a time.
+text, cursor = await asyncio.wait_for(read_one_turn(), timeout=120)
+print(text)
+# Persist cursor before sending a follow-up.
+receipts = await client.post_events(agent_id, session_id, [
+    {"type": "user.message", "content": "Explain the second finding in more detail."},
+])
+if not receipts or receipts[0].get("accepted") is not True:
+    raise RuntimeError("Message was not accepted")
+text, cursor = await asyncio.wait_for(read_one_turn(cursor), timeout=120)
+print(text)
+# Persist cursor for the next turn.
 ```
 
 ```bash [curl]
-curl -N --max-time 120 "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
+# Existing Session: EVENT_CURSOR is the last processed SSE id, saved by your app.
+curl -N --max-time 120 --get \
+  "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/stream" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  -H 'Accept: text/event-stream'
+  -H 'Accept: text/event-stream' \
+  --data-urlencode "cursor=$EVENT_CURSOR"
 ```
 
 :::
+
+只有新 Session 的第一轮才省略 curl 的 `cursor` 参数。处理完 SSE event 后保存其 `id:`，供后续读取使用。
+
+这些示例把 cursor 保存在内存中。服务端应在每个 event 处理完成后持久化处理状态和 cursor，避免超时或进程重启丢失 checkpoint。
 
 机制上的几点：
 
 - Abort stream 只关闭读取连接，不会发送 `user.interrupt`、停止服务端 run 或设置花费上限。需要停止工作时，post interrupt，再从新建或续传的 stream 观察 terminal event。
 - TypeScript 中，abort `signal` 会正常结束生成器。Python 的 `asyncio.wait_for` 在 timeout 时抛出 `asyncio.TimeoutError`，`aclosing` 负责关闭 stream。curl 输出原始 frame，直到 timeout 或你停止读取；它不会在 `run.finished` 时退出。
-- 生成器会丢弃任何 `seq` 小于等于它已产出过的最高值的 event，所以重连时被重放的边界 event 不会被投递两次。
+- 生成器会丢弃任何 `seq` 小于等于它已产出过的最高值的 event，但这个去重状态只属于当前 generator。新 generator 不保留应用 checkpoint，必须传入已保存的 cursor。
 - `streamEvents` 产出的一切都是持久的。
 - 对于多回合 session，要么每个回合开一条新流并带上上次的 `cursor`，要么保持一条流开着并持续数 `run.finished` 事件。前者更容易推理。
+
+### 已有 Session 没有保存 cursor {#existing-session-without-a-saved-cursor}
+
+当前没有获取 Session 末尾 cursor 的 helper。REST 事件和 `postEvents` 回执不带 event cursor，最后一页的 `next_cursor` 为 null。不要根据 `seq` 拼接 opaque cursor，也不要用 deprecated `after` 通道替代。
+
+如果已处理完某轮，并保存了验签通过的 `run.finished` webhook，其中存在的 `data.event_cursor` 可以作为该轮的 checkpoint。它不是查询当前末尾的接口；从它续读会跳过前面的输出，不能用来跳过尚未处理的结果。
+
+应从第一次 stream 开始保存 cursor。如果已经丢失，需要重放持久事件流，结合应用记录的输入和 run 重建状态，不能把第一个重放的 `run.finished` 当成新答复。只有明确需要新对话时，才改为创建新 Session。不带 cursor 打开 stream 不表示从“现在”开始。
 
 ## Turn 结果 {#turn-outcomes}
 
@@ -428,23 +461,26 @@ await client.postEvents(agentId, sessionId, [
 
 | `phase` | 含义 | 携带 |
 |---|---|---|
-| `start` | 调用已派发。 | `args` |
+| `start` | 已提出工具调用，策略或审批仍可能阻止执行。 | `args` |
 | `end` | 调用已返回。 | `isError`、`resultPreview`、`executionStarted` |
-| `blocked` | 这次调用**正在等待审批，还没有执行** 。 | `policyId`、`deniedReason` |
+| `blocked` | 调用在执行前结束，未执行；这是终态，具体原因见 `deniedReason`。 | `policyId`、`deniedReason` |
 
 两条规则：
 
 1. **按 `toolCallId` 配对，不要按前后相邻配对。** 当多个调用并发执行时，同一次调用的 `start` 和 `end` 之间会夹着属于其他调用的事件。
-2. **`blocked` 是待处理，不是已完成。** 它意味着一道审批闸门在执行前拦住了这次调用。对应的 `agent.approval` 事件带着这个请求，而一旦审批有了结果，`end` 仍然会跟上。把 `blocked` 渲染成一次已完成的调用，会让你的用户以为一个从未运行过的工具已经运行了。
+2. **`blocked` 是终态，不是等待审批。** 这次被拒绝的调用不会再出现 `end`。原因可能是策略规则拒绝、审批拒绝（`approval-denied`）、审批超时（`approval-timeout`）、审批取消（`approval-cancelled`）或被 interrupt 打断（`interrupted`）。读取 `ev.payload.deniedReason`，显示为未执行且已结束，不能显示为成功。等待人工决定时，事件是 `agent.approval`，`phase` 为 `requested`；`resolved` 表示审批等待结束，但不证明工具执行成功。
 
 ```ts
+import { toolCall, isRunFinished, type ToolCall } from '@zoowork-ai/sdk'
+
+// savedCursor is the application's checkpoint for this Session.
 const pending = new Map<string, ToolCall>() // toolCallId -> latest state
 
-for await (const ev of client.streamEvents(agentId, sessionId)) {
+for await (const ev of client.streamEvents(agentId, sessionId, { cursor: savedCursor })) {
   const tool = toolCall(ev)
   if (tool) {
-    if (tool.phase === 'end') pending.delete(tool.toolCallId)
-    else pending.set(tool.toolCallId, tool) // start AND blocked are both in flight
+    if (tool.phase === 'end' || tool.phase === 'blocked') pending.delete(tool.toolCallId)
+    else pending.set(tool.toolCallId, tool) // start remains pending
   }
   if (isRunFinished(ev)) break
 }

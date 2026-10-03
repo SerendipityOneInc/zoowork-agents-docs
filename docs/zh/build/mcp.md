@@ -2,7 +2,7 @@
 title: MCP Server
 description: 为 Agent 连接远程 MCP Server，选择工具、加载方式，并传递运行时 context。
 source: /en/build/mcp
-source_hash: b878e541a38a0b3961c1b0ca06f869c046ee0a51137623ff56530364aa312147
+source_hash: c428b651f3fd03ec0b14a9b19894a0848909ad298532b3f351b3b915bc4956e9
 ---
 
 # MCP Server
@@ -204,6 +204,8 @@ JSON
 这些标识只提供请求上下文，不能作为调用方已经通过鉴权的证明。
 
 ## 处理连接错误
+
+私有地址错误可能附带本地开发用的环境变量提示。该提示不是托管 API 用户可以设置的选项。请使用公共 MCP endpoint，或在自己的后端执行 application-executed custom tool；不要通过 Agent 配置尝试开启私网访问。
 
 如果平台无法读取某个 Server 的工具目录，这个 Server 的工具不会出现在当前回合中。
 事件流可能包含 `agent.error`，其中 `kind` 有以下取值：

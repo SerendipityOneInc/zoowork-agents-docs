@@ -241,10 +241,11 @@ are managed through their own routes - see [Skills](./skills.md).
 `config_version` increases after each update, but it is not a configuration-history API.
 Store the previous configuration in your application if you need comparison or rollback.
 
-`updateAgent()` accepts the optional `expected_config_version` field. Read the active version,
-send a positive integer with the update, and handle `409 active_config_changed` by reading
-fresh state before deciding whether to retry. The check is atomic with the write. The field
-is not stored in `declared`. Omit it for last-write-wins behavior.
+Production Agent updates currently reject `expected_config_version` with
+`400 invalid_declared_key`. Omit that field for ordinary updates, which remain last-write-wins.
+Serialize competing updates in your application; a GET followed by PUT is not an atomic check.
+Read back `declared` after an uncertain response before deciding whether to retry.
+This limitation is separate from `upgradeSystemPrompt()`, whose version precondition is supported.
 
 ## Agent lifecycle
 
@@ -315,7 +316,10 @@ curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" 
 
 :::
 
-Repeated deletes also return `204`. After deletion, `getAgent()` returns `404 not_found`.
+The first successful deletion returns `204`. Repeating it through the public API returns
+`404 service_api.not_found`; `getAgent()` also returns 404 after deletion. A 404 can also mean
+the ID is outside the key's scope. When recovering your own deletion, keep the original Agent
+ID and key scope; do not treat an arbitrary 404 as proof of deletion. See [retry guidance](../reference/errors.md#what-is-safe-to-retry).
 
 ## Skills on an agent
 

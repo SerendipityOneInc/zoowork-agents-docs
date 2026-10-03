@@ -461,10 +461,12 @@ fields in the typed `AgentResource`; see [Models](../reference/models.md).
 ## Observe tool calls
 
 The event stream records tools the Agent actually called; it is not an inventory of every
-available tool. Stream an existing Session and pair call phases by id:
+available tool. For one outstanding turn in an existing Session, resume from its saved cursor
+and pair call phases by id. See [cursor recovery](./events.md#existing-session-without-a-saved-cursor)
+if the checkpoint is missing:
 
 One tool call produces a sequence of `agent.tool` events that share a `toolCallId`, one per
-phase: `start`, `end`, and `blocked`. Pair `start` and `end` by `toolCallId`, not by
+phase: `start`, `end`, and `blocked`. `blocked` ends a call without execution; the event payload's `deniedReason` distinguishes policy denial, approval denial/timeout/cancellation, or interruption. Approval waits use `agent.approval` / `requested`. Pair events by `toolCallId`, not by
 adjacency. When the model issues several calls concurrently, their events interleave. What
 each phase carries is in [Events and streaming](./events.md).
 
@@ -473,9 +475,14 @@ import { toolCall, isRunFinished } from '@zoowork-ai/sdk'
 
 const pending = new Map<string, string>()
 
-for await (const ev of zc.streamEvents(agentId, sessionId)) {
+// savedCursor is the last processed cursor for this Session.
+for await (const ev of zc.streamEvents(agentId, sessionId, { cursor: savedCursor })) {
   const call = toolCall(ev)
   if (call?.phase === 'start') pending.set(call.toolCallId, call.toolName)
+  if (call?.phase === 'blocked') {
+    console.log(call.toolName + ' blocked before execution', ev.payload.deniedReason)
+    pending.delete(call.toolCallId)
+  }
   if (call?.phase === 'end') {
     const name = pending.get(call.toolCallId) ?? call.toolName
     console.log(`${name} ${call.isError ? 'FAILED' : 'ok'}: ${call.resultPreview ?? ''}`)
