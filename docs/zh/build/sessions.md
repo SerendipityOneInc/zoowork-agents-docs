@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 创建 Session、选择 Agent 配置、发送首条消息并继续对话。
 source: /en/build/sessions
-source_hash: ff47448f86e448ab753355ecc22422fa07611c80b7d65a89d05c2f45f979a452
+source_hash: f749418f250da39616c617a2847f77d8af8a4fd484c2e3124e74aa26c753e79f
 ---
 
 # 创建 Session
@@ -243,8 +243,6 @@ curl -N -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/strea
 curl 中的 `EVENT_CURSOR` 是第一回合最后处理的 SSE `id:` 值。成功处理后保存 cursor，将它作为 opaque token。timeout、重连、interrupt 和工具响应见 [事件与流式响应](./events.md)。读取状态和历史、列出、归档或删除见 [Session 操作](./session-operations.md)。
 
 ## SDK 调用
-
-以下示例要求安装包含该方法的 SDK release。先检查已安装的 exports；缺少方法时使用本页 HTTP 示例。
 
 ::: code-group
 

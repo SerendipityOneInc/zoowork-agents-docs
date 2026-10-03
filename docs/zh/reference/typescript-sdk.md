@@ -2,12 +2,14 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 流程使用的 TypeScript SDK 方法、类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 4549d468be7535cac2fa8be1c5506e09d0778dd113dd76070eab2035ae087ab9
+source_hash: 54984d74d262e2575ca3ab6c9e2e0b6112b2935e78ee739375fed2c170b295bc
 ---
 
 # TypeScript SDK 参考
 
 `@zoowork-ai/sdk` 导出的每一个符号，附带编译器看到的签名。
+
+本参考适用于 TypeScript SDK **0.10.0+**。
 
 这一页是参考手册。想看按任务组织的说明，从 [Agents](../build/agents.md)、[Sessions](../build/sessions.md)
 或[快速开始](../get-started/quickstart.md)开始。
@@ -363,10 +365,6 @@ console.log(created.agent_id, created.config_version) // "agt_...", 1
 ---
 
 ### `listAgents(opts?)` {#listagentsopts}
-
-::: warning SDK 版本
-SDK 0.5.2 返回 `Promise<AgentRecord[]>`；使用以下示例前，需要安装包含该分页改动的发布版本。
-:::
 
 ```ts
 listAgents(opts?: AgentListParams): AgentPagePromise
@@ -1364,7 +1362,7 @@ for await (const msg of parseSSE(res.body!)) {
 
 ## Webhook helpers
 
-`@zoowork-ai/sdk` **0.9.0+** 提供接收 helpers。它们验证和解析收到的 delivery，不是 webhook endpoint 管理方法。注册和 delivery 管理见 [Webhooks](../build/webhooks.md)。
+接收 helpers 验证和解析收到的 delivery，不是 webhook endpoint 管理方法。注册和 delivery 管理见 [Webhooks](../build/webhooks.md)。
 
 | Helper | 行为 |
 |---|---|
@@ -1540,8 +1538,6 @@ import {
 - [Sessions](../build/sessions.md) —— 驱动一个回合、给事件日志翻页、读取会话记录。
 
 ## Developer API 方法
-
-使用这些新增方法前检查已安装的 declarations。需要包含它们的 SDK release；缺少时使用 HTTP。
 
 ```ts
   getAgentDatabase(agentId: string): Promise<AgentDatabase>

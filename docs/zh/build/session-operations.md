@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 读取 Session 状态和 transcript，获取 run output，列出、归档或删除 Session。
 source: /en/build/session-operations
-source_hash: 911dbd9a427f807fd9923b0430f5536da162becdbfb0c640be6ea14874a68c23
+source_hash: 7d4c4407231157858f08dc6fd942b246fef282e854bbac4fd9364463809d67cd
 ---
 
 # Session 操作
@@ -292,8 +292,6 @@ curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID" \
 Session 分开保存对话历史。应用用户需要文件和记忆隔离时，见[每用户一个 agent](./per-user-agents.md)。
 
 ## SDK 调用
-
-以下示例要求安装包含该方法的 SDK release。先检查已安装的 exports；缺少方法时使用本页 HTTP 示例。
 
 ::: code-group
 

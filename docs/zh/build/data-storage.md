@@ -2,7 +2,7 @@
 title: Agent Database
 description: 通过 agent_db 工具管理 Agent 自己的结构化数据，并用公共 API 查看数据库表。
 source: /en/build/data-storage
-source_hash: dea1a9317b20234aeb29763ade3ca7e78e98a36510831ea3a74d1da42c8fe8c3
+source_hash: ec699b692834919efa360ffe862a7df3604157500b15ceb7545a088856b018bd
 ---
 
 # Agent Database
@@ -121,8 +121,6 @@ curl -sS --fail-with-body --get \
 Agent Database 保存结构化行，不会创建托管文档索引或 RAG API。通过[自定义工具](./tools.md#应用执行的自定义工具)或 [MCP](./mcp.md)连接现有应用数据库或 retrieval 服务。集成方式见[检索与数据连接](./retrieval.md)。
 
 ## SDK 调用
-
-以下示例要求安装包含该方法的 SDK release。先检查已安装的 exports；缺少方法时使用本页 HTTP 示例。
 
 ::: code-group
 

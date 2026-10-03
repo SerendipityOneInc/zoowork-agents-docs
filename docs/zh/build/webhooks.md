@@ -2,7 +2,7 @@
 title: Webhooks
 description: 注册 webhook receiver，验证签名事件，检查并重试投递。
 source: /en/build/webhooks
-source_hash: a1a6a6093ed67c10220a05db938f27941307d5c3472fe93240a374c399766a35
+source_hash: 4b9a146bdfc0f7b355a6b994601f394c3ee6820ed5b83272f284914913c60d78
 ---
 
 # 订阅 Webhooks
@@ -58,7 +58,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks" \
 
 投递使用 [Standard Webhooks](https://github.com/standard-webhooks/standard-webhooks)。SDK 对原始 request bytes 验签，再解析事件。必须在 JSON middleware 处理前读取 body；解析后重新序列化会改变签名覆盖的字节。
 
-使用 TypeScript SDK **0.9.0 或以上**，或 Python SDK **0.4.0 或以上**。这些是接收 helper；注册和管理 webhook 仍使用本页 HTTP 路径。
+使用下面的 SDK 接收 helpers 验证收到的 delivery。注册和管理 endpoint 可以使用本页的 [SDK 调用](#sdk-调用)或 HTTP 示例。
 
 将 `ZOOWORK_WEBHOOK_SECRET` 设为注册时返回的 `whsec_` secret。下面的 handler 从 HTTP framework 接收 raw bytes 和 headers；Python 函数返回应由 framework adapter 发送的 HTTP status。
 
@@ -235,8 +235,6 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/update" \
 示例使用 Agent-scoped path，并要求有该 Agent 的访问权限。Key 的设置和资源范围见[认证](../get-started/authentication.md)。调用方传入的 organization、owner、project query 不会扩大 key 权限。
 
 ## SDK 调用
-
-以下示例要求安装包含该方法的 SDK release。先检查已安装的 exports；缺少方法时使用本页 HTTP 示例。
 
 ::: code-group
 

@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: ef6033fe093fcf8609bbb8000fdd26489423f47a0983852661eb22e27eebdf88
+source_hash: 29908ef64542bcb79339eb3409529be6af6443fbc2cd88a1d6137b34cab82ac3
 ---
 
 # 快速开始
@@ -21,6 +21,8 @@ source_hash: ef6033fe093fcf8609bbb8000fdd26489423f47a0983852661eb22e27eebdf88
 本例使用默认模型和托管沙箱，无需单独创建 Environment。
 
 ## 前置条件
+
+本文档的 SDK 示例适用于 TypeScript SDK **0.10.0+** 和 Python SDK **0.5.0+**。
 
 - 一个 API key，以及已充值的组织余额。按 [Authentication 与 API key](./authentication.md) 在 ZooWork Platform 创建 key 并充值。
 - **TypeScript：** Node.js **22.20+** 和 npm。

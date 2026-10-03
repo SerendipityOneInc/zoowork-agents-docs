@@ -71,8 +71,8 @@ Deliveries use [Standard Webhooks](https://github.com/standard-webhooks/standard
 The SDK verifies the signature over the original request bytes, then parses the event.
 Read the body before JSON middleware touches it: parsing and reserializing changes signed bytes.
 
-Use TypeScript SDK **0.9.0 or later** or Python SDK **0.4.0 or later**. These are receiver
-helpers; webhook registration and management still use the HTTP routes on this page.
+Use the SDK receiving helpers below to verify incoming deliveries. Register and manage
+endpoints with the [SDK calls](#sdk-calls) or the HTTP examples on this page.
 
 Set `ZOOWORK_WEBHOOK_SECRET` to the `whsec_` secret returned at registration. The handlers
 below receive raw bytes and headers from your HTTP framework. The Python function returns
@@ -299,8 +299,6 @@ The examples use Agent-scoped paths and require access to that Agent. See
 Caller-supplied organization, owner, or project query parameters never widen key authority.
 
 ## SDK calls
-
-These examples require an SDK release containing the helper. Check the installed exports first; use the HTTP examples if the installed release lacks it.
 
 ::: code-group
 

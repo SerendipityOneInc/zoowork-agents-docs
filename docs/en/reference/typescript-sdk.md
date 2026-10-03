@@ -4,7 +4,9 @@ description: Look up TypeScript SDK methods, types, helpers, and errors for publ
 
 # TypeScript SDK reference
 
-Client methods, resource types, and helpers exported by `@zoowork-ai/sdk`, including the 0.9.0 webhook receiving helpers.
+Client methods, resource types, and helpers exported by `@zoowork-ai/sdk`.
+
+This reference applies to TypeScript SDK **0.10.0+**.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
@@ -370,11 +372,6 @@ followed by a `getAgent()` saying `3`. See [Errors and retries](./errors.md).
 ---
 
 ### `listAgents(opts?)` {#listagentsopts}
-
-::: warning SDK version
-SDK 0.5.2 returns `Promise<AgentRecord[]>`; use a package release containing the pagination
-change for these examples.
-:::
 
 ```ts
 listAgents(opts?: AgentListParams): AgentPagePromise
@@ -1456,7 +1453,7 @@ Dropping the `id:` line would freeze your resume cursor, which is why the parser
 
 ## Webhook helpers
 
-Receiving helpers are available in `@zoowork-ai/sdk` **0.9.0+**. They verify and parse incoming deliveries; they are not webhook endpoint-management methods. Use [Webhooks](../build/webhooks.md) for registration and delivery management.
+Receiving helpers verify and parse incoming deliveries; they are not webhook endpoint-management methods. Use [Webhooks](../build/webhooks.md) for registration and delivery management.
 
 | Helper | Behavior |
 |---|---|
@@ -1633,8 +1630,6 @@ That is the entire public surface. Session metadata is set when you call `create
 - [Sessions](../build/sessions.md) - drive a turn, page the event log, read the transcript.
 
 ## Developer API methods
-
-Check installed declarations before using these additive helpers. They require the SDK release containing them; use HTTP otherwise.
 
 ```ts
   getAgentDatabase(agentId: string): Promise<AgentDatabase>

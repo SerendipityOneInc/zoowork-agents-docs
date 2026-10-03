@@ -275,8 +275,6 @@ or archive and delete them.
 
 ## SDK calls
 
-These examples require an SDK release containing the helper. Check the installed exports first; use the HTTP examples if the installed release lacks it.
-
 ::: code-group
 
 ```ts [TypeScript]
