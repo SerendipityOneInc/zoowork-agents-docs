@@ -1,7 +1,7 @@
 ---
 description: 核对当前公共API边界，为secrets、集成、budget和self-hosting选择已有方案。
 source: /en/reference/not-supported
-source_hash: a43a0a3fb3ceba2ba82c5a33207c3064202ef0e17dad42bd49efd9a81dcefda5
+source_hash: 8068d2c3d87f5fb3ee72cfc9846040c03a21a6e762929e4f9e368d029f507dc5
 ---
 
 # 当前公共 API 边界
@@ -19,7 +19,7 @@ source_hash: a43a0a3fb3ceba2ba82c5a33207c3064202ef0e17dad42bd49efd9a81dcefda5
 | 公共组织、Project 或 API-key Admin API | `/service/v1` 不提供这一管理接口。 | 在 [Platform](../get-started/authentication.md) 管理。 |
 | 开箱即用的 ZooData/RAG/connector 配置 | ZooData retrieval 和 connectors 尚无已记录的公共 provisioning API。 | 用 [custom tools 或公开 MCP](../build/retrieval.md) 连接自己的服务。 |
 | Credential vault 和需认证/private MCP provisioning | 公共 key 不能 provision Agent credentials，存在 credential 字段也不表示已有可用流程。 | 将服务凭证留在后端，执行 [custom tool](../build/tools.md)。 |
-| 直接访问工作区文件与通用 binary 输入上传 | 工作区的直接读写和目录列举目前不属于支持的公共流程。也未提供通用 binary 输入上传及 materialization 流程。 | 在 Session 消息中提供文本，再获取[已发布的 Artifact](../build/files.md)。 |
+| 直接读取工作区文件与消息附件 | 不支持通过 API 读取、列举或下载任意工作区路径。Session 消息只能携带文本。 | 把[输入文件上传](../build/files.md#send-a-file-to-the-agent)到 `/workspace`，输出通过[已发布的 Artifact](../build/files.md) 获取。 |
 | Session 花费上限 | 公共 API 提供 Usage 查询，不提供服务端强制执行的 per-Session 花费上限。 | 查询 [Usage](./usage.md)，由应用执行策略，需要时显式[中断任务](../build/events.md#user-interrupt)。 |
 | 公共 rate-limit 配置 API 或固定 quota | 公共 API contract 尚未确立。 | 对 429 做 backoff，不硬编码其他 provider 的 quota。 |
 | 独立 Memory stores、mounts 或 Dreams jobs | 尚无公共管理流程。 | 在 scope 内使用已启用的 [Agent Memory 工具](../build/memory.md)。 |

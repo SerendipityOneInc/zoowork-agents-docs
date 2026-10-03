@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 流程使用的 TypeScript SDK 方法、类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 504bb94fc2ecc77da695f384b4b9230c0c5ca99a8d04e921b930b276e4a12c62
+source_hash: 991b10e324657e5753c1f8a0b6e2ce1a5288a701d0e8dc8782ebc79022de3ee0
 ---
 
 # TypeScript SDK 参考
@@ -113,7 +113,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 
 ## 方法
 
-`ZooworkClient` 暴露 62 个方法，下面按客户端自己的分组排列。凡是在线格式上嵌在 agent 下面的
+`ZooworkClient` 的方法按下面的分组排列。凡是在线格式上嵌在 agent 下面的
 东西——session、事件、审批、定时任务、`wake`、`exec`——第一个参数都是 `agentId`。skill registry
 和 Environment 是顶层资源，一个都不带。
 
@@ -261,6 +261,7 @@ await client.createSchedule(agentId, {
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `exec(agentId, args)` | `Promise<ExecResult>` | 在 agent 的沙箱里跑一条 argv——不是 shell 字符串——cwd 固定为 `/workspace`。**非零退出码依然是 HTTP 200** ：这个 promise 会 resolve，所以要自己看 `exit_code`。它要求 agent 级的沙箱和一份已渲染的配置：session 级的 agent 是 `409 exec_requires_agent_scope`，没渲染过的是 `409 exec_config_not_ready`。 |
+| `uploadFile(agentId, path, content)` | `Promise<UploadFileResult>` | 通过 `exec` 把 `Uint8Array`、`ArrayBuffer`、`Blob` 或字符串复制到 agent 的 `/workspace`，在沙箱内校验 SHA-256 后返回 `{ path, size, sha256 }`。相对 `path` 以 `/workspace` 为基准。适合几 MB 以内的文件，沙箱要求与 `exec` 相同。见[文件](../build/files.md#send-a-file-to-the-agent)。 |
 
 命令的默认超时是 300 秒，`stdout` 和 `stderr` 各自在 200,000 字符处截断。这两条限制都不会以错误的
 形式告诉你，所以一条跑得久、或者话很多的命令，回来的样子和一条短命令没有区别。

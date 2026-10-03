@@ -1,13 +1,13 @@
 ---
 title: 文件与产物
-description: 让 Agent 创建工作区文件，再发布和下载产物。
+description: 把文件发送给 Agent，让它创建工作区文件，再发布和下载产物。
 source: /en/build/files
-source_hash: 156579af046bbc78ecae38e0948bd6a8877852ed6b08143f6f3423e0fca0ead9
+source_hash: c097e38c4cf7b1b9e6e389cccdbf9933dd041952feb5c958c0b3638e633892f4
 ---
 
 # 文件与产物
 
-在 Session 消息中提供任务数据，让 Agent 在 `/workspace` 创建文件。需要获取输出时，让 Agent 发布 Artifact，然后通过 API 或 SDK 下载已发布的记录。
+把输入文件上传到 Agent 的 `/workspace`，或者在 Session 消息中以文本提供任务数据，再让 Agent 处理。需要获取输出时，让 Agent 发布 Artifact，然后通过 API 或 SDK 下载已发布的记录。
 
 工作区文件是某个路径上的当前文件。Artifact 是单独发布的副本，有自己的 ID 和下载 URL。修改工作区文件不会改变已发布的 Artifact。
 
@@ -39,6 +39,41 @@ ORG_ID=$(jq -er '.ownership.org_id' <<<"$agent")
 ```
 
 这些 query 字段必须与 Agent 的 ownership 相符。它们不授予权限：API key 仍需有权访问 Agent，包括适用时的 project scope。projection 没有 ownership 时应停止，不要自己编造值。
+
+## 把文件发送给 Agent {#send-a-file-to-the-agent}
+
+`uploadFile` 把本地文件复制到 Agent 的 `/workspace`，并返回它的路径。在 Session 消息中写出这个路径，Agent 就会读取该文件。
+
+::: code-group
+
+```ts [TypeScript]
+import { readFile } from 'node:fs/promises'
+
+const file = await client.uploadFile(agentId, 'input/report.pdf', await readFile('report.pdf'))
+console.log(file.path) // /workspace/input/report.pdf
+```
+
+```python [Python]
+from pathlib import Path
+
+file = await client.upload_file(agent_id, "input/report.pdf", Path("report.pdf").read_bytes())
+print(file["path"])  # /workspace/input/report.pdf
+```
+
+```bash [curl]
+jq -n --arg data "$(base64 < report.pdf | tr -d '\n')" \
+  '{args: ["bash", "-c", "mkdir -p input && printf %s \"$1\" | base64 -d > input/report.pdf", "upload", $data]}' |
+  curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/exec" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d @-
+```
+
+:::
+
+相对路径以 `/workspace` 为基准，缺少的目录会自动创建。SDK 方法接受 bytes 或字符串，在沙箱内校验文件的 SHA-256 之后，文件才会出现在目标路径，并返回 `path`、`size` 和 `sha256`。
+
+上传通过沙箱命令 API 完成，每个请求携带约 72 KB，速度约为每秒 100 KB，适合几 MB 以内的文件。curl 请求把整个文件放在一个请求里，约 90 KB 以内可用。上传要求使用默认的 `sandbox.scope: 'agent'`。
 
 ## 1. 让 Agent 创建并发布文件 {#1-ask-the-agent-to-create-and-publish-a-file}
 
@@ -234,4 +269,4 @@ curl -sS --fail-with-body --get --request DELETE \
 
 ## 分析 PDF 与图片 {#analyze-pdfs-and-images}
 
-PDF 或图片已经位于 `/workspace` 时，让 Agent 使用 `pdf` 或 `image` 工具。参数、模型要求和限制见[图像与 PDF 工具](./tools.md#图像与-pdf-工具)。这个工具流程不提供 binary upload 或 Session attachment API。
+PDF 或图片位于 `/workspace` 时（包括你[上传](#send-a-file-to-the-agent)的文件），让 Agent 使用 `pdf` 或 `image` 工具。参数、模型要求和限制见[图像与 PDF 工具](./tools.md#图像与-pdf-工具)。

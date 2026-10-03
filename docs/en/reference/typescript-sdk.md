@@ -112,7 +112,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 
 ## Methods
 
-`ZooworkClient` exposes 62 methods, grouped below the way the client groups them. Everything
+`ZooworkClient` groups its methods the way this section does. Everything
 the wire nests under an agent - sessions, events, approvals, schedules, `wake`, `exec` - takes
 `agentId` first. The skill registry and Environments are top-level resources and take none.
 
@@ -263,6 +263,7 @@ hand-written round trip needs the list and an SDK round trip does not.
 | Method | Returns | What it does |
 |---|---|---|
 | `exec(agentId, args)` | `Promise<ExecResult>` | Runs argv - not a shell string - in the agent's sandbox, cwd fixed to `/workspace`. **A non-zero exit is still HTTP 200**: this promise resolves, so check `exit_code`. Requires an agent-scope sandbox and a rendered config: a session-scope agent is `409 exec_requires_agent_scope`, an unrendered one is `409 exec_config_not_ready`. |
+| `uploadFile(agentId, path, content)` | `Promise<UploadFileResult>` | Copies a `Uint8Array`, `ArrayBuffer`, `Blob`, or string into the agent's `/workspace` through `exec` and resolves to `{ path, size, sha256 }` after verifying the SHA-256 in the sandbox. A relative `path` resolves against `/workspace`. Suits files up to a few megabytes and has `exec`'s sandbox requirements. See [Files](../build/files.md#send-a-file-to-the-agent). |
 
 The command times out after 300 seconds, and `stdout` and `stderr` are each truncated at
 200,000 characters. Neither limit is reported to you as an error, so a long-running or chatty

@@ -1,12 +1,12 @@
 ---
-description: Ask an agent to create workspace files, then publish and download artifacts.
+description: Send files to an agent, ask it to create workspace files, then publish and download artifacts.
 ---
 
 # Files and artifacts
 
-Provide task data in a Session message and ask the Agent to create files in `/workspace`.
-To retrieve an output, ask the Agent to publish an Artifact, then download the published
-record through the API or SDK.
+Upload input files into the Agent's `/workspace`, or provide task data as text in a Session
+message, and ask the Agent to work on them. To retrieve an output, ask the Agent to publish an
+Artifact, then download the published record through the API or SDK.
 
 A workspace file is the current file at a path. An Artifact is a separately published copy
 with an ID and a download URL. Changing the workspace file does not change an already
@@ -50,6 +50,47 @@ ORG_ID=$(jq -er '.ownership.org_id' <<<"$agent")
 These query fields must match the agent's ownership. They do not grant access: the API key
 must also authorize the agent, including its project scope when applicable. Stop if the
 projection has no ownership; do not invent values.
+
+## Send a file to the Agent
+
+`uploadFile` copies a local file into the Agent's `/workspace` and returns its path. Name that
+path in a Session message so the Agent reads the file.
+
+::: code-group
+
+```ts [TypeScript]
+import { readFile } from 'node:fs/promises'
+
+const file = await client.uploadFile(agentId, 'input/report.pdf', await readFile('report.pdf'))
+console.log(file.path) // /workspace/input/report.pdf
+```
+
+```python [Python]
+from pathlib import Path
+
+file = await client.upload_file(agent_id, "input/report.pdf", Path("report.pdf").read_bytes())
+print(file["path"])  # /workspace/input/report.pdf
+```
+
+```bash [curl]
+jq -n --arg data "$(base64 < report.pdf | tr -d '\n')" \
+  '{args: ["bash", "-c", "mkdir -p input && printf %s \"$1\" | base64 -d > input/report.pdf", "upload", $data]}' |
+  curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/exec" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d @-
+```
+
+:::
+
+A relative path resolves against `/workspace`, and missing directories are created. The SDK
+methods accept bytes or a string, verify the file's SHA-256 inside the sandbox before the file
+appears at its path, and return `path`, `size`, and `sha256`.
+
+The upload travels through the sandbox command API in requests of about 72 KB each, at roughly
+100 KB per second. Use it for files up to a few megabytes. The curl request sends the whole
+file in one request, which works up to about 90 KB. Uploading requires the default
+`sandbox.scope: 'agent'`.
 
 ## 1. Ask the Agent to create and publish a file
 
@@ -271,6 +312,6 @@ remain stable while the record's access version is unchanged.
 
 ## Analyze PDFs and images
 
-For PDFs or images already available in `/workspace`, ask the Agent to use its `pdf` or
-`image` tool. See [Media tools](./tools.md#media-tools) for arguments, model requirements,
-and limits. This tool workflow does not provide a binary upload or session attachment API.
+For PDFs or images in `/workspace`, including files you
+[uploaded](#send-a-file-to-the-agent), ask the Agent to use its `pdf` or `image` tool. See
+[Media tools](./tools.md#media-tools) for arguments, model requirements, and limits.

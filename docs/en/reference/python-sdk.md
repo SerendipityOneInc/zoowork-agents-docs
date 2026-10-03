@@ -53,6 +53,7 @@ The default base URL is `https://clawapi.ecap.gsmo.ai/service/v1`. Normal use re
 | `await client.create_session(agent_id, session, idempotency_key=...)` | Create a conversation; save `session_id`. |
 | `await client.get_session(agent_id, session_id, history=True, limit=...)` | Read recent transcript rows when requested. |
 | `await client.post_events(agent_id, session_id, events)` | Send accepted input event types. |
+| `await client.upload_file(agent_id, path, content)` | Copy `bytes` or a `str` into the Agent's `/workspace`; returns `path`, `size`, and `sha256`. See [Files](../build/files.md#send-a-file-to-the-agent). |
 | `async for event in client.stream_events(agent_id, session_id, cursor=...)` | Read saved events; keep the resume cursor after processing. |
 
 Returned resource records are mappings, for example `agent["agent_id"]`; they are not TypeScript objects with attribute access. Input mappings keep fields such as `initial_events` and `idempotency_key` unchanged. The Python `idempotency_key` method argument sends the HTTP header on supported create methods; a per-event key still belongs inside the event itself.
@@ -95,7 +96,7 @@ and deployment verification. Method availability is not proof of a live deployme
 
 - [Tools](../build/tools.md): application-executed calls and tool results.
 - [Sessions](../build/sessions.md) and [Events](../build/events.md): continuation, cancellation, saved history, and streaming.
-- [Files and artifacts](../build/files.md): Agent file creation and published output retrieval.
+- [Files and artifacts](../build/files.md): input file upload, Agent file creation, and published output retrieval.
 - [Schedules](../build/schedules.md): recurring tasks and supported Outcome evaluation.
 - [PyPI package](https://pypi.org/project/zoowork/): installation and release files.
 

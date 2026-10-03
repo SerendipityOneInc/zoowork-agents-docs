@@ -2,7 +2,7 @@
 title: 工具
 description: 配置内置工具和由应用执行的工具，并观察调用结果。
 source: /en/build/tools
-source_hash: edc4cd4ae7e0f462eb820cee5e7abb5dfc4feaab17699f140d7c85118be6cd20
+source_hash: 54b56759483eb365158bbfd374277848050073dcac70ec74e5eac039afaffbd0
 ---
 
 # 工具
@@ -403,8 +403,7 @@ PDF 不超过 10 MiB，且未指定 `pages` 或 `password` 时，使用 native P
 `pages` 接受单页或最多包含 20 页的连续页码范围。文字提取可能丢失视觉布局，也可能无法恢复扫描内容。
 
 Loader 接受 `/workspace` 路径、data URL、HTTP(S) URL，以及当前 Session 所有的 artifact reference。
-这些输入形式不会增加公共 binary upload 或仅凭 URL 添加消息附件的 API。
-Agent 文件和 Artifact 流程见[文件](./files.md)。
+Session 消息只能携带文本。要把本地文件交给 Agent，先[上传到 `/workspace`](./files.md#send-a-file-to-the-agent)，再在消息中写出路径。
 
 `model.input: ['image']` 声明主模型自己读图，与 `image` 工具和图像生成是不同能力。
 Typed `AgentResource` 不能配置 `imageModel` 或 `pdfModel`；见 [Models](../reference/models.md)。
