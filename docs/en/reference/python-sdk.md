@@ -6,7 +6,7 @@ description: Configure the async Python SDK, manage its client lifetime, and use
 
 The `zoowork` package is an async Python client for the public ZooWork API. Use Python 3.10 or later. Request and response fields retain their API spelling; Python method names and keyword arguments use `snake_case`.
 
-This reference applies to Python SDK **0.5.0+**.
+This reference applies to Python SDK **0.6.1+**.
 
 ```bash
 python -m pip install zoowork

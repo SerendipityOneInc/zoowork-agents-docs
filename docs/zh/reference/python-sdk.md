@@ -1,14 +1,14 @@
 ---
 description: 配置async Python SDK，管理client生命周期，并使用Agent、Session和event核心方法。
 source: /en/reference/python-sdk
-source_hash: 4ffb3616698049ef9ce2c2c2bbf19f6530997f6cd4c24be6e7ea8c6546b77e7f
+source_hash: f5e30afdef01c4635809af79e58d1b87e2fa6f87e5aa87f833cac62bed0d7f4e
 ---
 
 # Python SDK
 
 `zoowork` 是 ZooWork 公共 API 的 async Python client，要求 Python 3.10+。request 和 response 字段保留 API 拼写；Python 方法名和 keyword argument 使用 `snake_case`。
 
-本参考适用于 Python SDK **0.5.0+**。
+本参考适用于 Python SDK **0.6.1+**。
 
 ```bash
 python -m pip install zoowork
