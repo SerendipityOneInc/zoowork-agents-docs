@@ -1,12 +1,12 @@
 ---
-description: Write task inputs to an agent's workspace, inspect files, and publish and download artifacts.
+description: Ask an agent to create workspace files, then publish and download artifacts.
 ---
 
 # Files and artifacts
 
-Give an agent the input it needs, then retrieve the files it produces. Write text inputs into
-its `/workspace` through the Files endpoint. To share an output, ask the agent to
-publish an Artifact, then retrieve the published record through the API or SDK.
+Provide task data in a Session message and ask the Agent to create files in `/workspace`.
+To retrieve an output, ask the Agent to publish an Artifact, then download the published
+record through the API or SDK.
 
 A workspace file is the current file at a path. An Artifact is a separately published copy
 with an ID and a download URL. Changing the workspace file does not change an already
@@ -38,7 +38,7 @@ for key scope. Artifact publishing also requires the publishing service to be av
 export AGENT_ID='your-existing-agent-id'
 ```
 
-Read the agent's ownership for the file and Artifact read requests below:
+Read the Agent's ownership for the Artifact requests below:
 
 ```bash
 agent=$(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
@@ -51,34 +51,10 @@ These query fields must match the agent's ownership. They do not grant access: t
 must also authorize the agent, including its project scope when applicable. Stop if the
 projection has no ownership; do not invent values.
 
-## 1. Write a text input
+## 1. Ask the Agent to create and publish a file
 
-Use Files SDK helpers or the HTTP examples below for workspace reads and text writes.
-
-Write a small CSV to `/workspace/sales.csv`:
-
-```bash
-jq -n --arg content $'month,sales\nJanuary,100\nFebruary,120\nMarch,80\n' \
-  '{path: "/workspace/sales.csv", content: $content}' |
-  curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/files" \
-    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-    -H 'Content-Type: application/json' \
-    --data-binary @-
-```
-
-`path` and `content` must be strings. Use an absolute path below `/workspace`; path traversal
-is rejected. The endpoint writes UTF-8 text and creates parent directories when needed.
-Writing an ordinary workspace file returns `{}` and does not update the agent's persona or
-configuration version.
-
-This is a text-write endpoint, not a binary or multipart upload. Environment source uploads
-are image build inputs, not session attachments. A message's `attachments` array is also not
-an upload endpoint: adding a URL to `attachments` does not upload a file into the Agent workspace. See [Capability boundaries](../reference/not-supported.md) before
-building a binary input flow.
-
-## 2. Ask the agent to process it
-
-Create a session with the task in its first message:
+Create a Session with the task data in its first message. The Agent uses its file tools
+to create the report and `artifact_publish` to publish it:
 
 ::: code-group
 
@@ -87,7 +63,7 @@ const session = await zc.createSession(agentId, {
   "initial_events": [
     {
       "type": "user.message",
-      "content": "Read /workspace/sales.csv. Create /workspace/report.md with a sales table and total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
+      "content": "Create /workspace/report.md with a sales table for January: 100, February: 120, March: 80, and the total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
     }
   ]
 })
@@ -100,7 +76,7 @@ session = await client.create_session(agent_id,
         "initial_events": [
             {
                 "type": "user.message",
-                "content": "Read /workspace/sales.csv. Create /workspace/report.md with a sales table and total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
+                "content": "Create /workspace/report.md with a sales table for January: 100, February: 120, March: 80, and the total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
             }
         ]
     },
@@ -114,7 +90,7 @@ session=$(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions
   -H 'Content-Type: application/json' \
   -d '{"initial_events":[{
     "type":"user.message",
-    "content":"Read /workspace/sales.csv. Create /workspace/report.md with a sales table and total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
+    "content":"Create /workspace/report.md with a sales table for January: 100, February: 120, March: 80, and the total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
   }]}')
 SESSION_ID=$(jq -er '.session_id' <<<"$session")
 ```
@@ -157,7 +133,7 @@ Wait for `run.finished`, check that `payload.status` is `succeeded`, then press 
 stream remains open for later turns. If publishing fails or requires approval, inspect the
 [session events](./events.md) before requesting a download.
 
-## 3. Download the published Artifact {#4-download-the-published-artifact}
+## 2. Download the published Artifact {#4-download-the-published-artifact}
 
 `artifact_publish` publishes an existing non-empty regular file below `/workspace`; directories
 and symlinks are rejected. It accepts a `path`, either
@@ -293,68 +269,8 @@ return `409 artifact_not_ready`. Deleting an Artifact does not delete its worksp
 Requesting a download URL again also does not guarantee a different URL: a resolver URL may
 remain stable while the record's access version is unchanged.
 
-## Inspect workspace files {#3-inspect-workspace-files}
-
-Use these optional operations when you need the current workspace file rather than its
-published Artifact. List the workspace:
-
-```bash
-curl -sS --fail-with-body --get "$ZOOWORK_BASE_URL/agents/$AGENT_ID/files" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  --data-urlencode 'path=/workspace' \
-  --data-urlencode "owner_uid=$OWNER_UID" \
-  --data-urlencode "org_id=$ORG_ID"
-```
-
-A directory response contains `path` and `entries`. Each entry has `name`, `type`, `size`,
-and `updated_at`. Hidden entries are omitted unless you add `showHidden=true`.
-
-To read text, make the same request with `path=/workspace/report.md`. A file response
-contains `{path, content}`. Use the binary endpoint below for PDFs, images, or Office files;
-the text endpoint decodes content as UTF-8.
-
-### Download the current file
-
-```bash
-curl -sS --fail-with-body --get \
-  "$ZOOWORK_BASE_URL/agents/$AGENT_ID/files/content" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  --data-urlencode 'path=/workspace/report.md' \
-  --data-urlencode "owner_uid=$OWNER_UID" \
-  --data-urlencode "org_id=$ORG_ID" \
-  --data-urlencode 'download=true' \
-  --output current-report.md
-```
-
-This endpoint returns raw bytes from the current regular file. The content limit is 100 MiB;
-a larger file returns `413 file_too_large`. `download=true` selects attachment disposition;
-omitting it selects inline disposition. This download does not publish an Artifact, and its
-100 MiB read limit is not an upload limit.
-
 ## Analyze PDFs and images
 
 For PDFs or images already available in `/workspace`, ask the Agent to use its `pdf` or
 `image` tool. See [Media tools](./tools.md#media-tools) for arguments, model requirements,
 and limits. This tool workflow does not provide a binary upload or session attachment API.
-
-## SDK calls
-
-These examples require an SDK release containing the helper. Check the installed exports first; use the HTTP examples if the installed release lacks it.
-
-::: code-group
-
-```ts [TypeScript]
-const listing = await zc.getWorkspaceFile(agentId, '/workspace')
-await zc.writeWorkspaceFile(agentId, '/workspace/input.txt', 'hello')
-const bytes = await zc.getWorkspaceFileContent(agentId, '/workspace/result.bin')
-```
-
-```python [Python]
-listing = await client.get_workspace_file(agent_id, "/workspace")
-await client.write_workspace_file(agent_id, "/workspace/input.txt", "hello")
-raw = await client.get_workspace_file_content(agent_id, "/workspace/result.bin")
-```
-
-:::
-
-File reads derive ownership selectors from the Agent projection. Content returns raw bytes; text writes do not upload binary files.

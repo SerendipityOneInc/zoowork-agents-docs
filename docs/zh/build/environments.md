@@ -2,7 +2,7 @@
 title: Environments
 description: 了解默认托管 Environment，以及当前自定义 Environment 管理的限制。
 source: /en/build/environments
-source_hash: f95e34c51f207e7c52d5806edd6a5001b29ec6063e4b77e87827e8c126009d2b
+source_hash: 87bb0d9cd9ea8a9707f09d2911f61f690c9336e81131e85a363571f1cad1558d
 ---
 
 # Environments
@@ -28,7 +28,7 @@ Agent 会解析并固定托管的默认 Environment。Session 使用其所属 Ag
 默认镜像包含[云沙箱参考](./cloud-sandbox-reference.md)列出的编程语言、文档库、实用工具和浏览器。
 依赖额外软件前，先检查这份清单。
 
-任务输入和输出保存在 `/workspace`，通过[文件与产物](./files.md)写入文本输入和获取结果。
+任务文件保存在 `/workspace`。让 Agent 使用文件工具创建文件，再按[文件与产物](./files.md)发布并获取结果。
 修改运行中的 sandbox 不会创建 Environment version。
 运行时安装的软件不保证在 sandbox 替换后仍然存在。
 
@@ -43,5 +43,5 @@ Platform API key 不能管理自定义包列表、镜像文件上传、构建脚
 ## 相关文档 {#related}
 
 - [云沙箱参考](./cloud-sandbox-reference.md)：查看默认软件。
-- [文件与产物](./files.md)：提供任务输入并获取输出。
+- [文件与产物](./files.md)：创建文件并获取已发布的输出。
 - [当前 API 边界](../reference/not-supported.md)：查看其他不可用流程。

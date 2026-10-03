@@ -84,7 +84,7 @@ Omitted `secret` reads `ZOOWORK_WEBHOOK_SECRET`; explicit secrets can be a strin
 
 - [Tools](../build/tools.md): application-executed calls and tool results.
 - [Sessions](../build/sessions.md) and [Events](../build/events.md): continuation, cancellation, saved history, and streaming.
-- [Files and artifacts](../build/files.md): HTTP workspace access and output retrieval.
+- [Files and artifacts](../build/files.md): Agent file creation and published output retrieval.
 - [Schedules](../build/schedules.md): recurring tasks and supported Outcome evaluation.
 - [Package guide](https://github.com/SerendipityOneInc/zoowork-sdk-python): additional package interfaces.
 
@@ -92,9 +92,6 @@ Omitted `secret` reads `ZOOWORK_WEBHOOK_SECRET`; explicit secrets can be a strin
 
 Check installed SDK source before using these additive helpers; use documented HTTP when a method is absent.
 
-- `get_workspace_file(agent_id: str, path: str, *, show_hidden: bool | None=None)`
-- `write_workspace_file(agent_id: str, path: str, content: str)`
-- `get_workspace_file_content(agent_id: str, path: str, *, download: bool | None=None)`
 - `get_agent_database(agent_id: str)`
 - `get_agent_database_rows(agent_id: str, table_name: str, *, limit: int | None=None, offset: int | None=None)`
 - `get_usage(*, range: Literal['24h', '7d', '30d'] | None=None, timezone: str | None=None, group_by: Literal['session', 'api_key'] | None=None, view: Literal['groups', 'records', 'both'] | None=None, session_id: str | None=None, api_key_id: str | None=None, root_session_id: str | None=None, attribution: Literal['exact', 'shared', 'non_api', 'unattributed'] | None=None, page: int | None=None, per_page: int | None=None, as_of: str | None=None, snapshot: str | None=None, cursor: str | None=None)`
@@ -116,4 +113,4 @@ Check installed SDK source before using these additive helpers; use documented H
 - `redeliver_agent_webhook_delivery(agent_id: str, webhook_id: str, delivery_id: str, *, idempotency_key: str)`
 - `redeliver_agent_webhook_deliveries(agent_id: str, webhook_id: str, input: Mapping[str, Any], *, idempotency_key: str)`
 
-Responses preserve API spelling and unknown fields. Raw content returns `bytes`. Paging objects retain `next_cursor` and `has_more`; existing list methods still return lists.
+Responses preserve API spelling and unknown fields. Paging objects retain `next_cursor` and `has_more`; existing list methods still return lists.

@@ -452,7 +452,7 @@ layout and may not recover scanned content.
 
 The loaders accept `/workspace` paths, data URLs, HTTP(S) URLs, and owned artifact references
 from the current Session. These input forms do not add a public binary-upload or URL-only
-message-attachment API. See [Files](./files.md) for public input and artifact flows.
+message-attachment API. See [Files](./files.md) for Agent file and Artifact workflows.
 
 `model.input: ['image']` declares that the primary model reads images itself. That is separate
 from the `image` tool and image generation. `imageModel` and `pdfModel` are not configurable

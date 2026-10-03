@@ -1,8 +1,8 @@
 ---
 title: TypeScript SDK 参考
-description: 查询 TypeScript SDK 的所有 client method、导出类型、helper 和错误类。
+description: 查询公共 API 流程使用的 TypeScript SDK 方法、类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 89780a5b2ca24165b2abd7774b0db08ed748f1e25ef30dd4f82cf3f9beac5bf2
+source_hash: 4549d468be7535cac2fa8be1c5506e09d0778dd113dd76070eab2035ae087ab9
 ---
 
 # TypeScript SDK 参考
@@ -1544,9 +1544,6 @@ import {
 使用这些新增方法前检查已安装的 declarations。需要包含它们的 SDK release；缺少时使用 HTTP。
 
 ```ts
-getWorkspaceFile(agentId: string, path: string, opts?: { showHidden?: boolean }): Promise<WorkspaceFile>
-  writeWorkspaceFile(agentId: string, path: string, content: string): Promise<ApiObject>
-  getWorkspaceFileContent(agentId: string, path: string, opts?: { download?: boolean }): Promise<Uint8Array>
   getAgentDatabase(agentId: string): Promise<AgentDatabase>
   getAgentDatabaseRows(agentId: string, tableName: string, opts?: { limit?: number; offset?: number }): Promise<AgentDatabaseRows>
   getUsage(opts?: UsageOptions): Promise<UsageResult>
@@ -1569,4 +1566,4 @@ getWorkspaceFile(agentId: string, path: string, opts?: { showHidden?: boolean })
   redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
 ```
 
-响应保留未知字段。`AgentWebhookPage.webhooks` 是 endpoint 列表。action page 保留分页，原有数组方法保持返回类型。binary content 返回 `Uint8Array`。MCP tool override 接受 `requireConfirmation?: boolean`。
+响应保留未知字段。`AgentWebhookPage.webhooks` 是 endpoint 列表。action page 保留分页，原有数组方法保持返回类型。MCP tool override 接受 `requireConfirmation?: boolean`。

@@ -1,7 +1,7 @@
 ---
 description: 查看 API key 要求、工具可用性与当前公共 API 限制。
 source: /en/reference/capabilities
-source_hash: bfb4b2157802e6c4384d4f71041d47f302449680464165f5725db0324e24b4b3
+source_hash: 8912badd13de614cf547f61cc320ed94a702bfa50c2c0125dcf4c41feaa1ce69
 ---
 
 # 可用性与限制
@@ -17,7 +17,7 @@ source_hash: bfb4b2157802e6c4384d4f71041d47f302449680464165f5725db0324e24b4b3
 | 检索私有知识 | [Retrieval](../build/retrieval.md) | 应用或 MCP 服务负责检索和数据权限。 |
 | 复用任务指令 | [Skills](../build/skills.md) | 配置可见的 Skill assignment；公共 API 不开放 registry 发布。 |
 | 自定义 sandbox | [Environments](../build/environments.md)、[Cloud 参考](../build/cloud-sandbox-reference.md) | Platform key 不能管理 Environment。 |
-| 写入文本并读取文件 | [文件与产物](../build/files.md) | 文本输入、binary 读取和已发布 artifact 是不同流程。 |
+| 生成并获取文件 | [文件与产物](../build/files.md) | 让 Agent 创建文件并发布为 Artifact，再下载结果。 |
 | 保存结构化数据 | [Agent Database](../build/data-storage.md) | Native database tools 与只读 viewer 的访问和配置要求不同。 |
 | 保存 Agent memory | [Memory](../build/memory.md) | 工具必须已启用且可用，不承诺每个新 turn 自动 recall。 |
 | 继续或取消任务 | [Session 操作](../build/session-operations.md)、[Events](../build/events.md) | stream 断开不会取消 run。 |

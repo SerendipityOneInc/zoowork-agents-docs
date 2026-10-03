@@ -1,13 +1,13 @@
 ---
 title: 文件与产物
-description: 把任务输入写入 Agent 工作区，查看文件，并发布和下载产物。
+description: 让 Agent 创建工作区文件，再发布和下载产物。
 source: /en/build/files
-source_hash: 953ceca70efb74f8349719744ebb9ec70976dcab31aecbe27c1c28ea706409b0
+source_hash: 9b5abdc5b30cca2c267606f13ff45d7c0e346bf5b1a54a997e41f53a3920856d
 ---
 
 # 文件与产物
 
-给 Agent 提供任务所需的输入，再获取它生成的文件。通过 Files endpoint 把文本输入写入它的 `/workspace`。需要分享输出时，让 Agent 发布 Artifact，然后通过 API 或 SDK 获取已发布的记录。
+在 Session 消息中提供任务数据，让 Agent 在 `/workspace` 创建文件。需要获取输出时，让 Agent 发布 Artifact，然后通过 API 或 SDK 下载已发布的记录。
 
 工作区文件是某个路径上的当前文件。Artifact 是单独发布的副本，有自己的 ID 和下载 URL。修改工作区文件不会改变已发布的 Artifact。
 
@@ -29,7 +29,7 @@ source_hash: 953ceca70efb74f8349719744ebb9ec70976dcab31aecbe27c1c28ea706409b0
 export AGENT_ID='your-existing-agent-id'
 ```
 
-读取 Agent 的 ownership，供下面的文件和 Artifact 读请求使用：
+读取 Agent 的 ownership，供下面的 Artifact 请求使用：
 
 ```bash
 agent=$(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
@@ -40,28 +40,9 @@ ORG_ID=$(jq -er '.ownership.org_id' <<<"$agent")
 
 这些 query 字段必须与 Agent 的 ownership 相符。它们不授予权限：API key 仍需有权访问 Agent，包括适用时的 project scope。projection 没有 ownership 时应停止，不要自己编造值。
 
-## 1. 写入文本输入 {#1-write-a-text-input}
+## 1. 让 Agent 创建并发布文件 {#1-ask-the-agent-to-create-and-publish-a-file}
 
-workspace 文件读取和文本写入可以使用 Files SDK 方法或以下 HTTP 示例。
-
-把一个小 CSV 写入 `/workspace/sales.csv`：
-
-```bash
-jq -n --arg content $'month,sales\nJanuary,100\nFebruary,120\nMarch,80\n' \
-  '{path: "/workspace/sales.csv", content: $content}' |
-  curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/files" \
-    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-    -H 'Content-Type: application/json' \
-    --data-binary @-
-```
-
-`path` 和 `content` 都必须是字符串。使用 `/workspace` 下的绝对路径；path traversal 会被拒绝。endpoint 写入 UTF-8 文本，并在需要时创建父目录。写入普通工作区文件返回 `{}`，不会更新 Agent 的 persona 或 configuration version。
-
-这是文本写入 endpoint，不是 binary 或 multipart upload。Environment source uploads 是镜像构建输入，不是 session 附件。消息的 `attachments` 数组也不是上传 endpoint：把 URL 放进 `attachments` 不会将文件上传到 Agent 工作区。构建 binary 输入流程前，先查看[能力边界](../reference/not-supported.md)。
-
-## 2. 让 Agent 处理文件 {#2-ask-the-agent-to-process-it}
-
-创建一个 session，把任务放在第一条消息中：
+创建一个 Session，在第一条消息中提供任务数据。Agent 使用文件工具创建报告，再通过 `artifact_publish` 发布：
 
 ::: code-group
 
@@ -70,7 +51,7 @@ const session = await zc.createSession(agentId, {
   "initial_events": [
     {
       "type": "user.message",
-      "content": "Read /workspace/sales.csv. Create /workspace/report.md with a sales table and total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
+      "content": "Create /workspace/report.md with a sales table for January: 100, February: 120, March: 80, and the total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
     }
   ]
 })
@@ -83,7 +64,7 @@ session = await client.create_session(agent_id,
         "initial_events": [
             {
                 "type": "user.message",
-                "content": "Read /workspace/sales.csv. Create /workspace/report.md with a sales table and total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
+                "content": "Create /workspace/report.md with a sales table for January: 100, February: 120, March: 80, and the total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
             }
         ]
     },
@@ -97,7 +78,7 @@ session=$(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions
   -H 'Content-Type: application/json' \
   -d '{"initial_events":[{
     "type":"user.message",
-    "content":"Read /workspace/sales.csv. Create /workspace/report.md with a sales table and total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
+    "content":"Create /workspace/report.md with a sales table for January: 100, February: 120, March: 80, and the total. Read it back to verify the total, then publish it with artifact_publish and return the Artifact."
   }]}')
 SESSION_ID=$(jq -er '.session_id' <<<"$session")
 ```
@@ -137,7 +118,7 @@ curl -N -sS --fail-with-body \
 
 等待 `run.finished`，确认 `payload.status` 为 `succeeded`，然后按 Ctrl+C。stream 会继续为后续回合保持连接。发布失败或需要审批时，先查看 [Session events](./events.md)，再请求下载。
 
-## 3. 下载已发布的 Artifact {#4-download-the-published-artifact}
+## 2. 下载已发布的 Artifact {#4-download-the-published-artifact}
 
 `artifact_publish` 发布 `/workspace` 下已有、非空的 regular file；目录和 symlink 会被拒绝。参数是 `path`，可以是绝对路径，也可以相对于工作区。发布需要 active sandbox 和当前 Agent run。direct upload 路径支持最大 100 MiB 的文件；fallback 发布路径支持最大 25 MiB。Agent 创建文件后，不会自动把它发布为 Artifact。
 
@@ -251,59 +232,6 @@ curl -sS --fail-with-body --get --request DELETE \
 
 已经 deleted 的 record 会直接返回，不会再次执行删除。其他非 ready 状态返回 `409 artifact_not_ready`。删除 Artifact 不会删除工作区 source file。再次请求 download URL，也不保证得到不同 URL：record 的 access version 不变时，resolver URL 可以保持稳定。
 
-## 查看工作区文件 {#3-inspect-workspace-files}
-
-需要当前工作区文件，而不是已发布 Artifact 时，可以使用这些可选操作。列出工作区：
-
-```bash
-curl -sS --fail-with-body --get "$ZOOWORK_BASE_URL/agents/$AGENT_ID/files" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  --data-urlencode 'path=/workspace' \
-  --data-urlencode "owner_uid=$OWNER_UID" \
-  --data-urlencode "org_id=$ORG_ID"
-```
-
-目录响应包含 `path` 和 `entries`。每个 entry 有 `name`、`type`、`size`、`updated_at`。默认省略隐藏文件；添加 `showHidden=true` 才显示。
-
-读取文本时，把相同请求的路径改为 `path=/workspace/report.md`。文件响应包含 `{path, content}`。PDF、图片或 Office 文件应使用下面的 binary endpoint；文本 endpoint 按 UTF-8 解码内容。
-
-### 下载当前文件 {#download-the-current-file}
-
-```bash
-curl -sS --fail-with-body --get \
-  "$ZOOWORK_BASE_URL/agents/$AGENT_ID/files/content" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
-  --data-urlencode 'path=/workspace/report.md' \
-  --data-urlencode "owner_uid=$OWNER_UID" \
-  --data-urlencode "org_id=$ORG_ID" \
-  --data-urlencode 'download=true' \
-  --output current-report.md
-```
-
-这个 endpoint 返回当前 regular file 的原始字节。内容上限是 100 MiB；更大的文件返回 `413 file_too_large`。`download=true` 选择 attachment disposition，省略时选择 inline disposition。这个下载不会发布 Artifact，100 MiB 的读取上限也不是上传上限。
-
 ## 分析 PDF 与图片 {#analyze-pdfs-and-images}
 
 PDF 或图片已经位于 `/workspace` 时，让 Agent 使用 `pdf` 或 `image` 工具。参数、模型要求和限制见[图像与 PDF 工具](./tools.md#图像与-pdf-工具)。这个工具流程不提供 binary upload 或 Session attachment API。
-
-## SDK 调用
-
-以下示例要求安装包含该方法的 SDK release。先检查已安装的 exports；缺少方法时使用本页 HTTP 示例。
-
-::: code-group
-
-```ts [TypeScript]
-const listing = await zc.getWorkspaceFile(agentId, '/workspace')
-await zc.writeWorkspaceFile(agentId, '/workspace/input.txt', 'hello')
-const bytes = await zc.getWorkspaceFileContent(agentId, '/workspace/result.bin')
-```
-
-```python [Python]
-listing = await client.get_workspace_file(agent_id, "/workspace")
-await client.write_workspace_file(agent_id, "/workspace/input.txt", "hello")
-raw = await client.get_workspace_file_content(agent_id, "/workspace/result.bin")
-```
-
-:::
-
-文件读取会从 Agent projection 获取 ownership selectors。content 方法返回原始 bytes；文本写入不提供 binary upload。

@@ -190,6 +190,40 @@ if (expectedHtmlPageSet.size !== expectedHtmlPages.length) {
   fail('source locale pages resolve to duplicate production URLs')
 }
 
+// A generated page can still be unreachable when an old deployment redirect
+// takes precedence over the asset. Check the rules copied by the build, including
+// HTML aliases and the Markdown URLs advertised to coding agents.
+const redirectsPath = resolve('dist/_redirects')
+if (!existsSync(redirectsPath)) {
+  fail('dist/_redirects was not copied into the build')
+} else {
+  const publishedPaths = new Set(tocTargets)
+  for (const url of expectedHtmlPages) {
+    const path = new URL(url).pathname
+    publishedPaths.add(path)
+    if (!path.endsWith('/')) {
+      publishedPaths.add(`${path}.html`)
+      publishedPaths.add(`${path}/`)
+    }
+  }
+  const rules = readFileSync(redirectsPath, 'utf8').split('\n')
+  for (const [index, line] of rules.entries()) {
+    const rule = line.trim()
+    if (!rule || rule.startsWith('#')) continue
+    const [source, destination] = rule.split(/\s+/)
+    const pattern = source
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*')
+      .replace(/:[A-Za-z][A-Za-z0-9_]*/g, '[^/]+')
+    const matcher = new RegExp(`^${pattern}$`)
+    for (const path of publishedPaths) {
+      if (matcher.test(path)) {
+        fail(`_redirects:${index + 1} shadows generated page ${path} with ${destination}`)
+      }
+    }
+  }
+}
+
 const localeHtmlFiles = filesUnder(outputRoot, '.html').filter((file) => {
   const path = relative(outputRoot, file).replace(/\\/g, '/')
   return path.startsWith('en/') || path.startsWith('zh/')
