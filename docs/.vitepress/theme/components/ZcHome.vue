@@ -332,7 +332,7 @@ const ICONS: Record<string, Component> = {
 /* One measure, shared by every block. The band gets a full-width ground simply by not having
    one — no `50vw` arithmetic, which is off by half a scrollbar wherever scrollbars take space. */
 .inner {
-  max-width: 1152px;
+  max-width: 1240px;
   margin-inline: auto;
   padding-inline: 24px;
 }
@@ -341,8 +341,8 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: -0.025em;
   /* The site-level `:lang(zh)` rule in custom.css turns this off for Chinese, where a line
      can break between any two characters and balancing splits words down the middle. */
   text-wrap: balance;
@@ -351,7 +351,7 @@ h3 {
 /* --- Hero ------------------------------------------------------------------ */
 
 .hero {
-  padding: 56px 0;
+  padding: 72px 0;
 }
 
 .hero-grid {
@@ -368,9 +368,11 @@ h3 {
 
 .hero h1 {
   max-width: 10em;
-  font-size: clamp(42px, 4vw, 50px);
-  line-height: 1.04;
-  letter-spacing: -0.04em;
+  font-family: var(--zc-font-display);
+  font-weight: 400;
+  font-size: clamp(48px, 4.5vw, 64px);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
 }
 
 .hero-lead,
@@ -386,9 +388,9 @@ h3 {
 .tagline {
   margin: 24px 0 0;
   max-width: 42ch;
-  color: var(--vp-c-text-2);
-  font-size: 16px;
-  line-height: 1.65;
+  color: #7d7895;
+  font-size: 17px;
+  line-height: 1.6;
   text-wrap: pretty;
 }
 
@@ -409,8 +411,8 @@ h3 {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  height: 44px;
-  border-radius: var(--zc-radius-md);
+  height: 48px;
+  border-radius: var(--zc-radius-sm);
   padding: 0 18px;
   font-size: 14px;
   font-weight: 600;
@@ -471,7 +473,6 @@ h3 {
   max-width: 360px;
   margin-top: 40px;
   padding-top: 16px;
-  border-top: 1px solid var(--vp-c-divider);
   color: var(--vp-c-text-3);
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
@@ -559,7 +560,6 @@ h3 {
 .panel-tab {
   appearance: none;
   border: 0;
-  border-right: 1px solid var(--vp-c-divider);
   padding: 8px 16px;
   background: transparent;
   color: var(--vp-c-text-2);
@@ -567,7 +567,7 @@ h3 {
 }
 
 .panel-tab[aria-selected='true'] {
-  background: var(--zc-selected);
+  background: var(--zc-surface-subtle);
   color: var(--vp-c-text-1);
   box-shadow: inset 0 -2px 0 var(--zc-action);
 }
@@ -656,7 +656,6 @@ h3 {
 .panel-meta {
   min-height: 38px;
   padding: 8px 20px;
-  border-top: 1px solid var(--vp-c-divider);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -767,7 +766,7 @@ h3 {
    `padding: 56px 0` would out-specify it and zero the gutter. */
 .nouns-section > .inner,
 .journey-section > .inner {
-  padding-block: 40px;
+  padding-block: 64px;
   border-top: 1px solid var(--vp-c-divider);
 }
 
@@ -777,12 +776,15 @@ h3 {
 }
 
 .sec-head h2 {
-  font-size: 24px;
+  font-size: 34px;
+  line-height: 1.25;
 }
 
 .sec-head p {
   margin: 10px 0 0;
-  color: var(--vp-c-text-2);
+  color: #7d7895;
+  font-size: 17px;
+  line-height: 1.6;
 }
 
 /* --- Nouns ----------------------------------------------------------------- */
@@ -793,18 +795,16 @@ h3 {
   gap: 24px;
 }
 
-/* The core concepts and the band's two columns are one card: a quiet rule, a title, a
-   paragraph, a link. Only the heading size and the nouns' bottom-alignment differ. */
+/* Whitespace groups the concepts and closing columns without decorative rules. */
 .noun,
 .band-col {
-  border-top: 1px solid var(--zc-line-strong);
   padding-top: 16px;
 }
 
 .noun p,
 .band-col p {
   margin: 8px 0 12px;
-  font-size: 13.5px;
+  font-size: 14.5px;
   line-height: 1.6;
   color: var(--vp-c-text-2);
 }
@@ -835,7 +835,7 @@ h3 {
 }
 
 .noun h3 {
-  font-size: 16px;
+  font-size: 20px;
 }
 
 .noun-id {
@@ -859,7 +859,6 @@ h3 {
   grid-template-columns: 210px minmax(0, 1fr);
   gap: 24px;
   padding: 20px 0;
-  border-top: 1px solid var(--vp-c-divider);
 }
 
 .stage:first-child {
@@ -954,7 +953,7 @@ h3 {
 
 .band {
   background: var(--zc-surface-subtle);
-  padding: 40px 0;
+  padding: 64px 0;
 }
 
 .band-grid {
@@ -1042,7 +1041,7 @@ h3 {
 
   .nouns-section > .inner,
   .journey-section > .inner {
-    padding-block: 40px;
+    padding-block: 64px;
   }
 }
 

@@ -1,6 +1,5 @@
 import DefaultTheme from 'vitepress/theme'
 import type { Theme } from 'vitepress'
-import '@fontsource/source-serif-4/600.css'
 import '@fontsource-variable/jetbrains-mono'
 import { syncCodeGroups } from './code-group-sync'
 import ZcHome from './components/ZcHome.vue'
