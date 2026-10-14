@@ -1,15 +1,15 @@
 ---
 title: TypeScript SDK 参考
-description: 查询公共 API 流程使用的 TypeScript SDK 方法、类型、helper 和错误类。
+description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 815a468855df1d77e6a694f2b1aa6a17d1df22e5f7e4421a75b3dac8d51989e2
+source_hash: d5b84901f2902133545f07549a479feb1cc3af8139a0a5b149e035e1c695db52
 ---
 
 # TypeScript SDK 参考
 
 `@zoowork-ai/sdk` 导出的每一个符号，附带编译器看到的签名。
 
-本参考适用于 TypeScript SDK **0.11.1+**。
+本参考适用于 TypeScript SDK **0.12.0+**。
 
 这一页是参考手册。想看按任务组织的说明，从 [Agents](../build/agents.md)、[Sessions](../build/sessions.md)
 或[快速开始](../get-started/quickstart.md)开始。
@@ -973,7 +973,7 @@ interface AgentStatus {
 interface AgentResource {
   name: string
   userTimezone?: string
-  model?: { primary: string; input?: string[]; max_tokens?: number }
+  model?: { primary: string; input?: string[]; max_tokens?: number; thinking?: ThinkingLevel | null }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
   skills?: (({ skill_id: string; name?: string } | { name: string; skill_id?: string }) & { version?: number | 'latest' })[]
   include_global_skills?: boolean
@@ -1005,6 +1005,26 @@ interface AgentResource {
 
 创建时的 `skills` 会生效但不被任何读取面回显——确认安装用 `listAgentSkills()`，不要看创建回执。
 逐字段的说明见 [Agents](../build/agents.md)。
+
+### `ThinkingLevel`、`AgentModelUpdate` 与 `AgentUpdate`
+
+```ts
+type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'max'
+type AgentModelUpdate = Partial<NonNullable<AgentResource['model']>>
+type AgentUpdate = { model?: AgentModelUpdate; [section: string]: unknown }
+
+const change = { model: { thinking: 'high' } } satisfies AgentUpdate
+const clear = { model: { thinking: null } } satisfies AgentUpdate
+await client.updateAgent(agentId, change)
+await client.updateAgent(agentId, clear)
+```
+
+`updateAgent()` 仍然接收 `Record<string, unknown>`。可以用类型注解或 `satisfies AgentUpdate`
+主动检查字段，包括不带 `primary` 的 `model` 部分更新。`null` 清除 Agent 已声明的 thinking
+档位，省略则保留原值。响应类型中的 `ModelInfo.thinking` 是可选字段。
+`SchedulePayload.thinking` 使用 `ThinkingLevel | null`，只作用于 `agentTurn`；清除后
+Schedule 重新跟随 Agent。见 [Agent thinking](../build/agents.md#设置-thinking-档位)和
+[Schedule 覆盖](../build/schedules.md#override-the-thinking-level)。
 
 ### `McpServerDeclaration`
 
@@ -1176,6 +1196,7 @@ interface ModelInfo {
   selectable?: boolean
   retire_not_before?: string | null
   default_for?: string[]
+  thinking?: { default: ThinkingLevel; levels: ThinkingLevel[] }
   [k: string]: unknown
 }
 ```
@@ -1388,6 +1409,9 @@ import {
   type Ownership,
   type ModelInfo,
   type AgentResource,
+  type ThinkingLevel,
+  type AgentModelUpdate,
+  type AgentUpdate,
   type AgentRecord,
   type AgentListParams,
   type AgentPage,

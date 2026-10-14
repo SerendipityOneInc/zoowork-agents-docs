@@ -1,5 +1,5 @@
 ---
-description: Run an Agent on a schedule, inspect its executions, and evaluate scheduled results.
+description: Run scheduled Agent turns, override their thinking level, inspect executions, and evaluate results.
 ---
 
 # Schedules
@@ -226,6 +226,64 @@ API call, or assume that runtime scheduling tools and the public SDK expose iden
 The public session API has no spending-cap or budget-resume contract. Use
 [Usage](../reference/usage.md) for consumption visibility; setting a timeout or pausing a
 schedule does not undo consumption already incurred.
+
+## Override the thinking level {#override-the-thinking-level}
+
+An `agentTurn` payload can set `thinking` to override the Agent's `model.thinking` for this
+Schedule's turns. Use `off`, `low`, `medium`, `high`, or `max`. The actual model's
+[thinking capabilities](../reference/models.md#thinking-capabilities) still apply, including
+when the Schedule selects `payload.model`.
+
+::: code-group
+
+```ts [TypeScript]
+await client.updateSchedule(agentId, scheduleId, {
+  payload: { kind: 'agentTurn', thinking: 'low' },
+})
+
+// Follow the Agent's thinking level again.
+await client.updateSchedule(agentId, scheduleId, {
+  payload: { kind: 'agentTurn', thinking: null },
+})
+```
+
+```python [Python]
+await client.update_schedule(agent_id, schedule_id, {
+    "payload": {"kind": "agentTurn", "thinking": "low"},
+})
+
+# Follow the Agent's thinking level again.
+await client.update_schedule(agent_id, schedule_id, {
+    "payload": {"kind": "agentTurn", "thinking": None},
+})
+```
+
+```bash [curl]
+curl -sS --fail-with-body -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"payload":{"kind":"agentTurn","thinking":"low"}}'
+
+curl -sS --fail-with-body -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"payload":{"kind":"agentTurn","thinking":null}}'
+```
+
+:::
+
+| Update value | Result |
+|---|---|
+| Omitted, empty, or whitespace-only string | Keep the stored override. |
+| `null` | Clear the override and follow the Agent's level. |
+| A level | Set the override for later firings. |
+
+Schedule writes trim and lowercase new values. Legacy `xhigh`, `minimal`, and `adaptive`
+normalize to `max`, `low`, and `medium`. An existing value written back unchanged keeps its
+original spelling; only new or changed values normalize. Other non-null values return `400 invalid_request`. These permissive spellings apply to Schedule payloads;
+Agent `model.thinking` accepts only the five exact levels or `null`. Other payload kinds do
+not use `thinking`. A platform safety override and the reply-truncation recovery described
+under [Agent thinking](./agents.md#set-the-thinking-level) also apply to scheduled turns.
 
 ## Evaluate a scheduled result
 

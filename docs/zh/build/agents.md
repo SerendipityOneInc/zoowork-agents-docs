@@ -1,8 +1,8 @@
 ---
 title: Agents
-description: 创建、配置、启动、更新和删除 agent，并处理带版本的不同响应结构。
+description: 创建、更新和管理带版本的 Agent，并设置模型 thinking 档位。
 source: /en/build/agents
-source_hash: efb116bad8beb5f5a569c854616e442b5f7b101da9869790a391c4de7300433e
+source_hash: 27dfdb02e2b8d426dbc3a07399663d03c5df5efc1ad438a53e719619abc42313
 ---
 
 # Agents
@@ -380,6 +380,7 @@ API 页码从 1 开始，每页 100 条。分页不提供快照保证：并发�
 | `model.primary` | string | `provider/model-id` 形式的模型别名，例如 `litellm/gpt-5.6-terra`。只写模型名会被归一成 `litellm/<model-id>`。列表从 `listModels()` 拿。 |
 | `model.input` | `string[]` | `text` 和/或 `image`。声明 `image` 表示主模型自己读图。 |
 | `model.max_tokens` | integer | 单次模型请求的输出 token 上限。不设走平台默认；非法值创建时报 400。 |
+| `model.thinking` | `string \| null` | Agent 默认档位：`off`、`low`、`medium`、`high` 或 `max`。更新时传 `null` 清除。 |
 | `userTimezone` | string | IANA timezone 名称，例如 `Asia/Shanghai`。它设置 prompt context 和消息时间戳使用的用户时区；Schedule 的 timezone 是另一项独立配置。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
 | `skills` | array | 显式安装的 Skills。传入 `[]` 会让这个 Agent 不再自动挂载 global Skills。 |
@@ -393,6 +394,74 @@ API 页码从 1 开始，每页 100 条。分页不提供快照保证：并发�
 创建时的 `skills` 会安装 Skills，但创建回执和 `getAgent().declared` 不回显安装关系。
 用 `listAgentSkills(agentId)` 确认。`environment_id` 和 `environment_version` 也可用于创建；
 解析规则见 [Environments](./environments.md)。
+
+## 设置 thinking 档位
+
+`model.thinking` 设置 Agent 默认使用的推理档位。允许值是 `off`、`low`、`medium`、
+`high` 和 `max`。创建 Agent 时可以和 `primary` 一起提交，也可以只更新已有 Agent
+的 `thinking`。创建时省略这个字段，Agent 跟随平台默认值。
+
+::: code-group
+
+```ts [TypeScript]
+import type { AgentUpdate } from '@zoowork-ai/sdk'
+
+await client.updateAgent(agentId, {
+  model: { thinking: 'high' },
+} satisfies AgentUpdate)
+
+// 清除已声明的档位，重新跟随平台默认值。
+await client.updateAgent(agentId, {
+  model: { thinking: null },
+} satisfies AgentUpdate)
+```
+
+```python [Python]
+from zoowork import ThinkingLevel
+
+level: ThinkingLevel = "high"
+await client.update_agent(agent_id, {"model": {"thinking": level}})
+
+# 清除已声明的档位，重新跟随平台默认值。
+await client.update_agent(agent_id, {"model": {"thinking": None}})
+```
+
+```bash [curl]
+curl -sS --fail-with-body -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":{"thinking":"high"}}'
+
+curl -sS --fail-with-body -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":{"thinking":null}}'
+```
+
+:::
+
+更新时省略 `thinking` 会保留原值。`null` 会从 declared 和 rendered 配置中移除该字段，
+它不等于 `off`。这种部分更新不需要重复提交 `primary`。`model.thinking` 的其他值，
+包括 `adaptive`、`minimal` 和 `xhigh`，返回 `400 invalid_request`。
+
+模型的 `thinking.levels` 和 `thinking.default` 见 [Models](../reference/models.md#thinking-capabilities)。
+档位按每次调用实际使用的模型生效，包括 Session 模型覆盖、Auto 路由、Schedule 指定的模型
+和子 Agent。请求的档位不在该模型的列表中时，会取最近的可用档位；距离相同时取较高的一档。
+模型无法关闭推理时，`off` 会变成它的最低可用档位。
+
+Schedule 的 [`payload.thinking`](./schedules.md#override-the-thinking-level) 优先于 Agent 的档位。
+没有 Schedule 覆盖时，Agent 的档位优先于平台默认值。平台的安全覆盖设置可以优先于这两者。
+如果一次调用把输出预算全部用于推理、没有产出回复正文，服务可以降低档位重试一次。
+
+较高档位通常消耗更多推理 token，也会延长首个可见回复之前的等待时间。推理 token 计入
+`model.max_tokens`，并按输出 token 计费。对延迟敏感的任务可以使用较低档位或默认值，
+任务需要更多推理时再提高。
+
+每次更新都会创建新的配置版本。创建时没有传 `runtime_mode` 的 Session 从下一 turn 起
+读取新的 active 版本，正在执行的 turn 保留原配置。显式传 `runtime_mode: "active"` 的
+Session 固定在创建时的 active 版本；`preview` 和 `evaluation` 固定在指定版本；
+`authoring` 使用每个 turn 提交的 `config_version`。固定版本的 Session 不会自动读取后续
+Agent 更新。Schedule 每次触发都使用当时的 active 配置。
 
 ## 读取 agent，以及两种响应结构
 

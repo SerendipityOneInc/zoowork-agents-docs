@@ -1,14 +1,14 @@
 ---
-description: 配置async Python SDK，管理client生命周期，并使用Agent、Session和event核心方法。
+description: 配置 async Python SDK，并使用 Agent、Session、Schedule、event 和 thinking 方法。
 source: /en/reference/python-sdk
-source_hash: f5e30afdef01c4635809af79e58d1b87e2fa6f87e5aa87f833cac62bed0d7f4e
+source_hash: 2bb217924664b59791851359523637f2d4f5e8bbd696f8071180aeeedc88d034
 ---
 
 # Python SDK
 
 `zoowork` 是 ZooWork 公共 API 的 async Python client，要求 Python 3.10+。request 和 response 字段保留 API 拼写；Python 方法名和 keyword argument 使用 `snake_case`。
 
-本参考适用于 Python SDK **0.6.1+**。
+本参考适用于 Python SDK **0.7.0+**。
 
 ```bash
 python -m pip install zoowork
@@ -125,3 +125,27 @@ SDK 存在方法，不代表线上部署已经支持。
 - `redeliver_agent_webhook_deliveries(agent_id: str, webhook_id: str, input: Mapping[str, Any], *, idempotency_key: str)`
 
 响应保留 API 字段名和未知字段。分页对象保留 `next_cursor` 和 `has_more`，现有 list 方法仍返回 list。
+
+## 设置与清除 thinking
+
+```python
+from zoowork import ThinkingLevel
+
+level: ThinkingLevel = "high"
+await client.update_agent(agent_id, {"model": {"thinking": level}})
+await client.update_agent(agent_id, {"model": {"thinking": None}})
+
+await client.update_schedule(agent_id, schedule_id, {
+    "payload": {"kind": "agentTurn", "thinking": "low"},
+})
+await client.update_schedule(agent_id, schedule_id, {
+    "payload": {"kind": "agentTurn", "thinking": None},
+})
+```
+
+`ThinkingLevel` 导出为 `Literal["off", "low", "medium", "high", "max"]`。
+请求字段仍然是 `model.thinking` 和 `payload.thinking`。`None` 会序列化为 JSON `null`，
+用于清除 Agent 默认档位或 Schedule 覆盖值；更新时省略字段会保留原值。
+从 `list_models()` 读取 `thinking.default` 和 `thinking.levels`。完整规则见
+[Agent thinking](../build/agents.md#设置-thinking-档位)和
+[Schedule 覆盖](../build/schedules.md#override-the-thinking-level)。
