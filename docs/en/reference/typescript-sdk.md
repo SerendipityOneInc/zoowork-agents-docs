@@ -1,12 +1,12 @@
 ---
-description: Look up TypeScript SDK methods, types, helpers, and errors for public API workflows.
+description: Look up TypeScript SDK methods, thinking types, helpers, and errors for public API workflows.
 ---
 
 # TypeScript SDK reference
 
 Client methods, resource types, and helpers exported by `@zoowork-ai/sdk`.
 
-This reference applies to TypeScript SDK **0.11.1+**.
+This reference applies to TypeScript SDK **0.12.0+**.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
@@ -1030,7 +1030,7 @@ refreshing; list and GET can briefly disagree. `running` is not a member of this
 interface AgentResource {
   name: string
   userTimezone?: string
-  model?: { primary: string; input?: string[]; max_tokens?: number }
+  model?: { primary: string; input?: string[]; max_tokens?: number; thinking?: ThinkingLevel | null }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
   skills?: (({ skill_id: string; name?: string } | { name: string; skill_id?: string }) & { version?: number | 'latest' })[]
   include_global_skills?: boolean
@@ -1069,6 +1069,27 @@ has to reach it through `updateAgent(agentId, sections)`, which is typed
 `skills` at create time works but is echoed by no read surface - confirm the install with
 `listAgentSkills()`, not the create receipt. See
 [Agents](../build/agents.md) for the field-by-field notes.
+
+### `ThinkingLevel`, `AgentModelUpdate`, and `AgentUpdate`
+
+```ts
+type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'max'
+type AgentModelUpdate = Partial<NonNullable<AgentResource['model']>>
+type AgentUpdate = { model?: AgentModelUpdate; [section: string]: unknown }
+
+const change = { model: { thinking: 'high' } } satisfies AgentUpdate
+const clear = { model: { thinking: null } } satisfies AgentUpdate
+await client.updateAgent(agentId, change)
+await client.updateAgent(agentId, clear)
+```
+
+`updateAgent()` continues to accept `Record<string, unknown>`. `AgentUpdate` provides opt-in
+checking with an annotation or `satisfies`, including partial `model` updates without
+`primary`. `null` clears the Agent's declared thinking level; omitting it preserves the value.
+`ModelInfo.thinking` is optional in the response type. `SchedulePayload.thinking` uses
+`ThinkingLevel | null` and applies only to `agentTurn`; clearing it makes the Schedule follow
+the Agent again. See [Agent thinking](../build/agents.md#set-the-thinking-level) and
+[Schedule overrides](../build/schedules.md#override-the-thinking-level).
 
 ### `McpServerDeclaration`
 
@@ -1259,6 +1280,7 @@ interface ModelInfo {
   selectable?: boolean
   retire_not_before?: string | null
   default_for?: string[]
+  thinking?: { default: ThinkingLevel; levels: ThinkingLevel[] }
   [k: string]: unknown
 }
 ```
@@ -1486,6 +1508,9 @@ import {
   type Ownership,
   type ModelInfo,
   type AgentResource,
+  type ThinkingLevel,
+  type AgentModelUpdate,
+  type AgentUpdate,
   type AgentRecord,
   type AgentListParams,
   type AgentPage,

@@ -1,5 +1,5 @@
 ---
-description: Create, configure, start, update, and delete agents, including versioned response shapes.
+description: Create, update, and manage versioned Agents, including their model thinking level.
 ---
 
 # Agents
@@ -403,6 +403,7 @@ continuation, and migrating array callers.
 | `model.primary` | string | Model alias in `provider/model-id` form, e.g. `litellm/gpt-5.6-terra`. A bare name is normalized to `litellm/<model-id>`. Get the list from `listModels()`. |
 | `model.input` | `string[]` | `text` and/or `image`. Declaring `image` says the primary model reads images itself. |
 | `model.max_tokens` | integer | Output-token cap per model request. Omit to use the platform default; invalid values are rejected at create. |
+| `model.thinking` | `string \| null` | Agent default: `off`, `low`, `medium`, `high`, or `max`. An update with `null` clears it. |
 | `userTimezone` | string | Named IANA timezone such as `Asia/Shanghai`. It sets the user's timezone in prompt context and message timestamps; Schedule timezone remains a separate setting. |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | Guidance documents. Only inline `content` is stored. Only the canonical names are read when the prompt is assembled: `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`. Other names are saved but never reach the model. `MEMORY.md` and the `memory/` namespace are reserved and return `400 invalid_persona_doc_name`. |
 | `skills` | array | Skills to install explicitly. Passing `[]` opts this Agent out of automatically attached global Skills. |
@@ -416,6 +417,78 @@ continuation, and migrating array callers.
 `skills` at create time installs Skills, but the create receipt and `getAgent().declared` do
 not echo the assignments. Confirm them with `listAgentSkills(agentId)`.
 `environment_id` and `environment_version` are also supported; see [Environments](./environments.md).
+
+## Set the thinking level
+
+`model.thinking` sets the Agent's default reasoning level. Use `off`, `low`, `medium`,
+`high`, or `max`. Set it alongside `primary` when creating an Agent, or update just
+`thinking` on an existing Agent. Omit it at creation to follow the platform default.
+
+::: code-group
+
+```ts [TypeScript]
+import type { AgentUpdate } from '@zoowork-ai/sdk'
+
+await client.updateAgent(agentId, {
+  model: { thinking: 'high' },
+} satisfies AgentUpdate)
+
+// Clear the declared level and follow the platform default again.
+await client.updateAgent(agentId, {
+  model: { thinking: null },
+} satisfies AgentUpdate)
+```
+
+```python [Python]
+from zoowork import ThinkingLevel
+
+level: ThinkingLevel = "high"
+await client.update_agent(agent_id, {"model": {"thinking": level}})
+
+# Clear the declared level and follow the platform default again.
+await client.update_agent(agent_id, {"model": {"thinking": None}})
+```
+
+```bash [curl]
+curl -sS --fail-with-body -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":{"thinking":"high"}}'
+
+curl -sS --fail-with-body -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":{"thinking":null}}'
+```
+
+:::
+
+Omitting `thinking` in an update keeps its stored value. `null` removes the field from both
+declared and rendered configuration; it does not set `off`. `primary` is not required in
+this partial update. Other values, including `adaptive`, `minimal`, and `xhigh`, return
+`400 invalid_request` for `model.thinking`.
+
+Read [Models](../reference/models.md#thinking-capabilities) for the model's `thinking.levels`
+and `thinking.default`. The actual model used for a call determines which level takes effect,
+including Session model overrides, Auto routing, Schedule model selections, and subagents.
+A requested level outside the listed levels resolves to the nearest listed one; ties go
+up. `off` becomes the lowest available level on a model that cannot disable thinking.
+
+A Schedule's [`payload.thinking`](./schedules.md#override-the-thinking-level) takes precedence
+over the Agent's level. Without a Schedule override, the Agent's level takes precedence over
+the platform default. A platform safety override can take precedence over both. If reasoning
+uses the output budget without producing reply text, the service can retry once at a lower level.
+
+Higher levels generally consume more reasoning tokens and delay the first visible reply.
+Reasoning tokens count toward `model.max_tokens` and are billed as output tokens. Use a low
+level or the default for latency-sensitive tasks, and raise it when the task needs more reasoning.
+
+Each update creates a new configuration version. Sessions created without `runtime_mode`
+read the new active version on their next turn; an in-progress turn keeps its configuration.
+An explicit `runtime_mode: "active"` pins the version active at Session creation. `preview`
+and `evaluation` pin their specified version. `authoring` uses the `config_version` supplied
+with each turn. Pinned Sessions do not pick up later Agent updates. Schedules use the active
+configuration at each firing.
 
 ## Read an agent, and the two response shapes
 

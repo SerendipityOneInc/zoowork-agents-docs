@@ -1,8 +1,8 @@
 ---
 title: Schedules
-description: 定时运行 Agent，检查执行记录，并评价定时结果。
+description: 定时运行 Agent、覆盖 thinking 档位、检查执行记录并评价结果。
 source: /en/build/schedules
-source_hash: 05035c18b8d0cb82944992254c787683ee5706c657ed15a9d19eb71e3d4566ca
+source_hash: 76d5dcc451fb7c74ab64da399a8d4e9f3859ed4bb0ddbc40724dfd58b6c732b5
 ---
 
 # Schedules
@@ -190,6 +190,64 @@ curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 管理 HTTP API 也识别 `systemEvent` 和 `command` payload。它们是不同执行方式，不是填写 `agentTurn` message 的另两种写法。Agent 自己创建的 schedule 有更窄规则，不能把这些限制套在所有 API 请求上，也不能假设 runtime scheduling tool 与公共 SDK 的选项完全相同。
 
 公共 Session API 没有花费上限或提高 budget 恢复的 contract。[Usage](../reference/usage.md) 用于观察消耗；设置 timeout 或暂停 schedule 不会撤销已经产生的消耗。
+
+## 覆盖 thinking 档位 {#override-the-thinking-level}
+
+`agentTurn` payload 可以设置 `thinking`，在这个 Schedule 的 turn 中覆盖 Agent 的
+`model.thinking`。允许值是 `off`、`low`、`medium`、`high` 和 `max`。实际调用的模型
+仍然决定[可用档位](../reference/models.md#thinking-capabilities)，Schedule 通过
+`payload.model` 选择模型时也一样。
+
+::: code-group
+
+```ts [TypeScript]
+await client.updateSchedule(agentId, scheduleId, {
+  payload: { kind: 'agentTurn', thinking: 'low' },
+})
+
+// 重新跟随 Agent 的 thinking 档位。
+await client.updateSchedule(agentId, scheduleId, {
+  payload: { kind: 'agentTurn', thinking: null },
+})
+```
+
+```python [Python]
+await client.update_schedule(agent_id, schedule_id, {
+    "payload": {"kind": "agentTurn", "thinking": "low"},
+})
+
+# 重新跟随 Agent 的 thinking 档位。
+await client.update_schedule(agent_id, schedule_id, {
+    "payload": {"kind": "agentTurn", "thinking": None},
+})
+```
+
+```bash [curl]
+curl -sS --fail-with-body -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"payload":{"kind":"agentTurn","thinking":"low"}}'
+
+curl -sS --fail-with-body -X PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"payload":{"kind":"agentTurn","thinking":null}}'
+```
+
+:::
+
+| 更新值 | 结果 |
+|---|---|
+| 省略、空字符串或只有空白的字符串 | 保留已存储的覆盖值。 |
+| `null` | 清除覆盖值，跟随 Agent 的档位。 |
+| 一个档位 | 为后续触发设置覆盖值。 |
+
+Schedule 写入会去掉新值首尾的空白，并转换为小写。早期的 `xhigh`、`minimal` 和
+`adaptive` 分别归一为 `max`、`low` 和 `medium`。已有值读出后原样写回时保留原拼写；
+只有新写入或改动的值才归一。其他非 null 的非法值返回 `400 invalid_request`。
+这些宽松写法只适用于 Schedule payload；Agent 的 `model.thinking` 只接受五个精确档位
+或 `null`。其他 payload kind 不使用 `thinking`。[Agent thinking](./agents.md#设置-thinking-档位)
+中的平台安全覆盖和回复截断恢复规则也适用于定时 turn。
 
 ## 评价定时结果 {#evaluate-a-scheduled-result}
 

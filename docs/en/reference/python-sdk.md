@@ -1,12 +1,12 @@
 ---
-description: Configure the async Python SDK, manage its client lifetime, and use common Agent, Session, and event methods.
+description: Configure the async Python SDK and use Agent, Session, Schedule, event, and thinking methods.
 ---
 
 # Python SDK
 
 The `zoowork` package is an async Python client for the public ZooWork API. Use Python 3.10 or later. Request and response fields retain their API spelling; Python method names and keyword arguments use `snake_case`.
 
-This reference applies to Python SDK **0.6.1+**.
+This reference applies to Python SDK **0.7.0+**.
 
 ```bash
 python -m pip install zoowork
@@ -124,3 +124,27 @@ Database viewer methods in the installed package are unavailable in production. 
 - `redeliver_agent_webhook_deliveries(agent_id: str, webhook_id: str, input: Mapping[str, Any], *, idempotency_key: str)`
 
 Responses preserve API spelling and unknown fields. Paging objects retain `next_cursor` and `has_more`; existing list methods still return lists.
+
+## Set and clear thinking
+
+```python
+from zoowork import ThinkingLevel
+
+level: ThinkingLevel = "high"
+await client.update_agent(agent_id, {"model": {"thinking": level}})
+await client.update_agent(agent_id, {"model": {"thinking": None}})
+
+await client.update_schedule(agent_id, schedule_id, {
+    "payload": {"kind": "agentTurn", "thinking": "low"},
+})
+await client.update_schedule(agent_id, schedule_id, {
+    "payload": {"kind": "agentTurn", "thinking": None},
+})
+```
+
+`ThinkingLevel` is exported as `Literal["off", "low", "medium", "high", "max"]`.
+Request keys remain `model.thinking` and `payload.thinking`. `None` serializes to JSON `null`;
+it clears the Agent default or the Schedule override. Omitting a field in an update preserves
+its value. Read `list_models()` for `thinking.default` and `thinking.levels`. See
+[Agent thinking](../build/agents.md#set-the-thinking-level) and
+[Schedule overrides](../build/schedules.md#override-the-thinking-level) for the full rules.
