@@ -236,16 +236,59 @@ keep the old one. See [Errors](../reference/errors.md).
 `skills`, `credentials`, and any unknown field in the PUT body return `400`. Skills
 are managed through their own routes - see [Skills](./skills.md).
 
-### Manage configuration changes
+### Update only the version you read
 
-`config_version` increases after each update, but it is not a configuration-history API.
-Store the previous configuration in your application if you need comparison or rollback.
+Pass `expected_config_version` as a positive integer at the top level of the update body.
+The service checks it against the current configuration version atomically with the write.
+A mismatch returns `409 active_config_changed` and leaves the configuration unchanged.
 
-Production Agent updates currently reject `expected_config_version` with
-`400 invalid_declared_key`. Omit that field for ordinary updates, which remain last-write-wins.
-Serialize competing updates in your application; a GET followed by PUT is not an atomic check.
-Read back `declared` after an uncertain response before deciding whether to retry.
-This limitation is separate from `upgradeSystemPrompt()`, whose version precondition is supported.
+::: code-group
+
+```ts [TypeScript]
+const before = await client.getAgent(agentId)
+const expectedVersion = before.status?.config_version ?? before.config_version
+if (expectedVersion === undefined) throw new Error('Missing configuration version')
+
+await client.updateAgent(agentId, {
+  expected_config_version: expectedVersion,
+  labels: { tier: 'paid' },
+})
+```
+
+```python [Python]
+before = await client.get_agent(agent_id)
+expected_version = (before.get("status") or {}).get("config_version") or before.get("config_version")
+if expected_version is None:
+    raise RuntimeError("Missing configuration version")
+
+await client.update_agent(agent_id, {
+    "expected_config_version": expected_version,
+    "labels": {"tier": "paid"},
+})
+```
+
+```bash [curl]
+before=$(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY") &&
+expected_version=$(printf '%s' "$before" | jq -er '.status.config_version // .config_version') &&
+jq -n --argjson version "$expected_version" \
+  '{expected_config_version: $version, labels: {tier: "paid"}}' |
+  curl -sS --fail-with-body --request PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+    -H 'Content-Type: application/json' --data-binary @-
+```
+
+:::
+
+After a conflict, read the Agent again and recompute the intended change from its current
+`declared` configuration before submitting a new precondition. Reusing a stale body with a
+new version can overwrite another writer's changes. The precondition is not saved in `declared`.
+Omit it when you intend an unconditional, last-write-wins update.
+
+`config_version` is not a configuration-history or rollback API. Store previous configurations
+in your application if you need them. After an uncertain response, read back the declared
+values before deciding whether to retry. `upgradeSystemPrompt()` has a separate required
+precondition and reports `409 config_version_changed`.
 
 ## Agent lifecycle
 

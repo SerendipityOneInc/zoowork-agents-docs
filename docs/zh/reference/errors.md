@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: e76003509126f8511a3da4ae8183e908bcac168526280a4eca88ebc5d5eed6a6
+source_hash: 2abfc7e535a2a6eac4062d1081d98b418b6eefd7aa0cdb8d7d6bc410212a30dc
 ---
 
 # 错误与重试
@@ -93,6 +93,7 @@ if (e instanceof ZooworkError) {
 | `type` | HTTP | 原因 | 怎么办 |
 |---|---:|---|---|
 | `agent_not_running` | 409 | 对一个 `status.desired_state` 不是 `running` 的 agent 调 `createSession()` 或 `postEvents()`。新创建的 agent 是停止的，你自己停掉的也一样。 | 调 `startAgent()`，轮询 `status.desired_state` 直到它是 `running`，再重试。永远不要轮询 `actual_state`。 |
+| `active_config_changed` | 409 | Agent 更新中的 `expected_config_version` 与当前版本不匹配，配置保持不变。 | 重新读取 Agent，根据当前配置计算改动后，再用新版本重试。 |
 | `model_not_selectable` | 409 | create 或 update 选择了一个仍保留给已有引用、但不再接受新选择的模型目录条目。 | 重新调用 `listModels()`，选择 `selectable` 不为 `false` 的条目；目录提供 `expired_fallback_to` 时使用它。不要原样重试同一个 alias。 |
 | `not_found` / `service_api.not_found` | 404 | 未知或已删除的 Agent、Session ID，或者资源不在 key 的组织、Project 或 owner 范围内。Agent 路由使用 `service_api.not_found`；Session 和 Schedule 路由可能使用 `not_found`。 | 匹配两种拼写，或按 `status === 404` 处理。404 不能证明资源已删除。保存创建的 ID，并使用对应范围的 key。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
@@ -198,7 +199,10 @@ const second = (await client.getAgent(agentId)).status?.config_version   // 6 - 
 
 把它当成一个不透明的单调递增计数器。要判断一次超时的 `updateAgent()` 到底有没有落地，就把值从 `declared` 里读回来自己比对。
 
-production 的 `updateAgent()` 当前拒绝 `expected_config_version`，返回 `400 invalid_declared_key`。普通更新应省略该字段，并在应用中串行处理竞争写入。先读再写不是原子并发检查。独立的 `upgradeSystemPrompt()` 仍支持版本前置条件，冲突返回 `409 config_version_changed`。
+为 `updateAgent()` 传入正整数 `expected_config_version`，即可让版本校验和更新原子执行。
+版本不再匹配时返回 `409 active_config_changed`，配置保持不变。重新读取并根据当前配置计算改动后再重试；
+只替换版本号并重发旧 body，仍可能覆盖其他写入者的改动。省略该字段时，按后写覆盖先写的方式无条件更新。
+独立的 `upgradeSystemPrompt()` 使用必填版本前置条件，冲突返回 `409 config_version_changed`。
 
 ## 一个完整示例
 

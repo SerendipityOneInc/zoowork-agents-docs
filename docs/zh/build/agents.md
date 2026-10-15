@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、更新和管理带版本的 Agent，并设置模型 thinking 档位。
 source: /en/build/agents
-source_hash: 27dfdb02e2b8d426dbc3a07399663d03c5df5efc1ad438a53e719619abc42313
+source_hash: 3f5742eb7d0315237a38ec5a12375eb03e8adf1e42b7957b365cdb2f9168a51e
 ---
 
 # Agents
@@ -221,14 +221,56 @@ const second = configVersion(await client.getAgent(agentId))          // 6 - bum
 
 PUT body 里的 `skills`、`credentials`，以及任何未知字段，都返回 `400`。skill 走它自己的路由管理 —— 见 [Skills](./skills.md)。
 
-### 管理配置变更
+### 只更新自己读取的版本
 
-`config_version` 会在配置更新后递增；仅修改 ownership 时不递增，但它不是配置历史 API。需要比较或回滚时，
-请在自己的应用中保存上一份配置。
+在更新 body 顶层传入正整数 `expected_config_version`。服务端将它与当前配置版本比较，
+校验和写入原子执行。版本不匹配时返回 `409 active_config_changed`，配置保持不变。
 
-production 的 Agent 更新当前拒绝 `expected_config_version`，返回 `400 invalid_declared_key`。普通更新应省略该字段，仍采用后写覆盖先写的行为。应用应串行处理竞争写入；先 GET 再 PUT 不构成原子检查。响应不确定时，先读回 `declared` 再决定是否重试。
+::: code-group
 
-这一限制不影响 `upgradeSystemPrompt()`：它独立的版本前置条件已受支持。
+```ts [TypeScript]
+const before = await client.getAgent(agentId)
+const expectedVersion = before.status?.config_version ?? before.config_version
+if (expectedVersion === undefined) throw new Error('Missing configuration version')
+
+await client.updateAgent(agentId, {
+  expected_config_version: expectedVersion,
+  labels: { tier: 'paid' },
+})
+```
+
+```python [Python]
+before = await client.get_agent(agent_id)
+expected_version = (before.get("status") or {}).get("config_version") or before.get("config_version")
+if expected_version is None:
+    raise RuntimeError("Missing configuration version")
+
+await client.update_agent(agent_id, {
+    "expected_config_version": expected_version,
+    "labels": {"tier": "paid"},
+})
+```
+
+```bash [curl]
+before=$(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY") &&
+expected_version=$(printf '%s' "$before" | jq -er '.status.config_version // .config_version') &&
+jq -n --argjson version "$expected_version" \
+  '{expected_config_version: $version, labels: {tier: "paid"}}' |
+  curl -sS --fail-with-body --request PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+    -H 'Content-Type: application/json' --data-binary @-
+```
+
+:::
+
+冲突后重新读取 Agent，根据当前 `declared` 配置重新计算要提交的改动，再带上新的版本前置条件。
+只替换版本号并重发旧 body，仍可能覆盖其他写入者的改动。前置条件本身不会写入 `declared`。
+需要无条件更新时，省略该字段，仍采用后写覆盖先写的行为。
+
+`config_version` 不是配置历史或回滚 API。需要保留历史时，在应用中保存上一份配置。
+响应不确定时，先读回 declared 值，再决定是否重试。`upgradeSystemPrompt()` 使用独立且必填的
+版本前置条件，冲突返回 `409 config_version_changed`。
 
 ## Agent 生命周期
 

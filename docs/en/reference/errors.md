@@ -108,6 +108,7 @@ your catch block.
 | `type` | HTTP | Cause | What to do |
 |---|---:|---|---|
 | `agent_not_running` | 409 | `createSession()` or `postEvents()` on an agent whose `status.desired_state` is not `running`. A newly created agent is stopped, and so is one you stopped yourself. | Call `startAgent()`, poll `status.desired_state` until it reads `running`, then retry. Never poll `actual_state`. |
+| `active_config_changed` | 409 | `expected_config_version` on an Agent update no longer matches the current version; no configuration is changed. | Re-read the Agent and recompute the intended change before retrying with its new version. |
 | `model_not_selectable` | 409 | A create or update selects a model catalog row that remains visible for existing references but no longer accepts new selection. | Refresh `listModels()`, choose a row whose `selectable` is not `false`, and use `expired_fallback_to` when the catalog supplies one. Do not retry the same alias unchanged. |
 | `not_found` / `service_api.not_found` | 404 | Unknown or deleted Agent or Session ID, or a resource outside the key's organization, Project, or owner scope. The Agent routes use `service_api.not_found`; Session and Schedule routes can use `not_found`. | Match both spellings or use `status === 404`. A 404 does not prove deletion. Keep a record of the IDs you create and use the key for their scope. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
@@ -236,10 +237,12 @@ const second = (await client.getAgent(agentId)).status?.config_version   // 6 - 
 Treat it as an opaque monotonic counter. To find out whether a timed-out `updateAgent()`
 landed, read the values back out of `declared` and compare those.
 
-Production `updateAgent()` rejects `expected_config_version` with `400 invalid_declared_key`.
-Omit it for ordinary last-write-wins updates and serialize competing writes in your application.
-A read followed by an update does not provide atomic optimistic concurrency.
-The separate `upgradeSystemPrompt()` precondition still uses `409 config_version_changed`.
+For an atomic update precondition, pass a positive `expected_config_version` to `updateAgent()`.
+If it no longer matches the current version, the request returns `409 active_config_changed`
+without changing configuration. Re-read and recompute the intended change before retrying;
+replacing only the version on an old body can overwrite another writer's changes.
+Omit the field for unconditional last-write-wins updates. The separate `upgradeSystemPrompt()`
+method requires its precondition and reports `409 config_version_changed`.
 
 ## A worked example
 

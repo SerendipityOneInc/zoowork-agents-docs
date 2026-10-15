@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: d5b84901f2902133545f07549a479feb1cc3af8139a0a5b149e035e1c695db52
+source_hash: 4b9cb70a5accb4d47f898e96cd8064980241357f90d346bd35e60d084be425ed
 ---
 
 # TypeScript SDK 参考
@@ -467,8 +467,11 @@ console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - shal
 连这条规则都有例外，就是 `tool_policy` 和 `system_prompt`：任何点到它们的 PUT 都会整体替换。
 见[工具](../build/tools.md)。
 
-**配置写入会增加 `config_version`，即使值相同；仅修改 ownership 时不会。** production 当前拒绝 `expected_config_version`，返回 `400 invalid_declared_key`。普通更新应省略该字段，应用应串行处理竞争写入；先读再写不是原子检查。
-见[错误处理](./errors.md)。
+**配置写入会增加 `config_version`，即使值相同；仅修改 ownership 时不会。** 在 `sections` 中加入正整数
+`expected_config_version`，即可让版本校验与写入原子执行。用
+`agent.status?.config_version ?? agent.config_version` 读取版本；不匹配时返回
+`409 active_config_changed`，配置保持不变。重新读取并计算改动后再重试，前置条件本身不会写入 `declared`。
+省略该字段则按后写覆盖先写的方式无条件更新。见[更新示例](../build/agents.md#只更新自己读取的版本)和[错误处理](./errors.md)。
 
 PUT 请求体里出现 `skills`、`credentials` 以及未知字段，都返回 `400`。
 

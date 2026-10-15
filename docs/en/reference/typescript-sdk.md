@@ -477,9 +477,12 @@ console.log(updated.declared?.labels) // { tier: 'paid', region: 'apac' } - omit
 replaces it wholesale. See [Tools](../build/tools.md).
 
 **Configuration writes increment `config_version`, including identical values; ownership-only
-writes do not.** Production rejects `expected_config_version` with `400 invalid_declared_key`.
-Omit it for ordinary last-write-wins updates and serialize competing writes in your application.
-See [Errors and retries](./errors.md).
+writes do not.** Add a positive `expected_config_version` to `sections` to check the version
+atomically with the write. Read it as `agent.status?.config_version ?? agent.config_version`.
+A mismatch returns `409 active_config_changed` without changing configuration. Re-read and
+recompute the intended change before retrying. The precondition is not stored in `declared`.
+Omit it for unconditional last-write-wins updates. See the [update example](../build/agents.md#update-only-the-version-you-read)
+and [Errors and retries](./errors.md).
 
 `skills`, `credentials`, and unknown fields in the PUT body return `400`.
 
