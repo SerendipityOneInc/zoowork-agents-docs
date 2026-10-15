@@ -1,7 +1,7 @@
 ---
 description: 核对当前公共API边界，为secrets、集成、budget和self-hosting选择已有方案。
 source: /en/reference/not-supported
-source_hash: 8068d2c3d87f5fb3ee72cfc9846040c03a21a6e762929e4f9e368d029f507dc5
+source_hash: 37c242fe73c77b91bb5810144ef3d4dac9cb345b25dbfb4dadbc76b113085e1f
 ---
 
 # 当前公共 API 边界
@@ -11,7 +11,6 @@ source_hash: 8068d2c3d87f5fb3ee72cfc9846040c03a21a6e762929e4f9e368d029f507dc5
 | 能力 | 当前边界 | 替代方案 |
 |---|---|---|
 | Agent Database viewer | production 不提供直接读取 catalog 和 table rows 的流程，SDK 方法存在不代表可用。 | 让 Agent 使用 `agent_db` 查询，并返回结果或发布 [Artifact](../build/files.md)。 |
-| Agent 配置原子更新 | production 的 Agent 更新拒绝 `expected_config_version`。 | 省略该字段，在后端串行写入，并[读回配置核对](../build/agents.md)。 |
 | 自定义 Environment 管理 | Platform API key 不开放自定义 Environment 创建、镜像构建和版本管理。 | 使用[默认托管 Environment](../build/environments.md)。 |
 | 原生聊天渠道管理 | Platform API key 不开放聊天渠道配置和管理。 | 在后端对接聊天平台，再通过 [API Session](../build/channels.md)转发消息。 |
 | 超出 key 的 Skill 范围的 registry 写操作 | 可见不代表可以发布版本或删除 global、personal 或其他 Project 的 Skill。具名 Project key 也不能修改 org Skill。 | 在支持的部署上，遵循 [Project key 上传和写权限规则](../build/skills.md#api-availability)。 |
