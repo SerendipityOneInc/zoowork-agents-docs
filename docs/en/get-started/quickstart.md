@@ -229,5 +229,6 @@ HTTP client when they exit.
 - [Start a session](../build/sessions.md): create and continue a conversation.
 - [Session operations](../build/session-operations.md): read history and manage saved Sessions.
 - [Events and streaming](../build/events.md): handle events, timeouts, and reconnection.
-- [Example apps](https://github.com/SerendipityOneInc/zoowork-quickstarts): build a complete application.
+- [Agent Starter](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/starter): start a complete chat app for one Agent from a template.
+- [Example apps](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts): complete applications that each show one capability, such as custom tools or remote MCP.
 - [Coding assistant skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills): give your coding assistant ZooWork SDK guidance.

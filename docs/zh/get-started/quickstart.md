@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: a923c7d446b932246358a4b8b7e9ec9c89eeca40a414cca3e2e1f0d5ad0f01ad
+source_hash: 9b4de395a0393975e8e0adeb28701424fb46937ec878cda87daf6b952705f258
 ---
 
 # 快速开始
@@ -226,5 +226,6 @@ curl 用户在按 Ctrl+C 关闭事件流后执行清理。两个 SDK 程序退�
 - [启动 Session](../build/sessions.md)：创建并继续对话。
 - [Session 操作](../build/session-operations.md)：读取历史并管理已保存的 Session。
 - [事件与流式](../build/events.md)：处理事件、超时和重新连接。
-- [示例应用](https://github.com/SerendipityOneInc/zoowork-quickstarts)：构建完整应用。
+- [Agent Starter](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/starter)：从模板开始，为一个 Agent 搭建完整的聊天应用。
+- [示例应用](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts)：每个完整应用演示一项能力，例如 custom tools 或远程 MCP。
 - [编码助手 Skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills)：为编码助手提供 ZooWork SDK 使用说明。
