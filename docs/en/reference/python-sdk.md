@@ -6,7 +6,7 @@ description: Configure the async Python SDK and use Agent, Session, Schedule, ev
 
 The `zoowork` package is an async Python client for the public ZooWork API. Use Python 3.10 or later. Request and response fields retain their API spelling; Python method names and keyword arguments use `snake_case`.
 
-This reference applies to Python SDK **0.7.0+**.
+This reference applies to Python SDK **0.8.0+**.
 
 ```bash
 python -m pip install zoowork
@@ -55,6 +55,7 @@ The default base URL is `https://clawapi.ecap.gsmo.ai/service/v1`. Normal use re
 | `await client.post_events(agent_id, session_id, events)` | Send accepted input event types. |
 | `await client.upload_file(agent_id, path, content)` | Copy `bytes` or a `str` into the Agent's `/workspace`; returns `path`, `size`, and `sha256`. See [Files](../build/files.md#send-a-file-to-the-agent). |
 | `async for event in client.stream_events(agent_id, session_id, cursor=...)` | Read saved events; keep the resume cursor after processing. |
+| `await client.list_all_events(agent_id, session_id, cursor=...)` | Read every saved event, optionally after a saved cursor. Do not pass `event.seq` as the deprecated `after=`: that lane numbers events differently and omits your inputs. |
 
 Returned resource records are mappings, for example `agent["agent_id"]`; they are not TypeScript objects with attribute access. Input mappings keep fields such as `initial_events` and `idempotency_key` unchanged. The Python `idempotency_key` method argument sends the HTTP header on supported create methods; a per-event key still belongs inside the event itself.
 

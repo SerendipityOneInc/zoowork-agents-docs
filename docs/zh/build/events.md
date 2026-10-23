@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 0f222e45655766a7075265e39c2f79932251886374bbb9bd6165d43d759436a5
+source_hash: 4d6c9ee52a9d17b75510985fdc9da73456ee6f00dac5800397ff3c30df46cdfb
 ---
 
 # Session 事件流
@@ -281,7 +281,7 @@ curl -N -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/strea
 :::
 
 上面的 `savedCursor`、`saved_cursor` 或 `EVENT_CURSOR` 使用已经保存的 token。
-直接调公共 HTTP 端点时使用 `?cursor=`。公共网关不转发 `Last-Event-ID`，不能只靠浏览器 EventSource 自动发送的续传请求头。`{ after: seq }` 仍能续传废弃的 engine-only 通道——只留给旧存量游标用。
+直接调公共 HTTP 端点时使用 `?cursor=`。公共网关不转发 `Last-Event-ID`，不能只靠浏览器 EventSource 自动发送的续传请求头。`{ after }` 仍能续传废弃的 engine-only 通道，只用于从这个通道保存的旧数字位置；统一历史的 `seq` 不是这种位置。
 
 ### 一个扛得住断线的重连循环
 
@@ -340,9 +340,11 @@ async function runTurnWithResume(
 listEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+  opts?: { cursor?: string; types?: string[]; limit?: number },
 ): Promise<SessionEvent[]>
 ```
+
+另有一个用 `after` 代替 `cursor` 的废弃 overload，见下面的警告。
 
 `limit` 服务端默认 **100**，上限 **500**。`listEvents` / `list_events` 只返回一页事件；需要续传信息时使用下面的 page 方法：
 
@@ -375,7 +377,11 @@ const replies = await client.listAllEvents(agentId, sessionId, { types: ['agent.
 
 从 REST 重放拼出来的文本，和从流拼出来的文本逐字节相同。
 
-`listAllEvents` 在页边界去重，cursor 不前进时停止。`pageSize` 控制每次请求的 limit，默认值和上限都是 500。
+`listAllEvents` 在页边界去重，cursor 不前进时停止。`pageSize` 控制每次请求的 limit，默认值和上限都是 500。传入保存的 `cursor` 可以读取该位置之后的全部事件。
+
+::: warning 不要把 `seq` 传给 `after`
+列表返回的事件带 `seq`，但不带单条 `cursor`，所以 `after: event.seq` 看起来像是继续读取的写法，实际不是。`after` 会切到废弃的 engine-only 通道，这个通道的编号和统一历史不同，也不含你自己发的 input。服务端会返回更少、重新编号的结果，并且不报错。列表从当页的 `next_cursor` 继续，stream 从事件的 `cursor` 继续。SDK 已把 `after` 的 overload 标为 deprecated，编辑器和类型检查器会标出这类调用。
+:::
 
 ## Interrupt 与工具响应 {#respond-to-tools}
 

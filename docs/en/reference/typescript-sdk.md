@@ -6,7 +6,7 @@ description: Look up TypeScript SDK methods, thinking types, helpers, and errors
 
 Client methods, resource types, and helpers exported by `@zoowork-ai/sdk`.
 
-This reference applies to TypeScript SDK **0.12.0+**.
+This reference applies to TypeScript SDK **0.13.0+**.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
@@ -756,14 +756,20 @@ timeout will not deliver it twice.
 listEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+  opts?: { cursor?: string; types?: string[]; limit?: number },
+): Promise<SessionEvent[]>
+/** @deprecated */
+listEvents(
+  agentId: string,
+  sessionId: string,
+  opts: { after?: number; types?: string[]; limit?: number },
 ): Promise<SessionEvent[]>
 ```
 
 | Parameter | Type | Notes |
 |---|---|---|
-| `opts.cursor` | `string` | Page cursor — a previous page's `next_cursor` or a streamed event's `cursor`. |
-| `opts.after` | `number` | Seq cursor for the deprecated engine-only lane (no user inputs). Old stored cursors only. |
+| `opts.cursor` | `string` | Page cursor — a previous page's `nextCursor` or a streamed event's `cursor`. Listed events carry no per-event cursor. |
+| `opts.after` | `number` | Deprecated overload. Selects the engine-only lane, which numbers events differently from the unified `seq` and omits your inputs, so never pass `event.seq` here. Old engine-lane positions only. Cannot be combined with `cursor`. |
 | `opts.types` | `string[]` | Server-side filter, joined with commas onto `?types=`. |
 | `opts.limit` | `number` | Server default 100, maximum 500. |
 
@@ -783,8 +789,9 @@ them:
 listEventsPage(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+  opts?: { cursor?: string; types?: string[]; limit?: number },
 ): Promise<{ events: SessionEvent[]; hasMore?: boolean; nextCursor?: string | null }>
+// plus a deprecated overload with `after` in place of `cursor`, as on listEvents
 ```
 
 Feed `nextCursor` back as `cursor` to page by hand; unless you are, use `listAllEvents`.
@@ -801,13 +808,20 @@ const all = await client.listAllEvents(agentId, sessionId)
 listAllEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; types?: string[]; pageSize?: number },
+  opts?: { cursor?: string; types?: string[]; pageSize?: number },
+): Promise<SessionEvent[]>
+/** @deprecated */
+listAllEvents(
+  agentId: string,
+  sessionId: string,
+  opts: { after?: number; types?: string[]; pageSize?: number },
 ): Promise<SessionEvent[]>
 ```
 
 | Parameter | Type | Notes |
 |---|---|---|
-| `opts.after` | `number` | Forces the deprecated engine-only lane and walks it from this seq. |
+| `opts.cursor` | `string` | Start after this position — a saved `nextCursor` or streamed event `cursor`. A walk that starts from a cursor never falls back to `after`. |
+| `opts.after` | `number` | Deprecated overload. Forces the engine-only lane and walks it from this engine-lane position; a unified `seq` is not one. Passing both `cursor` and `after` throws `TypeError` before any request. |
 | `opts.types` | `string[]` | Same server-side filter as `listEvents`, applied to every page. |
 | `opts.pageSize` | `number` | The per-request `limit`. Defaults to 500 and is clamped to it. |
 
@@ -824,14 +838,20 @@ dropped, so a boundary event replayed at a page edge does not reach you twice.
 streamEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; cursor?: string; signal?: AbortSignal },
+  opts?: { cursor?: string; signal?: AbortSignal },
+): AsyncGenerator<SessionEvent>
+/** @deprecated */
+streamEvents(
+  agentId: string,
+  sessionId: string,
+  opts: { after?: number; signal?: AbortSignal },
 ): AsyncGenerator<SessionEvent>
 ```
 
 | Parameter | Type | Notes |
 |---|---|---|
 | `opts.cursor` | `string` | Resume token — a previous event's `cursor`. The server replays from right after it. |
-| `opts.after` | `number` | Resume for the deprecated engine-only lane. Old stored cursors only. |
+| `opts.after` | `number` | Deprecated overload. Resumes the engine-only lane, whose numbering differs from the unified `seq`. Old engine-lane positions only. |
 | `opts.signal` | `AbortSignal` | Aborts the underlying request. When the signal is already aborted the generator returns quietly instead of throwing. |
 
 An async generator of `SessionEvent`. For an existing Session, pass its saved cursor.
@@ -941,8 +961,8 @@ interface SessionEvent {
 
 | Field | Notes |
 |---|---|
-| `seq` | Durable sequence; not the recommended resume token. Resume SSE with its opaque `cursor`. `after` is the legacy engine-only lane. `-1` means no usable sequence was supplied. |
-| `cursor` | Opaque SSE resume token. Pass it unchanged as `{ cursor }`; do not derive it from `seq`. |
+| `seq` | Durable sequence that orders events; it is not a resume position. The deprecated `after` lane numbers events differently, so never pass `seq` as `after`. `-1` means no usable sequence was supplied. |
+| `cursor` | Opaque resume token, set only on events from `streamEvents`. Pass it unchanged as `{ cursor }`; do not derive it from `seq`. Resume a listing from the page's `nextCursor`. |
 | `eventType` | One of `SESSION_EVENT_TYPES`, or an unknown string that passed through. `''` if the wire carried no type at all. |
 | `payload` | The event body. Shape varies by type; use the helpers below rather than reaching in blind. |
 | `runId` | The run this event belongs to. |
