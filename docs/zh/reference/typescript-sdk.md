@@ -2,14 +2,14 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 3abeb3918be5c0da5b49b07fcc14ac75373e12237dcef90bde5c983d2b72ec10
+source_hash: 715e5a231dd6b5c5c4a1784453232869eee7f0e9bfb783a144038a038374c51a
 ---
 
 # TypeScript SDK 参考
 
 `@zoowork-ai/sdk` 导出的每一个符号，附带编译器看到的签名。
 
-本参考适用于 TypeScript SDK **0.12.0+**。
+本参考适用于 TypeScript SDK **0.13.0+**。
 
 这一页是参考手册。想看按任务组织的说明，从 [Agents](../build/agents.md)、[Sessions](../build/sessions.md)
 或[快速开始](../get-started/quickstart.md)开始。
