@@ -326,8 +326,8 @@ curl -N -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/events/strea
 
 Use the stored token as `savedCursor`, `saved_cursor`, or `EVENT_CURSOR` above.
 When calling the public HTTP endpoint, use `?cursor=`. The public gateway does not forward
-`Last-Event-ID`, so browser EventSource's automatic header replay is not sufficient. `{ after: seq }` still resumes the deprecated engine-only lane —
-keep it for old stored cursors only.
+`Last-Event-ID`, so browser EventSource's automatic header replay is not sufficient. `{ after }` still resumes the deprecated engine-only lane. Keep it
+only for numeric positions stored from that lane; a unified `seq` is not one.
 
 ### A reconnect loop that survives a dropped connection
 
@@ -388,9 +388,11 @@ same kind of token as a streamed event's `cursor`.
 listEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+  opts?: { cursor?: string; types?: string[]; limit?: number },
 ): Promise<SessionEvent[]>
 ```
+
+A deprecated overload also accepts `after` instead of `cursor`; see the warning below.
 
 `limit` defaults to **100** server-side and is capped at **500**, and the call returns **one
 page** without the page's `has_more`/`next_cursor` fields (`listEventsPage` is the same call
@@ -426,7 +428,17 @@ const replies = await client.listAllEvents(agentId, sessionId, { types: ['agent.
 ```
 
 `listAllEvents` de-duplicates page boundaries and stops if a cursor does not advance.
-Its `pageSize` controls the per-request limit, with default and maximum 500.
+Its `pageSize` controls the per-request limit, with default and maximum 500. Pass a saved
+`cursor` to read everything after that position.
+
+::: warning Do not pass `seq` as `after`
+Listed events carry `seq` but no per-event `cursor`, so `after: event.seq` can look like the
+way to continue. It is not. `after` selects the deprecated engine-only lane, which numbers
+events differently and omits your inputs. The server returns a shorter, renumbered result
+with no error. Continue a listing from the page's `next_cursor`, and a stream from the event's
+`cursor`. The SDKs mark the `after` overloads as deprecated, so editors and type checkers flag
+these calls.
+:::
 
 The text assembled from the REST replay is byte-identical to the text assembled from the
 stream.

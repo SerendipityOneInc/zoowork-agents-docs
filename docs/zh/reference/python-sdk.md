@@ -1,7 +1,7 @@
 ---
 description: 配置 async Python SDK，并使用 Agent、Session、Schedule、event 和 thinking 方法。
 source: /en/reference/python-sdk
-source_hash: 2bb217924664b59791851359523637f2d4f5e8bbd696f8071180aeeedc88d034
+source_hash: 00633709fed681f92d21546109c25f6a237d1654752025719511a781f64702f4
 ---
 
 # Python SDK
@@ -57,6 +57,7 @@ asyncio.run(main())
 | `await client.post_events(agent_id, session_id, events)` | 发送受支持的 input event。 |
 | `await client.upload_file(agent_id, path, content)` | 把 `bytes` 或 `str` 复制到 Agent 的 `/workspace`，返回 `path`、`size` 和 `sha256`。见[文件](../build/files.md#send-a-file-to-the-agent)。 |
 | `async for event in client.stream_events(agent_id, session_id, cursor=...)` | 读取保存的 events，处理后保留 resume cursor。 |
+| `await client.list_all_events(agent_id, session_id, cursor=...)` | 读取全部保存的 events，可从保存的 cursor 之后开始。不要把 `event.seq` 传给废弃的 `after=`：那个通道编号不同，也不含你自己发的 input。 |
 
 资源返回为 mapping，例如 `agent["agent_id"]`，不采用 TypeScript object 的属性访问方式。输入 mapping 中的 `initial_events`、`idempotency_key` 等字段保持原样。受支持的 create 方法中，Python 方法参数 `idempotency_key` 对应 HTTP header；逐事件 key 仍写在 event 自身中。
 

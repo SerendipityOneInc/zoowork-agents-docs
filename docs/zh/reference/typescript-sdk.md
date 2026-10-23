@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 4b9cb70a5accb4d47f898e96cd8064980241357f90d346bd35e60d084be425ed
+source_hash: 3abeb3918be5c0da5b49b07fcc14ac75373e12237dcef90bde5c983d2b72ec10
 ---
 
 # TypeScript SDK 参考
@@ -734,14 +734,20 @@ console.log(r.events[0]?.accepted)
 listEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+  opts?: { cursor?: string; types?: string[]; limit?: number },
+): Promise<SessionEvent[]>
+/** @deprecated */
+listEvents(
+  agentId: string,
+  sessionId: string,
+  opts: { after?: number; types?: string[]; limit?: number },
 ): Promise<SessionEvent[]>
 ```
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `opts.cursor` | `string` | 页游标——上一页的 `next_cursor` 或某个流式事件的 `cursor`。 |
-| `opts.after` | `number` | 废弃的 engine-only 通道的 seq 游标（没有用户输入）。只留给旧存量游标。 |
+| `opts.cursor` | `string` | 页游标——上一页的 `nextCursor` 或某个流式事件的 `cursor`。列表返回的事件不带单条 cursor。 |
+| `opts.after` | `number` | 废弃的 overload。它走 engine-only 通道，编号和统一历史的 `seq` 不同，也不含你自己发的 input，所以不要把 `event.seq` 传进来。只用于旧的 engine-only 通道位置，不能和 `cursor` 同时传。 |
 | `opts.types` | `string[]` | 服务端过滤，用逗号拼到 `?types=` 上。 |
 | `opts.limit` | `number` | 服务端默认 100，最大 500。 |
 
@@ -759,8 +765,9 @@ const events = await client.listEvents(agentId, sessionId, { types: ['user.messa
 listEventsPage(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; cursor?: string; types?: string[]; limit?: number },
+  opts?: { cursor?: string; types?: string[]; limit?: number },
 ): Promise<{ events: SessionEvent[]; hasMore?: boolean; nextCursor?: string | null }>
+// 另有一个用 `after` 代替 `cursor` 的废弃 overload，和 listEvents 相同
 ```
 
 把 `nextCursor` 作为 `cursor` 传回去就是手动翻页；不是手动翻页就用 `listAllEvents`。
@@ -776,13 +783,20 @@ const all = await client.listAllEvents(agentId, sessionId)
 listAllEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; types?: string[]; pageSize?: number },
+  opts?: { cursor?: string; types?: string[]; pageSize?: number },
+): Promise<SessionEvent[]>
+/** @deprecated */
+listAllEvents(
+  agentId: string,
+  sessionId: string,
+  opts: { after?: number; types?: string[]; pageSize?: number },
 ): Promise<SessionEvent[]>
 ```
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `opts.after` | `number` | 强制走废弃的 engine-only 通道，并从这个 seq 开始翻。 |
+| `opts.cursor` | `string` | 从这个位置之后开始读——保存的 `nextCursor` 或流式事件的 `cursor`。从 cursor 开始的读取不会回落到 `after`。 |
+| `opts.after` | `number` | 废弃的 overload。强制走 engine-only 通道，并从这个通道的位置开始翻；统一历史的 `seq` 不是这种位置。同时传 `cursor` 和 `after` 会在发请求前抛 `TypeError`。 |
 | `opts.types` | `string[]` | 和 `listEvents` 一样的服务端过滤，对每一页都生效。 |
 | `opts.pageSize` | `number` | 每次请求用的 `limit`。默认 500，也被夹到 500。 |
 
@@ -798,14 +812,20 @@ listAllEvents(
 streamEvents(
   agentId: string,
   sessionId: string,
-  opts?: { after?: number; cursor?: string; signal?: AbortSignal },
+  opts?: { cursor?: string; signal?: AbortSignal },
+): AsyncGenerator<SessionEvent>
+/** @deprecated */
+streamEvents(
+  agentId: string,
+  sessionId: string,
+  opts: { after?: number; signal?: AbortSignal },
 ): AsyncGenerator<SessionEvent>
 ```
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
 | `opts.cursor` | `string` | 续传令牌——某个之前事件的 `cursor`。服务端从它之后开始重放。 |
-| `opts.after` | `number` | 废弃的 engine-only 通道的续传游标。只留给旧存量游标。 |
+| `opts.after` | `number` | 废弃的 overload。续传 engine-only 通道，编号和统一历史的 `seq` 不同。只用于旧的 engine-only 通道位置。 |
 | `opts.signal` | `AbortSignal` | 中止底层请求。当 signal 已经处于 aborted 状态时，生成器会安静返回，而不是抛错。 |
 
 一个产出 `SessionEvent` 的异步生成器。已有 Session 要传入保存的 cursor，只有新 Session 的第一轮才能省略。不带 cursor 会从开头重放旧答复和 `run.finished`。见[两轮对话示例](../build/events.md#streaming-a-turn)和[丢失 cursor 后的恢复限制](../build/events.md#existing-session-without-a-saved-cursor)。
@@ -890,8 +910,8 @@ interface SessionEvent {
 
 | 字段 | 说明 |
 |---|---|
-| `seq` | 持久序号，不是推荐的续传令牌；after 为旧通道。缺少可用序号时为 -1。 |
-| `cursor` | 不透明的 SSE 续传令牌，以 `{ cursor }` 或查询参数发送，不转成数字。 |
+| `seq` | 用于给事件排序的持久序号，不是续传位置。废弃的 `after` 通道编号不同，不要把 `seq` 传给 `after`。缺少可用序号时为 -1。 |
+| `cursor` | 不透明的续传令牌，只有 `streamEvents` 产出的事件才带。以 `{ cursor }` 或查询参数原样发送，不转成数字。列表从当页的 `nextCursor` 继续。 |
 | `eventType` | `SESSION_EVENT_TYPES` 里的一个，或者是原样保留的未知字符串。wire object 缺少类型时为 `''`。 |
 | `payload` | 事件体。形状随类型而变；优先使用下面的辅助函数读取。 |
 | `runId` | 这个事件属于哪个 run。 |
