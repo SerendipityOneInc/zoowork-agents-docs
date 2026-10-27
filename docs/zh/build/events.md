@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 4d6c9ee52a9d17b75510985fdc9da73456ee6f00dac5800397ff3c30df46cdfb
+source_hash: 4ee18385a4d48502f33294212ca43942bccd406bcdf3bc95b96894e58df73540
 ---
 
 # Session 事件流
@@ -188,6 +188,7 @@ curl -N --max-time 120 --get \
 - TypeScript 中，abort `signal` 会正常结束生成器。Python 的 `asyncio.wait_for` 在 timeout 时抛出 `asyncio.TimeoutError`，`aclosing` 负责关闭 stream。curl 输出原始 frame，直到 timeout 或你停止读取；它不会在 `run.finished` 时退出。
 - 生成器会丢弃任何 `seq` 小于等于它已产出过的最高值的 event，但这个去重状态只属于当前 generator。新 generator 不保留应用 checkpoint，必须传入已保存的 cursor。
 - `streamEvents` 产出的一切都是持久的。
+- 一个回合可以包含多个 `agent.assistant` 事件，每个模型步骤一个。调用工具的步骤在调用前也可能带文字，所以把所有事件的文字拼起来，得到的是 Agent 在这一回合说过的全部内容，包括调用工具前的说明。如果 `run.finished` 的 status 是 `succeeded`，它之前的最后一个 `agent.assistant` 就是模型的最后一步；只需要答案时用它。
 - 对于多回合 session，要么每个回合开一条新流并带上上次的 `cursor`，要么保持一条流开着并持续数 `run.finished` 事件。前者更容易推理。
 
 ### 已有 Session 没有保存 cursor {#existing-session-without-a-saved-cursor}

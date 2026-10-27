@@ -7,6 +7,47 @@ description: Create your first agent, start a session, and stream its response u
 Create an agent, start a session, and stream its response. In this guide, the agent turns
 three months of sales data into a report, saves it as `report.md`, and reads it back to verify the total.
 
+Hand this prompt to Claude Code, Codex, Cursor, or another coding assistant from your project
+directory. It reads this documentation before writing code and asks before anything billable.
+
+<AgentPrompt id="use-a-coding-assistant" title="Add ZooWork to your project">
+
+```text
+Build on ZooWork Managed Agents in this project.
+
+Read https://zoowork.ai/docs/get-started/quickstart.md before writing
+code. For anything else, find the page in
+https://zoowork.ai/docs/llms.txt and read only the pages this task
+needs. Read each page in full: fetch the raw Markdown, for example
+with curl, or ask your fetch tool for the complete text, because a
+summary can drop code. The API is a Developer Preview, so do not
+write ZooWork code from memory.
+
+Before writing code:
+1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk)
+   or the Python SDK (zoowork). If one is already installed, use that
+   version; do not upgrade it without asking.
+2. Check whether ZOOWORK_API_KEY is set, without printing its value.
+   If it is missing, ask me to create an API key and add funds at
+   https://platform.zoowork.ai, then set the variable myself. Never
+   ask me to paste the key into this conversation.
+3. Keep the key in server-side code. Never put it in browser code or
+   in the Agent's sandbox.
+
+Agent tasks use the organization's prepaid balance. Show me your plan
+and wait for my approval before the first request that creates or
+starts an Agent. Do not estimate the cost; tell me to check Usage in
+ZooWork Platform for actual charges.
+
+When the integration works, offer to run
+`npx skills add SerendipityOneInc/zoowork-sdk-skills` so future
+sessions in this project start from these docs.
+```
+
+</AgentPrompt>
+
+Or follow the steps below yourself.
+
 ## The resources you will use
 
 | Resource | Description |
@@ -85,7 +126,8 @@ The curl request sets `onboarding: false`, which the SDK supplies automatically.
 
 ### 2. Start the agent
 
-Start the agent before creating a session.
+Start the agent before creating a session. The SDK examples then wait until its desired state is
+`running`; the curl start request returns once that state is set.
 
 ::: code-group
 

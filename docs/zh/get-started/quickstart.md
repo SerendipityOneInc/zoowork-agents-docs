@@ -2,13 +2,53 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 4474e427aa64415c7eaeadf640cfbbd414e5ba56e2631183994e5adf06d77f75
+source_hash: 97501e461b7a69d14fdeb5a2a8102e5bea1c6aebce107340a03d59f7d56293e0
 ---
 
 # 快速开始
 
 创建一个 Agent、启动会话，并流式读取回复。本例让 Agent 把三个月的销售数据整理成报告，
 保存为 `report.md`，再读回文件确认合计金额。
+
+在项目目录中把下面的 prompt 交给 Claude Code、Codex、Cursor 或其他编码助手。它会先读这份文档再写代码，涉及计费的操作会先征求你的同意。Prompt 保持英文，因为它指向的 Markdown 文档只有英文版。
+
+<AgentPrompt id="use-a-coding-assistant" title="Add ZooWork to your project">
+
+```text
+Build on ZooWork Managed Agents in this project.
+
+Read https://zoowork.ai/docs/get-started/quickstart.md before writing
+code. For anything else, find the page in
+https://zoowork.ai/docs/llms.txt and read only the pages this task
+needs. Read each page in full: fetch the raw Markdown, for example
+with curl, or ask your fetch tool for the complete text, because a
+summary can drop code. The API is a Developer Preview, so do not
+write ZooWork code from memory.
+
+Before writing code:
+1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk)
+   or the Python SDK (zoowork). If one is already installed, use that
+   version; do not upgrade it without asking.
+2. Check whether ZOOWORK_API_KEY is set, without printing its value.
+   If it is missing, ask me to create an API key and add funds at
+   https://platform.zoowork.ai, then set the variable myself. Never
+   ask me to paste the key into this conversation.
+3. Keep the key in server-side code. Never put it in browser code or
+   in the Agent's sandbox.
+
+Agent tasks use the organization's prepaid balance. Show me your plan
+and wait for my approval before the first request that creates or
+starts an Agent. Do not estimate the cost; tell me to check Usage in
+ZooWork Platform for actual charges.
+
+When the integration works, offer to run
+`npx skills add SerendipityOneInc/zoowork-sdk-skills` so future
+sessions in this project start from these docs.
+```
+
+</AgentPrompt>
+
+也可以按下文自己操作。
 
 ## 本例会用到的资源
 
@@ -88,7 +128,7 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 ### 2. 启动 Agent
 
-创建 Session 前，先启动 Agent。
+创建 Session 前，先启动 Agent。SDK 示例随后会等到它的 desired state 变为 `running`；curl 的启动请求在这个状态设置好后返回。
 
 ::: code-group
 

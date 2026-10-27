@@ -1,5 +1,6 @@
 # region create
 import asyncio
+from contextlib import aclosing
 
 from zoowork import (
     assistant_text,
@@ -20,6 +21,7 @@ async def main() -> None:
 # region start
 # Continue inside main().
         await client.start_agent(agent_id)
+        await client.wait_until_running(agent_id)
 # endregion start
 
 # region session
@@ -50,16 +52,17 @@ async def main() -> None:
 # region stream
 # Continue inside main().
         outcome = None
-        async for event in client.stream_events(agent_id, session_id):
-            print(assistant_text(event), end="", flush=True)
-            call = tool_call(event)
-            if call is not None and call.phase == "start":
-                print(f"\n[tool] {call.tool_name}")
+        async with aclosing(client.stream_events(agent_id, session_id)) as stream:
+            async for event in stream:
+                print(assistant_text(event), end="", flush=True)
+                call = tool_call(event)
+                if call is not None and call.phase == "start":
+                    print(f"\n[tool] {call.tool_name}")
 
-            if is_run_finished(event):
-                outcome = run_outcome(event)
-                print(f"\nTurn: {outcome}")
-                break
+                if is_run_finished(event):
+                    outcome = run_outcome(event)
+                    print(f"\nTurn: {outcome}")
+                    break
 
         if outcome != "succeeded":
             raise RuntimeError(f"Turn did not succeed: {outcome or 'stream closed'}")

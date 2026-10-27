@@ -511,3 +511,203 @@ html:lang(zh) :is(h1, h2, h3, h4) {
 .vp-doc strong { font-weight: 600; }
 ::selection { background: color-mix(in srgb, var(--zc-focus) 24%, transparent); }
 html:lang(zh) .vp-doc :is(h1,h2,h3,h4) { letter-spacing: 0; }
+
+/* Copy page / View as Markdown, above each guide's title. */
+.zc-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.zc-page-action {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--zc-line);
+  border-radius: var(--zc-radius-sm);
+  background: var(--zc-paper);
+  color: var(--zc-ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.zc-page-action:hover {
+  background: var(--zc-hover);
+  color: var(--zc-ink);
+}
+
+.zc-page-action:focus-visible {
+  outline: 2px solid var(--zc-focus);
+  outline-offset: 2px;
+}
+
+/* Coding-assistant prompt in the Quickstart: a short preview with Copy and Expand, and the
+   full prompt in a dialog. The wrapped code block keeps the prompt in the AI Markdown. */
+.zc-agent-prompt {
+  margin: 16px 0;
+  overflow: hidden;
+  border: 1px solid var(--zc-line);
+  border-radius: var(--zc-radius-lg);
+  background: var(--vp-code-block-bg);
+}
+
+.zc-agent-prompt-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--zc-line);
+  background: var(--zc-surface-subtle);
+}
+
+.zc-agent-prompt-title {
+  flex: 1;
+  min-width: 0;
+  color: var(--zc-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.zc-agent-prompt-copy,
+.zc-agent-prompt-expand,
+.zc-agent-prompt-close {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  border-radius: var(--zc-radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.zc-agent-prompt-copy {
+  padding: 0 12px;
+  background: var(--zc-action);
+  color: var(--zc-action-foreground);
+}
+
+.zc-agent-prompt-copy:hover {
+  opacity: 0.88;
+}
+
+.zc-agent-prompt-close {
+  justify-content: center;
+  width: 28px;
+  color: var(--zc-ink-3);
+  font-size: 20px;
+}
+
+.zc-agent-prompt-close:hover {
+  background: var(--zc-hover);
+  color: var(--zc-ink);
+}
+
+/* clip, not hidden: a hidden box is still a scroll container, so focusing Expand by keyboard
+   would scroll the preview and carry the button out of place. */
+.zc-agent-prompt-preview {
+  position: relative;
+  max-height: 168px;
+  overflow: hidden;
+  overflow: clip;
+}
+
+/* The wrapped block sits flush inside the card; the header carries the copy action. */
+.vp-doc .zc-agent-prompt div[class*='language-'] {
+  margin: 0;
+  border-radius: 0;
+}
+
+.vp-doc .zc-agent-prompt div[class*='language-'] > button.copy,
+.vp-doc .zc-agent-prompt div[class*='language-'] > span.lang,
+.zc-agent-prompt-dialog div[class*='language-'] > button.copy,
+.zc-agent-prompt-dialog div[class*='language-'] > span.lang {
+  display: none;
+}
+
+/* VitePress lifts the code block's <pre> to z-index 1; keep the fade and its button above it. */
+.zc-agent-prompt-fade {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 96px;
+  padding-bottom: 12px;
+  background: linear-gradient(transparent, var(--vp-code-block-bg) 70%);
+}
+
+.zc-agent-prompt-expand {
+  padding: 0 12px;
+  border: 1px solid var(--zc-line);
+  background: var(--zc-paper);
+  color: var(--zc-ink-2);
+  box-shadow: var(--zc-elevation-card);
+}
+
+.zc-agent-prompt-expand:hover {
+  background: var(--zc-hover);
+  color: var(--zc-ink);
+}
+
+.zc-agent-prompt :is(button):focus-visible,
+.zc-agent-prompt-dialog :is(button):focus-visible {
+  outline: 2px solid var(--zc-focus);
+  outline-offset: 2px;
+}
+
+.zc-agent-prompt-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(85vh, 900px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--zc-line);
+  border-radius: var(--zc-radius-xl);
+  background: var(--vp-code-block-bg);
+  box-shadow: var(--zc-elevation-raised);
+}
+
+.zc-agent-prompt-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+html:has(.zc-agent-prompt-dialog[open]) {
+  overflow: hidden;
+}
+
+.zc-agent-prompt-dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+  backdrop-filter: blur(3px);
+}
+
+.dark .zc-agent-prompt-dialog::backdrop {
+  background: rgb(0 0 0 / 0.7);
+}
+
+.zc-agent-prompt-full {
+  overflow-y: auto;
+}
+
+.zc-agent-prompt-full div[class*='language-'] {
+  margin: 0;
+  border-radius: 0;
+  background: var(--vp-code-block-bg);
+}
+
+.zc-agent-prompt-full pre {
+  margin: 0;
+  padding: 20px 24px;
+  overflow-x: auto;
+  font-family: var(--vp-font-family-mono);
+  font-size: var(--vp-code-font-size);
+  line-height: var(--vp-code-line-height);
+}

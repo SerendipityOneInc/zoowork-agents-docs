@@ -211,6 +211,11 @@ Notes on the mechanics:
 - The generator drops any event whose `seq` is at or below the highest it has already yielded,
   within that generator. A new generator has no application checkpoint; pass the saved cursor.
 - Everything `streamEvents` yields is durable.
+- A turn can contain several `agent.assistant` events, one per model step. A step that calls a
+  tool can include text before the call, so joining every event's text gives everything the
+  Agent said during the turn, including remarks made before tool calls. In a turn whose
+  `run.finished` status is `succeeded`, the last `agent.assistant` before it is the model's
+  final step; use it when you need only the answer.
 - For a multi-turn session, open a new stream per turn with the last `cursor` you saw, or keep
   one stream open and keep counting `run.finished` events. The first is easier to reason about.
 

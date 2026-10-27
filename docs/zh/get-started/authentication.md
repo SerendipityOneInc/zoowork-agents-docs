@@ -1,7 +1,7 @@
 ---
 description: 在 ZooWork Platform 获取 API key、充值，并配置第一个 SDK 或 HTTP 请求。
 source: /en/get-started/authentication
-source_hash: 11b6c69833879c941afa1a1371d1a5337d5bb4c4a28f63b12aec3c02c4102bdc
+source_hash: 72af81a810d5ec4401a91313e48b58cf3c2e451c1bbbdf1f2880b490f5137357
 ---
 
 # Authentication 与 API key
@@ -61,7 +61,7 @@ asyncio.run(main())
 
 :::
 
-SDK 已提供 API 地址，正常使用无需配置。需要覆盖时，见 [TypeScript 配置](../reference/typescript-sdk.md#zooworkconfig) 或 [Python 配置](../reference/python-sdk.md#配置)。
+SDK 已提供 API 地址 `https://clawapi.ecap.gsmo.ai/service/v1`。这是 ZooWork 的 API 主机，域名与 zoowork.ai 网站不同。正常使用无需配置。需要覆盖时，见 [TypeScript 配置](../reference/typescript-sdk.md#zooworkconfig) 或 [Python 配置](../reference/python-sdk.md#配置)。
 
 ## 使用 HTTP
 
