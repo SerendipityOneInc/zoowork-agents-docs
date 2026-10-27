@@ -711,3 +711,80 @@ html:has(.zc-agent-prompt-dialog[open]) {
   font-size: var(--vp-code-font-size);
   line-height: var(--vp-code-line-height);
 }
+
+/* --- Link cards --------------------------------------------------------------
+   LinkCards.vue wraps a Markdown list whose items are a link paragraph and a
+   description paragraph. The whole card is the link's hit area. */
+
+.zc-link-cards ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 12px;
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zc-link-cards li {
+  position: relative;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--zc-line);
+  border-radius: var(--zc-radius-lg);
+  background: var(--zc-paper);
+  box-shadow: var(--zc-elevation-card);
+  transition: border-color var(--zc-motion-fast) var(--zc-ease-out),
+    background-color var(--zc-motion-fast) var(--zc-ease-out);
+}
+
+.zc-link-cards li:hover {
+  border-color: var(--zc-line-strong);
+  background: var(--zc-hover);
+}
+
+.zc-link-cards li + li {
+  margin-top: 0;
+}
+
+.zc-link-cards li p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--zc-ink-2);
+}
+
+.zc-link-cards li p:first-child {
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--zc-ink);
+}
+
+.zc-link-cards li p:first-child a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* VitePress draws its external-link icon on the same pseudo-element with a selector of three
+   classes, so this rule adds .vp-doc to outrank it, then resets its size, margin,
+   mask and colour so the pseudo-element covers the card instead. */
+.vp-doc .zc-link-cards li p:first-child a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  margin: 0;
+  border-radius: inherit;
+  background: none;
+  -webkit-mask: none;
+  mask: none;
+}
+
+.zc-link-cards li:has(a:focus-visible) {
+  outline: 2px solid var(--zc-link);
+  outline-offset: 2px;
+}
+
+.zc-link-cards li p:first-child a:focus-visible {
+  outline: none;
+}

@@ -4,6 +4,7 @@ import '@fontsource-variable/jetbrains-mono'
 import { syncCodeGroups } from './code-group-sync'
 import ZcHome from './components/ZcHome.vue'
 import AgentPrompt from './components/AgentPrompt.vue'
+import LinkCards from './components/LinkCards.vue'
 import DocsLayout from './components/DocsLayout.vue'
 import './custom.css'
 
@@ -16,6 +17,8 @@ export default {
     app.component('ZcHome', ZcHome)
     // Wraps the coding-assistant prompt block in the Quickstart; see AgentPrompt.vue.
     app.component('AgentPrompt', AgentPrompt)
+    // Lays out a Markdown list of links as cards; see LinkCards.vue.
+    app.component('LinkCards', LinkCards)
 
     if (typeof window === 'undefined') return
     syncCodeGroups()

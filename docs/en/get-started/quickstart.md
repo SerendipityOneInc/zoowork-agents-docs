@@ -170,10 +170,16 @@ or external service is needed.
 
 :::
 
-The SDK examples stop if the receipt does not mark the message as accepted. With curl,
-confirm that the response's `events[0].accepted` is `true`. Then read the event stream to see
-the agent's work and result. Events are saved, so you can read them even if the agent starts
-working before you connect.
+The SDK examples stop if the receipt does not mark the message as accepted. Then read the
+event stream to see the agent's work and result. Events are saved, so you can read them even
+if the agent starts working before you connect.
+
+::: tip Using curl
+Before reading the stream, confirm that the send response's `events[0].accepted` is `true`.
+The stream displays raw events and stays open for future turns until you close it. When you
+see `event_type: "run.finished"`, check `payload.status`, then press **Ctrl+C** to return to
+your terminal.
+:::
 
 ::: code-group
 
@@ -185,11 +191,8 @@ working before you connect.
 
 :::
 
-**TypeScript and Python** print the reply and tool activity, then close the connection at
+The SDK examples print the reply and tool activity, then close the connection at
 `run.finished`.
-**curl** displays the raw event stream. When you see `event_type: "run.finished"`, check
-`payload.status`, then press **Ctrl+C** to return to your terminal. The stream stays open
-for future turns until you close it.
 
 A successful turn has status `succeeded`. The agent's reply should also confirm that it
 saved the report and verified total sales of **$300**. Tool names and wording vary;
@@ -264,13 +267,58 @@ If the program exits early, use the printed agent ID with the cleanup requests a
 For curl, run cleanup after pressing Ctrl+C to close the stream. Both SDK programs close their
 HTTP client when they exit.
 
+## Build a complete app
+
+Each example is a runnable application in the
+[quickstarts repository](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts).
+Each one installs on its own and needs your own API key.
+
+<LinkCards>
+
+- [Agent Starter](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/starter)
+
+  A chat app for one Agent you define: multiple conversations, live tool activity, stop, tool approvals, and saved history.
+
+- [Customer Support](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/customer-support)
+
+  Application-executed custom tools look up orders and create a ticket after the user reviews it.
+
+- [Product Advisor](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/product-advisor)
+
+  A remote MCP server supplies catalog search and product comparisons.
+
+- [Research Assistant](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/research-assistant)
+
+  Vercel Chat SDK shows search and fetch activity, then a brief with cited sources.
+
+</LinkCards>
+
 ## Next steps
 
-- [Architecture](./architecture.md): managed execution, persistent state, and on-demand compute.
-- [Agents](../build/agents.md): choose a model, tools, and skills.
-- [Start a session](../build/sessions.md): create and continue a conversation.
-- [Session operations](../build/session-operations.md): read history and manage saved Sessions.
-- [Events and streaming](../build/events.md): handle events, timeouts, and reconnection.
-- [Agent Starter](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/starter): start a complete chat app for one Agent from a template.
-- [Example apps](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts): complete applications that each show one capability, such as custom tools or remote MCP.
-- [Coding assistant skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills): give your coding assistant ZooWork SDK guidance.
+<LinkCards>
+
+- [Architecture](./architecture.md)
+
+  Managed execution, persistent state, and on-demand compute.
+
+- [Agents](../build/agents.md)
+
+  Choose a model, tools, and Skills.
+
+- [Start a session](../build/sessions.md)
+
+  Create and continue a conversation.
+
+- [Session operations](../build/session-operations.md)
+
+  Read history and manage saved Sessions.
+
+- [Events and streaming](../build/events.md)
+
+  Handle events, timeouts, and reconnection.
+
+- [Coding assistant skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills)
+
+  Give your coding assistant ZooWork SDK guidance.
+
+</LinkCards>
