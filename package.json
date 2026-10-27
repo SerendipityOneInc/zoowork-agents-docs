@@ -4,7 +4,7 @@
   "private": true,
   "description": "Public developer documentation for ZooWork Managed Agents",
   "type": "module",
-  "packageManager": "pnpm@10.12.4",
+  "packageManager": "pnpm@10.34.7",
   "scripts": {
     "dev": "vitepress dev docs --port ${DOCS_PORT:-5175}",
     "build": "vitepress build docs && cp _redirects dist/_redirects && node scripts/check-ai-docs.mjs",
