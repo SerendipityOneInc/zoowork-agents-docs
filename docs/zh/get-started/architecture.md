@@ -2,7 +2,7 @@
 title: 架构
 description: 了解 Managed Agents API 如何连接应用、模型、工具与隔离执行环境，以及状态持久保存、计算按需启停的工作方式。
 source: /en/get-started/architecture
-source_hash: b196d3d8372f2b9f63972036e6253d8f91b3e0bb523a6ecd6571b7b491b9552e
+source_hash: 3eea4266940249ee695d8e77ca010a22acafbbb2f2f7203035aa0ea2ef6d5fe0
 ---
 
 # 架构
@@ -53,7 +53,7 @@ Agent 生成 `report.md` 后，可以等待你的下一条消息。当你让它�
 
 ::: info 沙箱生命周期
 自动暂停和恢复由托管运行时管理。暂停遵循沙箱生命周期策略，`run.finished` 不表示计算会立即暂停。
-主动停止 Agent 会释放沙箱，与自动暂停是不同的操作。
+停止 Agent 会取消正在执行的工作，并阻止新的 Session；它不会销毁沙箱，沙箱闲置后会暂停。
 :::
 
 ## 配置与隔离

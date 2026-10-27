@@ -235,7 +235,7 @@ When you send the message, ZooWork:
 
 ## Clean up
 
-When you finish the example, stop the agent to release its sandbox, then delete the agent.
+When you finish the example, stop the agent so it takes no more work, then delete the agent.
 Save anything you want to keep first. If stopping fails, resolve the error before deleting.
 
 ::: code-group
