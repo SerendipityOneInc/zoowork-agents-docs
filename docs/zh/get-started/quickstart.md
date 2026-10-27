@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 97501e461b7a69d14fdeb5a2a8102e5bea1c6aebce107340a03d59f7d56293e0
+source_hash: 96bac14542c7cdb9980d106475e99c21c0a6cb91f4e20d78511a66817b2638da
 ---
 
 # 快速开始
@@ -231,7 +231,7 @@ data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
 
 ## 清理
 
-完成示例后，先停止 Agent 以释放沙箱，再删除 Agent。请先保存需要保留的内容。
+完成示例后，先停止 Agent，让它不再接收新的工作，再删除 Agent。请先保存需要保留的内容。
 如果停止失败，解决错误后再删除。
 
 ::: code-group

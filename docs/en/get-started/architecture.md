@@ -55,8 +55,9 @@ Your application continues with the same Agent and Session.
 
 ::: info Sandbox lifecycle
 Automatic pause and resume are managed runtime behavior. Pausing follows the sandbox
-lifecycle policy; `run.finished` does not mean compute pauses immediately. Explicitly
-stopping an Agent releases its sandbox and is a different operation from automatic pause.
+lifecycle policy; `run.finished` does not mean compute pauses immediately. Stopping an Agent
+cancels its running work and blocks new Sessions; it does not destroy the sandbox, which
+pauses once it is idle.
 :::
 
 ## Configuration and isolation
