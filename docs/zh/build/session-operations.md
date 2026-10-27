@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 读取 Session 状态和 transcript，获取 run output，列出、归档或删除 Session。
 source: /en/build/session-operations
-source_hash: 41f62f2c1ac8e2de8dade7fbe9d55f5c46948c693bb0ab599a6c339e9a4f30e8
+source_hash: 2a3c18578733e7e1fb69a2a0d411679f2c52b6506c02afee714600c3f6cdff2a
 ---
 
 # Session 操作
@@ -133,7 +133,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID?history=true&limit
         "cacheRead": 0,
         "cacheWrite": 0,
         "totalTokens": 15252,
-        "cost": { "input": 0, "output": 0, "total": 0 }
+        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 }
       },
       "content": [
         { "type": "text", "text": "" },
@@ -149,7 +149,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID?history=true&limit
 
 Transcript 还包含：
 
-- **Token 用量。** `entry.message.usage` 带有这条模型消息的 token 计数。上面的示例中，cost 字段为 `0`。这些值不是计费 contract；消耗查询见 [Usage API](../reference/usage.md)。
+- **Token 用量。** `entry.message.usage` 带有这条模型消息的 token 计数。`usage.cost` 包含 `input`、`output`、`cacheRead`、`cacheWrite` 和 `total` 五个字段，记录的值都是 `0`。不要用它们计费；消耗查询见 [Usage API](../reference/usage.md)。
 - **真正回答的那个模型。** `model` 是 agent 被配置成的模型；`responseModel` 是实际服务这次请求的模型。部署方可以把你配的别名映射到一个替代模型，上面的样例里两者就不一致。当这个答复要进计费、评测或合规记录时，以 `responseModel` 为准。
 
 这是对话记录，不是事件日志。它装的是对话消息，不是 `run.started` / `agent.tool` / `run.finished`。用它来找回那些你漏掉了事件的答复；想要事件流就用 `listEvents`。还存在其他 `entry_type` 取值（session 锚点、压缩标记、模型变更）；筛出 `message`，其余跳过。
@@ -264,7 +264,7 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/archive" \
 
 :::
 
-仍有 run 在执行时，返回 `409 session_running`。发送 `user.interrupt`，观察到该 run 的 terminal `run.finished` 后再 archive。归档后仍可读取历史，新事件返回 `409 session_archived`。重复 archive 保留第一次归档时间。
+已经在执行或正在等待审批的 run 会让 archive 返回 `409 session_running`。这个检查不覆盖还没开始执行的 run：消息刚发出、run 还没启动时，archive 可能成功，而这个 run 之后照样执行。所以不要依赖这个 409。发送 `user.interrupt`，观察到该 run 的 terminal `run.finished` 后再 archive。归档后仍可读取历史，新事件返回 `409 session_archived`。重复 archive 保留第一次归档时间。
 
 ## 删除 Session {#delete-a-session}
 

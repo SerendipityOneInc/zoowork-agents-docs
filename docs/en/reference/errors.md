@@ -79,6 +79,12 @@ agents family answers `{ code, detail }` with a dotted one (`service_api.not_fou
 on `ZooworkError`, and the codes are kept verbatim - the SDK does not invent a shared
 vocabulary for them - so read the `not_found` row below before you compare a type with `===`.
 
+A third source answers before either of them: the network edge in front of the API. It
+rejects Python's built-in `urllib` default User-Agent (`Python-urllib/3.x`) with `403` and the
+plain-text body `error code: 1010`, before your key is checked. This is not an API-key error.
+The SDKs, curl, `requests`, `httpx`, and Node `fetch` are not affected. If you call the API
+with `urllib`, set an explicit `User-Agent` header.
+
 ::: warning `type` can be `undefined`
 Two cases leave you with no type at all:
 
@@ -160,7 +166,7 @@ Match the HTTP status as well as the code. A runtime-credential or billing prere
 | `platform.authentication_unavailable` | 503 | Retry later; an authentication dependency is unavailable. |
 | `platform.key_credentials_not_bound` | 409 on Agent creation | Ask the organization owner to sign in to Platform, create a replacement key, and update the application. See [Authentication](../get-started/authentication.md#replace-or-revoke-a-key). |
 | `platform.billing_not_ready` | 409 | Sign in to Platform and wait for organization billing setup to complete. If it fails, select **Retry billing setup**. This code alone does not mean the balance is insufficient. |
-| `platform.runtime_credentials_unavailable` | 503 | Retry later; a runtime-credential dependency is unavailable. |
+| `platform.runtime_credentials_unavailable` | 503 | A runtime-credential dependency is unavailable, or another request from the same organization is reading the organization's runtime credentials at the same moment. Parallel `createAgent()` calls in one organization trigger this, even with different keys or Projects. No Agent is created. Create Agents one at a time per organization, and retry with backoff using the same `Idempotency-Key` and body. |
 | `usage.access_denied` | 403 | Query only within the key's Usage scope. |
 | `usage.snapshot_expired` | 409 | Start a fresh Usage query. |
 | `usage.invalid_query` | 400 | Fix semantic query errors, such as an invalid timezone. |

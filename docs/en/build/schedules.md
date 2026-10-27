@@ -79,6 +79,22 @@ Recreating the same ID with the same definition reconciles the existing schedule
 ID with a different definition returns 409. Use a stable ID to recover from a lost response;
 see [Errors and retries](../reference/errors.md).
 
+### Write the cron expression
+
+Use a standard five-field expression (minute, hour, day of month, month, day of week) and set
+the timezone in `tz`. Do not put a `CRON_TZ=` or `TZ=` prefix in `expr`, and do not use macros
+such as `@daily` or a six-field form. The API passes `expr` to the scheduler as written and
+does not reject these forms, so a non-standard expression can be accepted and fire at a time
+you did not intend. Read the saved definition back with GET and check `scheduleSpec`.
+
+### When firings overlap
+
+A firing does not wait for the previous run to finish. With the default `isolated` target,
+each firing opens a new Session, so if a run is still going when the next firing arrives, the
+two runs execute in parallel. With `sessionTarget: "session:<session_id>"`, an `agentTurn`
+firing waits in that Session until the current turn finishes. Choose an interval longer than
+a typical run, or target one Session when runs must not overlap.
+
 ### Choose the conversation
 
 Use `sessionTarget: "session:<session_id>"` to target an existing session of this Agent.
@@ -209,7 +225,8 @@ curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 :::
 
 Do not assume stopping or deleting an Agent cleans up all its schedules. Manage the schedule
-lifecycle explicitly. After an uncertain update/delete response, read or list schedules to
+lifecycle explicitly, and delete schedules before you delete the Agent: after deletion, the
+schedule routes return 404. See [Stop and delete](./agents.md#stop-and-delete). After an uncertain update/delete response, read or list schedules to
 reconcile state instead of assuming a retry cannot change anything.
 
 ## Payloads and limits

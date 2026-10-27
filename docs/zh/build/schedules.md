@@ -2,7 +2,7 @@
 title: Schedules
 description: 定时运行 Agent、覆盖 thinking 档位、检查执行记录并评价结果。
 source: /en/build/schedules
-source_hash: 76d5dcc451fb7c74ab64da399a8d4e9f3859ed4bb0ddbc40724dfd58b6c732b5
+source_hash: 6dcad8178484c5cbbf523cdce7b74341b38da9f95ca6598000f22c5a9f9d13cd
 ---
 
 # Schedules
@@ -67,6 +67,14 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
 201 receipt 带有公共 `schedule_id`。旧 `schedule_name` 保留用于兼容；使用 `schedule_id` 访问下面的 endpoint。Create receipt 不包含完整定义，需要通过 GET 读取。
 
 用相同 ID 和相同定义再次创建，会核对已有 schedule。相同 ID 配不同定义返回 409。使用稳定 ID 恢复丢失的 response；见[错误与重试](../reference/errors.md)。
+
+### 编写 cron 表达式 {#write-the-cron-expression}
+
+使用标准的五段式表达式（分钟、小时、日、月、星期），时区写在 `tz` 里。不要在 `expr` 里加 `CRON_TZ=` 或 `TZ=` 前缀，也不要用 `@daily` 这类 macro 或六段式写法。API 会把 `expr` 原样交给调度器，不会拒绝这些写法，所以一个不标准的表达式可能被接受，然后在你没想到的时间触发。保存后用 GET 读回定义，检查 `scheduleSpec`。
+
+### 触发重叠时 {#when-firings-overlap}
+
+一次触发不会等上一次 run 结束。默认的 `isolated` target 每次触发都会新开一个 Session，所以下一次触发到来时如果上一次 run 还没结束，两个 run 会并行执行。使用 `sessionTarget: "session:<session_id>"` 时，`agentTurn` 触发会在那个 Session 里排队，等当前 turn 结束后再执行。把间隔设得比一次 run 的通常耗时更长；如果 run 不能重叠，就让它们指向同一个 Session。
 
 ### 选择对话 {#choose-the-conversation}
 
@@ -181,7 +189,7 @@ curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 
 :::
 
-不要假设停止或删除 Agent 会清理它的全部 schedule。显式管理 schedule 生命周期。Update/delete response 不确定时，通过 read/list 核对状态，不要假设 retry 一定没有影响。
+不要假设停止或删除 Agent 会清理它的全部 schedule。显式管理 schedule 生命周期，并在删除 Agent 之前先删除 schedule：Agent 删除后，schedule 路由会返回 404。见[停止与删除](./agents.md#停止与删除)。Update/delete response 不确定时，通过 read/list 核对状态，不要假设 retry 一定没有影响。
 
 ## Payload 和限制 {#payloads-and-limits}
 

@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 715e5a231dd6b5c5c4a1784453232869eee7f0e9bfb783a144038a038374c51a
+source_hash: f64e555265e556619066fd8e2a7deccd23584897e506d00a63491014fd98df9a
 ---
 
 # TypeScript SDK 参考
@@ -303,7 +303,8 @@ listModels(): Promise<ModelInfo[]>
 ```ts
 const models = await client.listModels()
 const selectable = models.filter((model) => model.selectable !== false)
-console.log(selectable.length, selectable[0]?.model)
+const primaryDefault = selectable.find((model) => model.default_for?.includes('model'))
+console.log(selectable.length, primaryDefault?.model) // order is not a preference; select by default_for
 ```
 
 ```json

@@ -2,7 +2,7 @@
 title: 文件与产物
 description: 把文件发送给 Agent，让它创建工作区文件，再发布和下载产物。
 source: /en/build/files
-source_hash: c097e38c4cf7b1b9e6e389cccdbf9933dd041952feb5c958c0b3638e633892f4
+source_hash: f16d83fc8e599c098658b679be0e538dcc0a9a94272ad0198dd9deeb64b5e025
 ---
 
 # 文件与产物
@@ -10,6 +10,8 @@ source_hash: c097e38c4cf7b1b9e6e389cccdbf9933dd041952feb5c958c0b3638e633892f4
 把输入文件上传到 Agent 的 `/workspace`，或者在 Session 消息中以文本提供任务数据，再让 Agent 处理。需要获取输出时，让 Agent 发布 Artifact，然后通过 API 或 SDK 下载已发布的记录。
 
 工作区文件是某个路径上的当前文件。Artifact 是单独发布的副本，有自己的 ID 和下载 URL。修改工作区文件不会改变已发布的 Artifact。
+
+API 没有可用的路由来读取、列举或写入任意工作区路径。SDK 中已弃用的 `getWorkspaceFile()`、`getWorkspaceFileContent()` 和 `writeWorkspaceFile()` 会返回 HTTP 502；见[不支持的功能](../reference/not-supported.md)。请改用本页的上传和 Artifact 流程。
 
 ## 文件隔离 {#file-isolation}
 

@@ -50,6 +50,9 @@ Choose the `model` alias from a selectable row and set it as `resource.model.pri
 It does not describe input modalities. For the primary chat default, look for `model`, not
 `text`. Read the current catalog rather than hardcoding which model occupies a slot.
 
+The catalog order is not a preference ranking, and the first selectable row is not the
+platform default. Choose a model by `default_for` or by an explicit alias, not by position.
+
 On `409 model_not_selectable`, refresh the catalog and select an available alias. Repeating the same create or update unchanged will not fix it.
 
 Use [Files and artifacts](../build/files.md) for supported input/output flows and [Usage](./usage.md) for consumption queries.
@@ -65,13 +68,18 @@ change the effective level without changing this catalog value.
 
 ```ts [TypeScript]
 const models = await client.listModels()
-const selected = models.find((model) => model.selectable !== false)
+const selected = models.find(
+  (model) => model.selectable !== false && model.default_for?.includes('model'),
+)
 console.log(selected?.thinking?.default, selected?.thinking?.levels)
 ```
 
 ```python [Python]
 models = await client.list_models()
-selected = next(model for model in models if model.get("selectable") is not False)
+selected = next(
+    model for model in models
+    if model.get("selectable") is not False and "model" in (model.get("default_for") or [])
+)
 print(selected.get("thinking", {}).get("default"))
 print(selected.get("thinking", {}).get("levels"))
 ```
