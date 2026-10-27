@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 4ba476ec561db74935fe4f61a383578dcb67e4f3b3fbbd220bb2172f175840ae
+source_hash: 97501e461b7a69d14fdeb5a2a8102e5bea1c6aebce107340a03d59f7d56293e0
 ---
 
 # 快速开始
@@ -20,23 +20,26 @@ Build on ZooWork Managed Agents in this project.
 Read https://zoowork.ai/docs/get-started/quickstart.md before writing
 code. For anything else, find the page in
 https://zoowork.ai/docs/llms.txt and read only the pages this task
-needs. The API is a Developer Preview, so do not write ZooWork code
-from memory.
+needs. Read each page in full: fetch the raw Markdown, for example
+with curl, or ask your fetch tool for the complete text, because a
+summary can drop code. The API is a Developer Preview, so do not
+write ZooWork code from memory.
 
 Before writing code:
 1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk)
    or the Python SDK (zoowork). If one is already installed, use that
    version; do not upgrade it without asking.
 2. Check whether ZOOWORK_API_KEY is set, without printing its value.
-   If it is missing, ask me to create a Project API key and add funds
-   at https://platform.zoowork.ai, then set the variable myself. Never
+   If it is missing, ask me to create an API key and add funds at
+   https://platform.zoowork.ai, then set the variable myself. Never
    ask me to paste the key into this conversation.
 3. Keep the key in server-side code. Never put it in browser code or
    in the Agent's sandbox.
 
 Agent tasks use the organization's prepaid balance. Show me your plan
 and wait for my approval before the first request that creates or
-starts an Agent.
+starts an Agent. Do not estimate the cost; tell me to check Usage in
+ZooWork Platform for actual charges.
 
 When the integration works, offer to run
 `npx skills add SerendipityOneInc/zoowork-sdk-skills` so future
@@ -125,7 +128,7 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 ### 2. 启动 Agent
 
-创建 Session 前，先启动 Agent。
+创建 Session 前，先启动 Agent。SDK 示例随后会等到它的 desired state 变为 `running`；curl 的启动请求在这个状态设置好后返回。
 
 ::: code-group
 

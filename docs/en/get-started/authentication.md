@@ -59,7 +59,7 @@ asyncio.run(main())
 
 :::
 
-The SDK supplies the API address. You do not need to configure it for normal use. See the [TypeScript configuration](../reference/typescript-sdk.md#zooworkconfig) or [Python configuration](../reference/python-sdk.md#configuration) if you need to override it.
+The SDK supplies the API address, `https://clawapi.ecap.gsmo.ai/service/v1`. This ZooWork API host uses a different domain from the zoowork.ai website. You do not need to configure it for normal use. See the [TypeScript configuration](../reference/typescript-sdk.md#zooworkconfig) or [Python configuration](../reference/python-sdk.md#configuration) if you need to override it.
 
 ## Use HTTP
 
