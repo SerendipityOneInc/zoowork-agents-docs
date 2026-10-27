@@ -31,7 +31,7 @@ The SDK has **zero runtime dependencies**. It uses the platform `fetch`, Web Str
 
 | Runtime | Notes |
 |---|---|
-| Node 20 or later | SDK runtime target with built-in `fetch` and `ReadableStream`. The Quickstart uses Node 22.20+ to run a `.mts` file directly without a separate compilation step. |
+| Node.js 22 or later | Supported runtime, with built-in `fetch` and `ReadableStream`. Use the latest security release of your line; see the [Quickstart prerequisites](../get-started/quickstart.md#prerequisites). A patched Node.js 22 or later also runs the Quickstart's `.mts` file directly, without a separate compilation step. |
 | Cloudflare Workers, Deno, Bun, other edge runtimes | Supported by construction. The SSE parser is written against Web Streams, not Node streams. |
 | Browsers | The API key authorizes access to your organization's agents and sessions. Keep it on your server; call ZooWork through your own backend. |
 

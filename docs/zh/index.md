@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: af8c255430d1c25442332337c0b0c31fca1a65e8a4994ab1073044d8cecb7c15
+source_hash: 85304b2b52e787ae25d2921271c03db09c9ce4534d7856d8063a24275d8946fd
 hero:
   text: 用 Agent 构建应用。运行交给 ZooWork。
   tagline: 让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
@@ -28,11 +28,11 @@ home:
       - id: typescript
         label: TypeScript
         install: npm i @zoowork-ai/sdk
-        meta: 创建 Agent 和 Session · Node.js 22.20+
+        meta: 创建 Agent 和 Session · Node.js 22+
       - id: python
         label: Python
         install: python -m pip install zoowork
-        meta: 创建 Agent 和 Session · Python 3.10+
+        meta: 创建 Agent 和 Session · Python 3.11+
     sampleLinkText: 查看完整 Quickstart
     sampleLink: /zh/get-started/quickstart
     streamLabel: 示例 SESSION 事件

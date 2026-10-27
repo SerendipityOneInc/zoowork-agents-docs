@@ -4,7 +4,7 @@ description: Configure the async Python SDK and use Agent, Session, Schedule, ev
 
 # Python SDK
 
-The `zoowork` package is an async Python client for the public ZooWork API. Use Python 3.10 or later. Request and response fields retain their API spelling; Python method names and keyword arguments use `snake_case`.
+The `zoowork` package is an async Python client for the public ZooWork API. Use Python 3.11 or later; see the [Quickstart prerequisites](../get-started/quickstart.md#prerequisites). Request and response fields retain their API spelling; Python method names and keyword arguments use `snake_case`.
 
 This reference applies to Python SDK **0.8.0+**.
 

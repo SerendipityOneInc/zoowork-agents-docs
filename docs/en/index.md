@@ -26,11 +26,11 @@ home:
       - id: typescript
         label: TypeScript
         install: npm i @zoowork-ai/sdk
-        meta: Create an agent and session · Node.js 22.20+
+        meta: Create an agent and session · Node.js 22+
       - id: python
         label: Python
         install: python -m pip install zoowork
-        meta: Create an agent and session · Python 3.10+
+        meta: Create an agent and session · Python 3.11+
     sampleLinkText: Full Quickstart
     sampleLink: /en/get-started/quickstart
     streamLabel: EXAMPLE SESSION EVENTS

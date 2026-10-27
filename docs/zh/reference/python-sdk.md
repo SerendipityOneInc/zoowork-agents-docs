@@ -1,12 +1,12 @@
 ---
 description: 配置 async Python SDK，并使用 Agent、Session、Schedule、event 和 thinking 方法。
 source: /en/reference/python-sdk
-source_hash: cc35762ff066d4a05909a256bc936bf2d76f97de9ef385260ceda341e62e12a8
+source_hash: ff23f5624412bec1a732504de5014a0e83734f585010ee36301fdf8488ae426a
 ---
 
 # Python SDK
 
-`zoowork` 是 ZooWork 公共 API 的 async Python client，要求 Python 3.10+。request 和 response 字段保留 API 拼写；Python 方法名和 keyword argument 使用 `snake_case`。
+`zoowork` 是 ZooWork 公共 API 的 async Python client，要求 Python 3.11 或更高版本，见[快速开始的前置条件](../get-started/quickstart.md#前置条件)。request 和 response 字段保留 API 拼写；Python 方法名和 keyword argument 使用 `snake_case`。
 
 本参考适用于 Python SDK **0.8.0+**。
 
