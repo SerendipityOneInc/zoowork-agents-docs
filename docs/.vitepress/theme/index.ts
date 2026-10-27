@@ -3,6 +3,7 @@ import type { Theme } from 'vitepress'
 import '@fontsource-variable/jetbrains-mono'
 import { syncCodeGroups } from './code-group-sync'
 import ZcHome from './components/ZcHome.vue'
+import AgentPrompt from './components/AgentPrompt.vue'
 import DocsLayout from './components/DocsLayout.vue'
 import './custom.css'
 
@@ -13,6 +14,8 @@ export default {
     // The home page is a component rather than the stock hero-and-features layout; both
     // locales' `index.md` carry its content as frontmatter and mount it from their body.
     app.component('ZcHome', ZcHome)
+    // Wraps the coding-assistant prompt block in the Quickstart; see AgentPrompt.vue.
+    app.component('AgentPrompt', AgentPrompt)
 
     if (typeof window === 'undefined') return
     syncCodeGroups()

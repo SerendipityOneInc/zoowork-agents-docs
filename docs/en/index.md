@@ -14,6 +14,8 @@ home:
       - text: Quickstart
         link: /en/get-started/quickstart
         theme: primary
+      - text: Use a coding assistant
+        link: /en/get-started/quickstart#use-a-coding-assistant
       - text: Overview
         link: /en/get-started/overview
       - text: TypeScript SDK

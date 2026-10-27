@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: c78fd3f38a2da633497d7af7decb922570f13239ffbe61c4ff2031766c122513
+source_hash: af8c255430d1c25442332337c0b0c31fca1a65e8a4994ab1073044d8cecb7c15
 hero:
   text: 用 Agent 构建应用。运行交给 ZooWork。
   tagline: 让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
@@ -16,6 +16,8 @@ home:
       - text: 快速开始
         link: /zh/get-started/quickstart
         theme: primary
+      - text: 使用编码助手
+        link: /zh/get-started/quickstart#use-a-coding-assistant
       - text: 概览
         link: /zh/get-started/overview
       - text: TypeScript SDK
