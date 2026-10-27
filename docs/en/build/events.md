@@ -590,8 +590,19 @@ they are not part of the durable cursor and never replay. And their `replace: tr
 you would write for a prefix-append delta stream duplicates everything already shown. Assign,
 do not append.
 
-When preview streaming is unavailable, requesting `deltas` returns `501 not_configured`
-before the stream opens. Handle it as a regular JSON error.
+A preview frame has no `event:` line either. Recognize it by its JSON body, whose `type` is
+`event_delta`:
+
+```json
+{ "type": "event_delta", "runId": "run-...", "turn": 0, "deltaText": "The ocean covers", "replace": true }
+```
+
+`deltaText` is the full text generated so far, and `runId` matches the durable events of the
+same run. Some deployments also include a `segment` number; treat it as optional. Durable
+frames on the same stream keep their `id:` line and their usual body.
+
+If a deployment cannot serve preview frames, the request fails before the stream opens with
+`502 agent.runtime_error`. Handle it as a regular error and fall back to the durable stream.
 
 For finished text, use `agent.assistant` events, which are durable and resumable.
 
@@ -715,9 +726,10 @@ a timestamp once the agent has consumed it. The write-side rules for all five ar
 
 #### Preview events: `chat.*`
 
-`chat.delta`, `chat.final`, `chat.aborted`, and `chat.error` are delivered on a separate
-per-run preview lane through the [`?deltas=` query parameter](#the-deltas-preview-lane).
-Use the durable `run.started` and `run.finished` events for turn lifecycle logic.
+The SDK's event type list includes `chat.delta`, `chat.final`, `chat.aborted`, and
+`chat.error`, but the public stream does not deliver them as events. The only preview data is
+the `event_delta` text snapshot on the [`?deltas=` lane](#the-deltas-preview-lane). Use the
+durable `run.started` and `run.finished` events for turn lifecycle logic.
 
 ### Helpers
 

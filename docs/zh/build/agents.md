@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、更新和管理带版本的 Agent，并设置模型 thinking 档位。
 source: /en/build/agents
-source_hash: 3f5742eb7d0315237a38ec5a12375eb03e8adf1e42b7957b365cdb2f9168a51e
+source_hash: b318cb5ffcd0250ab3acfbb239c9e7b48284ee3627eca8721e657020e080387a
 ---
 
 # Agents
@@ -118,6 +118,12 @@ Onboarding interview 会被跳过，第一条消息直接开始任务。
 整个 `model` 段都可以省略。省略时，创建操作会把当时的平台默认值写入 Agent。默认值可能随部署环境和时间变化。需要可重复部署时，请先调用 `listModels()`，再持久化一个明确选择。
 
 Persona 文档、Skills、工具和沙箱配置见 [resource 字段](#resource-的字段)。
+
+### 在初始化时创建 Agent，不要每条消息都创建
+
+每次调用 `createAgent()` 都会创建一个新 Agent，并带有它自己的持久 `/workspace`。workspace 在创建时立即生成，Agent 删除后也会保留。沙箱稍后创建，在 Agent 第一次调用工具时才生成；闲置的沙箱会被暂停，而不是销毁。系统不会替你清理不再使用的 Agent。
+
+所以不要在每条消息或每个请求都会执行的代码里调用 `createAgent()`。在应用初始化时，或某个用户第一次需要时创建一次 Agent，保存它的 ID，然后每段对话在这个 Agent 上新开一个 Session。每个终端用户一个 Agent 的做法见 [每个用户一个 Agent](./per-user-agents.md)。
 
 ## 读取 agent
 
@@ -317,19 +323,32 @@ curl -sS --fail-with-body --request POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sto
 
 `deleteAgent()` 是**软删除** 。它把 agent 运行时标记为已删除，返回 `204`。它不停止 agent，不取消正在跑的 workflow，不删除定时任务，也不释放沙箱。不先停就删，会留下一批仍在运行、而你再也寻址不到的资源。
 
+拆除 Agent 按这个顺序：先删除它的定时任务，再停止，最后删除。定时任务要放在最前面，因为 Agent 删除后它们仍会继续触发，而 Agent 一旦删除，所有 `/agents/{agentId}/...` 路由（包括定时任务路由）都返回 404。事先没删的定时任务，之后就无法再通过 API 列出或删除。
+
 ::: code-group
 
 ```ts [TypeScript]
-await client.stopAgent(agentId)   // do this first
-await client.deleteAgent(agentId) // then this
+for (const schedule of await client.listSchedules(agentId)) {
+  if (schedule.schedule_id) await client.deleteSchedule(agentId, schedule.schedule_id)
+}
+await client.stopAgent(agentId)
+await client.deleteAgent(agentId)
 ```
 
 ```python [Python]
+for schedule in await client.list_schedules(agent_id):
+    await client.delete_schedule(agent_id, schedule["schedule_id"])
 await client.stop_agent(agent_id)
 await client.delete_agent(agent_id)
 ```
 
 ```bash [curl]
+for SCHEDULE_ID in $(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" | jq -r '.schedules[].schedule_id'); do
+  curl -sS --fail-with-body --request DELETE \
+    "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY"
+done
 curl -sS --fail-with-body --request POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/stop" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" &&
 curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
@@ -337,6 +356,8 @@ curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" 
 ```
 
 :::
+
+停止 Agent 会取消它的 workflow，但不会释放沙箱；闲置的沙箱会被暂停，而不是销毁。
 
 首次成功删除返回 `204`。通过公共 API 重复删除返回 `404 service_api.not_found`；删除后 `getAgent()` 也返回 404。资源不在当前 key 的范围内同样可能返回 404。恢复自己发起的删除时，保留原 Agent ID 和 key scope，不能将任意 404 当成删除证明。见[重试说明](../reference/errors.md#what-is-safe-to-retry)。
 

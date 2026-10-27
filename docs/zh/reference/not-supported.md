@@ -1,7 +1,7 @@
 ---
 description: 核对当前公共API边界，为secrets、集成、budget和self-hosting选择已有方案。
 source: /en/reference/not-supported
-source_hash: 37c242fe73c77b91bb5810144ef3d4dac9cb345b25dbfb4dadbc76b113085e1f
+source_hash: 24b7153ba369d5aa42f4027ff0278bc0af15d8e896a198bea1ca34ba73340736
 ---
 
 # 当前公共 API 边界
@@ -18,7 +18,7 @@ source_hash: 37c242fe73c77b91bb5810144ef3d4dac9cb345b25dbfb4dadbc76b113085e1f
 | 公共组织、Project 或 API-key Admin API | `/service/v1` 不提供这一管理接口。 | 在 [Platform](../get-started/authentication.md) 管理。 |
 | 开箱即用的 ZooData/RAG/connector 配置 | ZooData retrieval 和 connectors 尚无已记录的公共 provisioning API。 | 用 [custom tools 或公开 MCP](../build/retrieval.md) 连接自己的服务。 |
 | Credential vault 和需认证/private MCP provisioning | 公共 key 不能 provision Agent credentials，存在 credential 字段也不表示已有可用流程。 | 将服务凭证留在后端，执行 [custom tool](../build/tools.md)。 |
-| 直接读取工作区文件与消息附件 | 不支持通过 API 读取、列举或下载任意工作区路径。Session 消息只能携带文本。 | 把[输入文件上传](../build/files.md#send-a-file-to-the-agent)到 `/workspace`，输出通过[已发布的 Artifact](../build/files.md) 获取。 |
+| 直接读取工作区文件与消息附件 | 不支持通过 API 读取、列举、写入或下载任意工作区路径。已弃用的 SDK 方法 `getWorkspaceFile()`、`getWorkspaceFileContent()` 和 `writeWorkspaceFile()`（Python 为 `get_workspace_file()`、`get_workspace_file_content()`、`write_workspace_file()`）会返回 HTTP 502，失败前可能要等约 30 秒。Session 消息只能携带文本。 | 把[输入文件上传](../build/files.md#send-a-file-to-the-agent)到 `/workspace`，输出通过[已发布的 Artifact](../build/files.md) 获取。 |
 | Session 花费上限 | 公共 API 提供 Usage 查询，不提供服务端强制执行的 per-Session 花费上限。 | 查询 [Usage](./usage.md)，由应用执行策略，需要时显式[中断任务](../build/events.md#user-interrupt)。 |
 | 公共 rate-limit 配置 API 或固定 quota | 公共 API contract 尚未确立。 | 对 429 做 backoff，不硬编码其他 provider 的 quota。 |
 | 独立 Memory stores、mounts 或 Dreams jobs | 尚无公共管理流程。 | 在 scope 内使用已启用的 [Agent Memory 工具](../build/memory.md)。 |

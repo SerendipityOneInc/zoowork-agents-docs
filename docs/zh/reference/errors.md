@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 2abfc7e535a2a6eac4062d1081d98b418b6eefd7aa0cdb8d7d6bc410212a30dc
+source_hash: 23ad699da756360c51eb398b49c0ce2c07af79b99cd54e1281171fe1de91104b
 ---
 
 # 错误与重试
@@ -67,6 +67,8 @@ if (e instanceof ZooworkError && e.type === 'agent_not_running') await client.st
 **网关对认证和租户相关的失败使用自己的信封**。这些检查在转发请求之前完成。无效 API key 返回 `401 platform.api_key_invalid`。缺少或不受支持的 Bearer credential 可以返回 `401 service_token.required`。
 
 API 这一侧本身就分两族，不是一族。session、定时任务、environment 返回 `{ error: { type, message } }`，代码不带点（`agent_not_running`、`session_archived`）；agent 这一族返回 `{ code, detail }`，代码带点（`service_api.not_found`）。两种最后都落到 `ZooworkError` 上，而且代码原样保留——SDK 不会替它们发明一套统一词表——所以在用 `===` 比较 type 之前，先看下面 `not_found` 那一行。
+
+还有第三个来源，比这两者都更早响应：API 前面的网络边缘层。它会拒绝 Python 内置 `urllib` 的默认 User-Agent（`Python-urllib/3.x`），返回 `403` 和纯文本响应体 `error code: 1010`，这时还没有检查你的 key。这不是 API key 的问题。SDK、curl、`requests`、`httpx` 和 Node `fetch` 不受影响。如果用 `urllib` 调用 API，请显式设置 `User-Agent` header。
 
 ::: warning `type` 可能是 `undefined`
 两种情况会让你完全拿不到 type：
@@ -135,7 +137,7 @@ if (e instanceof ZooworkError) {
 | `platform.authentication_unavailable` | 503 | 认证依赖不可用，稍后重试。 |
 | `platform.key_credentials_not_bound` | Agent 创建时为 409 | 请组织 owner 登录 Platform，创建替代 key 并更新应用。见 [Authentication](../get-started/authentication.md#替换或撤销-key)。 |
 | `platform.billing_not_ready` | 409 | 登录 Platform，等待组织 billing 设置完成。失败时选择 **Retry billing setup**。不能仅凭这个 code 判断余额不足。 |
-| `platform.runtime_credentials_unavailable` | 503 | runtime credential 依赖不可用，稍后重试。 |
+| `platform.runtime_credentials_unavailable` | 503 | runtime credential 依赖不可用，或者同一个组织的另一个请求正在同时读取组织的 runtime credential。同一组织内并行调用 `createAgent()` 会触发它，即使用的是不同的 key 或 Project。此时没有创建 Agent。请在组织范围内逐个创建 Agent，并用相同的 `Idempotency-Key` 和 body 退避重试。 |
 | `usage.access_denied` | 403 | 只查询 key Usage scope 内的数据。 |
 | `usage.snapshot_expired` | 409 | 发起新的 Usage 查询。 |
 | `usage.invalid_query` | 400 | 修正无效 timezone 等查询错误。 |

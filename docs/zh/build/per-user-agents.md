@@ -2,7 +2,7 @@
 title: 每用户一个 Agent
 description: 为每个应用用户提供独立的 Agent workspace，并通过后端授权访问。
 source: /en/build/per-user-agents
-source_hash: f056b13e7aa72ccfbf43a2002420f3f41b5831217348fafbe04b8f0dba7d274e
+source_hash: 72fabd757ae709581f13e83b2c383021b31cec6f234a359d6f425c59046d39f6
 ---
 
 # 每用户一个 Agent
@@ -134,7 +134,7 @@ curl tab 展示 HTTP 调用，应用仍然需要在调用前后读取和写入�
 每个请求成功后再继续。第一次创建 Session 前，先保存新返回的 Agent ID。
 
 重试创建请求时复用相同的 idempotency key 和 body。
-可能有并发请求执行这段代码时，按用户串行创建。
+可能有并发请求执行这段代码时，按用户串行创建；同时在整个组织范围内串行调用 `createAgent()`：同一组织内并行创建可能返回 `503 platform.runtime_credentials_unavailable`，且不会创建 Agent。见[错误处理](../reference/errors.md#platform-与-usage-错误)。
 以映射为事实来源。已映射的 Agent 被删除或无法访问时，先核对映射，再创建替代 Agent。
 
 `labels.end_user` 可以在 key 的列表范围内辅助恢复，但不提供授权。

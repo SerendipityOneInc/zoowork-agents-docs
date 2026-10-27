@@ -133,7 +133,10 @@ around them. Check each request succeeds before continuing. Save a newly returne
 before opening the first Session.
 
 Reuse the same create idempotency key and body for retries. Serialize provisioning for each
-user when concurrent requests can reach this code. Treat the mapping as the source of truth.
+user when concurrent requests can reach this code, and serialize `createAgent()` calls across
+the whole organization: parallel creates in one organization can fail with
+`503 platform.runtime_credentials_unavailable` without creating an Agent. See
+[Errors](../reference/errors.md#platform-and-usage-errors). Treat the mapping as the source of truth.
 If the mapped Agent has been deleted or is inaccessible, reconcile the mapping before
 creating a replacement.
 

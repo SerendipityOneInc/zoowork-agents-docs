@@ -143,7 +143,7 @@ Example assistant row:
         "cacheRead": 0,
         "cacheWrite": 0,
         "totalTokens": 15252,
-        "cost": { "input": 0, "output": 0, "total": 0 }
+        "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 }
       },
       "content": [
         { "type": "text", "text": "" },
@@ -160,8 +160,9 @@ Example assistant row:
 The transcript also includes:
 
 - **Token usage.** `entry.message.usage` carries the token counts of that model message.
-  The example above has `0` cost values. Do not use those values as a billing contract;
-  use the [Usage API](../reference/usage.md) for consumption reporting.
+  `usage.cost` has the fields `input`, `output`, `cacheRead`, `cacheWrite`, and `total`, and
+  they are recorded as `0`. Do not use them for billing; use the
+  [Usage API](../reference/usage.md) for consumption reporting.
 - **The model that actually answered.** `model` is what the agent is configured with;
   `responseModel` is what served the request. A deployment can map a configured alias onto a
   substitute, so the two differ in the sample above. Trust `responseModel` when the answer
@@ -309,7 +310,9 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID/archive" \
 
 :::
 
-An in-flight run returns `409 session_running`. Send `user.interrupt`, observe its terminal
+A run that is already running or awaiting approval returns `409 session_running`. That check
+does not cover a message whose run has not started yet: archive can succeed, and the run still
+executes afterwards. So do not rely on the 409. Send `user.interrupt`, observe its terminal
 `run.finished`, then archive. Afterwards reads keep working, while new events return
 `409 session_archived`. Repeating archive keeps the first archive timestamp.
 

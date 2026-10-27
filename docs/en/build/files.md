@@ -12,6 +12,11 @@ A workspace file is the current file at a path. An Artifact is a separately publ
 with an ID and a download URL. Changing the workspace file does not change an already
 published Artifact.
 
+There is no working API route for reading, listing, or writing an arbitrary workspace path.
+The SDK's deprecated `getWorkspaceFile()`, `getWorkspaceFileContent()`, and
+`writeWorkspaceFile()` fail with HTTP 502; see [Not supported](../reference/not-supported.md).
+Use the upload and Artifact flows on this page instead.
+
 ## File isolation
 
 All sessions of an Agent share `/workspace`. The default `sandbox.scope: 'agent'` also shares

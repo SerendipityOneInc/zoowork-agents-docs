@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 4ee18385a4d48502f33294212ca43942bccd406bcdf3bc95b96894e58df73540
+source_hash: 7d9b3e4784da69d9a1aa021abad240b79b727aab1080cfedb91dc9b91cb60ac9
 ---
 
 # Session 事件流
@@ -503,7 +503,15 @@ console.log(`${pending.size} tool calls never returned`)
 
 有两点和你可能的预期不一样。预览帧**不带 `id:` 行** ：它们不属于持久游标，永远不会被重放。而预览帧上的 `replace: true` 意思是**整体快照替换，不是前缀追加** ——每一帧带的都是当前的完整文本，所以你为前缀追加式 delta 流写的那个 `+=` 会把已经显示过的内容全部重复一遍。要赋值，不要追加。
 
-在没有配置预览后端的部署上请求 `deltas`，会在流打开之前返回 `501 not_configured`，所以你拿到的是一个正常的 JSON 错误，而不是一条一直沉默的流。
+预览帧也没有 `event:` 行。要靠 JSON 内容识别它，它的 `type` 是 `event_delta`：
+
+```json
+{ "type": "event_delta", "runId": "run-...", "turn": 0, "deltaText": "The ocean covers", "replace": true }
+```
+
+`deltaText` 是到目前为止生成的完整文本，`runId` 与同一个 run 的持久事件一致。有些部署还会带一个 `segment` 编号，把它当作可选字段处理。同一条流上的持久帧照常带 `id:` 行和原有的内容。
+
+如果部署无法提供预览帧，请求会在流打开之前失败，返回 `502 agent.runtime_error`。把它当作普通错误处理，并退回到持久流。
 
 要拿最终文本，请使用 `agent.assistant` 事件。它是持久的，并且可以续传。
 
@@ -608,7 +616,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // the frame's SSE i
 
 #### `chat.*` —— 不在持久日志上
 
-`chat.delta`、`chat.final`、`chat.aborted` 和 `chat.error` 也是词表成员，但**不会写进持久事件日志** 。它们活在一条独立的、按 run 划分的预览通道上，唯一能看到其中内容的办法是[`?deltas=` 查询参数](#the-deltas-preview-lane)。不要拿它们构建回合逻辑；一个回合的边界是 `run.started` 和 `run.finished`。
+SDK 的事件类型列表里有 `chat.delta`、`chat.final`、`chat.aborted` 和 `chat.error`，但公共流不会把它们作为事件下发。唯一的预览数据是 [`?deltas=` 通道](#the-deltas-preview-lane)上的 `event_delta` 文本快照。不要拿它们构建回合逻辑；一个回合的边界是 `run.started` 和 `run.finished`。
 
 ### 辅助函数 {#helpers}
 

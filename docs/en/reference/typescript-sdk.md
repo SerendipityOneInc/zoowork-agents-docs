@@ -307,7 +307,8 @@ bare-array and the `{ models: [...] }` wire shapes and always hands you an array
 ```ts
 const models = await client.listModels()
 const selectable = models.filter((model) => model.selectable !== false)
-console.log(selectable.length, selectable[0]?.model)
+const primaryDefault = selectable.find((model) => model.default_for?.includes('model'))
+console.log(selectable.length, primaryDefault?.model) // order is not a preference; select by default_for
 ```
 
 ```json

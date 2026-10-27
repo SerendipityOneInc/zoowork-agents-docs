@@ -1,7 +1,7 @@
 ---
 description: 选择模型 alias、读取 thinking 能力并处理模型生命周期变化。
 source: /en/reference/models
-source_hash: 48f73d106e3aeeeb86aeb9608d9351732b8055b6cad3456a8d58f7be05895caf
+source_hash: 148d292db97698f96f63a0189b9270752d2914cafcead5464be703257c92dfd1
 ---
 
 # Models
@@ -49,6 +49,8 @@ SDK 配置与 HTTP 示例使用的变量见 [Authentication](../get-started/auth
 
 `default_for` 表示 Agent 配置槽位，例如 `model`、`imageModel`、`imageGenerationModel`、`pdfModel`；fallback 条目可能带 `.fallbacks.N` 后缀。它不表示输入类型。选择默认聊天模型时查找 `model`，不要查找 `text`。以当前 catalog 为准，不要固定某个槽位的模型名称。
 
+目录顺序不代表偏好，第一个 selectable 的条目也不是平台默认模型。按 `default_for` 或明确的 alias 选择模型，不要按位置选择。
+
 遇到 `409 model_not_selectable`，刷新目录并选择可用 alias。原样重试 create 或 update 无法解决这个问题。
 
 支持的输入输出流程见[文件与产物](../build/files.md)，消耗查询见 [Usage](./usage.md)。
@@ -63,13 +65,18 @@ SDK 配置与 HTTP 示例使用的变量见 [Authentication](../get-started/auth
 
 ```ts [TypeScript]
 const models = await client.listModels()
-const selected = models.find((model) => model.selectable !== false)
+const selected = models.find(
+  (model) => model.selectable !== false && model.default_for?.includes('model'),
+)
 console.log(selected?.thinking?.default, selected?.thinking?.levels)
 ```
 
 ```python [Python]
 models = await client.list_models()
-selected = next(model for model in models if model.get("selectable") is not False)
+selected = next(
+    model for model in models
+    if model.get("selectable") is not False and "model" in (model.get("default_for") or [])
+)
 print(selected.get("thinking", {}).get("default"))
 print(selected.get("thinking", {}).get("levels"))
 ```

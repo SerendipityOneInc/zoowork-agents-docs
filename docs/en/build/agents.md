@@ -122,6 +122,18 @@ persist an explicit selection when repeatable provisioning matters.
 
 For persona documents, Skills, tools, and sandbox settings, see [Resource fields](#the-resource-fields).
 
+### Create Agents at setup time, not per message
+
+Each `createAgent()` call makes a new Agent with its own persistent `/workspace`. The workspace
+is created immediately and is kept even after the Agent is deleted. The sandbox is created
+later, on the Agent's first tool call, and an idle sandbox is paused rather than destroyed.
+Nothing removes unused Agents for you.
+
+So do not call `createAgent()` in code that runs for every incoming message or request. Create
+the Agent once, during application setup or the first time a user needs one, store its ID, and
+open a new Session on it for each conversation. For one Agent per end user, see
+[An Agent per user](./per-user-agents.md).
+
 ## Read an agent
 
 `getAgent()` returns the current configuration in `declared` and lifecycle state in `status`:
@@ -338,19 +350,36 @@ It does not stop the agent, does not cancel running workflows, does not delete s
 does not release the sandbox. Deleting without stopping leaves resources running that you can
 no longer address.
 
+Tear an Agent down in this order: delete its schedules, stop it, then delete it. Schedules come
+first because they keep firing after the Agent is deleted, and every
+`/agents/{agentId}/...` route, including the schedule routes, returns 404 once the Agent is
+deleted. A schedule you did not remove beforehand can no longer be listed or deleted through
+the API.
+
 ::: code-group
 
 ```ts [TypeScript]
-await client.stopAgent(agentId)   // do this first
-await client.deleteAgent(agentId) // then this
+for (const schedule of await client.listSchedules(agentId)) {
+  if (schedule.schedule_id) await client.deleteSchedule(agentId, schedule.schedule_id)
+}
+await client.stopAgent(agentId)
+await client.deleteAgent(agentId)
 ```
 
 ```python [Python]
+for schedule in await client.list_schedules(agent_id):
+    await client.delete_schedule(agent_id, schedule["schedule_id"])
 await client.stop_agent(agent_id)
 await client.delete_agent(agent_id)
 ```
 
 ```bash [curl]
+for SCHEDULE_ID in $(curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY" | jq -r '.schedules[].schedule_id'); do
+  curl -sS --fail-with-body --request DELETE \
+    "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
+    -H "Authorization: Bearer $ZOOWORK_API_KEY"
+done
 curl -sS --fail-with-body --request POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/stop" \
   -H "Authorization: Bearer $ZOOWORK_API_KEY" &&
 curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
@@ -358,6 +387,9 @@ curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID" 
 ```
 
 :::
+
+Stopping an Agent cancels its workflows but does not release its sandbox; an idle sandbox is
+paused rather than destroyed.
 
 The first successful deletion returns `204`. Repeating it through the public API returns
 `404 service_api.not_found`; `getAgent()` also returns 404 after deletion. A 404 can also mean
