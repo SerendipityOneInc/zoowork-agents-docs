@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: f64e555265e556619066fd8e2a7deccd23584897e506d00a63491014fd98df9a
+source_hash: d93a1a210229f8c9f45fc0eaba205fb995cffe131ae7c554ec3656f457f35445
 ---
 
 # TypeScript SDK 参考
@@ -34,7 +34,7 @@ npm install @zoowork-ai/sdk
 
 | 运行时 | 说明 |
 |---|---|
-| Node 20 及以上 | SDK runtime 要求，内置 `fetch` 和 `ReadableStream`。快速开始要求 Node 22.20+，用于直接运行 `.mts` 文件而不单独编译。 |
+| Node.js 22 及以上 | 支持的 runtime，内置 `fetch` 和 `ReadableStream`。请使用所在版本线的最新安全版本，见[快速开始的前置条件](../get-started/quickstart.md#前置条件)。打过补丁的 Node.js 22 及以上版本也能直接运行快速开始的 `.mts` 文件，无需单独编译。 |
 | Cloudflare Workers、Deno、Bun 及其他边缘运行时 | 从构造上就支持。SSE 解析器是照着 Web Streams 写的，不是 Node streams。 |
 | 浏览器 | API Key 可访问你组织内的 Agent 和 Session。将 Key 保存在服务端，通过你自己的后端调用 ZooWork。 |
 
