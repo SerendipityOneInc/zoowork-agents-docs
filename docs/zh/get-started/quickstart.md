@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 2adac7f6712bdcc4f47163a0314e235f9db60c5166db3b65bc70df077f479ebd
+source_hash: 04913c596a081a66cca9a8e62639174f7d8dcdf2be8e1588fd4b3d0b6485a50d
 ---
 
 # 快速开始
@@ -170,9 +170,14 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 :::
 
-SDK 示例会检查回执中的消息是否已被接受，否则直接停止。使用 curl 时，确认响应中的
-`events[0].accepted` 为 `true`。然后读取事件流，查看 Agent 的执行过程和结果。
-事件会被保存，所以即使 Agent 在你连接前就开始工作，仍然可以读回这些进度。
+SDK 示例会检查回执中的消息是否已被接受，否则直接停止。然后读取事件流，查看 Agent 的
+执行过程和结果。事件会被保存，所以即使 Agent 在你连接前就开始工作，仍然可以读回这些进度。
+
+::: tip 使用 curl 时
+读取事件流之前，确认发送消息的响应中 `events[0].accepted` 为 `true`。curl 显示原始事件流，
+事件连接会等待后续回合，直到你主动关闭它。看到 `event_type: "run.finished"` 后，检查
+`payload.status`，再按 **Ctrl+C** 回到终端。
+:::
 
 ::: code-group
 
@@ -184,9 +189,7 @@ SDK 示例会检查回执中的消息是否已被接受，否则直接停止。�
 
 :::
 
-**TypeScript 和 Python** 打印回复和工具调用，在收到 `run.finished` 后关闭连接。
-**curl** 显示原始事件流。看到 `event_type: "run.finished"` 后，检查 `payload.status`，
-再按 **Ctrl+C** 回到终端。事件连接会等待后续回合，直到你主动关闭它。
+SDK 示例打印回复和工具调用，在收到 `run.finished` 后关闭连接。
 
 成功回合的状态为 `succeeded`。同时，Agent 的回复应确认报告已保存，合计销售额为 **300 美元**。
 工具名称和措辞可能不同，下面是示意输出；curl 仅展示部分事件字段：
@@ -259,13 +262,57 @@ python quickstart.py
 如果程序提前退出，使用已打印的 Agent ID 执行上面的清理请求。
 curl 用户在按 Ctrl+C 关闭事件流后执行清理。两个 SDK 程序退出时都会关闭 HTTP client。
 
+## 构建完整应用
+
+下面每个示例都是 [quickstarts 仓库](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts)
+里可以运行的完整应用。每个示例独立安装，需要使用你自己的 API key。
+
+<LinkCards>
+
+- [Agent Starter](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/starter)
+
+  为你定义的一个 Agent 提供聊天应用：多个对话、实时工具活动、停止、工具审批和已保存的历史。
+
+- [Customer Support](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/customer-support)
+
+  应用执行的 custom tools 查询订单，并在用户确认内容后创建工单。
+
+- [Product Advisor](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/product-advisor)
+
+  远程 MCP server 提供商品目录搜索和规格对比。
+
+- [Research Assistant](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/research-assistant)
+
+  基于 Vercel Chat SDK，展示搜索和抓取活动，再给出带来源引用的简报。
+
+</LinkCards>
+
 ## 下一步
 
-- [架构](./architecture.md)：了解托管执行、状态持久保存和计算按需启停。
-- [Agents](../build/agents.md)：选择模型、工具和 Skills。
-- [启动 Session](../build/sessions.md)：创建并继续对话。
-- [Session 操作](../build/session-operations.md)：读取历史并管理已保存的 Session。
-- [事件与流式](../build/events.md)：处理事件、超时和重新连接。
-- [Agent Starter](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/starter)：从模板开始，为一个 Agent 搭建完整的聊天应用。
-- [示例应用](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts)：每个完整应用演示一项能力，例如 custom tools 或远程 MCP。
-- [编码助手 Skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills)：为编码助手提供 ZooWork SDK 使用说明。
+<LinkCards>
+
+- [架构](./architecture.md)
+
+  了解托管执行、状态持久保存和计算按需启停。
+
+- [Agents](../build/agents.md)
+
+  选择模型、工具和 Skills。
+
+- [启动 Session](../build/sessions.md)
+
+  创建并继续对话。
+
+- [Session 操作](../build/session-operations.md)
+
+  读取历史并管理已保存的 Session。
+
+- [事件与流式](../build/events.md)
+
+  处理事件、超时和重新连接。
+
+- [编码助手 Skill](https://github.com/SerendipityOneInc/zoowork-sdk-skills)
+
+  为编码助手提供 ZooWork SDK 使用说明。
+
+</LinkCards>
