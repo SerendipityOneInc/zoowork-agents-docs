@@ -1,7 +1,7 @@
 ---
-description: 通过公共HTTP API查询Usage，理解key scope、筛选与分页。
+description: 通过SDK或公共HTTP API查询Usage和组织余额，理解key scope、筛选与分页。
 source: /en/reference/usage
-source_hash: 1f77b4e7bfac34b583cd8be671f3250edec6fce51777a0ece78662584f6f1886
+source_hash: d2d5d10fc0f6804a6c8eb9b9679ce3eec68bfb6dd1c08227d60681a4153c7afa
 ---
 
 # Usage
@@ -29,7 +29,47 @@ Platform key 只能读取归属于自身的 Usage。省略 `api_key_id` 就查�
 
 `credits` 表示 Platform credits 消耗，不是 token 数、美元分或请求次数。Platform 钱包使用 **200 credits/USD**；例如 100 credits 对应 USD 0.50。这是单位换算，不是每次模型调用或每个 Session 的固定价格。
 
-Project key 的 Usage 只包含所选时间范围内归属于该 key 的消耗，不是 Organization 的剩余余额。其他 key、共享 sandbox 费用、充值和报表时间差都会影响对账，不能用某次余额直接减去这份结果来推算当前余额。组织余额和组织范围的 Usage 请在 Platform 查看。
+Project key 的 Usage 只包含所选时间范围内归属于该 key 的消耗，不是 Organization 的剩余余额。其他 key、共享 sandbox 费用、充值和报表时间差都会影响对账，不能用某次余额直接减去这份结果来推算当前余额。剩余余额请用 [`GET /balance`](#read-the-organization-balance) 读取，组织范围的 Usage 请在 Platform 查看。
+
+## 读取组织余额 {#read-the-organization-balance}
+
+`GET /balance` 返回 key 所属组织的预付余额：
+
+```bash
+curl -sS --fail-with-body "$ZOOWORK_BASE_URL/balance" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
+
+```json
+{ "object": "balance", "available_amount": "11.34", "currency": "usd" }
+```
+
+::: code-group
+
+```ts [TypeScript]
+const balance = await client.getBalance()
+```
+
+```python [Python]
+balance = await client.get_balance()
+```
+
+:::
+
+SDK 方法需要包含它们的 SDK 版本。已安装的版本没有这个方法时，直接调用 HTTP endpoint。
+
+- 组织内任意 Platform key 都能读取余额，包括 Project key。所有 Project 共用一笔余额，没有按 Project 区分的余额。
+- `available_amount` 是两位小数的 USD 字符串，不是 credits。它和 Platform **Billing** 页面的 **Current balance** 是同一个数：已到账的充值减去当前计费周期内已上报的消耗，向下取整到分，最低为 `"0.00"`。因此 `"0.00"` 也可能表示组织已经透支。
+- 充值完成后才计入余额。请求前不久上报的消耗可能还没有计入，所以不要把余额当作实时的花费上限。
+- 响应不做缓存。请按适中的间隔轮询，不要在每次请求前都查一次。
+
+| HTTP / code | 操作 |
+|---|---|
+| 403 / `balance.access_denied` | key 所属的组织或 owner 已不再有效；请使用有效组织的 key。 |
+| 409 / `platform.billing_not_ready` | 完成组织的 billing 设置；这个 code 本身不表示余额不足。 |
+| 409 / `platform.billing_account_conflict` | 组织的 billing 账户需要对账。请联系 ZooWork 支持，重试不能解决。 |
+| 502 / `platform.billing_unavailable` | 稍后 backoff 重试，不要当作余额为零。 |
+| 503 / `platform.billing_storage_unavailable` | 稍后 backoff 重试。 |
 
 ## 查询参数
 

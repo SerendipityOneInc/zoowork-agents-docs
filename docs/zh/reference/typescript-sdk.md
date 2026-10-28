@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: d93a1a210229f8c9f45fc0eaba205fb995cffe131ae7c554ec3656f457f35445
+source_hash: 85710d7c93425ef8393e0a2048a6e3610627659e931d307e60245d04a2b9eb94
 ---
 
 # TypeScript SDK 参考
@@ -1590,6 +1590,7 @@ SDK 中的数据库 viewer 方法在 production 当前不可用，因此不列�
 
 ```ts
   getUsage(opts?: UsageOptions): Promise<UsageResult>
+  getBalance(): Promise<BalanceResult>
   getRunOutput(agentId: string, sessionId: string, runId: string, opts?: CursorOptions): Promise<RunOutput>
   getApproval(agentId: string, approvalId: string): Promise<ApprovalRecord>
   getCustomToolCall(agentId: string, callId: string): Promise<CustomToolCallRecord>

@@ -1691,6 +1691,7 @@ Use the Agent's `agent_db` tool through a Session; see [Agent Database](../build
 
 ```ts
   getUsage(opts?: UsageOptions): Promise<UsageResult>
+  getBalance(): Promise<BalanceResult>
   getRunOutput(agentId: string, sessionId: string, runId: string, opts?: CursorOptions): Promise<RunOutput>
   getApproval(agentId: string, approvalId: string): Promise<ApprovalRecord>
   getCustomToolCall(agentId: string, callId: string): Promise<CustomToolCallRecord>

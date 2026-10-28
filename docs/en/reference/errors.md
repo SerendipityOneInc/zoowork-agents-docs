@@ -167,6 +167,10 @@ Match the HTTP status as well as the code. A runtime-credential or billing prere
 | `platform.key_credentials_not_bound` | 409 on Agent creation | Ask the organization owner to sign in to Platform, create a replacement key, and update the application. See [Authentication](../get-started/authentication.md#replace-or-revoke-a-key). |
 | `platform.billing_not_ready` | 409 | Sign in to Platform and wait for organization billing setup to complete. If it fails, select **Retry billing setup**. This code alone does not mean the balance is insufficient. |
 | `platform.runtime_credentials_unavailable` | 503 | A runtime-credential dependency is unavailable, or another request from the same organization is reading the organization's runtime credentials at the same moment. Parallel `createAgent()` calls in one organization trigger this, even with different keys or Projects. No Agent is created. Create Agents one at a time per organization, and retry with backoff using the same `Idempotency-Key` and body. |
+| `platform.billing_account_conflict` | 409 | The organization's billing account needs reconciliation. Contact ZooWork support; retrying will not fix it. |
+| `platform.billing_unavailable` | 502 | Retry the balance read later with backoff; do not treat it as a zero balance. |
+| `balance.access_denied` | 403 | The key's organization or owner is no longer active. |
+| `platform.billing_storage_unavailable` | 503 | Retry the Usage or balance read later with backoff. |
 | `usage.access_denied` | 403 | Query only within the key's Usage scope. |
 | `usage.snapshot_expired` | 409 | Start a fresh Usage query. |
 | `usage.invalid_query` | 400 | Fix semantic query errors, such as an invalid timezone. |
@@ -174,7 +178,7 @@ Match the HTTP status as well as the code. A runtime-credential or billing prere
 | `usage.busy` | 429 | Retry the read with backoff. |
 | `usage.unavailable` | 503 | Retry later; do not interpret an incomplete response as zero usage. |
 
-See [Authentication](../get-started/authentication.md) and [Usage](./usage.md). Diagnostic request IDs are optional; the public gateway does not guarantee an Engine request-ID header on every response.
+See [Authentication](../get-started/authentication.md) and [Usage and balance](./usage.md). Diagnostic request IDs are optional; the public gateway does not guarantee an Engine request-ID header on every response.
 
 ## What is safe to retry
 

@@ -21,6 +21,6 @@ Available features depend on your key's resource scope, enabled tools, and servi
 | Continue or cancel work | [Session operations](../build/session-operations.md), [Events](../build/events.md) | A stream disconnection does not cancel the run. |
 | Receive server notifications | [Webhooks](../build/webhooks.md) | Service configuration and signature verification are required. |
 | Schedule recurring tasks | [Schedules](../build/schedules.md) | Outcome evaluation is limited to the documented scheduled agentTurn flow. |
-| Inspect consumption | [Usage](./usage.md) | Platform key Usage is restricted to that key; reporting is not a budget cap. |
+| Inspect consumption and balance | [Usage](./usage.md) | Platform key Usage is restricted to that key; any key can read the shared organization balance. Neither is a budget cap. |
 
 For capabilities without a supported public workflow, see [Current boundaries](./not-supported.md).

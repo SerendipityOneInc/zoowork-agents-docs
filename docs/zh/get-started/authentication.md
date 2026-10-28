@@ -1,7 +1,7 @@
 ---
 description: 在 ZooWork Platform 获取 API key、充值，并配置第一个 SDK 或 HTTP 请求。
 source: /en/get-started/authentication
-source_hash: 72af81a810d5ec4401a91313e48b58cf3c2e451c1bbbdf1f2880b490f5137357
+source_hash: 8b78ceecaf0e3a891bd96fcd244a9a595f2152cd73558935de652df72eb7a65e
 ---
 
 # Authentication 与 API key
@@ -27,7 +27,7 @@ key 由组织 owner 创建。如果使用的组织不归你所有，请组织 ow
 3. 选择 **Buy Credits**，在 Stripe Checkout 完成付款。
 4. 返回 **Billing**，确认 **Current balance** 已更新，再运行任务。付款确认和余额更新可能在不同时间完成。
 
-组织内所有 Project 共用这笔余额。组织 admin 可以查看余额和充值。创建 key 不会为余额充值。
+组织内所有 Project 共用这笔余额。组织 admin 可以查看余额和充值。组织内任意 key 也可以通过 [`GET /balance`](../reference/usage.md#read-the-organization-balance) 读取余额；充值仍然在 Platform 完成。创建 key 不会为余额充值。
 
 ## 使用 SDK
 

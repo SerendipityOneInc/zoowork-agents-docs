@@ -1,5 +1,5 @@
 ---
-description: Query usage with the SDK or public HTTP API and understand API-key scope, filters, and pagination.
+description: Query usage and the organization balance with the SDK or public HTTP API, and understand API-key scope, filters, and pagination.
 ---
 
 # Usage
@@ -32,7 +32,54 @@ that unit. This is a unit conversion, not a fixed price per model call or per Se
 Usage for a Project key includes only consumption attributed to that key and the selected
 query range. It is not the Organization's remaining balance. Other keys, shared sandbox
 costs, top-ups and reporting timing mean subtracting this result from a previous balance
-is not a reliable wallet reconciliation. Check the Organization balance and Usage in Platform.
+is not a reliable wallet reconciliation. Read the remaining balance with
+[`GET /balance`](#read-the-organization-balance), and check organization-wide Usage in Platform.
+
+## Read the organization balance
+
+`GET /balance` returns the prepaid balance of the organization that owns the key:
+
+```bash
+curl -sS --fail-with-body "$ZOOWORK_BASE_URL/balance" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+```
+
+```json
+{ "object": "balance", "available_amount": "11.34", "currency": "usd" }
+```
+
+::: code-group
+
+```ts [TypeScript]
+const balance = await client.getBalance()
+```
+
+```python [Python]
+balance = await client.get_balance()
+```
+
+:::
+
+The SDK methods require an SDK release that includes them. If the installed release lacks
+the method, call the HTTP endpoint.
+
+- Any Platform key in the organization can read the balance, including a Project key. All
+  Projects share one balance; there is no per-Project balance.
+- `available_amount` is a USD decimal string with two places, not credits. It is the amount
+  Platform's **Billing** page shows as **Current balance**: settled top-ups minus the
+  consumption reported in the current billing period, rounded down to the cent. It does not go
+  below `"0.00"`, so `"0.00"` can also mean the organization is overdrawn.
+- A top-up is included only after it completes. Consumption reported shortly before the
+  request may not be included yet, so do not use the balance as a real-time spending limit.
+- The response is not cached. Poll it at a modest interval rather than before every request.
+
+| HTTP / code | Action |
+|---|---|
+| 403 / `balance.access_denied` | The key's organization or owner is no longer active; use a key from an active organization. |
+| 409 / `platform.billing_not_ready` | Complete the organization's billing setup; this code alone does not mean insufficient balance. |
+| 409 / `platform.billing_account_conflict` | The organization's billing account needs reconciliation. Contact ZooWork support; retrying will not fix it. |
+| 502 / `platform.billing_unavailable` | Retry later with backoff; do not treat it as a zero balance. |
+| 503 / `platform.billing_storage_unavailable` | Retry later with backoff. |
 
 ## Query parameters
 
