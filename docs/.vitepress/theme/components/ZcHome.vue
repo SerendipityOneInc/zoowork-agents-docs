@@ -14,6 +14,7 @@ import {
   MapIcon,
   NoSymbolIcon,
   PlayIcon,
+  ShieldCheckIcon,
   SignalIcon,
   Square3Stack3DIcon,
   TableCellsIcon,
@@ -156,6 +157,7 @@ const ICONS: Record<string, Component> = {
   blocked: NoSymbolIcon,
   brackets: CodeBracketIcon,
   alert: ExclamationCircleIcon,
+  shield: ShieldCheckIcon,
 }
 </script>
 
