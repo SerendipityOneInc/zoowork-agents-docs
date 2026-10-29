@@ -2,7 +2,7 @@
 title: 保护你的部署
 description: 面向真实用户上线前，按优先级检查 API key、终端用户访问、数据隔离、工具、审批、webhook 和用量。
 source: /en/security/secure-deployment
-source_hash: d0abf6de3eb8cbb8d9c74d52eb6ed72e8669ed7a8b2ed1a02f79dcf21cfb7931
+source_hash: 1f7d5e1532c3fa5b095ea9847bbcd30441d006ed97059178a486c63e6990b44e
 ---
 
 # 保护你的部署
@@ -77,8 +77,8 @@ Agent 调用应用执行的 custom tool 时，实际操作由你的后端执行�
 所以不要通过它暴露私有数据或写操作。ZooWork 可以附加到 MCP 调用上的 Agent 和 Session 标识
 只是请求上下文，不能证明调用方已获授权。
 
-见 [Custom tool](../build/tools.md#应用执行的自定义工具)、
-[MCP Server](../build/mcp.md#连接要求) 和[当前 API 边界](../reference/not-supported.md)。
+见 [Custom tool](../build/tools.md#应用执行的自定义工具)和
+[MCP Server](../build/mcp.md#连接要求)。
 
 ## 6. 用 `tool_policy` 缩小工具范围 {#6-narrow-the-tool-set-with-tool-policy}
 

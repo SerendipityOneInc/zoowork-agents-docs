@@ -147,4 +147,3 @@ Controls:
 - [Secure your deployment](./secure-deployment.md): the controls on this page as a prioritized checklist.
 - [Review and monitor sessions](./monitor-sessions.md): find unexpected tool calls and spending.
 - [Architecture](../get-started/architecture.md): how persistent state and managed execution fit together.
-- [Current API boundaries](../reference/not-supported.md): capabilities the public API does not provide, and what to use instead.

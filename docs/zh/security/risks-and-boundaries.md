@@ -2,7 +2,7 @@
 title: 风险与边界
 description: 了解 key、配置、Session 历史、文件、memory 和数据分别存在哪里，谁能读取或修改，以及如何降低主要风险。
 source: /en/security/risks-and-boundaries
-source_hash: ffd32dbf0b3802acf9553bc378d7f3ec869cf75a073bc89586f6659990448aa8
+source_hash: e2d768a046e9bfb7961e72867f8c9e7e8f4028f36ef5a49865e6fbd52bfa7413
 ---
 
 # 风险与边界
@@ -126,4 +126,3 @@ Agent 的工作消耗组织的预付余额，组织下所有 Project 共用这�
 - [保护你的部署](./secure-deployment.md)：把本页的控制手段整理成按优先级排列的清单。
 - [审查与监控 Session](./monitor-sessions.md)：发现意外的工具调用和花费。
 - [架构](../get-started/architecture.md)：持久化状态与托管执行如何配合。
-- [当前 API 边界](../reference/not-supported.md)：公共 API 不提供的能力，以及替代做法。

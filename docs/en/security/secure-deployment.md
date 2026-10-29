@@ -89,9 +89,8 @@ so do not expose private data or write operations through it. The Agent and Sess
 identifiers that ZooWork can add to MCP calls are request context, not proof of
 authorization.
 
-See [Custom tools](../build/tools.md#application-executed-custom-tools),
-[MCP servers](../build/mcp.md#connection-requirements), and
-[Current API boundaries](../reference/not-supported.md).
+See [Custom tools](../build/tools.md#application-executed-custom-tools) and
+[MCP servers](../build/mcp.md#connection-requirements).
 
 ## 6. Narrow the tool set with `tool_policy`
 
