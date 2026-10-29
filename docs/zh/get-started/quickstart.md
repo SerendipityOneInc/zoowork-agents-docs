@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 04913c596a081a66cca9a8e62639174f7d8dcdf2be8e1588fd4b3d0b6485a50d
+source_hash: 2cf2b23d3b274bde21add4649adb19a0130f5d026fbeff050cad2a93fc704ed9
 ---
 
 # 快速开始
@@ -24,6 +24,12 @@ needs. Read each page in full: fetch the raw Markdown, for example
 with curl, or ask your fetch tool for the complete text, because a
 summary can drop code. The API is a Developer Preview, so do not
 write ZooWork code from memory.
+
+If the project already has the SDK installed, first read the AGENTS.md
+inside the installed package: node_modules/@zoowork-ai/sdk/dist/AGENTS.md
+for TypeScript, or AGENTS.md in the installed zoowork package directory
+for Python. The docs describe the newest SDK; that file explains how to
+check them against the installed version.
 
 Before writing code:
 1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk)

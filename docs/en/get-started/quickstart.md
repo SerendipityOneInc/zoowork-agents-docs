@@ -23,6 +23,12 @@ with curl, or ask your fetch tool for the complete text, because a
 summary can drop code. The API is a Developer Preview, so do not
 write ZooWork code from memory.
 
+If the project already has the SDK installed, first read the AGENTS.md
+inside the installed package: node_modules/@zoowork-ai/sdk/dist/AGENTS.md
+for TypeScript, or AGENTS.md in the installed zoowork package directory
+for Python. The docs describe the newest SDK; that file explains how to
+check them against the installed version.
+
 Before writing code:
 1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk)
    or the Python SDK (zoowork). If one is already installed, use that
