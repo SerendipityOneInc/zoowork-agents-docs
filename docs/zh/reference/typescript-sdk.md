@@ -484,7 +484,7 @@ PUT 请求体里出现 `skills`、`credentials` 以及未知字段，都返回 `
 deleteAgent(agentId: string): Promise<void>
 ```
 
-软删除该 Agent，首次 204 成功时 resolve 不带值。公共 API 重复删除返回 404，处理条件见[错误与重试](./errors.md#what-is-safe-to-retry)。删除之后，`getAgent()` 返回 `404 not_found`。
+软删除该 Agent，首次 204 成功时 resolve 不带值。公共 API 重复删除返回 404，处理条件见[错误与重试](./errors.md#什么可以安全重试)。删除之后，`getAgent()` 返回 `404 not_found`。
 
 它**不会** 停止 agent、不会取消正在跑的 workflow、不会删除定时任务、也不会释放 sandbox——
 先停再删。见 [Agents](../build/agents.md)。
