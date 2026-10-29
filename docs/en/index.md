@@ -106,6 +106,12 @@ home:
         hint: Provide separate workspaces for your users
         chips:
           - { text: An agent per user, link: /en/build/per-user-agents, icon: users }
+      - name: Security
+        hint: Protect keys, user data, and spending
+        chips:
+          - { text: Secure your deployment, link: /en/security/secure-deployment, icon: shield }
+          - { text: Risks and boundaries, link: /en/security/risks-and-boundaries, icon: alert }
+          - { text: Review and monitor sessions, link: /en/security/monitor-sessions, icon: pulse }
       - name: Reference
         hint: Look up API behavior and availability
         chips:

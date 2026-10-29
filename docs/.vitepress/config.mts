@@ -256,6 +256,10 @@ interface PageSet {
   usage: string
   capabilities: string
   notSupported: string
+  security: string
+  secureDeployment: string
+  risksAndBoundaries: string
+  monitorSessions: string
 }
 
 const EN: PageSet = {
@@ -299,6 +303,10 @@ const EN: PageSet = {
   usage: 'Usage',
   capabilities: 'Availability and limits',
   notSupported: 'Current API boundaries',
+  security: 'Security',
+  secureDeployment: 'Secure your deployment',
+  risksAndBoundaries: 'Risks and boundaries',
+  monitorSessions: 'Review and monitor sessions',
 }
 
 const ZH: PageSet = {
@@ -342,6 +350,10 @@ const ZH: PageSet = {
   usage: 'Usage',
   capabilities: '可用性与限制',
   notSupported: '当前 API 边界',
+  security: '安全',
+  secureDeployment: '保护你的部署',
+  risksAndBoundaries: '风险与边界',
+  monitorSessions: '审查与监控 Session',
 }
 
 function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
@@ -412,6 +424,14 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: t.channels, link: `${base}/build/channels` },
         { text: t.perUserAgents, link: `${base}/build/per-user-agents` },
+      ],
+    },
+    {
+      text: t.security,
+      items: [
+        { text: t.secureDeployment, link: `${base}/security/secure-deployment` },
+        { text: t.risksAndBoundaries, link: `${base}/security/risks-and-boundaries` },
+        { text: t.monitorSessions, link: `${base}/security/monitor-sessions` },
       ],
     },
     {
