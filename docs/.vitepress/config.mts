@@ -255,7 +255,6 @@ interface PageSet {
   models: string
   usage: string
   capabilities: string
-  notSupported: string
   security: string
   secureDeployment: string
   risksAndBoundaries: string
@@ -302,7 +301,6 @@ const EN: PageSet = {
   models: 'Models',
   usage: 'Usage',
   capabilities: 'Availability and limits',
-  notSupported: 'Current API boundaries',
   security: 'Security',
   secureDeployment: 'Secure your deployment',
   risksAndBoundaries: 'Risks and boundaries',
@@ -349,7 +347,6 @@ const ZH: PageSet = {
   models: 'Models',
   usage: 'Usage',
   capabilities: '可用性与限制',
-  notSupported: '当前 API 边界',
   security: '安全',
   secureDeployment: '保护你的部署',
   risksAndBoundaries: '风险与边界',
@@ -589,7 +586,6 @@ export default defineConfig({
             text: 'Additional reading',
             items: [
               { text: 'Retrieval with custom tools or MCP', link: '/build/retrieval' },
-              { text: EN.notSupported, link: '/reference/not-supported' },
               { text: 'Documentation home', link: '/index' },
             ],
           },

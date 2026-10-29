@@ -16,8 +16,7 @@ Platform API keys created in [ZooWork Platform](https://platform.zoowork.ai) can
 create, update, or remove managed channel bindings, or run QR setup. These requests return
 `404 service_api.not_found`. Channel methods in an SDK do not make those routes available.
 
-See [Authentication](../get-started/authentication.md) for key setup and
-[Current API boundaries](../reference/not-supported.md) for other limits.
+See [Authentication](../get-started/authentication.md) for key setup.
 
 ## Connect your chat application
 

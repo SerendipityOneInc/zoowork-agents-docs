@@ -2,7 +2,7 @@
 title: Agent Memory
 description: 让已启用 Memory 的 Agent 跨 session 保存和查找长期事实，并理解 Agent 与 actor 的作用域。
 source: /en/build/memory
-source_hash: e8fdf0487f9068024451be53ea2b9081d850f6582195df4a31f9bd9c61024ea0
+source_hash: f6c4a04550e8fdf0b14d4341fc2bc03885d09854d1cce48646598224978bf7ca
 ---
 
 # Agent Memory
@@ -191,9 +191,7 @@ Memory content 上限为 4,096 字符和 16 KiB UTF-8 数据。search 默认返�
 
 update 和 delete 使用当前 record 的 version。写入时 version 已变化，可能得到 `MEMORY_VERSION_CONFLICT`；重试前重新搜索并使用当前结果。content 已经相同的 update 可以直接返回 saved result，不产生新写入。使用 Memory 工具返回的 ID 和当前 version。这些工具由 Agent 调用；公共 SDK 不提供 `memoryCreate()` 等对应方法。
 
-## 能力边界 {#capability-boundaries}
-
-这些是 Agent 管理的工具，不是公共 memory-store、mount 或 SDK CRUD endpoints。见[当前 API 边界](../reference/not-supported.md)。
+## Memory 与其他存储 {#capability-boundaries}
 
 Session transcript、工作区文件和 [Agent Database](./data-storage.md) 与 Memory 分开。创建或删除 Session 不是 Memory 管理操作，`actor.ref` 也不会创建私有文件或数据库存储。
 

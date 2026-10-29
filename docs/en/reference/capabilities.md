@@ -23,4 +23,3 @@ Available features depend on your key's resource scope, enabled tools, and servi
 | Schedule recurring tasks | [Schedules](../build/schedules.md) | Outcome evaluation is limited to the documented scheduled agentTurn flow. |
 | Inspect consumption and balance | [Usage](./usage.md) | Platform key Usage is restricted to that key; any key can read the shared organization balance. Neither is a budget cap. |
 
-For capabilities without a supported public workflow, see [Current boundaries](./not-supported.md).

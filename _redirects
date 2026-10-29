@@ -6,3 +6,12 @@
 /docs/zh/get-started/concepts.html /docs/zh/get-started/architecture 301
 /docs/zh/get-started/concepts/ /docs/zh/get-started/architecture 301
 /docs/get-started/concepts.md /docs/get-started/architecture.md 301
+
+# The standalone "Current API boundaries" page was retired; availability now lives on each guide.
+/docs/en/reference/not-supported /docs/en/reference/capabilities 301
+/docs/en/reference/not-supported.html /docs/en/reference/capabilities 301
+/docs/en/reference/not-supported/ /docs/en/reference/capabilities 301
+/docs/zh/reference/not-supported /docs/zh/reference/capabilities 301
+/docs/zh/reference/not-supported.html /docs/zh/reference/capabilities 301
+/docs/zh/reference/not-supported/ /docs/zh/reference/capabilities 301
+/docs/reference/not-supported.md /docs/reference/capabilities.md 301

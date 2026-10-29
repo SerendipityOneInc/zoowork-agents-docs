@@ -2,7 +2,7 @@
 title: 通过工具接入知识库
 description: 通过 custom tools 或 MCP，把 Agent 连接到应用中的知识服务。
 source: /en/build/retrieval
-source_hash: 38f864cf57912148d0c8762634638a8cd48c90168737f336f69b61c7efb6504c
+source_hash: c82843c1094f71870bda64329ddb79a2332b1aa2cf8ec499939358944974e0b4
 ---
 
 # 通过工具接入知识库
@@ -313,4 +313,3 @@ Server 必须满足公共的 [MCP 连接要求](./mcp.md#连接要求)。
 - [权限策略](./permissions.md)——工具调用前的审批。
 - [鉴权](../get-started/authentication.md)——API key 范围和应用授权。
 - [Agent Database](./data-storage.md)——选择 Agent 数据库工具或自己的数据库。
-- [当前边界](../reference/not-supported.md)——检查 connector 配置与授权流程是否可用。

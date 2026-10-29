@@ -319,4 +319,3 @@ and the final answer independently, using a fresh Session for each check.
 - [Permission policies](./permissions.md) — approvals before tool calls.
 - [Authentication](../get-started/authentication.md) — API key scope and application authorization.
 - [Agent Database](./data-storage.md) — choose Agent database tools or your own database.
-- [Current boundaries](../reference/not-supported.md) — check connector setup and authorization availability.

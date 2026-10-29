@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 7d9b3e4784da69d9a1aa021abad240b79b727aab1080cfedb91dc9b91cb60ac9
+source_hash: 6021d17886f31b984ece2f46d1834f46cbae75fafc18e6d254867c8aa81ff4e4
 ---
 
 # Session 事件流
@@ -250,7 +250,7 @@ if (isRunFinished(ev)) {
 
 把这些字段和 event cursor 一起保存。继续观察后续 run，检查它们的 terminal outcome 和 [run output](./session-operations.md#read-output-for-one-run)。Output endpoint 的 `output_complete` 只针对一个 run，不会把 yielded task 变成已完成。
 
-这些观测字段不提供配置 subagent roster、advisor 或 session thread 的公共 API。相应边界见[暂不支持](../reference/not-supported.md)。定时结果的业务质量检查见 [Scheduled outcomes](./schedules.md#evaluate-a-scheduled-result)。
+定时结果的业务质量检查见 [Scheduled outcomes](./schedules.md#evaluate-a-scheduled-result)。
 
 ## 续传 {#resuming}
 

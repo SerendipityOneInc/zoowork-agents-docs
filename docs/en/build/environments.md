@@ -46,4 +46,3 @@ in your own backend and expose it through an
 
 - [Cloud sandbox reference](./cloud-sandbox-reference.md) — inspect the default software.
 - [Files and artifacts](./files.md) — create files and retrieve published outputs.
-- [Current API boundaries](../reference/not-supported.md) — check other unavailable workflows.
