@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 63be1889fda42c7ff336851565ebec8b148d05a9229630a09247277048f1d987
+source_hash: a94c891985256abdd9c7963748e6aa78a9fbf193f1872882ad57f804548a9dd0
 ---
 
 # 快速开始
@@ -281,15 +281,15 @@ curl 用户在按 Ctrl+C 关闭事件流后执行清理。两个 SDK 程序退�
 
 - [Customer Support](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/customer-support)
 
-  应用执行的 custom tools 查询订单，并在用户确认内容后创建工单。
+  应用执行的 custom tools 查询订单和物流，并在用户确认内容后创建工单。
 
 - [Product Advisor](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/product-advisor)
 
-  远程 MCP server 提供商品目录搜索和规格对比。
+  远程 MCP server 提供商品目录搜索和规格对比，查看详情和对比调用需要审批。
 
 - [Research Assistant](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/research-assistant)
 
-  基于 Vercel Chat SDK，展示搜索和抓取活动，再给出带来源引用的简报。
+  基于 Vercel Chat SDK 的 Web 应用，展示 Agent 的搜索和抓取活动，再给出带来源引用的简报。
 
 </LinkCards>
 
