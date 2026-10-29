@@ -14,7 +14,7 @@ published Artifact.
 
 There is no working API route for reading, listing, or writing an arbitrary workspace path.
 The SDK's deprecated `getWorkspaceFile()`, `getWorkspaceFileContent()`, and
-`writeWorkspaceFile()` fail with HTTP 502; see [Not supported](../reference/not-supported.md).
+`writeWorkspaceFile()` fail with HTTP 502.
 Use the upload and Artifact flows on this page instead.
 
 ## File isolation

@@ -292,9 +292,7 @@ Persist these fields with the event cursor. Follow subsequent runs and inspect t
 outcome and [run output](./session-operations.md#read-output-for-one-run). The output endpoint's
 `output_complete` is scoped to a run; it does not make a yielded task complete.
 
-These observability fields do not provide a public API for configuring subagent rosters,
-advisors, or session threads. See [Not supported](../reference/not-supported.md) for those
-boundaries. For business-quality checks on scheduled results, see
+For business-quality checks on scheduled results, see
 [Scheduled outcomes](./schedules.md#evaluate-a-scheduled-result).
 
 ## Resuming

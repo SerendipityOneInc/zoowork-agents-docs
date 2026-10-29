@@ -2,7 +2,7 @@
 title: 渠道
 description: 了解当前渠道管理限制，并通过 API Session 接入聊天应用。
 source: /en/build/channels
-source_hash: 7e4b9377a1e453673adf3a3960230ad4e8ae750d2766698f650be421cc80ed53
+source_hash: 9b5ed13a09ed8c645d5ff1fed36f8d5bd61b3e07a4b6df9d1847e204c3333ec8
 ---
 
 # 渠道
@@ -17,8 +17,7 @@ Agent 不需要渠道也能运行任务。通过应用后端使用 [API Session]
 更新或移除托管渠道绑定，也不能执行扫码配置。这些请求返回 `404 service_api.not_found`。
 SDK 中存在渠道方法，不表示这些路由可用。
 
-Key 的配置见[鉴权](../get-started/authentication.md)，其他限制见
-[当前 API 边界](../reference/not-supported.md)。
+Key 的配置见[鉴权](../get-started/authentication.md)。
 
 ## 接入自己的聊天应用 {#connect-your-chat-application}
 

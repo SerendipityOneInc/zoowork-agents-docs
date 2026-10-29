@@ -2,7 +2,7 @@
 title: Environments
 description: 了解默认托管 Environment，以及当前自定义 Environment 管理的限制。
 source: /en/build/environments
-source_hash: 87bb0d9cd9ea8a9707f09d2911f61f690c9336e81131e85a363571f1cad1558d
+source_hash: d6f58bcd16f1bbd99eeadd1d5638f6deb8068e2a2a5569acc0fdcc171cb7d71e
 ---
 
 # Environments
@@ -44,4 +44,3 @@ Platform API key 不能管理自定义包列表、镜像文件上传、构建脚
 
 - [云沙箱参考](./cloud-sandbox-reference.md)：查看默认软件。
 - [文件与产物](./files.md)：创建文件并获取已发布的输出。
-- [当前 API 边界](../reference/not-supported.md)：查看其他不可用流程。

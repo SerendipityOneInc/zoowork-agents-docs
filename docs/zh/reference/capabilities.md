@@ -1,7 +1,7 @@
 ---
 description: 查看 API key 要求、工具可用性与当前公共 API 限制。
 source: /en/reference/capabilities
-source_hash: 7927779062c38a225d011195ad7c5196fc8edacf5d3ccb5265ef74448ea317d4
+source_hash: 3eb07372a2202b1e09ae6ee4bd68644b0402ce25948522daaa93b7af341a0427
 ---
 
 # 可用性与限制
@@ -25,4 +25,3 @@ source_hash: 7927779062c38a225d011195ad7c5196fc8edacf5d3ccb5265ef74448ea317d4
 | 创建周期任务 | [Schedules](../build/schedules.md) | Outcome evaluation 限于文档所述的 scheduled agentTurn 流程。 |
 | 查看消耗和余额 | [Usage](./usage.md) | Platform key 只查自己的 Usage；任意 key 都能读取组织共享余额。两者都不是 budget cap。 |
 
-尚无受支持公共流程的能力见[当前边界](./not-supported.md)。

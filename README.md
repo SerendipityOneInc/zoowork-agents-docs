@@ -46,8 +46,8 @@ This site is written for **external developers** building products on ZooWork:
 the TypeScript SDK, the `/service/v1` gateway, and an API key. It is not the
 internal operations manual.
 
-Where a capability does not exist, the page still exists and says so — see
-`docs/en/reference/capabilities.md` and `docs/en/reference/not-supported.md`.
+Document what works today. There is no standalone list of unavailable features: when a
+limit changes how a reader uses a documented feature, state it on that feature's page.
 
 ## Rules
 
@@ -77,9 +77,8 @@ refresh the Chinese page's `source_hash` and review the generated AI docs.
   Removing an internal verification note does not upgrade a capability's validation status.
 - **Bilingual.** English under `docs/en/` is the authored source; `docs/zh/` carries
   `source` + `source_hash` frontmatter pointing at the English revision it tracks.
-- **No unlabelled roadmap.** If something is planned but absent, it goes under
-  "Not supported" with what to do instead, not into a future-tense sentence in a
-  guide.
+- **No roadmap.** Do not describe planned or absent capabilities, and do not write
+  future-tense promises in a guide.
 - **Review the AI output after every documentation change.** Run `pnpm build`, then
   read `dist/docs/llms.txt` and the affected section of `dist/docs/llms-full.txt`.
   Also open the affected `dist/docs/**/*.md` files and follow their internal links.

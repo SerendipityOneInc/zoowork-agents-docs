@@ -216,10 +216,7 @@ An update whose content is already unchanged can return the saved result without
 Use the ID and current version returned by the Memory tools. These tools run through
 the Agent; the public SDK does not provide `memoryCreate()` or related methods.
 
-## Capability boundaries
-
-These are Agent-managed tools, not public memory-store, mount, or SDK CRUD endpoints.
-See [Current API boundaries](../reference/not-supported.md).
+## Memory and other Agent storage {#capability-boundaries}
 
 A Session transcript, workspace file, or [Agent Database](./data-storage.md) is separate
 from Memory. Creating or deleting a Session is not a memory management operation, and
