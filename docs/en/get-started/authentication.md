@@ -25,7 +25,7 @@ Before running Agent tasks, add funds to your organization's prepaid balance:
 3. Select **Buy Credits** and complete the payment in Stripe Checkout.
 4. Return to **Billing** and confirm that **Current balance** has updated before running your task. Payment confirmation and the balance update can complete at different times.
 
-Funds are shared by all Projects in the organization. Organization admins can view the balance and add funds. Creating a key does not add funds to the balance.
+Funds are shared by all Projects in the organization. Organization admins can view the balance and add funds. Any key in the organization can also read the balance through [`GET /balance`](../reference/usage.md#read-the-organization-balance); adding funds stays in Platform. Creating a key does not add funds to the balance.
 
 ## Use the SDK
 

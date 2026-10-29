@@ -1,7 +1,7 @@
 ---
 description: 配置 async Python SDK，并使用 Agent、Session、Schedule、event 和 thinking 方法。
 source: /en/reference/python-sdk
-source_hash: ff23f5624412bec1a732504de5014a0e83734f585010ee36301fdf8488ae426a
+source_hash: c850e080d1df68031716a39b6ca01fb5ff2150e1028c5024a16db524a1ed6b72
 ---
 
 # Python SDK
@@ -107,6 +107,7 @@ SDK 存在方法，不代表线上部署已经支持。
 已安装 package 中的数据库 viewer 方法在 production 当前不可用。可用的工具流程见 [Agent Database](../build/data-storage.md)。
 
 - `get_usage(*, range: Literal['24h', '7d', '30d'] | None=None, timezone: str | None=None, group_by: Literal['session', 'api_key'] | None=None, view: Literal['groups', 'records', 'both'] | None=None, session_id: str | None=None, api_key_id: str | None=None, root_session_id: str | None=None, attribution: Literal['exact', 'shared', 'non_api', 'unattributed'] | None=None, page: int | None=None, per_page: int | None=None, as_of: str | None=None, snapshot: str | None=None, cursor: str | None=None)`
+- `get_balance()`
 - `get_run_output(agent_id: str, session_id: str, run_id: str, *, cursor: str | None=None, limit: int | None=None)`
 - `get_approval(agent_id: str, approval_id: str)`
 - `get_custom_tool_call(agent_id: str, call_id: str)`

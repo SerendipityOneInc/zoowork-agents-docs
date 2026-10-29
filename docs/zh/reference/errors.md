@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 23ad699da756360c51eb398b49c0ce2c07af79b99cd54e1281171fe1de91104b
+source_hash: 8712d138128d56a2aa884962be7c3aac6802145c6e077f3029716f064b503cc7
 ---
 
 # 错误与重试
@@ -138,6 +138,10 @@ if (e instanceof ZooworkError) {
 | `platform.key_credentials_not_bound` | Agent 创建时为 409 | 请组织 owner 登录 Platform，创建替代 key 并更新应用。见 [Authentication](../get-started/authentication.md#替换或撤销-key)。 |
 | `platform.billing_not_ready` | 409 | 登录 Platform，等待组织 billing 设置完成。失败时选择 **Retry billing setup**。不能仅凭这个 code 判断余额不足。 |
 | `platform.runtime_credentials_unavailable` | 503 | runtime credential 依赖不可用，或者同一个组织的另一个请求正在同时读取组织的 runtime credential。同一组织内并行调用 `createAgent()` 会触发它，即使用的是不同的 key 或 Project。此时没有创建 Agent。请在组织范围内逐个创建 Agent，并用相同的 `Idempotency-Key` 和 body 退避重试。 |
+| `platform.billing_account_conflict` | 409 | 组织的 billing 账户需要对账。请联系 ZooWork 支持，重试不能解决。 |
+| `platform.billing_unavailable` | 502 | 稍后 backoff 重试读取余额，不要当作余额为零。 |
+| `balance.access_denied` | 403 | key 所属的组织或 owner 已不再有效。 |
+| `platform.billing_storage_unavailable` | 503 | 稍后 backoff 重试 Usage 或余额读取。 |
 | `usage.access_denied` | 403 | 只查询 key Usage scope 内的数据。 |
 | `usage.snapshot_expired` | 409 | 发起新的 Usage 查询。 |
 | `usage.invalid_query` | 400 | 修正无效 timezone 等查询错误。 |
@@ -145,7 +149,7 @@ if (e instanceof ZooworkError) {
 | `usage.busy` | 429 | 读取请求 backoff 后重试。 |
 | `usage.unavailable` | 503 | 稍后重试，不要把不完整响应当成零消耗。 |
 
-见 [Authentication](../get-started/authentication.md) 和 [Usage](./usage.md)。诊断用的 request ID 是可选值，公共 gateway 不保证每个响应都返回 Engine request-ID header。
+见 [Authentication](../get-started/authentication.md) 和 [Usage 与余额](./usage.md)。诊断用的 request ID 是可选值，公共 gateway 不保证每个响应都返回 Engine request-ID header。
 
 ## 什么可以安全重试
 

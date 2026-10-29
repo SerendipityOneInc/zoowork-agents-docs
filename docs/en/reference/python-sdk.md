@@ -106,6 +106,7 @@ and deployment verification. Method availability is not proof of a live deployme
 Database viewer methods in the installed package are unavailable in production. See [Agent Database](../build/data-storage.md) for the supported tool flow.
 
 - `get_usage(*, range: Literal['24h', '7d', '30d'] | None=None, timezone: str | None=None, group_by: Literal['session', 'api_key'] | None=None, view: Literal['groups', 'records', 'both'] | None=None, session_id: str | None=None, api_key_id: str | None=None, root_session_id: str | None=None, attribution: Literal['exact', 'shared', 'non_api', 'unattributed'] | None=None, page: int | None=None, per_page: int | None=None, as_of: str | None=None, snapshot: str | None=None, cursor: str | None=None)`
+- `get_balance()`
 - `get_run_output(agent_id: str, session_id: str, run_id: str, *, cursor: str | None=None, limit: int | None=None)`
 - `get_approval(agent_id: str, approval_id: str)`
 - `get_custom_tool_call(agent_id: str, call_id: str)`
