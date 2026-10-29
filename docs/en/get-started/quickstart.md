@@ -287,15 +287,15 @@ Each one installs on its own and needs your own API key.
 
 - [Customer Support](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/customer-support)
 
-  Application-executed custom tools look up orders and create a ticket after the user reviews it.
+  Application-executed custom tools look up orders and shipments, and create a ticket after the user reviews it.
 
 - [Product Advisor](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/product-advisor)
 
-  A remote MCP server supplies catalog search and product comparisons.
+  A remote MCP server supplies catalog search and product comparisons, with approvals for detail and comparison calls.
 
 - [Research Assistant](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/research-assistant)
 
-  Vercel Chat SDK shows search and fetch activity, then a brief with cited sources.
+  A Vercel Chat SDK web app shows the Agent's search and fetch activity, then a brief with cited sources.
 
 </LinkCards>
 
