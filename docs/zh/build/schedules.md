@@ -2,7 +2,7 @@
 title: Schedules
 description: 定时运行 Agent、覆盖 thinking 档位、检查执行记录并评价结果。
 source: /en/build/schedules
-source_hash: 6dcad8178484c5cbbf523cdce7b74341b38da9f95ca6598000f22c5a9f9d13cd
+source_hash: f66c3ef5d5038ba9f5c34b2b063e351b2644b8639c49500ce3d377975730789b
 ---
 
 # Schedules
@@ -124,7 +124,7 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID/trigger"
 
 :::
 
-Trigger receipt 只表示请求被接受，不证明执行或完成。disabled schedule 也可能返回 `triggered: true`，随后产生 `schedule.skipped`，`reason` 为 `disabled`。不能用 disabled schedule 作为仅手动执行的测试模式。运行列表还可能没有 `status` 和 `session_id`；字段缺失不代表成功。接着检查最近触发记录：
+Trigger receipt 只表示请求被接受，不证明执行或完成。disabled schedule 也可能返回 `triggered: true`，随后产生 `schedule.skipped`，`reason` 为 `disabled`。Agent 或它的 Computer 没有运行时，触发同样会被跳过，`reason` 为 `runtime_stopped`。不能用 disabled schedule 作为仅手动执行的测试模式。运行列表还可能没有 `status` 和 `session_id`；字段缺失不代表成功。接着检查最近触发记录：
 
 ::: code-group
 
@@ -189,7 +189,7 @@ curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 
 :::
 
-不要假设停止或删除 Agent 会清理它的全部 schedule。显式管理 schedule 生命周期，并在删除 Agent 之前先删除 schedule：Agent 删除后，schedule 路由会返回 404。见[停止与删除](./agents.md#停止与删除)。Update/delete response 不确定时，通过 read/list 核对状态，不要假设 retry 一定没有影响。
+停止或删除 Agent 不会删除它的 schedule。Agent 或它的 Computer 没有运行期间，schedule 仍然保留定义，每次触发都会以 `schedule.skipped` / `reason: "runtime_stopped"` 跳过；被跳过的触发之后不会补跑。显式管理 schedule 生命周期，并在删除 Agent 之前先删除 schedule：Agent 删除后，schedule 路由会返回 404。见[停止与删除](./agents.md#停止与删除)。Update/delete response 不确定时，通过 read/list 核对状态，不要假设 retry 一定没有影响。
 
 ## Payload 和限制 {#payloads-and-limits}
 

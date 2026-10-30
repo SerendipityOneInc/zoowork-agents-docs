@@ -37,5 +37,6 @@ not configure a managed channel or authenticate a chat-platform account.
 ## Agent readiness
 
 Before creating an API Session, start the Agent and check that `status.desired_state` is
-`running`, as shown in [Quickstart](../get-started/quickstart.md). `status.actual_state` is a
-health projection; it is not the readiness check for API Sessions.
+`running`, as shown in [Quickstart](../get-started/quickstart.md). An Agent does not need a
+channel to become ready. `status.actual_state` and `status.channels` do not report channel
+health; see [Agent lifecycle](./agents.md#agent-lifecycle).

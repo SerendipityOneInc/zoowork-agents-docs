@@ -2,7 +2,7 @@
 title: 工具
 description: 配置内置工具和由应用执行的工具，并观察调用结果。
 source: /en/build/tools
-source_hash: 54b56759483eb365158bbfd374277848050073dcac70ec74e5eac039afaffbd0
+source_hash: 48c1d6d5776f8fe57283e70e8cd0cf69d2431564b0ccd3514c8ce1a7d56c310c
 ---
 
 # 工具
@@ -225,9 +225,11 @@ JSON
 默认工具面仍取决于 runtime 和部署配置。每次 PUT 点名 `tool_policy` 都会整体替换该 policy；省略它则会保留原有 policy。
 清空 `tool_policy` 时，`mcp` 中声明的 MCP 审批默认值仍然生效。
 
-依赖它之前还要知道两件事。
+依赖它之前还要知道三件事。
 
 **每一次 PUT 都会 bump `config_version`** ，包括什么都没改的那一次，所以不要每个回合都重 PUT 一遍策略。见[错误处理](../reference/errors.md)。
+
+**每次渲染配置的写入都会校验 policy**：创建 Agent、`updateAgent()` 和 Skill 分配变更都包括在内。如果 runtime 无法解析 `tool_policy.rules`、`afterRules`、`loopDetection` 或 `asyncCompletion`，写入返回 `400 invalid_request`，也不会保存新的 `config_version`。例如：`rules` 或 `afterRules` 不是数组或超过 64 条，规则缺少 `id`，`action` 未知，`argsPattern` 或 `resultPattern` 不是合法的正则表达式，以及 `rules`、`afterRules` 或 `loopDetection` 序列化为 JSON 后超过 32 KiB。错误消息给出字段路径，例如 `tool_policy.rules[3].match.argsPattern is not a valid regular expression`，不会回显字段值。修正该字段后，发送完整的、修正后的 `tool_policy`。
 
 **这些标识符由平台定义。** 上表列出基础工具名称。一个回合的 `agent.tool` 事件可以确认实际调用过的名称，但事件中没有某个名称，不表示该工具不可用。
 

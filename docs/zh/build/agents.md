@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、更新和管理带版本的 Agent，并设置模型 thinking 档位。
 source: /en/build/agents
-source_hash: b318cb5ffcd0250ab3acfbb239c9e7b48284ee3627eca8721e657020e080387a
+source_hash: f924d6978cbc5c241e4c155cc254694875ffd40b9b780e1fccd149c7b1b2d5ae
 ---
 
 # Agents
@@ -287,8 +287,13 @@ Session 调用要求 desired state 为 running。
 
 | 字段 | 含义 | 取值 |
 |---|---|---|
-| `desired_state` | 生命周期意图与 API 就绪状态。 | `running`、`stopped`、`deleted` |
-| `actual_state` | 尽力而为的聊天渠道健康状态。 | `activating`、`active`、`degraded`、`error`、`stopped`、`deleting` |
+| `desired_state` | 生命周期意图与 API 就绪状态。只有 Agent 和它的 Computer 都是 `running` 时，它才是 `running`。 | `running`、`stopped`、`deleted` |
+| `agent_desired_state` | 可选。Agent 自身的运行状态。 | `running`、`stopped`、`deleted` |
+| `computer_desired_state` | 可选。承载该 Agent 的 Computer（`computer_id`）的运行状态。 | `running`、`stopped`、`deleted` |
+| `actual_state` | 由 `desired_state` 推导而来，不反映渠道健康或沙箱就绪情况。 | `active`、`stopped`、`deleting` |
+
+`status.channels` 只为兼容保留：`expected` 和 `connected` 始终为 `0`，`degraded_since`
+始终为 `null`。这些值不描述渠道绑定，见 [Channels](./channels.md)。
 
 用 `waitUntilRunning()` 轮询 `desired_state`，不要等待 `actual_state`。
 默认预算为 30 秒，每次轮询间隔 500 ms。超时和取消选项见

@@ -2,7 +2,7 @@
 title: 渠道
 description: 了解当前渠道管理限制，并通过 API Session 接入聊天应用。
 source: /en/build/channels
-source_hash: 9b5ed13a09ed8c645d5ff1fed36f8d5bd61b3e07a4b6df9d1847e204c3333ec8
+source_hash: c4c2ea2d20f6f2485394620eb1d59f8b755c80e1f02e4832cd32ad3f17a3a707
 ---
 
 # 渠道
@@ -37,5 +37,5 @@ ZooWork API key 和聊天平台凭证都保存在后端。
 ## Agent 就绪状态 {#agent-readiness}
 
 创建 API Session 前，先启动 Agent，再按[快速开始](../get-started/quickstart.md)检查
-`status.desired_state` 是否为 `running`。
-`status.actual_state` 是健康状态投影，不是 API Session 的就绪检查。
+`status.desired_state` 是否为 `running`。Agent 不需要渠道就能就绪。
+`status.actual_state` 和 `status.channels` 不反映渠道健康，见 [Agent 生命周期](./agents.md#agent-生命周期)。

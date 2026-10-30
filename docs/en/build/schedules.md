@@ -151,7 +151,8 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID/trigger"
 
 The trigger receipt acknowledges a request, not execution or completion. A disabled schedule
 can return `triggered: true` and then be skipped with `schedule.skipped` / `reason: "disabled"`.
-Do not use a disabled schedule as a manual-only test mode. Its run list can also lack `status`
+A firing whose Agent or Computer is not running is skipped the same way with
+`reason: "runtime_stopped"`. Do not use a disabled schedule as a manual-only test mode. Its run list can also lack `status`
 and `session_id`; missing fields are not evidence of success. Inspect recent firings next:
 
 ::: code-group
@@ -224,9 +225,11 @@ curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 
 :::
 
-Do not assume stopping or deleting an Agent cleans up all its schedules. Manage the schedule
-lifecycle explicitly, and delete schedules before you delete the Agent: after deletion, the
-schedule routes return 404. See [Stop and delete](./agents.md#stop-and-delete). After an uncertain update/delete response, read or list schedules to
+Stopping or deleting an Agent does not delete its schedules. While the Agent or its Computer
+is not running, the schedules stay defined and each firing is skipped with `schedule.skipped` /
+`reason: "runtime_stopped"`; skipped firings do not run later. Manage the schedule lifecycle
+explicitly, and delete schedules before you delete the Agent: after deletion, the schedule
+routes return 404. See [Stop and delete](./agents.md#stop-and-delete). After an uncertain update/delete response, read or list schedules to
 reconcile state instead of assuming a retry cannot change anything.
 
 ## Payloads and limits

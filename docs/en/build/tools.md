@@ -238,10 +238,20 @@ The default still depends on runtime and deployment configuration. Every PUT tha
 `tool_policy` replaces that policy as a whole; omitting it preserves the existing policy.
 MCP approval defaults declared in `mcp` remain in effect when `tool_policy` is cleared.
 
-Two more things to know before you rely on it.
+Three more things to know before you rely on it.
 
 **Every PUT bumps `config_version`**, including one that changes nothing, so do not re-PUT the
 policy on every turn. See [Errors and retries](../reference/errors.md).
+
+**The policy is validated on every write that renders the configuration**: Agent creation,
+`updateAgent()`, and Skill assignment changes. If the runtime cannot parse `tool_policy.rules`,
+`afterRules`, `loopDetection`, or `asyncCompletion`, the write returns `400 invalid_request`
+and no new `config_version` is saved. Examples are a `rules` or `afterRules` value that is not
+an array or has more than 64 entries, a rule without an `id`, an unknown `action`, an invalid
+regular expression in `argsPattern` or `resultPattern`, and a `rules`, `afterRules`, or
+`loopDetection` value larger than 32 KiB as serialized JSON. The message names the field path, such as
+`tool_policy.rules[3].match.argsPattern is not a valid regular expression`, and never echoes
+the value. Fix the field and send the whole corrected `tool_policy`.
 
 **The identifiers are platform-defined.** The table above lists the basic names. A turn's
 `agent.tool` events confirm names actually called, but the absence of a name from those events

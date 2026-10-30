@@ -209,14 +209,17 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/test" \
 ```
 
 The 202 response carries `object: "webhook_test"`, `endpoint_id`, and `receipt_id`. It confirms
-queuing, not successful delivery. Inspect the delivery log for the result:
+queuing, not successful delivery. Set `RECEIPT_ID` to that `receipt_id` and filter the delivery
+log by it, so concurrent tests do not mix:
 
 ```bash
-curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/deliveries?event_type=webhook.test" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+curl -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/deliveries" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  --data-urlencode "receipt_id=$RECEIPT_ID"
 ```
 
-Read the `deliveries` array. `status` is `pending`, `in_flight`, `succeeded`, `dead`, or
+Read the `deliveries` array. The delivery appears once the test event is queued; if the array is
+empty, read again. `status` is `pending`, `in_flight`, `succeeded`, `dead`, or
 `cancelled`; a successful HTTP test receipt is not the same as `status: "succeeded"` here.
 Follow `next_cursor` while `has_more` is true, preserving filters. The list defaults to 50
 records and accepts `limit` from 1 to 200.

@@ -58,6 +58,9 @@ Example response:
 | `archived` | Boolean. |
 | `pending_approvals` | Count of tool calls waiting on approval. Read the records with `listApprovals()`. |
 | `status` | A legacy Session field; the current `getSession()` path returns `null`. See below. |
+| `queue` | `getSession()` only. The queue mode that decides how input arriving during a running turn is handled. `effective_mode` (`steer`, `followup`, `collect`, or `interrupt`) is the mode in use: `selected_mode` when the Session has one, otherwise `default_mode` from the Agent configuration. The object also carries `selection_version`, `writable`, `unavailable_reason`, and `effective_boundary`. |
+| `isolation` | The isolation mode recorded when the Session was created; it never changes. Sessions you create as shown on this page record `shared`: they use the Agent's `/workspace` like every other Session of that Agent (see [File isolation](./files.md#file-isolation)). Sessions created before the field existed omit it. |
+| `skill_config_version` | The Agent configuration version the Session takes its Skills from, when one was recorded at creation. Otherwise absent. |
 
 ::: info Read run state from `run_status`
 `status` is a legacy Session field and may be `null`. Use `run_status` to read or poll the
@@ -282,6 +285,8 @@ the cursor is bound to the Agent and filter scope, and invalid reuse returns
 `400 invalid_cursor`. `limit` is 1–100. `runtime_modes` accepts `active`, `preview`,
 `authoring`, and `evaluation`. Each row has `list_cursor`, so a consumer that stops partway
 through a page can resume after the last processed row. `next_cursor` is null at the end.
+Rows in both lanes carry `isolation` and `skill_config_version` when the Session has them;
+`queue` is returned only by `getSession()`.
 
 Deleted Sessions are omitted by default. Set `includeDeleted: true` in TypeScript or
 `include_deleted=True` in Python when a reconciliation job needs deletion tombstones. Those

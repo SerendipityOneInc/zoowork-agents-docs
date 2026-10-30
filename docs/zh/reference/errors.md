@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 8712d138128d56a2aa884962be7c3aac6802145c6e077f3029716f064b503cc7
+source_hash: ec5daebf4096f789b7ec108d74e8775aab063ab8b5efac8d3b25c2697f9ec81c
 ---
 
 # 错误与重试
@@ -99,12 +99,14 @@ if (e instanceof ZooworkError) {
 | `model_not_selectable` | 409 | create 或 update 选择了一个仍保留给已有引用、但不再接受新选择的模型目录条目。 | 重新调用 `listModels()`，选择 `selectable` 不为 `false` 的条目；目录提供 `expired_fallback_to` 时使用它。不要原样重试同一个 alias。 |
 | `not_found` / `service_api.not_found` | 404 | 未知或已删除的 Agent、Session ID，或者资源不在 key 的组织、Project 或 owner 范围内。Agent 路由使用 `service_api.not_found`；Session 和 Schedule 路由可能使用 `not_found`。 | 匹配两种拼写，或按 `status === 404` 处理。404 不能证明资源已删除。保存创建的 ID，并使用对应范围的 key。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
-| `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本。 | 改请求。原样重试会一模一样地失败。 |
+| `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本、runtime 无法解析的 `tool_policy`。 | 改请求。原样重试会一模一样地失败。 |
 | *（可能没有 type）* | 404 | `putAgentSkill()` 使用未知 Skill ID，或 Skill 不在 key 的可见范围内。 | 按 `status === 404` 分支，因为这个响应可能省略 `type`。检查 Skill 的可见范围；见 [Skills](../build/skills.md)。 |
 
 ### 更多 400
 
 `updateAgent()` 在 body 里出现 `skills`、`credentials` 或任何未知字段时返回 **400**。skill 走 `putAgentSkill()`；credential 不通过 `updateAgent()` 配置。
+
+所有会渲染 Agent 配置的写入——创建、`updateAgent()`、`putAgentSkill()` 和 `deleteAgentSkill()`——在 `tool_policy.rules`、`afterRules`、`loopDetection` 或 `asyncCompletion` 无法解析时返回 **400** `invalid_request`，并且不保存新的 `config_version`。错误消息给出字段路径和原因，例如 `tool_policy.rules must be an array`。用 `updateAgent()` 发送修正后的 `tool_policy`；具体检查项见[工具](../build/tools.md#恢复默认工具面)。
 
 有两种创建期的拒绝带的是自己更窄的 type，而不是 `invalid_request`：`persona.docs` 条目取名 `MEMORY.md` 或落在保留的 `memory/` 命名空间下时是 `invalid_persona_doc_name`，body 里带 `sandbox.template` 字段时是 `sandbox_template_deprecated`。操作上它们和任何别的 400 一样：改 body，不要重试。
 
@@ -120,7 +122,10 @@ if (e instanceof ZooworkError) {
 |---|---:|---|
 | `forbidden` | 403 | 一个能被识别的凭证用在了错误的接口面上，或者认证之后被策略拒绝。 |
 | `conflict` | 409 | 通用的状态冲突；重新读一次资源。 |
+| `database_conflict` | 409 | 请求和并发请求争用数据库锁时失败，它的事务已回滚，但请求中更早的步骤可能已经生效。先重新读取资源状态，再决定是否重试。 |
+| `agent_lifecycle_operation_in_progress` | 409 | 这个 Agent 上还有另一个生命周期操作在进行。Agent 的第一个沙箱正在创建时，用 `updateAgent()` 修改 Environment 会得到它。等该操作结束后重试。 |
 | `platform_credentials_required` | 409 | 在平台凭证存在之前就尝试启动 agent。网关会替你代种这些凭证。 |
+| `runtime_credential_unavailable` | 409 | `startAgent()` 没有找到该 Agent 可用的 runtime credential，例如它已被撤销。原样重试不能解决；请创建替代的 Agent，或联系 ZooWork 支持。 |
 | `payload_too_large` | 413 | 请求体或 skill 负载超限。 |
 | `quota_exceeded` | 429 | 频率或数量超限。 |
 | `internal_error` | 500 | 服务端故障。读操作退避后重试；写操作先对账。 |
@@ -185,6 +190,8 @@ const session = await client.createSession(
 ```
 
 agent 创建的唯一性域是 `(agent.create, key)`。同一个 key、同一份 body 重放，返回第一次的结果。同一个 key 换一份 body 重放，是 `409 idempotency_conflict`。
+
+key 的重放有最短保留期：Agent 创建至少 7 天；Session 创建和 Agent webhook 写操作（create、rotate-secret、test 和 redeliver）至少 24 小时。保存的结果被清理后，同一个 key 会作为新请求执行，所以过晚重试 `createAgent()` 会创建第二个 Agent。重试较早的请求之前，先列出你的资源并核对状态。
 
 **key 要从你自己系统里稳定的东西派生** ——入站消息的 id、你正在为之开通资源的那条任务记录的 row id——不要用调用时现生成的值。每次尝试都换一个随机 key，这个 header 就白加了，因为需要收敛到第一次调用上的，正是这次重试。
 

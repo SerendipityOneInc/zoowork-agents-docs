@@ -2,7 +2,7 @@
 title: Webhooks
 description: 注册 webhook receiver，验证签名事件，检查并重试投递。
 source: /en/build/webhooks
-source_hash: 46496d49f50d00dfaddb03fb0106c7640034a010e11b745a2b68d0f91601b0f2
+source_hash: 9137a22e4705c935b1866359ad0f82673f89f1e8d7b7829e219c8927c5f37b1c
 ---
 
 # 订阅 Webhooks
@@ -166,14 +166,15 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/test" \
   -d '{}'
 ```
 
-202 响应带有 `object: "webhook_test"`、`endpoint_id`、`receipt_id`。它确认入队，不证明投递成功。通过 delivery log 检查结果：
+202 响应带有 `object: "webhook_test"`、`endpoint_id`、`receipt_id`。它确认入队，不证明投递成功。把 `RECEIPT_ID` 设为这个 `receipt_id`，再按它过滤 delivery log，这样并发的 test 不会混在一起：
 
 ```bash
-curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/deliveries?event_type=webhook.test" \
-  -H "Authorization: Bearer $ZOOWORK_API_KEY"
+curl -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/deliveries" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  --data-urlencode "receipt_id=$RECEIPT_ID"
 ```
 
-读取 `deliveries` 数组。`status` 是 `pending`、`in_flight`、`succeeded`、`dead` 或 `cancelled`；test HTTP receipt 成功与这里的 `status: "succeeded"` 不是同一件事。`has_more` 为 true 时，保持 filter 不变继续传 `next_cursor`。列表默认 50 条，`limit` 接受 1–200。
+读取 `deliveries` 数组。test event 入队后才会出现对应的 delivery；数组为空时再读一次。`status` 是 `pending`、`in_flight`、`succeeded`、`dead` 或 `cancelled`；test HTTP receipt 成功与这里的 `status: "succeeded"` 不是同一件事。`has_more` 为 true 时，保持 filter 不变继续传 `next_cursor`。列表默认 50 条，`limit` 接受 1–200。
 
 Disabled endpoint 仍可接收显式 test，业务事件则要求 enabled。Test 送达、receiver 验签成功后，再产生一个真实事件验证业务路径。
 

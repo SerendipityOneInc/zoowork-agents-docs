@@ -223,7 +223,7 @@ synthesized locally, so no server response explains it.
 | Method | Returns | What it does |
 |---|---|---|
 | `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | The agent's schedules. The list answers the scheduler's own describe shape with the camelCase projection merged on top - read defensively. |
-| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | Creates a schedule. `201` with a receipt carrying public `schedule_id` and deprecated compatibility `schedule_name`, not the full definition. Schedules outlive `stopAgent()` and `deleteAgent()`; delete them yourself. |
+| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | Creates a schedule. `201` with a receipt carrying public `schedule_id` and deprecated compatibility `schedule_name`, not the full definition. Schedules stay defined after `stopAgent()` and `deleteAgent()`, and their firings are skipped with reason `runtime_stopped` while the Agent is not running; delete them yourself. |
 | `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | Reads one schedule, in the camelCase read vocabulary. Use the public `schedule_id`; read cadence from the normalized projection. |
 | `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | Replaces the definition. To change the cadence send `schedule`, never the `scheduleSpec` a read hands you - that one answers `200` and is silently ignored. The SDK strips all six refused fields, so a read-tweak-write round trip works from JavaScript too. |
 | `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | Deletes a schedule. Like `updateSchedule`, it carries no cross-timeout idempotency guarantee - reconcile by listing rather than blind-retrying. |
@@ -1005,6 +1005,8 @@ interface AgentRecord {
 `environment_locked` is the one pre-flight check on this record worth reading. It flips to
 `true` the first time a sandbox is created, and from then on every attempt to change the
 agent's Environment is `409 environment_locked` - stopping the agent does not clear it.
+While that first sandbox is still being created, an Environment change returns
+`409 agent_lifecycle_operation_in_progress`; retry it after the create ends.
 `environment_locked_at` is when it flipped. `resolved_environment` is the Environment version
 the agent is actually pinned to; its `networking` defaults to `{ type: 'unrestricted' }` when
 the Environment declares none.
@@ -1027,6 +1029,8 @@ One interface, two response shapes:
 ```ts
 interface AgentStatus {
   desired_state?: 'running' | 'stopped' | 'deleted' | string
+  agent_desired_state?: 'running' | 'stopped' | 'deleted' | string
+  computer_desired_state?: 'running' | 'stopped' | 'deleted' | string
   actual_state?: 'activating' | 'active' | 'degraded' | 'error' | 'stopped' | 'deleting' | string
   config_version?: number
   render_state?: string
@@ -1040,11 +1044,17 @@ interface AgentStatus {
 `desired_state` is the one that gates the API: `running` is the precondition for
 `createSession()` and `postEvents()`, and anything else is `409 agent_not_running`.
 
-`actual_state` is a best-effort chat-channel health projection, not API readiness. A GET can
-report `active` with zero channel counts, or `activating` while health information is
-refreshing; list and GET can briefly disagree. `running` is not a member of this enum, so poll
-`status.desired_state`. See [Agents](../build/agents.md).
+`desired_state` is `running` only when both `agent_desired_state` (the Agent's own run state)
+and `computer_desired_state` (the Computer that hosts it) are `running`.
+
+`actual_state` is derived from `desired_state`, not observed readiness: `active` when running,
+`stopped` when stopped, `deleting` during deletion. It does not report channel health.
+`running` is not a member of this enum, so poll `status.desired_state`. See
+[Agents](../build/agents.md#agent-lifecycle).
 :::
+
+`channels` is a compatibility field: `expected` and `connected` are always `0`, and
+`degraded_since` is always `null`.
 
 `config_version` here is the authoritative version on the read path.
 
@@ -1208,6 +1218,17 @@ interface SessionRecord {
   metadata?: Record<string, unknown>
   archived?: boolean
   deleted?: boolean
+  skill_config_version?: number
+  isolation?: 'shared' | 'session' | string
+  queue?: {
+    selected_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string | null
+    default_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string
+    effective_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string
+    selection_version: number
+    writable: boolean
+    unavailable_reason: string | null
+    effective_boundary: 'next_turn_config_load' | string
+  }
   updated_at?: string
   history?: SessionHistoryEntry[]
   [k: string]: unknown
@@ -1222,6 +1243,12 @@ The fields vary by response surface: `createSession()` returns `status: "running
 `run_status`; `listSessions()` rows carry `run_status` and omit `status`. The legacy `status`
 field may differ across deployments and is not the run outcome. Use `run_status` for the latest
 run state.
+`isolation` is recorded at creation and never changes; Sessions created with `createSession()`
+record `shared` and share the Agent's `/workspace`. The create receipt and both list lanes carry
+it, along with `skill_config_version` when the Session takes its Skills from a recorded
+configuration version. `queue` is present only on `getSession()`: `effective_mode` is
+`selected_mode` when set, otherwise `default_mode` from the Agent configuration. These are
+response fields; see [Read a session](../build/session-operations.md#read-a-session).
 `deleted` is present on deletion tombstones returned by `listSessionPage()` with
 `includeDeleted: true`; a tombstone is not a readable Session resource.
 `session_key` is channel-qualified: sessions you create through
