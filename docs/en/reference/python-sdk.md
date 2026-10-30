@@ -499,8 +499,11 @@ def config_version(agent: dict) -> int | None:
     return (agent.get("status") or {}).get("config_version") or agent.get("config_version")
 ```
 
-Gate API readiness on `status.desired_state`, never on `status.actual_state`. `actual_state` is
-a best-effort chat-channel health projection, and `running` is not one of its values.
+Gate API readiness on `status.desired_state`, never on `status.actual_state`. `desired_state` is
+`"running"` only when both the optional `agent_desired_state` (the Agent's own run state) and
+`computer_desired_state` (the Computer that hosts it) are `"running"`. `actual_state` is derived
+from `desired_state` (`active`, `stopped`, or `deleting`), does not report channel health, and
+never reads `running`. `status.channels` is a compatibility field whose counts are always `0`.
 
 An unknown, soft-deleted, or out-of-scope Agent ID returns 404. The public Agent route uses
 `service_api.not_found`; match the status as well as the type. See [Errors](./errors.md).
@@ -922,6 +925,13 @@ The fields vary by response surface: `create_session()` returns `status: "runnin
 rows carry `run_status` and omit `status`. `run_status` can be `None`, and `pending_approvals`
 is an optional count. `session_key` is `api:<session_id>` for Sessions you create; `channel` is
 `api` for those and `cron` for Sessions a schedule fired.
+
+`isolation` is recorded at creation and never changes; Sessions created with `create_session()`
+record `"shared"` and share the Agent's `/workspace`. The create receipt and list rows carry it,
+along with `skill_config_version` when the Session takes its Skills from a recorded configuration
+version. Only `get_session()` returns `queue`: its `effective_mode` is `selected_mode` when set,
+otherwise `default_mode` from the Agent configuration. See
+[Read a session](../build/session-operations.md#read-a-session).
 
 ---
 
@@ -1348,8 +1358,9 @@ async def create_schedule(
 ```
 
 Creates a schedule. The `201` receipt carries the public `schedule_id` and the deprecated
-compatibility field `schedule_name`, not the full definition. Schedules outlive `stop_agent()`
-and `delete_agent()`; delete them yourself.
+compatibility field `schedule_name`, not the full definition. Schedules stay defined after
+`stop_agent()` and `delete_agent()`, and their firings are skipped with reason `runtime_stopped`
+while the Agent is not running; delete them yourself.
 
 `schedule` requires three keys. `schedule_id` is yours to choose, matching
 `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`; re-creating the same ID with a *different* definition is a

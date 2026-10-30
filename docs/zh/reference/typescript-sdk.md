@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 638e87d944bdd9c3c76bade0ff9ec5a402e625514a00a246eba8b974704ad3f2
+source_hash: e9312a38c04139d43e4a6dfaa30f470607a301eb8525cbcf50e88292224120e4
 ---
 
 # TypeScript SDK 参考
@@ -223,7 +223,7 @@ Artifact 由 agent 自己循环内的 `artifact_publish` 工具发布；这些�
 | 方法 | 返回 | 做什么 |
 |---|---|---|
 | `listSchedules(agentId)` | `Promise<ScheduleRecord[]>` | 这个 agent 的定时任务。列表返回的是调度器自己的 describe 形状，上面再合并一层 camelCase 投影——防御性地读。 |
-| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | 创建一个定时任务。`201`，回执包含公共 `schedule_id` 和兼容用的 deprecated `schedule_name`，不是完整定义。定时任务比 `stopAgent()` 和 `deleteAgent()` 活得久；得你自己删。 |
+| `createSchedule(agentId, input, idempotencyKey?)` | `Promise<ScheduleRecord>` | 创建一个定时任务。`201`，回执包含公共 `schedule_id` 和兼容用的 deprecated `schedule_name`，不是完整定义。`stopAgent()` 和 `deleteAgent()` 之后定时任务仍然保留定义，Agent 没有运行期间它的触发会以 `runtime_stopped` 原因跳过；得你自己删。 |
 | `getSchedule(agentId, scheduleId)` | `Promise<ScheduleRecord>` | 读取一个定时任务，用的是 camelCase 的读取词表。使用公共 `schedule_id`；触发节奏从规范化的 projection 读取。 |
 | `updateSchedule(agentId, scheduleId, update)` | `Promise<ScheduleRecord>` | 替换定义。要改触发节奏就发 `schedule`，绝不要把读到的 `scheduleSpec` 发回去——那个会返回 `200` 然后被静默忽略。SDK 会把六个被拒的字段全部剥掉，所以「读出来、改一改、再写回去」这套在 JavaScript 里也能成立。 |
 | `deleteSchedule(agentId, scheduleId)` | `Promise<void>` | 删除一个定时任务。和 `updateSchedule` 一样，它不提供跨超时的幂等保证——超时之后靠列出来对账，不要盲目重试。 |
@@ -952,7 +952,8 @@ interface AgentRecord {
 
 这份记录上值得先读一眼的是 `environment_locked`。第一次创建沙箱时它翻成 `true`，从那之后，
 每一次改这个 agent 的 Environment 都是 `409 environment_locked`——停掉 agent 也清不掉它。
-`environment_locked_at` 是它翻转的时刻。`resolved_environment` 是这个 agent 实际 pin 上的那个
+第一个沙箱还在创建时，修改 Environment 会返回 `409 agent_lifecycle_operation_in_progress`；
+等这次创建结束后再重试。`environment_locked_at` 是它翻转的时刻。`resolved_environment` 是这个 agent 实际 pin 上的那个
 Environment 版本；当 Environment 没声明网络时，它的 `networking` 默认是 `{ type: 'unrestricted' }`。
 
 一个接口，两种响应形状：
@@ -973,6 +974,8 @@ Environment 版本；当 Environment 没声明网络时，它的 `networking` �
 ```ts
 interface AgentStatus {
   desired_state?: 'running' | 'stopped' | 'deleted' | string
+  agent_desired_state?: 'running' | 'stopped' | 'deleted' | string
+  computer_desired_state?: 'running' | 'stopped' | 'deleted' | string
   actual_state?: 'activating' | 'active' | 'degraded' | 'error' | 'stopped' | 'deleting' | string
   config_version?: number
   render_state?: string
@@ -986,8 +989,15 @@ interface AgentStatus {
 `desired_state` 决定 API 能否使用：`running` 是 `createSession()` 和 `postEvents()`
 的前置条件，其他状态会返回 `409 agent_not_running`。
 
-`actual_state` 是尽力而为的聊天渠道健康投影，不是 API 就绪状态。GET 可能返回 `active` 和零渠道计数，健康信息刷新时也可能显示 `activating`，列表与 GET 还可能短时不同。`running` 不在它的枚举中，因此应轮询 `status.desired_state`。见 [Agents](../build/agents.md)。
+只有 `agent_desired_state`（Agent 自身的运行状态）和 `computer_desired_state`（承载它的
+Computer）都是 `running` 时，`desired_state` 才是 `running`。
+
+`actual_state` 由 `desired_state` 推导而来，不是观测到的就绪状态：运行时为 `active`，停止时为
+`stopped`，删除过程中为 `deleting`。它不反映渠道健康。`running` 不在它的枚举中，因此应轮询
+`status.desired_state`。见 [Agents](../build/agents.md#agent-生命周期)。
 :::
+
+`channels` 是兼容字段：`expected` 和 `connected` 始终为 `0`，`degraded_since` 始终为 `null`。
 
 这里的 `config_version` 是读取路径上的权威版本号。
 
@@ -1132,6 +1142,17 @@ interface SessionRecord {
   metadata?: Record<string, unknown>
   archived?: boolean
   deleted?: boolean
+  skill_config_version?: number
+  isolation?: 'shared' | 'session' | string
+  queue?: {
+    selected_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string | null
+    default_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string
+    effective_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string
+    selection_version: number
+    writable: boolean
+    unavailable_reason: string | null
+    effective_boundary: 'next_turn_config_load' | string
+  }
   updated_at?: string
   history?: SessionHistoryEntry[]
   [k: string]: unknown
@@ -1144,6 +1165,10 @@ interface SessionRecord {
 `getSession()` 返回 `status: null`，同时返回 `run_status`；`listSessions()` 的每一行包含
 `run_status`，不包含 `status`。旧的 `status` 字段不是 run 的结果，不同部署上的值可能不同。
 最近一次 run 的状态应读取 `run_status`；没有最近 run 时可为 null。`pending_approvals` 是数量，不是数组。
+`isolation` 在创建时记录，之后不会改变；用 `createSession()` 创建的 Session 记录为 `shared`，共享 Agent 的
+`/workspace`。创建回执和两种列表方式都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带
+`skill_config_version`。`queue` 只出现在 `getSession()` 上：`selected_mode` 有值时 `effective_mode`
+取它，否则取 Agent 配置中的 `default_mode`。这些都是响应字段，见[读取 Session](../build/session-operations.md#read-a-session)。
 `deleted` 出现在 `listSessionPage()` 用 `includeDeleted: true` 返回的 deletion tombstone 上；tombstone 不是可读取的 Session resource。
 `session_key` 带频道前缀：你通过 API 创建的 session 是 `api:<session_id>`。`channel` 在你自己创建的
 session 上是 `api`，在定时任务触发出来的 session 上是 `cron`。

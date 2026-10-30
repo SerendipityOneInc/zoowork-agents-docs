@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 读取 Session 状态和 transcript，获取 run output，列出、归档或删除 Session。
 source: /en/build/session-operations
-source_hash: 2a3c18578733e7e1fb69a2a0d411679f2c52b6506c02afee714600c3f6cdff2a
+source_hash: 63f093c53d6e6ea014621df17965b33644cbbe341982a5aa26416659e216216f
 ---
 
 # Session 操作
@@ -57,6 +57,9 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID" \
 | `archived` | 布尔值。 |
 | `pending_approvals` | 正在等待审批的工具调用数量。记录本身通过 `listApprovals()` 读取。 |
 | `status` | 旧的 Session 字段；当前 `getSession()` 路径返回 `null`。见下面。 |
+| `queue` | 只有 `getSession()` 返回。queue mode 决定 turn 运行期间到达的输入如何处理。`effective_mode`（`steer`、`followup`、`collect` 或 `interrupt`）是当前使用的模式：Session 设置了 `selected_mode` 时取它，否则取 Agent 配置中的 `default_mode`。该对象还包含 `selection_version`、`writable`、`unavailable_reason` 和 `effective_boundary`。 |
+| `isolation` | Session 创建时记录的隔离模式，之后不会改变。按本页方式创建的 Session 记录为 `shared`：它和该 Agent 的其他 Session 一样使用 Agent 的 `/workspace`（见[文件隔离](./files.md#file-isolation)）。这个字段出现之前创建的 Session 不带它。 |
+| `skill_config_version` | 如果创建时记录了版本，这是 Session 获取 Skills 所用的 Agent 配置版本；否则不出现。 |
 
 ::: info 从 `run_status` 读取运行状态
 `status` 是旧的 Session 字段，值可能是 `null`。需要读取或轮询最近一次 run 的状态时，请使用 `run_status`。
@@ -239,7 +242,7 @@ curl -G "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 
 curl 请求读取一页；继续请求时传入它返回的 `next_cursor`。
 
-初始 cursor 是 `sls1:0`。cursor 不透明，续传时必须保持所有 filter 不变；它绑定 Agent 和 filter scope，错误复用返回 `400 invalid_cursor`。`limit` 是 1–100。`runtime_modes` 接受 `active`、`preview`、`authoring` 和 `evaluation`。每行都有 `list_cursor`，所以只处理半页时可以从最后处理的 row 之后继续。到达末尾时 `next_cursor` 是 null。
+初始 cursor 是 `sls1:0`。cursor 不透明，续传时必须保持所有 filter 不变；它绑定 Agent 和 filter scope，错误复用返回 `400 invalid_cursor`。`limit` 是 1–100。`runtime_modes` 接受 `active`、`preview`、`authoring` 和 `evaluation`。每行都有 `list_cursor`，所以只处理半页时可以从最后处理的 row 之后继续。到达末尾时 `next_cursor` 是 null。两种列表方式的 row 在 Session 有这些字段时都带 `isolation` 和 `skill_config_version`；`queue` 只由 `getSession()` 返回。
 
 默认不会返回已删除的 Session。reconciliation job 需要 deletion tombstone 时，TypeScript 传 `includeDeleted: true`，Python 传 `include_deleted=True`。这类 row 带有 `deleted: true`，page 用 `includes_deleted: true` 确认当前模式。这个选项属于 cursor scope；使用同一个 cursor 续传时不能修改它。tombstone 只用于识别已删除的 Session id，不能当作可读取的 Session resource。
 

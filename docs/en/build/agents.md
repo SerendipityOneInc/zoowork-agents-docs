@@ -311,8 +311,14 @@ Session calls require the running desired state.
 
 | Field | Meaning | Values |
 |---|---|---|
-| `desired_state` | Lifecycle intent and API readiness. | `running`, `stopped`, `deleted` |
-| `actual_state` | Best-effort chat-channel health. | `activating`, `active`, `degraded`, `error`, `stopped`, `deleting` |
+| `desired_state` | Lifecycle intent and API readiness. It is `running` only when both the Agent and its Computer are `running`. | `running`, `stopped`, `deleted` |
+| `agent_desired_state` | Optional. The Agent's own run state. | `running`, `stopped`, `deleted` |
+| `computer_desired_state` | Optional. The run state of the Computer (`computer_id`) that hosts the Agent. | `running`, `stopped`, `deleted` |
+| `actual_state` | Derived from `desired_state`. It does not report channel health or sandbox readiness. | `active`, `stopped`, `deleting` |
+
+`status.channels` is kept for compatibility: `expected` and `connected` are always `0`, and
+`degraded_since` is always `null`. These values do not describe channel bindings; see
+[Channels](./channels.md).
 
 Use `waitUntilRunning()` to poll `desired_state`, rather than `actual_state`. Its default
 budget is 30 seconds, with 500 ms between polls. For timeout and cancellation options, see the

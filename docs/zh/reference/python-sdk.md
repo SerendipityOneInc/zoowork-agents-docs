@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 663e07c0b9c5743b070ef442081e89f8b0232375579a950296f48c11d4954a3f
+source_hash: 3c7bc0fed026b9a353c7baeb08993565c7bd47cac96121b23033b4bb48a85f60
 ---
 
 # Python SDK 参考
@@ -430,7 +430,7 @@ def config_version(agent: dict) -> int | None:
     return (agent.get("status") or {}).get("config_version") or agent.get("config_version")
 ```
 
-判断 API 是否就绪要看 `status.desired_state`，不要看 `status.actual_state`。`actual_state` 只是尽力而为的聊天 channel 健康度投影，它的取值里也没有 `running`。
+判断 API 是否就绪要看 `status.desired_state`，不要看 `status.actual_state`。只有可选字段 `agent_desired_state`（Agent 自身的运行状态）和 `computer_desired_state`（承载它的 Computer）都是 `"running"` 时，`desired_state` 才是 `"running"`。`actual_state` 由 `desired_state` 推导而来（`active`、`stopped` 或 `deleting`），不反映渠道健康，也永远不会是 `running`。`status.channels` 是兼容字段，其中的计数始终为 `0`。
 
 未知、已软删除或超出范围的 Agent ID 返回 404。公共 Agent 路由使用 `service_api.not_found`；判断时同时匹配状态码和 type。见[错误](./errors.md)。
 
@@ -779,6 +779,8 @@ for row in s.get("history", []):
 `history` 中的行是**落盘的 transcript，不是 event log**。每行有 `seq`、`entry_type`、`entry`，可能还有 `created_at`，按 `seq` 升序排列。`entry_type == "message"` 时，对话文本在 `entry["message"]` 下；其他 entry type 跳过即可。
 
 不同响应中的字段不同：`create_session()` 返回 `status: "running"`，没有 `run_status`；`get_session()` 返回 `status: None` 和 `run_status`；`list_sessions()` 的行带 `run_status`，没有 `status`。`run_status` 可能为 `None`，`pending_approvals` 是可选的计数。你创建的 Session 的 `session_key` 是 `api:<session_id>`；这类 Session 的 `channel` 为 `api`，由 schedule 触发的 Session 为 `cron`。
+
+`isolation` 在创建时记录，之后不会改变；用 `create_session()` 创建的 Session 记录为 `"shared"`，共享 Agent 的 `/workspace`。创建回执和列表 row 都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带 `skill_config_version`。只有 `get_session()` 返回 `queue`：`selected_mode` 有值时 `effective_mode` 取它，否则取 Agent 配置中的 `default_mode`。见[读取 Session](../build/session-operations.md#read-a-session)。
 
 ---
 
@@ -1135,7 +1137,7 @@ async def create_schedule(
 ) -> JsonObject
 ```
 
-创建 schedule。`201` 回执包含公共的 `schedule_id` 和已废弃的兼容字段 `schedule_name`，不包含完整定义。schedule 在 `stop_agent()` 和 `delete_agent()` 之后仍然存在，需要你自己删除。
+创建 schedule。`201` 回执包含公共的 `schedule_id` 和已废弃的兼容字段 `schedule_name`，不包含完整定义。schedule 在 `stop_agent()` 和 `delete_agent()` 之后仍然保留定义，Agent 没有运行期间它的触发会以 `runtime_stopped` 原因跳过，需要你自己删除。
 
 `schedule` 需要三个 key。`schedule_id` 由你选择，需匹配 `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`；用同一个 ID 但*不同*的定义重新创建会返回 `409`。`schedule` 是触发节奏。`payload` 是要执行的工作，示例使用 `kind: "agentTurn"`。管理接口的解析器也接受 `systemEvent` 和 `command`，它们的执行方式和调用方限制不同，请按 [Schedules](../build/schedules.md) 使用。
 

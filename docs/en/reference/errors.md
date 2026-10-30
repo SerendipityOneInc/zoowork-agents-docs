@@ -118,7 +118,7 @@ your catch block.
 | `model_not_selectable` | 409 | A create or update selects a model catalog row that remains visible for existing references but no longer accepts new selection. | Refresh `listModels()`, choose a row whose `selectable` is not `false`, and use `expired_fallback_to` when the catalog supplies one. Do not retry the same alias unchanged. |
 | `not_found` / `service_api.not_found` | 404 | Unknown or deleted Agent or Session ID, or a resource outside the key's organization, Project, or owner scope. The Agent routes use `service_api.not_found`; Session and Schedule routes can use `not_found`. | Match both spellings or use `status === 404`. A 404 does not prove deletion. Keep a record of the IDs you create and use the key for their scope. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
-| `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready. | Fix the request. Retrying unchanged fails identically. |
+| `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready, a `tool_policy` the runtime cannot parse. | Fix the request. Retrying unchanged fails identically. |
 | *(may be absent)* | 404 | `putAgentSkill()` with an unknown Skill ID or one outside the key's visible scopes. | Branch on `status === 404` because this response may omit `type`. Check the Skill's visibility; see [Skills](../build/skills.md). |
 
 ### More 400s
@@ -126,6 +126,13 @@ your catch block.
 `updateAgent()` answers **400** when the body names `skills`, `credentials`, or any
 unknown field. Skills go through `putAgentSkill()`; credentials are not configured through
 `updateAgent()`.
+
+Every write that renders the Agent configuration - creation, `updateAgent()`,
+`putAgentSkill()`, and `deleteAgentSkill()` - answers **400** `invalid_request` when
+`tool_policy.rules`, `afterRules`, `loopDetection`, or `asyncCompletion` cannot be parsed, and
+saves no new `config_version`. The message names the field path and the reason, for example
+`tool_policy.rules must be an array`. Send a corrected `tool_policy` with `updateAgent()`; see
+[Tools](../build/tools.md#restore-the-default-tool-surface) for the checks.
 
 Two create-time rejections carry their own narrower type rather than `invalid_request`:
 `invalid_persona_doc_name` for a `persona.docs` entry named `MEMORY.md` or anything under the
@@ -149,7 +156,10 @@ above.
 |---|---:|---|
 | `forbidden` | 403 | A recognized credential used on the wrong surface, or a policy reject after authentication. |
 | `conflict` | 409 | Generic state conflict; re-read the resource. |
+| `database_conflict` | 409 | The request lost a database lock conflict with a concurrent request, and its transaction was rolled back. Earlier steps of the request may already be applied. Re-read the resource state, then decide whether to retry. |
+| `agent_lifecycle_operation_in_progress` | 409 | Another lifecycle operation on the Agent is still running. An `updateAgent()` that changes the Environment while the Agent's first sandbox is being created gets this. Retry after the operation ends. |
 | `platform_credentials_required` | 409 | An agent start attempted before its platform credentials exist. The gateway seeds these for you. |
+| `runtime_credential_unavailable` | 409 | `startAgent()` found no active runtime credential for the Agent, for example after it was revoked. Retrying the same start does not fix it; create a replacement Agent or contact ZooWork support. |
 | `payload_too_large` | 413 | Body or skill payload over the limit. |
 | `quota_exceeded` | 429 | Rate or quantity limit. |
 | `internal_error` | 500 | Server-side failure. Back off and retry reads; reconcile writes first. |
@@ -219,6 +229,12 @@ const session = await client.createSession(
 The uniqueness domain for agent create is `(agent.create, key)`. Replaying the same key with
 an identical body returns the first result. Replaying it with a different body is
 `409 idempotency_conflict`.
+
+A key replays for a minimum window: at least 7 days for Agent create, and at least 24 hours for
+Session create and the Agent webhook writes (create, rotate-secret, test, and redeliver). After
+the stored result is cleaned up, the same key executes as a new request, so a late retry of
+`createAgent()` creates a second Agent. Before retrying an older request, list your resources
+and reconcile instead.
 
 **Derive the key from something stable in your own system** - the id of the inbound message,
 the row id of the job you are provisioning for - not from a value generated at call time. A
