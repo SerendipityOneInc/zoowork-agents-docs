@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 6021d17886f31b984ece2f46d1834f46cbae75fafc18e6d254867c8aa81ff4e4
+source_hash: 61398b953685f904d63f22d922b2e7be0a4074680fad8f5833d9557c2d9758ca
 ---
 
 # Session 事件流
@@ -425,7 +425,7 @@ Transport failure 后重试 interrupt 时，复用同一个 `idempotency_key`。
 解决一个待处理的审批。
 
 ```json
-{ "type": "user.tool_confirmation", "approval_id": "apr_...", "decision": "allow-once" }
+{ "type": "user.tool_confirmation", "approval_id": "ap_...", "decision": "allow-once" }
 ```
 
 | 字段 | 必填 | 规则 |
