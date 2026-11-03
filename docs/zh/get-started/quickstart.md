@@ -2,7 +2,7 @@
 title: 快速开始
 description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: a94c891985256abdd9c7963748e6aa78a9fbf193f1872882ad57f804548a9dd0
+source_hash: d1f7aa862601b20166a09e4c11380c20680dec8f530e146165b344fe8ae423d0
 ---
 
 # 快速开始
@@ -271,7 +271,8 @@ curl 用户在按 Ctrl+C 关闭事件流后执行清理。两个 SDK 程序退�
 ## 构建完整应用
 
 下面每个示例都是 [quickstarts 仓库](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts)
-里可以运行的完整应用。每个示例独立安装，需要使用你自己的 API key。
+里可以运行的完整应用。每个示例独立安装，需要使用你自己的 API key。Knowledge Assistant
+还需要一个 Cloudflare 账号。
 
 <LinkCards>
 
@@ -290,6 +291,10 @@ curl 用户在按 Ctrl+C 关闭事件流后执行清理。两个 SDK 程序退�
 - [Research Assistant](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/research-assistant)
 
   基于 Vercel Chat SDK 的 Web 应用，展示 Agent 的搜索和抓取活动，再给出带来源引用的简报。
+
+- [Knowledge Assistant](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/knowledge-assistant)
+
+  custom tool 通过 Cloudflare AI Search 检索文档，也可以换成你自己的检索服务。回答会链接到所用的段落，文档没有覆盖的问题会明确说明。
 
 </LinkCards>
 

@@ -277,7 +277,8 @@ HTTP client when they exit.
 
 Each example is a runnable application in the
 [quickstarts repository](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts).
-Each one installs on its own and needs your own API key.
+Each one installs on its own and needs your own API key. Knowledge Assistant also needs a
+Cloudflare account.
 
 <LinkCards>
 
@@ -296,6 +297,10 @@ Each one installs on its own and needs your own API key.
 - [Research Assistant](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/research-assistant)
 
   A Vercel Chat SDK web app shows the Agent's search and fetch activity, then a brief with cited sources.
+
+- [Knowledge Assistant](https://github.com/SerendipityOneInc/zoowork-platform-quickstarts/tree/main/knowledge-assistant)
+
+  A custom tool searches documents through Cloudflare AI Search, which you can replace with your own retrieval service. Answers link to the passages they used and say when the documents do not cover a question.
 
 </LinkCards>
 
