@@ -492,7 +492,7 @@ behavior.
 Resolves a pending approval.
 
 ```json
-{ "type": "user.tool_confirmation", "approval_id": "apr_...", "decision": "allow-once" }
+{ "type": "user.tool_confirmation", "approval_id": "ap_...", "decision": "allow-once" }
 ```
 
 | Field | Required | Rules |

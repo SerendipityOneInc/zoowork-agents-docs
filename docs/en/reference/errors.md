@@ -131,8 +131,8 @@ Every write that renders the Agent configuration - creation, `updateAgent()`,
 `putAgentSkill()`, and `deleteAgentSkill()` - answers **400** `invalid_request` when
 `tool_policy.rules`, `afterRules`, `loopDetection`, or `asyncCompletion` cannot be parsed, and
 saves no new `config_version`. The message names the field path and the reason, for example
-`tool_policy.rules must be an array`. Send a corrected `tool_policy` with `updateAgent()`; see
-[Tools](../build/tools.md#restore-the-default-tool-surface) for the checks.
+`tool_policy.rules must be an array with at most 64 entries`. Send a corrected `tool_policy` with
+`updateAgent()`; see [Tools](../build/tools.md#restore-the-default-tool-surface) for the checks.
 
 Two create-time rejections carry their own narrower type rather than `invalid_request`:
 `invalid_persona_doc_name` for a `persona.docs` entry named `MEMORY.md` or anything under the

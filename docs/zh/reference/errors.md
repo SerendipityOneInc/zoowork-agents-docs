@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: ec5daebf4096f789b7ec108d74e8775aab063ab8b5efac8d3b25c2697f9ec81c
+source_hash: ad0301f73bf5cbe10fdaba378d06cd46ec647ff8397f4d49dbca1005d82d48c3
 ---
 
 # 错误与重试
@@ -106,7 +106,7 @@ if (e instanceof ZooworkError) {
 
 `updateAgent()` 在 body 里出现 `skills`、`credentials` 或任何未知字段时返回 **400**。skill 走 `putAgentSkill()`；credential 不通过 `updateAgent()` 配置。
 
-所有会渲染 Agent 配置的写入——创建、`updateAgent()`、`putAgentSkill()` 和 `deleteAgentSkill()`——在 `tool_policy.rules`、`afterRules`、`loopDetection` 或 `asyncCompletion` 无法解析时返回 **400** `invalid_request`，并且不保存新的 `config_version`。错误消息给出字段路径和原因，例如 `tool_policy.rules must be an array`。用 `updateAgent()` 发送修正后的 `tool_policy`；具体检查项见[工具](../build/tools.md#恢复默认工具面)。
+所有会渲染 Agent 配置的写入——创建、`updateAgent()`、`putAgentSkill()` 和 `deleteAgentSkill()`——在 `tool_policy.rules`、`afterRules`、`loopDetection` 或 `asyncCompletion` 无法解析时返回 **400** `invalid_request`，并且不保存新的 `config_version`。错误消息给出字段路径和原因，例如 `tool_policy.rules must be an array with at most 64 entries`。用 `updateAgent()` 发送修正后的 `tool_policy`；具体检查项见[工具](../build/tools.md#恢复默认工具面)。
 
 有两种创建期的拒绝带的是自己更窄的 type，而不是 `invalid_request`：`persona.docs` 条目取名 `MEMORY.md` 或落在保留的 `memory/` 命名空间下时是 `invalid_persona_doc_name`，body 里带 `sandbox.template` 字段时是 `sandbox_template_deprecated`。操作上它们和任何别的 400 一样：改 body，不要重试。
 
