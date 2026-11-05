@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 6590b67a22c6a08224cf784ce1b11135ddc60e394f20edcb437b1d55817d604a
+source_hash: 37339df591c6030d9d96d0cbe340e99fb9c1b7a69fec94ddb0e7004871028986
 ---
 
 # TypeScript SDK 参考
@@ -1009,7 +1009,7 @@ interface AgentResource {
   userTimezone?: string
   model?: { primary: string; input?: string[]; max_tokens?: number; thinking?: ThinkingLevel | null }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
-  skills?: (({ skill_id: string; name?: string } | { name: string; skill_id?: string }) & { version?: number | 'latest' })[]
+  skills?: { skill_id: string; name?: string; version?: number | 'latest' }[]
   include_global_skills?: boolean
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
@@ -1029,7 +1029,7 @@ interface AgentResource {
 从此定住；PUT 时和 `tool_policy` 一样整体替换），`outcome` 是无人值守 cron 触发的 agent 级
 默认门。
 
-`userTimezone` 是 prompt context 和消息时间戳使用的 IANA timezone 名称，不设置 Schedule timezone。`include_global_skills` 默认 `true`；设为 `false` 会关闭自动挂载的 global Skills，但不会删除显式安装的 Skills。显式传入空的 `skills` array 也会 opt out。
+`userTimezone` 是 prompt context 和消息时间戳使用的 IANA timezone 名称，不设置 Schedule timezone。`include_global_skills` 默认 `true`；设为 `false` 会关闭自动挂载的 global Skills，但不会删除显式安装的 Skills。传入空的 `skills` array 也会关闭自动挂载。每个 `skills` 条目停留在创建时解析出的版本；有条目带 `name` 时，这个列表成为 Agent 的精确 Skill 集合，见[创建时选择 Skills](../build/skills.md#choose-skills-at-creation)。
 
 省略 `model` 会把创建时生效的平台默认值写入 Agent。默认值可能变化；需要确定性部署时，请调用 `listModels()` 并明确设置 `primary`。
 

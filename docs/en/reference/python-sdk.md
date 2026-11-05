@@ -416,8 +416,10 @@ version from `get_agent()`. Derive the idempotency key from something stable in 
 
 Omitting `model` pins the platform default active at creation time. Defaults can change, so call
 `list_models()` and set `primary` explicitly when provisioning must be deterministic.
-`include_global_skills` defaults to `True`; set it to `False`, or send an explicit empty
-`skills` list, to disable automatic global Skills. `userTimezone` is a named IANA timezone for
+`include_global_skills` defaults to `True`; set it to `False`, or send an empty `skills`
+list, to disable automatic global Skills. Each `skills` entry needs `skill_id` and stays on
+the version resolved at creation; an entry with `name` makes the list the Agent's exact Skill
+set. See [Choose Skills at creation](../build/skills.md#choose-skills-at-creation). `userTimezone` is a named IANA timezone for
 prompt and message time context; it does not set a schedule's timezone.
 
 ---

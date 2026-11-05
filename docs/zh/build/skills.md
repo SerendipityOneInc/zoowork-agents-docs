@@ -2,7 +2,7 @@
 title: Skills
 description: 使用 Project API key 打包、上传、发布版本并挂载 Skill，了解 registry 权限和 SDK 兼容要求。
 source: /en/build/skills
-source_hash: 9f3137112120f1e8c21a8af288147599969baa4bc833547fe42f2341c8b43b8e
+source_hash: 5cc55726de04f5611b140e910b643006a5c4dcadc01d33a67a21a9f66d0ba5e9
 ---
 
 # Skills
@@ -175,9 +175,32 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/skills/$SKILL_ID/versions" \
 新 Agent 默认包含平台的 global Skills。目录可以包含 `docx`、`pptx`、`xlsx`、`pdf`
 等文档 Skills；应读取已挂载的集合，不要依赖固定数量。
 
-在 Agent resource 中设置 `include_global_skills: false`，可以关闭 global Skills 的自动挂载，
-同时保留显式安装关系。显式 `skills: []` 也会关闭自动挂载，但会把精确 Skill 列表纳入 Agent 的
-declared 配置；之后单独修改安装关系的调用可能返回 `409 source_owned_skills`。
+自动挂载的 global Skills 会跟随这些 Skill 新的 ready 版本。
+
+## 创建时选择 Skills {#choose-skills-at-creation}
+
+新 Agent 一开始有哪些 Skills，由 Agent resource 的两个字段决定：
+
+| `skills` | `include_global_skills` | 挂载的 Skills | 之后的安装调用 |
+|---|---|---|---|
+| 省略 | 省略或 `true` | global Skills | 允许 |
+| 省略 | `false` | 无 | 允许 |
+| `[]` | 任意值 | 无 | 允许 |
+| 条目都不带 `name` | 省略或 `true` | global Skills 加上列出的 Skills | 允许 |
+| 条目都不带 `name` | `false` | 只有列出的 Skills | 允许 |
+| 至少一个条目带 `name` | 任意值 | 只有列出的 Skills | `409 source_owned_skills` |
+
+每个条目都需要 `skill_id`；只带 `name` 的条目返回 `400 invalid_request`。条目会停留在创建时
+解析出的版本。省略 `version` 或传 `"latest"`，选中的是创建那一刻最新的 ready 版本，之后发布的版本
+不会替换它。要让某个 Skill 跟随最新版本，创建 Agent 时不要列出它，创建后用不固定版本的安装关系添加，
+见[安装与移除](#installing-and-removing)。
+
+`name` 设置 Agent 看到的 Skill 名称。只要列表里有一个条目带 `name`，这个列表就成为 Agent 的
+精确 Skill 集合：即使 `include_global_skills: true` 也不会挂载 global Skills，对这个 Agent 的
+安装调用返回 `409 source_owned_skills`。除非需要这种效果，否则不要传 `name`。
+
+要在 global Skills 之外使用自己的 Skill，保留默认设置，创建 Agent 后再安装自己的 Skill。要替换某个
+global Skill，再把那个 global Skill 以 `enabled: false` 安装。其余 global Skills 继续跟随新版本。
 
 ## 查看已挂载的 Skills {#inspect-attached-skills}
 
