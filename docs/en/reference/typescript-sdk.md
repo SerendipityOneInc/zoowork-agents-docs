@@ -140,18 +140,18 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 
 **Channels**
 
-Platform keys cannot call the Agent channel routes; these methods return 404. The table retains their SDK contracts. To connect a chat application, authorize its users in your backend and forward their messages through the [Session API](../build/sessions.md). See [Channels](../build/channels.md).
+Each Agent has one connection per platform. Omit `account`, or pass `'default'`; other names return `400 channel.account_invalid`. See [Channels](../build/channels.md).
 
 | Method | Returns | What it does |
 |---|---|---|
-| `listChannels(agentId)` | `Promise<AgentChannel[]>` | Lists channel bindings through the channel route. |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Submits channel-binding configuration. |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Submits changes to a channel binding. |
-| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Requests removal of one platform/account binding. |
-| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts a guided setup request for the selected `GuidedSetupPlatform`. |
-| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | Reads the status of one setup request. |
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | Lists the Agent's connections with their `health` and `status`. |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | Connects Slack, WeCom, Feishu, or DingTalk from app credentials in `config`. |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | Changes `enabled`, `dm_policy`, or `group_policy`; returns the new state. |
+| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | Removes the platform's connection. Succeeds when there is none. |
+| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | Starts QR setup for `feishu`, `wecom`, or `weixin`. |
+| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | Reads one setup request; the poll that observes the confirmation saves the connection. |
 | `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | Cancels a setup request. |
-| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | SDK helper that repeatedly calls the setup-status route until completion or timeout. |
+| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | Polls until the status leaves `pending`. Defaults to 600 s; pass `timeoutMs` from `expires_in`. |
 | `startFeishuSetup` / `pollFeishuSetup` / `cancelFeishuSetup` / `waitForFeishuSetup` | as above | Feishu aliases for the four guided-setup methods above. |
 
 **Skill registry**

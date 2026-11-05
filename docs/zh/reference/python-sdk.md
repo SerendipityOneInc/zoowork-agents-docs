@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 3c7bc0fed026b9a353c7baeb08993565c7bd47cac96121b23033b4bb48a85f60
+source_hash: 02b72d64d336f7f0af6164dc31bc91793b52698624eb0f27c000cca83157560f
 ---
 
 # Python SDK 参考
@@ -152,16 +152,16 @@ SDK 从不重试请求。非 2xx 响应抛 [`ZooworkError`](#errors)。带 `idem
 
 **Channels**
 
-Platform key 不能调用 Agent channel 路由，这些方法返回 `404 service_api.not_found`。要接入聊天应用，请在自己的后端授权其用户，再通过 [Session API](../build/sessions.md) 转发消息。见 [Channels](../build/channels.md) 和 [Channel 方法](#channel-methods)。
+每个 Agent 在每个平台上有一个连接。不传 `account`，或者传 `"default"`；其他名称返回 `400 channel.account_invalid`。见 [Channels](../build/channels.md) 和 [Channel 方法](#channel-methods)。
 
 | 方法 | 返回 | 作用 |
 |---|---|---|
-| `list_channels(agent_id)` | `list[JsonObject]` | 列出 channel 绑定。 |
-| `add_channel(agent_id, channel)` | `JsonObject` | 提交 channel 绑定配置。 |
-| `update_channel(agent_id, platform, update=None)` | `JsonObject` | 提交对 channel 绑定的修改。 |
-| `remove_channel(agent_id, platform, *, account="default")` | `None` | 请求移除一个 platform/account 绑定。 |
-| `start_channel_setup(agent_id, platform, setup=None)` | `JsonObject` | 发起一次引导式 setup 请求。 |
-| `poll_channel_setup(agent_id, platform, session_id)` | `JsonObject` | 读取一次 setup 请求的状态。 |
+| `list_channels(agent_id)` | `list[JsonObject]` | 列出 Agent 的连接及其 `health` 和 `status`。 |
+| `add_channel(agent_id, channel)` | `JsonObject` | 用 `config` 中的应用凭据连接 Slack、企业微信、飞书或钉钉。 |
+| `update_channel(agent_id, platform, update=None)` | `JsonObject` | 修改 `enabled`、`dm_policy` 或 `group_policy`，返回修改后的状态。 |
+| `remove_channel(agent_id, platform, *, account="default")` | `None` | 移除该平台的连接；没有连接时也成功。 |
+| `start_channel_setup(agent_id, platform, setup=None)` | `JsonObject` | 为 `feishu`、`wecom` 或 `weixin` 发起扫码 setup。 |
+| `poll_channel_setup(agent_id, platform, session_id)` | `JsonObject` | 读取一个 setup 请求；观察到确认的那次 poll 会保存连接。 |
 | `cancel_channel_setup(agent_id, platform, session_id)` | `None` | 取消 setup 请求。 |
 | `wait_for_channel_setup(agent_id, platform, session_id, *, timeout=600.0, on_poll=None)` | `JsonObject` | 轮询 setup 请求，直到进入终态或超时。 |
 | `start_feishu_setup` / `poll_feishu_setup` / `cancel_feishu_setup` / `wait_for_feishu_setup` | 同上 | 上面四个引导式 setup 方法的飞书快捷版本，不需要 `platform` 参数。 |
@@ -608,7 +608,7 @@ async def wait_for_feishu_setup(
 ) -> JsonObject
 ```
 
-使用 Platform key 时，以上每个方法都返回 `404 service_api.not_found`，见 [Channels](../build/channels.md)。这里列出签名，是因为 package 中存在这些方法。`wait_for_channel_setup()` 反复调用 `poll_channel_setup()`，直到 `status` 为 `success`、`expired`、`denied` 或 `error`；两次轮询之间等待响应中的 `poll_interval` 秒（默认 5 秒，最少 0.25 秒），每次结果都传给 `on_poll`，超过 `timeout` 秒后抛 `ZooworkError` `408` / `"timeout"`。飞书方法以 `platform="feishu"` 调用对应的 channel 方法。
+平台、setup 字段和凭据字段见 [Channels](../build/channels.md)。`wait_for_channel_setup()` 反复调用 `poll_channel_setup()`，直到 `status` 为 `success`、`expired`、`denied` 或 `error`；两次轮询之间等待响应中的 `poll_interval` 秒（默认 5 秒，最少 0.25 秒），每次结果都传给 `on_poll`，超过 `timeout` 秒后抛 `ZooworkError` `408` / `"timeout"`。飞书方法以 `platform="feishu"` 调用对应的 channel 方法。
 
 ---
 

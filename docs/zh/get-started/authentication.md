@@ -1,7 +1,7 @@
 ---
 description: 在 ZooWork Platform 获取 API key、充值，并配置第一个 SDK 或 HTTP 请求。
 source: /en/get-started/authentication
-source_hash: 8b78ceecaf0e3a891bd96fcd244a9a595f2152cd73558935de652df72eb7a65e
+source_hash: d35fc03ab3273692407aa4fdaecd3c33988f1c96ad3b570de262c752fa495d75
 ---
 
 # Authentication 与 API key
@@ -84,7 +84,7 @@ key 对应一个组织和一个 Project。ZooWork 从 key 派生 Agent 的 owner
 
 将 key 保存在后端。应用需要先认证自己的用户，再检查用户是否有权访问目标 Agent 和 Session，之后才代表用户发送请求。API key 不能代替这些检查。
 
-key 可以访问 Agent 及其可用子资源、Models 和 Usage。Skill registry 发布要求服务端支持，并遵循 key 对应的 [Skill 写权限](../build/skills.md#api-availability)。自定义 Environment 和原生聊天渠道仍未向 Platform API key 开放。调用前请查阅[可用性与限制](../reference/capabilities.md)。
+key 可以访问 Agent 及其可用子资源、Models 和 Usage。Skill registry 发布要求服务端支持，并遵循 key 对应的 [Skill 写权限](../build/skills.md#api-availability)。自定义 Environment 仍未向 Platform API key 开放。调用前请查阅[可用性与限制](../reference/capabilities.md)。
 
 ## 替换或撤销 key
 

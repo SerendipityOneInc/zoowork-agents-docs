@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: ad0301f73bf5cbe10fdaba378d06cd46ec647ff8397f4d49dbca1005d82d48c3
+source_hash: 6334dbe689db4fadf649fe6b6b45cb3c17593eb8b5d68e25c4ee345c2016d8ef
 ---
 
 # 错误与重试
@@ -155,6 +155,25 @@ if (e instanceof ZooworkError) {
 | `usage.unavailable` | 503 | 稍后重试，不要把不完整响应当成零消耗。 |
 
 见 [Authentication](../get-started/authentication.md) 和 [Usage 与余额](./usage.md)。诊断用的 request ID 是可选值，公共 gateway 不保证每个响应都返回 Engine request-ID header。
+
+## 渠道错误 {#channel-errors}
+
+这些错误码来自[渠道](../build/channels.md)路由。`{platform}` 是 `feishu`、`wecom` 或 `weixin`。
+
+| Code | HTTP | 原因 | 处理方式 |
+|---|---:|---|---|
+| `channel.account_invalid` | 400 | `account` 不是 `default`，或者不是合法的 account 名。 | 不传 `account`，或者传 `default`。 |
+| `channel.weixin_setup_required` | 400 | 用 `platform: 'weixin'` 调用 `addChannel()`。 | 改用扫码 setup 流程。 |
+| `channel.dm_policy_invalid` / `channel.group_policy_invalid` | 400 | 不支持的策略值。 | 使用 `open`、`allowlist` 或 `disabled`。 |
+| `channel.pairing_unsupported` | 400 | `dm_policy: 'pairing'`。 | 使用其他策略。 |
+| `channel.allowlist_unsupported` | 400 | 微信 setup 使用了 `dm_policy: 'allowlist'`。 | 使用 `open` 或 `disabled`。 |
+| `channel.dingtalk_dm_policy_unsupported` | 400 | 钉钉策略不是 `open` 或 `allowlist`，或者 `allowlist` 没有列出具体的发送者 ID。 | 使用 `open`，或者配合具体 `allow_from` ID 使用 `allowlist`。 |
+| `channel.permission_admin_not_supported` | 400 | 在飞书以外的平台上传了 `permission_admin_enabled`。 | 去掉该字段。 |
+| `channel.not_found` | 404 | 对 Agent 没有连接的平台调用 `updateChannel()`。 | 先连接该平台。 |
+| `channel.{platform}_session_not_found` | 404 | poll 或 cancel 的 setup 请求已不存在，或者属于另一个 Agent。 | 重新发起 setup 请求。 |
+| `channel.conflict` | 409 | 对 Agent 已连接的平台发起 setup，或者 `addChannel()` 的凭据与已有连接不同。 | 先移除连接，再重新连接。 |
+| `channel.{platform}_setup_in_progress` | 409 | 扫码已确认，连接正在保存，请求不能重新发起或取消。 | 继续轮询。 |
+| *（按 status 判断）* | 429 | 几秒内 setup 请求过多。 | 等待后重试。 |
 
 ## 什么可以安全重试
 

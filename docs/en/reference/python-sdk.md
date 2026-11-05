@@ -179,19 +179,18 @@ sends no header.
 
 **Channels**
 
-Platform keys cannot call the Agent channel routes; these methods return
-`404 service_api.not_found`. To connect a chat application, authorize its users in your backend
-and forward their messages through the [Session API](../build/sessions.md). See
-[Channels](../build/channels.md) and [Channel methods](#channel-methods).
+Each Agent has one connection per platform. Omit `account`, or pass `"default"`; other names
+return `400 channel.account_invalid`. See [Channels](../build/channels.md) and
+[Channel methods](#channel-methods).
 
 | Method | Returns | What it does |
 |---|---|---|
-| `list_channels(agent_id)` | `list[JsonObject]` | Lists channel bindings. |
-| `add_channel(agent_id, channel)` | `JsonObject` | Submits channel-binding configuration. |
-| `update_channel(agent_id, platform, update=None)` | `JsonObject` | Submits changes to a channel binding. |
-| `remove_channel(agent_id, platform, *, account="default")` | `None` | Requests removal of one platform/account binding. |
-| `start_channel_setup(agent_id, platform, setup=None)` | `JsonObject` | Starts a guided setup request. |
-| `poll_channel_setup(agent_id, platform, session_id)` | `JsonObject` | Reads the status of one setup request. |
+| `list_channels(agent_id)` | `list[JsonObject]` | Lists the Agent's connections with their `health` and `status`. |
+| `add_channel(agent_id, channel)` | `JsonObject` | Connects Slack, WeCom, Feishu, or DingTalk from app credentials in `config`. |
+| `update_channel(agent_id, platform, update=None)` | `JsonObject` | Changes `enabled`, `dm_policy`, or `group_policy`; returns the new state. |
+| `remove_channel(agent_id, platform, *, account="default")` | `None` | Removes the platform's connection. Succeeds when there is none. |
+| `start_channel_setup(agent_id, platform, setup=None)` | `JsonObject` | Starts QR setup for `feishu`, `wecom`, or `weixin`. |
+| `poll_channel_setup(agent_id, platform, session_id)` | `JsonObject` | Reads one setup request; the poll that observes the confirmation saves the connection. |
 | `cancel_channel_setup(agent_id, platform, session_id)` | `None` | Cancels a setup request. |
 | `wait_for_channel_setup(agent_id, platform, session_id, *, timeout=600.0, on_poll=None)` | `JsonObject` | Polls the setup request until it reaches a final status or times out. |
 | `start_feishu_setup` / `poll_feishu_setup` / `cancel_feishu_setup` / `wait_for_feishu_setup` | as above | Feishu shortcuts for the four guided-setup methods; they take no `platform`. |
@@ -711,9 +710,8 @@ async def wait_for_feishu_setup(
 ) -> JsonObject
 ```
 
-With a Platform key every one of these returns `404 service_api.not_found`; see
-[Channels](../build/channels.md). The contracts are listed because the methods exist in the
-package. `wait_for_channel_setup()` calls `poll_channel_setup()` until `status` is `success`,
+See [Channels](../build/channels.md) for platforms, setup fields, and credential keys.
+`wait_for_channel_setup()` calls `poll_channel_setup()` until `status` is `success`,
 `expired`, `denied`, or `error`, waits the response's `poll_interval` seconds (default 5, at
 least 0.25) between polls, calls `on_poll` with each result, and raises `ZooworkError` `408` /
 `"timeout"` after `timeout` seconds. The Feishu methods call the channel methods with
