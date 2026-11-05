@@ -181,10 +181,35 @@ New Agents include the platform's global Skills by default. The catalog can incl
 Skills such as `docx`, `pptx`, `xlsx`, and `pdf`; list the attached set instead of relying
 on a fixed count.
 
-Set `include_global_skills: false` in the Agent resource to opt out of automatic global
-Skills while keeping explicit assignments. An explicit `skills: []` also opts out, but
-makes the exact Skill list part of the Agent's declared configuration; separate assignment
-calls can then return `409 source_owned_skills`.
+Automatically attached global Skills follow new ready versions of those Skills.
+
+## Choose Skills at creation
+
+Two Agent resource fields decide which Skills a new Agent starts with:
+
+| `skills` | `include_global_skills` | Attached Skills | Later assignment calls |
+|---|---|---|---|
+| Omitted | Omitted or `true` | Global Skills | Allowed |
+| Omitted | `false` | None | Allowed |
+| `[]` | Any value | None | Allowed |
+| Entries without `name` | Omitted or `true` | Global Skills and the listed Skills | Allowed |
+| Entries without `name` | `false` | Only the listed Skills | Allowed |
+| At least one entry with `name` | Any value | Only the listed Skills | `409 source_owned_skills` |
+
+Each entry needs a `skill_id`; an entry with only `name` returns `400 invalid_request`.
+An entry stays on the version resolved at creation. Omitting `version` or passing
+`"latest"` selects the newest ready version at that moment, and later versions do not
+replace it. To keep a Skill on the newest version, create the Agent without it and add it
+with an unpinned assignment, as described in [Installing and removing](#installing-and-removing).
+
+`name` sets the name the Agent sees for that Skill. A list with any `name` becomes the
+Agent's exact Skill set: global Skills are not attached even with
+`include_global_skills: true`, and assignment calls on that Agent return
+`409 source_owned_skills`. Omit `name` unless you need that.
+
+To use your own Skill alongside the global ones, keep the defaults, create the Agent, then
+assign your Skill. To replace one global Skill, also assign that global Skill with
+`enabled: false`. The other global Skills keep following new versions.
 
 ## Inspect attached skills
 

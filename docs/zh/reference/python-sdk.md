@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 02b72d64d336f7f0af6164dc31bc91793b52698624eb0f27c000cca83157560f
+source_hash: a3766a252ed7a847fc56e35be175c4de3740878efdbb9574fee84f2d4f63efe6
 ---
 
 # Python SDK 参考
@@ -358,7 +358,7 @@ print(created["agent_id"], created["config_version"])  # "agt_...", 1
 
 新 Agent 处于**停止**状态：先调用 `create_session()` 而没有 `start_agent()` 会返回 `409 agent_not_running`。回执中的 `config_version` 很快就会过时，请从 `get_agent()` 读取当前版本。idempotency key 应从你系统中稳定的值推导，见[错误与重试](./errors.md)。
 
-省略 `model` 时，会 pin 到创建时生效的平台默认模型。默认值可能变化，所以需要确定性的初始化时，先调用 `list_models()` 并显式设置 `primary`。`include_global_skills` 默认为 `True`；设为 `False`，或显式发送空的 `skills` list，可以关闭自动挂载的全局 Skill。`userTimezone` 是具名的 IANA 时区，用于 prompt 和消息中的时间上下文，不决定 schedule 的时区。
+省略 `model` 时，会 pin 到创建时生效的平台默认模型。默认值可能变化，所以需要确定性的初始化时，先调用 `list_models()` 并显式设置 `primary`。`include_global_skills` 默认为 `True`；设为 `False`，或发送空的 `skills` list，可以关闭自动挂载的全局 Skill。每个 `skills` 条目都需要 `skill_id`，并停留在创建时解析出的版本；有条目带 `name` 时，这个列表成为 Agent 的精确 Skill 集合，见[创建时选择 Skills](../build/skills.md#choose-skills-at-creation)。`userTimezone` 是具名的 IANA 时区，用于 prompt 和消息中的时间上下文，不决定 schedule 的时区。
 
 ---
 

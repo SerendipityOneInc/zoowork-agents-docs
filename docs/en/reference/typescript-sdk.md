@@ -1066,7 +1066,7 @@ interface AgentResource {
   userTimezone?: string
   model?: { primary: string; input?: string[]; max_tokens?: number; thinking?: ThinkingLevel | null }
   persona?: { docs: { name: string; content: string; seed_policy?: string }[] }
-  skills?: (({ skill_id: string; name?: string } | { name: string; skill_id?: string }) & { version?: number | 'latest' })[]
+  skills?: { skill_id: string; name?: string; version?: number | 'latest' }[]
   include_global_skills?: boolean
   labels?: Record<string, string>
   tool_policy?: Record<string, unknown>
@@ -1089,8 +1089,10 @@ gate for unattended cron fires.
 
 `userTimezone` is a named IANA timezone used in prompt context and message timestamps. It does
 not set Schedule timezone. `include_global_skills` defaults to `true`; set it to `false` to
-disable automatic global Skills without removing explicitly installed Skills. An explicit
-empty `skills` array also opts out.
+disable automatic global Skills without removing explicitly installed Skills. An empty
+`skills` array also turns them off. Each `skills` entry stays on the version resolved at
+creation, and an entry with `name` makes the list the Agent's exact Skill set; see
+[Choose Skills at creation](../build/skills.md#choose-skills-at-creation).
 
 Omitting `model` pins the platform default active at creation time. Defaults can change, so
 call `listModels()` and set `primary` explicitly when provisioning must be deterministic.

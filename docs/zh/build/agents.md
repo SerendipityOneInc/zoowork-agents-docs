@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、更新和管理带版本的 Agent，并设置模型 thinking 档位。
 source: /en/build/agents
-source_hash: f924d6978cbc5c241e4c155cc254694875ffd40b9b780e1fccd149c7b1b2d5ae
+source_hash: f72762f7d4e6ba5c296363c5503e901889e00b3aef11ddad5729a4d56def2b29
 ---
 
 # Agents
@@ -451,8 +451,8 @@ API 页码从 1 开始，每页 100 条。分页不提供快照保证：并发�
 | `model.thinking` | `string \| null` | Agent 默认档位：`off`、`low`、`medium`、`high` 或 `max`。更新时传 `null` 清除。 |
 | `userTimezone` | string | IANA timezone 名称，例如 `Asia/Shanghai`。它设置 prompt context 和消息时间戳使用的用户时区；Schedule 的 timezone 是另一项独立配置。 |
 | `persona.docs[]` | `{ name, content, seed_policy? }[]` | 指导性文档。只存内联的 `content`。组装提示词时只读这几个规范名：`AGENTS.md`、`SOUL.md`、`TOOLS.md`、`IDENTITY.md`、`USER.md`、`HEARTBEAT.md`。其他名字会存下来，但永远到不了模型那里。`MEMORY.md` 和 `memory/` 命名空间是保留的，返回 `400 invalid_persona_doc_name`。 |
-| `skills` | array | 显式安装的 Skills。传入 `[]` 会让这个 Agent 不再自动挂载 global Skills。 |
-| `include_global_skills` | boolean | 默认 `true`。设为 `false` 会关闭自动挂载的 global Skills，但保留显式安装的 Skills。这个设置在后续 update 和 rerender 后仍然保留。 |
+| `skills` | `{ skill_id, version?, name? }[]` | 创建时挂载的 Skills。每个条目停留在创建时解析出的版本，传 `"latest"` 也一样。`[]` 关闭 global Skills 的自动挂载。只要有条目带 `name`，这个列表就成为 Agent 的精确 Skill 集合。见[创建时选择 Skills](./skills.md#choose-skills-at-creation)。 |
+| `include_global_skills` | boolean | 默认 `true`。设为 `false` 会关闭自动挂载的 global Skills，但保留显式安装的 Skills。这个设置在后续 update 和 rerender 后仍然保留。`skills` 为 `[]` 或有条目带 `name` 时，这个字段不起作用。 |
 | `labels` | `Record<string, string>` | 你自己的键值标签。可以用 `listAgents({ labels })` 过滤。 |
 | `tool_policy` | object | `{}` 表示 policy 不额外限制工具；runtime 和配置条件仍然适用。policy 字段支持精确名称、全局 `*` 和一个末尾 `prefix*`；`alsoAllow` 仍然只支持精确名称。见[工具](./tools.md)。 |
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱 runtime 是在 Agent 的 Sessions 之间共享，还是每个 Session 建一个。默认 `agent`。持久化 workspace 仍属于 Agent。见[云沙箱参考](./cloud-sandbox-reference.md)。 |
