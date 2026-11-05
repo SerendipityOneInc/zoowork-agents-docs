@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: e9312a38c04139d43e4a6dfaa30f470607a301eb8525cbcf50e88292224120e4
+source_hash: 6590b67a22c6a08224cf784ce1b11135ddc60e394f20edcb437b1d55817d604a
 ---
 
 # TypeScript SDK 参考
@@ -141,18 +141,18 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 
 **渠道**
 
-Platform key 不能调用 Agent channel 路由，这些方法返回 404。下表保留 SDK 契约。需要连接聊天应用时，在自己的后端认证用户，再通过 [Session API](../build/sessions.md) 转发消息。见[渠道](../build/channels.md)。
+每个 Agent 在每个平台上有一个连接。不传 `account`，或者传 `'default'`；其他名称返回 `400 channel.account_invalid`。见[渠道](../build/channels.md)。
 
 | 方法 | 返回 | 做什么 |
 |---|---|---|
-| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 通过 channel 路由列出渠道绑定。 |
-| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 提交渠道绑定配置。 |
-| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 提交渠道绑定的修改。 |
-| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | 请求删除一个 platform/account 绑定。 |
-| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | 为选择的 `GuidedSetupPlatform` 发起引导配置请求。 |
-| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | 读取一个配置请求的状态。 |
-| `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | 取消配置请求。 |
-| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | SDK helper，重复调用配置状态路由，直到完成或超时。 |
+| `listChannels(agentId)` | `Promise<AgentChannel[]>` | 列出 Agent 的连接及其 `health` 和 `status`。 |
+| `addChannel(agentId, input)` | `Promise<AgentChannel>` | 用 `config` 中的应用凭据连接 Slack、企业微信、飞书或钉钉。 |
+| `updateChannel(agentId, platform, input?)` | `Promise<AgentChannel>` | 修改 `enabled`、`dm_policy` 或 `group_policy`，返回修改后的状态。 |
+| `removeChannel(agentId, platform, opts?)` | `Promise<void>` | 移除该平台的连接；没有连接时也成功。 |
+| `startChannelSetup(agentId, platform, input?)` | `Promise<ChannelSetupSession>` | 为 `feishu`、`wecom` 或 `weixin` 发起扫码 setup。 |
+| `pollChannelSetup(agentId, platform, sessionId)` | `Promise<ChannelPollResult>` | 读取一个 setup 请求；观察到确认的那次 poll 会保存连接。 |
+| `cancelChannelSetup(agentId, platform, sessionId)` | `Promise<void>` | 取消 setup 请求。 |
+| `waitForChannelSetup(agentId, platform, sessionId, opts?)` | `Promise<ChannelPollResult>` | 轮询直到状态不再是 `pending`。默认 600 秒，按 `expires_in` 传入 `timeoutMs`。 |
 | `startFeishuSetup` / `pollFeishuSetup` / `cancelFeishuSetup` / `waitForFeishuSetup` | 同上 | 上面四个引导配置方法的 Feishu 别名。 |
 
 **Skill registry**

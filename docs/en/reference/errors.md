@@ -190,6 +190,26 @@ Match the HTTP status as well as the code. A runtime-credential or billing prere
 
 See [Authentication](../get-started/authentication.md) and [Usage and balance](./usage.md). Diagnostic request IDs are optional; the public gateway does not guarantee an Engine request-ID header on every response.
 
+## Channel errors {#channel-errors}
+
+These codes come from the [channel](../build/channels.md) routes. `{platform}` is `feishu`,
+`wecom`, or `weixin`.
+
+| Code | HTTP | Cause | What to do |
+|---|---:|---|---|
+| `channel.account_invalid` | 400 | An `account` other than `default`, or a value that is not a valid account name. | Omit `account` or pass `default`. |
+| `channel.weixin_setup_required` | 400 | `addChannel()` with `platform: 'weixin'`. | Use the QR setup flow. |
+| `channel.dm_policy_invalid` / `channel.group_policy_invalid` | 400 | An unsupported policy value. | Use `open`, `allowlist`, or `disabled`. |
+| `channel.pairing_unsupported` | 400 | `dm_policy: 'pairing'`. | Use another policy. |
+| `channel.allowlist_unsupported` | 400 | WeChat setup with `dm_policy: 'allowlist'`. | Use `open` or `disabled`. |
+| `channel.dingtalk_dm_policy_unsupported` | 400 | A DingTalk policy other than `open` or `allowlist`, or `allowlist` without explicit sender IDs. | Use `open`, or `allowlist` with explicit `allow_from` IDs. |
+| `channel.permission_admin_not_supported` | 400 | `permission_admin_enabled` on a platform other than Feishu. | Remove the field. |
+| `channel.not_found` | 404 | `updateChannel()` on a platform the Agent is not connected to. | Connect the platform first. |
+| `channel.{platform}_session_not_found` | 404 | A poll or cancel for a setup request that no longer exists or belongs to another Agent. | Start a new setup request. |
+| `channel.conflict` | 409 | Setup on a platform the Agent is already connected to, or `addChannel()` with different credentials for an existing connection. | Remove the connection, then connect again. |
+| `channel.{platform}_setup_in_progress` | 409 | A scan was confirmed and the connection is being saved, so the request cannot be restarted or cancelled. | Keep polling. |
+| *(branch on status)* | 429 | Too many setup requests in a few seconds. | Wait, then retry. |
+
 ## What is safe to retry
 
 Retry safety is per operation, not per error. Nothing in the SDK retries for you.
