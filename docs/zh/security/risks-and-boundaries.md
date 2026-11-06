@@ -2,7 +2,7 @@
 title: 风险与边界
 description: 了解 key、配置、Session 历史、文件、memory 和数据分别存在哪里，谁能读取或修改，以及如何降低主要风险。
 source: /en/security/risks-and-boundaries
-source_hash: e2d768a046e9bfb7961e72867f8c9e7e8f4028f36ef5a49865e6fbd52bfa7413
+source_hash: c08eb1d972e7ec7ff1e0d723214b3b429101f35c721a92f5d64a3f264b4ebc56
 ---
 
 # 风险与边界
@@ -45,8 +45,9 @@ Agent Database 记录或 memory；可以用 `cron` 创建 schedule；也可以�
 `web_fetch` 会把抓取到的网页文本标记为不可信的外部内容，并提示模型不要执行其中的指令。
 这能降低风险，但不提供任何强制保证。与其依赖模型自己识别，不如限制被操纵的回合能做什么：
 
-- 去掉任务不需要的工具，并对修改数据或访问网络的调用要求审批。见
-  [工具](../build/tools.md#用-tool-policy-收窄工具集)和[权限策略](../build/permissions.md)。
+- 去掉任务不需要的工具。需要授权决定的调用应保留审批，包括尚未授权自主执行的外部系统修改或付费操作。
+  无人值守流程需要审批时，也应保持审批处理程序可用。见
+  [工具](../build/tools.md#用-tool-policy-收窄工具集)和[权限策略](../build/permissions.md#choose-when-to-require-approval)。
 - Agent 不需要管理自己的 schedule 时，禁用 `cron`；并把 `persona_doc_update` 设为 `always_ask`，
   这样 Agent 对 persona 文档的每次修改都要经过你的审查。见[权限策略](../build/permissions.md)。
 - 在 custom tool 中根据你自己的用户映射授权操作，而不是根据工具输入里的值。
@@ -80,8 +81,10 @@ Session 是一段对话，不是数据边界。同一个 Agent 的所有 Session
 - 用 `tool_policy` 去掉任务不需要的内置工具。见
   [工具](../build/tools.md#用-tool-policy-收窄工具集)。
 - 用 `toolFilter` 只暴露任务需要的 MCP 工具。见 [MCP Server](../build/mcp.md#选择-mcp-工具)。
-- 对修改数据或访问其他系统的工具设置 `always_ask`；对每次调用都需要重新确认的 MCP 工具设置
-  `requireConfirmation`。见[权限策略](../build/permissions.md)。
+- 修改数据或访问其他系统前需要审查的调用，使用 `always_ask`，并在整个 run 期间保持审批人或应用处理程序可用。
+  已获准自主执行的工具，在审查过的范围内使用 `always_allow`。
+  对每次调用都需要重新确认的 MCP 工具设置 `requireConfirmation`。
+  见[权限策略](../build/permissions.md#choose-when-to-require-approval)。
 - 任务不需要 shell 命令时，去掉 `exec`。禁用 web 工具不会阻止 `exec` 访问网络，
   而 Platform key 不能修改 sandbox 的网络策略。见
   [云沙箱参考](../build/cloud-sandbox-reference.md#沙箱规格)。

@@ -2,7 +2,7 @@
 title: 保护你的部署
 description: 面向真实用户上线前，按优先级检查 API key、终端用户访问、数据隔离、工具、审批、webhook 和用量。
 source: /en/security/secure-deployment
-source_hash: 1f7d5e1532c3fa5b095ea9847bbcd30441d006ed97059178a486c63e6990b44e
+source_hash: 80a05c46dfd9985220609913a1d6c0effabd725dc8bfeda8ea06708fadec9737
 ---
 
 # 保护你的部署
@@ -101,9 +101,14 @@ Agent 调用应用执行的 custom tool 时，实际操作由你的后端执行�
 
 ## 7. 高风险调用需要审批 {#7-require-approval-for-risky-calls}
 
-对需要保留、但不能无人值守执行的工具，在 `tool_policy.permissions` 中设置 `always_ask`，
-或在 MCP Server 上设置 `permission` / `tools`。匹配的调用会等待决定后再执行。
+工具调用需要应用授权或人工审查时，使用 `always_ask`，尤其是修改外部系统或产生费用的调用。
+在 `tool_policy.permissions` 中设置它，或在 MCP Server 上设置 `permission` / `tools`。
 如果某个 MCP 工具每次调用都需要重新确认，再加上 `requireConfirmation: true`。
+
+后台任务应先确定哪些工具已获准无需进一步审查就能执行，仅对这个范围使用 `always_allow`。
+需要审查的操作仍保留审批，并在整个 run 期间运行处理程序，包括反复调用 `process` 和发布 `artifact_publish` 时。
+自动批准所有请求相比 `always_allow` 没有增加审查，却让任务依赖每次应答及时到达。
+Sandbox 隔离不能阻止 `exec` 命令访问外部系统或产生费用。
 
 Agent 还可以更新自己的 persona 文档（例如 `AGENTS.md`），之后的回合会把它当作指令读取。
 要在每次修改写入前先审查，把 `tool_policy.permissions.persona_doc_update` 设为 `always_ask`。

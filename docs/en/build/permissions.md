@@ -25,9 +25,34 @@ Tools without a permission entry keep their default behavior. When an MCP declar
 both `permission` and `tools`, its effective default is `always_allow`. `auto` is not a supported
 permission value.
 
+## Choose when to require approval
+
+Use `always_ask` when your application must decide whether a call may run, such as a command
+that changes an external system or spends money. The application can present the call to an
+authorized reviewer or evaluate it against its own authorization rules. Keep that decision
+path available for the whole run, including background-job polling and publishing output.
+
+| Workflow | Policy to choose |
+|---|---|
+| Each call needs a decision from your application or a person. | `always_ask`, with a client that answers pending approvals. |
+| A background job may run the selected tools without further review. | `always_allow` for those tools, after reviewing their access and effects. |
+| A reviewer authorizes a matching scope for the rest of one Session. | Keep `always_ask` and choose `allow-always` when the record permits it. |
+
+A client that automatically allows every request provides no additional review over
+`always_allow`; it adds a dependency on that client answering every approval. Without a
+matching Session grant, each matching call needs a decision, including repeated `process`
+calls while a command runs. One unanswered approval is denied after ten minutes and can
+prevent the task from producing output.
+
+Keep `always_ask` where review is required, even for an unattended workflow. Run a decision
+handler or interrupt work that cannot be authorized. A sandbox command can still call
+external services, modify data, or incur charges; running inside a sandbox alone is not a
+reason to allow every `exec` call. See [Secure your deployment](../security/secure-deployment.md#7-require-approval-for-risky-calls).
+
 ## Ask before a built-in tool runs
 
-Preserve the Agent's existing policy, then add an approval requirement for `exec`:
+For an application that needs to review commands before execution, preserve the Agent's
+existing policy, then add an approval requirement for `exec`:
 
 ::: code-group
 
@@ -384,8 +409,19 @@ An `allow-always` decision grants the matching rule for the rest of the Session.
 is a server-wide default, that grant can cover other tools from the same server. It does not
 change the Agent's stored policy.
 
-Generated `always_ask` rules wait up to ten minutes and deny the call on timeout. This deadline
-is separate from a custom tool's result timeout.
+Generated `always_ask` rules wait up to ten minutes for a decision and deny the call on timeout.
+This is an approval-response deadline, not the execution time allowed for a command. An
+in-loop `exec` call's `timeout` controls command execution after approval; it does not need to
+fit within the approval-response deadline. The custom-tool result timeout is separate too.
+
+If your application imposes a command-duration limit, state it in the Agent's task or standing
+instructions as well as enforcing it in the approval handler. A model instruction helps the
+Agent select suitable arguments; the handler remains the enforcement point.
+
+Approval controls execution, not model billing. Model requests used to read instructions,
+plan a call, or respond after a denial still incur usage when the tool is denied, times out
+waiting for approval, or produces no output. A denied call does not execute that tool, but
+it does not refund earlier model usage. See [Usage](../reference/usage.md#usage-without-task-output).
 
 ## Custom tools use application control
 

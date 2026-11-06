@@ -47,9 +47,11 @@ persona documents, which later turns use as instructions.
 follow instructions inside it. This lowers the risk but enforces nothing. Reduce what a
 manipulated turn can do instead of relying on the model to notice:
 
-- Remove tools the task does not need, and require approval for calls that change data or
-  reach the network. See [Tools](../build/tools.md#narrowing-the-tool-set-with-tool-policy) and
-  [Permission policies](../build/permissions.md).
+- Remove tools the task does not need. Require approval where calls need an authorization
+  decision, including changes to external systems or charges you have not authorized for
+  autonomous execution. Keep a decision handler available for unattended runs that need
+  approval. See [Tools](../build/tools.md#narrowing-the-tool-set-with-tool-policy) and
+  [Permission policies](../build/permissions.md#choose-when-to-require-approval).
 - Deny `cron` when the Agent does not need to manage its own schedules, and set
   `persona_doc_update` to `always_ask` so you review every change to the Agent's persona
   documents. See [Permission policies](../build/permissions.md).
@@ -91,9 +93,11 @@ The more an Agent can call, the more a mistaken or manipulated decision can do.
   See [Tools](../build/tools.md#narrowing-the-tool-set-with-tool-policy).
 - Use `toolFilter` to expose only the MCP tools the task needs. See
   [MCP servers](../build/mcp.md#select-mcp-tools).
-- Set `always_ask` on tools that change data or reach other systems, and
-  `requireConfirmation` on MCP tools where each call needs a fresh decision. See
-  [Permission policies](../build/permissions.md).
+- Set `always_ask` where calls need review before changing data or reaching other systems,
+  and keep the reviewer or application decision handler available throughout the run. For
+  tools already authorized to run autonomously, use `always_allow` within the reviewed scope.
+  Use `requireConfirmation` on MCP tools where each call needs a fresh decision. See
+  [Permission policies](../build/permissions.md#choose-when-to-require-approval).
 - If the task does not need shell commands, remove `exec`. Denying the web tools does not stop
   `exec` from reaching the network, and Platform keys cannot change the sandbox network
   policy. See [Cloud sandbox reference](../build/cloud-sandbox-reference.md#sandbox-specifications).

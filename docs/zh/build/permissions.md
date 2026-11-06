@@ -2,7 +2,7 @@
 title: 权限策略
 description: 配置工具审批、MCP 默认策略、逐次确认，以及 pending approval 的处理。
 source: /en/build/permissions
-source_hash: 7a569aad0dd73c857ced98aa17be4b003bd9217eeffe4f7ffbb808452c25c614
+source_hash: 98216ecfb0bb1d59957f3652a51bc1905d5e76ee3f5a3989badabf4f7d3dcd5a
 ---
 
 # 权限策略
@@ -25,9 +25,29 @@ source_hash: 7a569aad0dd73c857ced98aa17be4b003bd9217eeffe4f7ffbb808452c25c614
 没有 permission 条目的工具保留默认行为。一个 MCP 声明同时省略 `permission` 和 `tools` 时，
 默认策略是 `always_allow`。`auto` 不是支持的 permission 值。
 
+## 选择何时需要审批 {#choose-when-to-require-approval}
+
+应用需要决定一次调用能否执行时，使用 `always_ask`，例如会修改外部系统或产生费用的命令。
+应用可以把调用交给有权审批的人，也可以按自己的授权规则判断。整个 run 期间都要保持这条处理链路可用，
+包括轮询后台任务和发布产出时。
+
+| 工作流 | 策略选择 |
+|---|---|
+| 每次调用都需要应用或人作出决定。 | 使用 `always_ask`，并由客户端处理 pending approval。 |
+| 后台任务已获准自主使用选定的工具。 | 审查这些工具的访问范围和影响后，对它们使用 `always_allow`。 |
+| 审批人授权当前 Session 剩余时间内的匹配范围。 | 保留 `always_ask`，在 record 允许时选择 `allow-always`。 |
+
+客户端如果自动批准每个请求，相比 `always_allow` 并没有增加审查，只增加了每条审批都必须得到客户端应答的依赖。
+没有匹配的 Session grant 时，每次匹配的调用都需要决定，包括命令执行期间反复调用 `process`。
+一条审批十分钟未获应答就会被拒绝，可能导致任务没有产出。
+
+需要审查的操作，即使在无人值守流程中也应保留 `always_ask`。运行审批处理程序，或者中断无法获得授权的工作。
+Sandbox 中的命令仍能请求外部服务、修改数据或产生费用，不能仅凭它在 Sandbox 中运行就放行所有 `exec` 调用。
+见[安全部署](../security/secure-deployment.md#7-require-approval-for-risky-calls)。
+
 ## 内置工具执行前请求审批
 
-保留 Agent 已有的 policy，再给 `exec` 加上审批要求：
+应用需要在执行前审查命令时，保留 Agent 已有的 policy，再给 `exec` 加上审批要求：
 
 ::: code-group
 
@@ -367,13 +387,21 @@ JSON
 第一条匹配的普通 rule 决定调用。逐次确认在这个决定之后增加一层检查：
 它保留 block，并对匹配 required 工具的已允许调用要求重新确认。
 
-## Session grant 与 timeout
+## Session grant 与 timeout {#session-grants-and-timeouts}
 
 `allow-always` 在当前 Session 剩余时间内授权匹配的 rule。
 如果 rule 是 Server 默认策略，授权可能覆盖同一个 Server 的其他工具，不会修改 Agent 存储的 policy。
 
-生成的 `always_ask` rules 最多等待十分钟，超时后拒绝调用。
-这个期限与 custom tool 的结果 timeout 是两回事。
+生成的 `always_ask` rules 最多等待十分钟的审批决定，超时后拒绝调用。
+这是审批应答期限，不是命令允许执行的时长。Agent 回合内 `exec` 调用的 `timeout` 控制批准后的命令执行时间，
+不需要受审批应答期限限制；custom tool 的结果 timeout 也是另一回事。
+
+如果应用限制命令执行时长，除了在审批处理程序中强制检查，还应在任务或长期指令中写明限制。
+模型指令帮助 Agent 选择合适的参数，审批处理程序负责强制执行规则。
+
+审批控制工具执行，不控制模型计费。读取指令、规划调用或在拒绝后回复所产生的模型请求，
+即使工具被拒绝、等待审批超时或任务没有产出，也会产生 Usage。
+被拒绝的调用不会执行该工具，但不会退还此前的模型用量。见[Usage](../reference/usage.md#usage-without-task-output)。
 
 ## Custom tool 由应用控制
 
