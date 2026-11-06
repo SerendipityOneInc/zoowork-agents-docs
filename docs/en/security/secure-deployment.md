@@ -115,10 +115,17 @@ See [Tools](../build/tools.md#narrowing-the-tool-set-with-tool-policy) and
 
 ## 7. Require approval for risky calls
 
-For a tool that should stay available but must not run unattended, set `always_ask` in
-`tool_policy.permissions`, or set `permission` / `tools` on the MCP server. Each matching call
-then waits for a decision. Add `requireConfirmation: true` to an MCP tool when every call
-needs a fresh decision.
+Use `always_ask` for tools whose calls need your application's authorization or a person's
+review, especially changes to external systems or calls that spend money. Set it in
+`tool_policy.permissions`, or set `permission` / `tools` on the MCP server. Add
+`requireConfirmation: true` to an MCP tool when every call needs a fresh decision.
+
+For background work, choose which tools may run without further review and use
+`always_allow` only for that scope. Keep required review in place and provide a decision
+handler throughout the run, including repeated `process` calls and `artifact_publish`.
+Automatically approving every request adds no review over `always_allow` and leaves the task
+dependent on every response arriving in time. Sandbox isolation does not prevent an `exec`
+command from reaching external systems or incurring charges.
 
 The Agent can also update its own persona documents, such as `AGENTS.md`, which later turns
 read as instructions. To review each change before it is written, set

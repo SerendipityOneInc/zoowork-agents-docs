@@ -1,7 +1,7 @@
 ---
 description: 通过SDK或公共HTTP API查询Usage和组织余额，理解key scope、筛选与分页。
 source: /en/reference/usage
-source_hash: d2d5d10fc0f6804a6c8eb9b9679ce3eec68bfb6dd1c08227d60681a4153c7afa
+source_hash: 70c99599402a55ae44c1c5cf570d9eb845ad44768915253cf1cb2282b2afd105
 ---
 
 # Usage
@@ -30,6 +30,16 @@ Platform key 只能读取归属于自身的 Usage。省略 `api_key_id` 就查�
 `credits` 表示 Platform credits 消耗，不是 token 数、美元分或请求次数。Platform 钱包使用 **200 credits/USD**；例如 100 credits 对应 USD 0.50。这是单位换算，不是每次模型调用或每个 Session 的固定价格。
 
 Project key 的 Usage 只包含所选时间范围内归属于该 key 的消耗，不是 Organization 的剩余余额。其他 key、共享 sandbox 费用、充值和报表时间差都会影响对账，不能用某次余额直接减去这份结果来推算当前余额。剩余余额请用 [`GET /balance`](#read-the-organization-balance) 读取，组织范围的 Usage 请在 Platform 查看。
+
+## 任务没有产出时的 Usage {#usage-without-task-output}
+
+模型请求是否产生用量，不取决于后续工具调用是否获批或任务是否产出 Artifact。
+读取 Skill 指令、规划命令、查询后台任务和解释拒绝，都可能需要模型请求。
+拒绝工具调用会阻止这次调用执行，但不会退还已经发生的模型用量。
+
+结合 Session 的 Usage 记录和工具事件，区分模型工作与实际执行的工具。
+run 成功表示回合正常结束，所需产出应另行确认。
+见[权限策略](../build/permissions.md#session-grants-and-timeouts)和[Session 操作](../build/session-operations.md)。
 
 ## 读取组织余额 {#read-the-organization-balance}
 

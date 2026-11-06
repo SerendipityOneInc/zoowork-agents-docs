@@ -35,6 +35,18 @@ costs, top-ups and reporting timing mean subtracting this result from a previous
 is not a reliable wallet reconciliation. Read the remaining balance with
 [`GET /balance`](#read-the-organization-balance), and check organization-wide Usage in Platform.
 
+## Usage without task output
+
+Model requests incur usage independently of whether a later tool call is approved or the task
+produces an Artifact. Reading Skill instructions, planning a command, checking a background
+job, and explaining a denial can all require model requests. Denying a tool call prevents
+that call from executing; it does not refund model usage that has already occurred.
+
+Use the Session's Usage records together with its tool events to distinguish model work from
+executed tools. A successful run means the turn ended normally; verify the required output
+separately. See [Permission policies](../build/permissions.md#session-grants-and-timeouts) and
+[Session operations](../build/session-operations.md).
+
 ## Read the organization balance
 
 `GET /balance` returns the prepaid balance of the organization that owns the key:
