@@ -19,12 +19,13 @@ other Projects receive 404.
 | Item | Where it lives | Who can read it | Who can change it |
 |---|---|---|---|
 | Platform API key | Your backend's secret storage. Platform shows the secret once. | Your backend. | In Platform, the organization owner creates keys and organization admins can revoke them. |
-| Your service credentials | Your backend. The public API cannot provision credentials to an Agent. | Your backend, inside custom tools. | Your backend. |
+| Your service credentials | Your backend. | Your backend, inside custom tools. | Your backend. |
+| Vault credentials (beta) | A [Vault](../build/vault.md), encrypted. | No API returns the secret. The Agent's Vault MCP servers receive it in Sessions that attach the Vault; the sandbox does not. | Your backend, with a key for the Vault's scope. |
 | Agent configuration: instructions, model, tools, MCP servers, `tool_policy` | Stored with the Agent. | Your backend. The model reads the instructions on every turn and can repeat them in a reply. | Your backend, with `updateAgent`. The Agent can update its own persona documents during a run; see [Prompt injection](#prompt-injection). |
 | Session history and events | Stored per Session. | Your backend. Each Session's conversation is separate from the Agent's other Sessions. | Your inputs and the Agent's work append to it. Deleting a Session hides it from public reads, but transcripts and events are retained for audit. |
-| `/workspace` files | The Agent's persistent workspace. | The Agent in every Session, through file tools and `exec`. Your backend, through `exec`. | The Agent in every Session; your backend, through `uploadFile` and `exec`. |
-| Agent memory | The Memory service, in `agent` and `user_agent` scopes. | `agent` scope: turns in any Session of the Agent. `user_agent` scope: turns of that actor, or of the owner when a message has no actor. | The Agent, through Memory tools only. `agent` scope: owner turns and authorized system activity. `user_agent` scope: that actor. |
-| Agent Database | A managed database that belongs to the Agent. | The Agent, through `agent_db`, in every Session. There is no direct production viewer. | The Agent, through `agent_db`. |
+| `/workspace` files | The Agent's persistent workspace. A Session created with `isolation: "session"` has its own workspace directory instead. | The Agent in every `shared` Session, through file tools and `exec`. Your backend, through `exec`. An isolated Session's files: only that Session. | The Agent in every `shared` Session; your backend, through `uploadFile` and `exec`. |
+| Agent memory | The Memory service, in `agent` and `user_agent` scopes. An isolated Session has its own Memory. | `agent` scope: turns in any `shared` Session of the Agent. `user_agent` scope: turns of that actor, or of the owner when a message has no actor. | The Agent, through Memory tools only. `agent` scope: owner turns and authorized system activity. `user_agent` scope: that actor. |
+| Agent Database | A managed database that belongs to the Agent. | The Agent, through `agent_db`, in every Session, including isolated Sessions. There is no direct production viewer. | The Agent, through `agent_db`. |
 | Published Artifacts | A published copy, separate from the workspace file. | Your backend, and anyone who holds a download URL. | The Agent publishes them; your backend can delete them. |
 | Sandbox and its network | A managed, isolated Linux sandbox. The default user is non-root and can run `sudo` without a password. | Commands the Agent runs; your backend, through `exec`. | The default Environment allows unrestricted outbound network access. Platform keys cannot change the Environment or its network policy. |
 | Webhook signing secret | Returned when you register an endpoint or rotate its secret. | Your webhook receiver. Ordinary endpoint reads do not return it. | Your backend, by rotating it. |
@@ -58,29 +59,39 @@ manipulated turn can do instead of relying on the model to notice:
 - In your custom tools, authorize the operation against your own user mapping, not against
   values in the tool input.
 - Keep secrets out of everything the Agent can read.
-- Give users who must not share data separate Agents, so content from one user's task cannot
-  reach another user's files or memory.
+- Give users who must not share data isolated Sessions or separate Agents, so content from one
+  user's task cannot reach another user's files or memory. See
+  [Data shared between Sessions of one Agent](#data-shared-between-sessions-of-one-agent).
 - Review tool calls in the event log. See [Review and monitor sessions](./monitor-sessions.md).
 
 ## Data shared between Sessions of one Agent
 
-A Session is a conversation, not a data boundary. All Sessions of one Agent share:
+A `shared` Session, the default, is a conversation, not a data boundary. All `shared` Sessions
+of one Agent share:
 
 - `/workspace` files, including when `sandbox.scope` is `session`;
-- the Agent Database;
 - `agent`-scoped memory, and the owner's `user_agent` memory for every message sent without an
   actor;
-- the Agent's configuration, persona documents, and schedules.
+- published Artifacts.
 
 Each Session keeps its own conversation history, and each actor has its own `user_agent`
 memory.
 
-If one Agent serves several end users, a file one user uploaded or a fact the Agent saved
-for one user can appear in another user's task. Create [an Agent per user](../build/per-user-agents.md)
-when that is not acceptable. `actor.ref` separates `user_agent` memory only; it does not
-isolate files or the database, and it does not authorize access. See
-[File isolation](../build/files.md#file-isolation), [Agent Database](../build/data-storage.md),
-and [Memory scopes](../build/memory.md#choose-a-memory-scope).
+A Session created with `isolation: "session"` has its own workspace directory, Memory, and
+Artifacts. Every Session of the Agent, isolated or not, still shares:
+
+- the Agent Database;
+- the Agent's configuration, persona documents, Skills, and schedules;
+- the Agent owner's credentials that the sandbox and owner-identity tools use; see
+  [Credential exposure](#credential-exposure).
+
+If one Agent serves several end users through `shared` Sessions, a file one user uploaded or a
+fact the Agent saved for one user can appear in another user's task. Use isolated Sessions or
+[an Agent per user](../build/per-user-agents.md) when that is not acceptable. `actor.ref`
+separates `user_agent` memory only; it does not isolate files or the database, and it does not
+authorize access. See [Session isolation](../build/per-user-agents.md#session-isolation),
+[Agent Database](../build/data-storage.md), and
+[Memory scopes](../build/memory.md#choose-a-memory-scope).
 
 ## Over-broad tools
 
@@ -109,13 +120,17 @@ A secret can leak from any place that the Agent, the event log, or your own logs
 - **In a message or `system.message`:** it is stored in Session history. Deleting the Session
   does not erase the stored records.
 - **In instructions:** the model reads them on every turn and can repeat them in a reply.
-- **In a workspace file:** every Session of the Agent can read it, and a command run with
+- **In a workspace file:** every `shared` Session of the Agent can read it, and a command run with
   `exec` can send it to any host.
 - **In a tool argument or result:** `agent.tool` events record `args` when a call starts and a
   `resultPreview` when it ends.
+- **In the Agent owner's accounts:** the sandbox can act with the Agent owner's credentials in
+  every Session, isolated or not. See [Owner credentials are not isolated](../build/vault.md#owner-credentials).
 
-Keep service credentials in your backend and use them inside custom tools. Return only the
-data the task needs from a custom tool, never the credential itself. The Platform API key,
+Keep service credentials in your backend and use them inside custom tools, or store per-user
+MCP credentials in a [Vault](../build/vault.md) (beta), which keeps them out of the sandbox and
+API responses. Return only the data the task needs from a custom tool, never the credential
+itself. The Platform API key,
 the webhook signing secret, and Artifact download URLs are credentials as well: keep them in
 secret storage and out of logs. Revoke or rotate them when they may have been exposed. See
 [Authentication](../get-started/authentication.md#replace-or-revoke-a-key),

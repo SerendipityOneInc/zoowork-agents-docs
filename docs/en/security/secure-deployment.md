@@ -56,20 +56,30 @@ or Session ID from the browser without checking it against that mapping. Labels,
 
 See [An agent per user](../build/per-user-agents.md#authorize-each-agent-and-session-request).
 
-## 4. Give users who must not share data separate Agents
+## 4. Separate users who must not share data
 
-A Session separates conversation history only. The Agent's `/workspace` files, its Agent
-Database, and its `agent`-scoped memory are shared by all of its Sessions. Setting
-`sandbox.scope: 'session'` gives Sessions separate sandbox instances, but they still use the
-same workspace.
+A `shared` Session, the default, separates conversation history only. The Agent's
+`/workspace` files, its Agent Database, and its `agent`-scoped memory are shared by all of its
+`shared` Sessions. Setting `sandbox.scope: 'session'` gives Sessions separate sandbox instances,
+but they still use the same workspace.
 
-When users must not see each other's files, database rows, or saved facts, create one Agent
-per user. If several users share one Agent, have your backend send a stable
-`actor: { ref }` for each authenticated user, so each user gets a separate `user_agent`
-memory scope. Without an actor, a message uses the Agent owner's identity: every such user
-shares the owner's private memory and can write to the shared `agent` scope.
+When users must not see each other's files or saved facts, either create their Sessions with
+`isolation: "session"`, which gives each Session its own workspace, Memory, and Artifacts, or
+create one Agent per user. Isolated Sessions still share the Agent Database, the Agent's
+configuration and Schedules, and the Agent owner's credentials, so use an Agent per user when
+those must be separate too.
 
-See [An agent per user](../build/per-user-agents.md) and
+If several users share one Agent through `shared` Sessions, have your backend send a stable
+`actor: { ref }` for each authenticated user, so each user gets a separate `user_agent` memory
+scope. Without an actor, a message uses the Agent owner's identity: every such user shares the
+owner's private memory and can write to the shared `agent` scope.
+
+::: warning Isolation does not cover the owner's credentials
+In isolated and shared Sessions alike, the sandbox can still act with the Agent owner's
+credentials. See [Owner credentials are not isolated](../build/vault.md#owner-credentials).
+:::
+
+See [An agent per user](../build/per-user-agents.md#workspace-isolation) and
 [Memory scopes](../build/memory.md#choose-a-memory-scope).
 
 ## 5. Check authorization inside custom tools
@@ -82,15 +92,19 @@ it. A platform approval can stop the request before it reaches you; it does not 
 checks.
 
 Keep service credentials, such as database passwords and third-party API tokens, in your
-backend and use them only inside custom tools. The public API does not provision credentials
-to Agents, and the platform calls remote MCP servers without stored credentials. An MCP
-server that accepts those unauthenticated requests accepts them from anyone who can reach it,
-so do not expose private data or write operations through it. The Agent and Session
-identifiers that ZooWork can add to MCP calls are request context, not proof of
-authorization.
+backend and use them only inside custom tools. The platform calls a remote MCP server without
+credentials unless the server is declared for [Vault (beta)](../build/vault.md). An MCP server
+that accepts unauthenticated requests accepts them from anyone who can reach it, so do not
+expose private data or write operations through it. The Agent and Session identifiers that
+ZooWork can add to MCP calls are request context, not proof of authorization.
 
-See [Custom tools](../build/tools.md#application-executed-custom-tools) and
-[MCP servers](../build/mcp.md#connection-requirements).
+When an MCP server needs each user's own account, store that user's credential in a Vault and
+attach it only to that user's Sessions. Revoke the Sessions or archive the Vault when the user
+leaves.
+
+See [Custom tools](../build/tools.md#application-executed-custom-tools),
+[MCP servers](../build/mcp.md#connection-requirements), and
+[Vault](../build/vault.md#revoke-access).
 
 ## 6. Narrow the tool set with `tool_policy`
 
@@ -187,4 +201,5 @@ See [Review and monitor sessions](./monitor-sessions.md) and
 - [Risks and boundaries](./risks-and-boundaries.md): where data lives, who can reach it, and the main risks.
 - [Review and monitor sessions](./monitor-sessions.md): review tool calls and catch problems early.
 - [Permission policies](../build/permissions.md): approvals for tool calls.
-- [An agent per user](../build/per-user-agents.md): separate workspaces and backend authorization.
+- [An agent per user](../build/per-user-agents.md): isolated Sessions, separate Agents, and backend authorization.
+- [Vault (beta)](../build/vault.md): per-user MCP credentials, revocation, and offboarding.

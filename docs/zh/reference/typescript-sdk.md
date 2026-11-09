@@ -2,14 +2,14 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 37339df591c6030d9d96d0cbe340e99fb9c1b7a69fec94ddb0e7004871028986
+source_hash: a600bb1e65e60e6adcb54ccc2e59d1e4209e26866175a3a03ac2fe357a1172c8
 ---
 
 # TypeScript SDK 参考
 
 `@zoowork-ai/sdk` 导出的每一个符号，附带编译器看到的签名。
 
-本参考适用于 TypeScript SDK **0.14.0+**。
+本参考适用于 TypeScript SDK **0.14.0+**。[Vault（beta）](#vault-beta)方法和 `createSession` 的 `isolation` 字段需要 **0.15.0+**。
 
 这一页是参考手册。想看按任务组织的说明，从 [Agents](../build/agents.md)、[Sessions](../build/sessions.md)
 或[快速开始](../get-started/quickstart.md)开始。
@@ -278,6 +278,18 @@ Platform key 不能调用根 `/environments` 路由，这些方法返回 404。A
 | `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | 请求归档 Environment。 |
 | `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | 为 Environment 提交另一个配置版本。 |
 | `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | 读取一个版本，可以用 `opts.resourceClass` 选择 `starter`、`pro` 或 `ultra`。 |
+
+**Vault（beta）**
+
+需要 SDK 0.15.0+ 和已启用 Vault 的部署。见 [Vault（beta）](#vault-beta)。
+
+| 方法 | 返回 | 作用 |
+|---|---|---|
+| `createVault`、`listVaults`、`getVault`、`updateVault`、`archiveVault`、`deleteVault` | `Promise<VaultRecord>`、`Promise<VaultPage>` 或 `Promise<void>` | 在 key 的 scope 内管理 org 或 project Vault。 |
+| `createVaultCredential`、`listVaultCredentials`、`getVaultCredential`、`updateVaultCredential`、`archiveVaultCredential`、`deleteVaultCredential` | `Promise<VaultCredentialRecord>`、`Promise<VaultCredentialPage>` 或 `Promise<void>` | 管理 Vault 中的 MCP credential。响应从不包含 secret。 |
+| `validateVaultCredential(vaultId, credentialId)` | `Promise<VaultCredentialValidation>` | 探测该 credential 对应的 MCP Server。 |
+| `revokeSessionVaultBinding(agentId, sessionId, opts)` | `Promise<VaultBinding>` | 让某个 Session 不能再使用它的 Vault credential。 |
+| `createVaultOffboarding(input, opts)`、`getVaultOffboarding(offboardingId)` | `Promise<VaultOffboarding>` | 在后台 revoke 离开用户的 Session，并报告进度。 |
 
 只有下面单独成节的方法需要补充签名以外的行为。其余方法都是表格中描述的一次调用操作。
 
@@ -615,18 +627,25 @@ await client.deleteAgentSkill(agentId, 'skl_yourown')
 ### `createSession(agentId, input, idempotencyKey?)`
 
 ```ts
-createSession(
-  agentId: string,
-  input: { initial_events?: OutboundEvent[]; metadata?: Record<string, unknown>; runtime_mode?: 'active'; idle_compaction?: boolean | null },
-  idempotencyKey?: string,
-): Promise<SessionRecord>
+createSession(agentId: string, input: SessionCreateInput, idempotencyKey?: string): Promise<SessionRecord>
+
+interface SessionCreateInput {
+  initial_events?: OutboundEvent[]
+  metadata?: Record<string, unknown>
+  runtime_mode?: 'active'
+  idle_compaction?: boolean | null
+  isolation?: 'shared' | 'session' // 0.15.0+
+}
 ```
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
 | `input.initial_events` | `OutboundEvent[]` | 只接受 `user.message`，最多 50 条。传了就会立刻启动第一个回合。 |
 | `input.metadata` | object | 随 session 存下来的任意 JSON，`getSession()` 会原样回显。没有任何东西会解释它。之后你没法再往里加。 |
-| `idempotencyKey` | `string` | 作为 `Idempotency-Key` 头发送。 |
+| `input.isolation` | `'shared' \| 'session'` | 在 Session 的整个生命周期内固定。不带 Vault 字段时省略为 `shared`。`session` 让该 Session 拥有自己的 workspace、Memory 和 Artifact；见 [Session 隔离](../build/per-user-agents.md#session-isolation)。 |
+| `idempotencyKey` | `string` | 作为 `Idempotency-Key` 头发送。带 Vault 字段时必填。 |
+
+Vault 字段（`vault_ids`、`credential_bindings`、`external_user_ref`、`vault_binding_options`）使用第二个 overload；见[带 Vault 字段的 `createSession`](#createsession-with-vault-fields)。
 
 ```ts
 const session = await client.createSession(
@@ -1067,6 +1086,7 @@ interface McpServerDeclaration {
   name: string
   url: string
   transport?: 'streamable-http' | 'sse'
+  // auth?: { type: 'vault' } - accepted through the index signature; see below
   credential?: string
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
@@ -1077,7 +1097,7 @@ interface McpServerDeclaration {
 }
 ```
 
-省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 无法写入 `credential` 指向的密钥；请使用公开、免鉴权的 MCP Server。见 [MCP Server](../build/mcp.md)。
+省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 无法写入 `credential`。要让每个用户的 Session 使用各自的 credential，声明 `auth: { type: 'vault' }`，并在创建 Session 时挂载 Vault（beta）；声明类型通过索引签名接受该字段。否则请使用公开、免鉴权的 MCP Server。见 [MCP Server](../build/mcp.md) 和 [Vault](../build/vault.md)。
 
 两个 context 开关都默认是 `false`。`meta` 在工具执行时添加 `_meta["ai.zooclaw/context"]`，`headers` 添加 `x-zooclaw-*` header；目录发现阶段两者都不带。context 包含 agent/session/computer 标识和可选 run/turn/config/actor 字段。它是上下文，不是鉴权凭据。
 
@@ -1144,6 +1164,9 @@ interface SessionRecord {
   deleted?: boolean
   skill_config_version?: number
   isolation?: 'shared' | 'session' | string
+  project_id?: string | null   // createSession receipt with Vault fields (beta)
+  vault_ids?: string[]         // createSession receipt with Vault fields (beta)
+  vault_binding?: VaultBinding // createSession receipt with Vault fields (beta)
   queue?: {
     selected_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string | null
     default_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string
@@ -1165,8 +1188,7 @@ interface SessionRecord {
 `getSession()` 返回 `status: null`，同时返回 `run_status`；`listSessions()` 的每一行包含
 `run_status`，不包含 `status`。旧的 `status` 字段不是 run 的结果，不同部署上的值可能不同。
 最近一次 run 的状态应读取 `run_status`；没有最近 run 时可为 null。`pending_approvals` 是数量，不是数组。
-`isolation` 在创建时记录，之后不会改变；用 `createSession()` 创建的 Session 记录为 `shared`，共享 Agent 的
-`/workspace`。创建回执和两种列表方式都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带
+`isolation` 在创建时记录，之后不会改变：不带 Vault 字段时省略为 `shared`，共享 Agent 的 `/workspace`；`session` 则让 Session 拥有自己的 workspace。创建回执、`getSession()` 和两种列表方式都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带
 `skill_config_version`。`queue` 只出现在 `getSession()` 上：`selected_mode` 有值时 `effective_mode`
 取它，否则取 Agent 配置中的 `default_mode`。这些都是响应字段，见[读取 Session](../build/session-operations.md#read-a-session)。
 `deleted` 出现在 `listSessionPage()` 用 `includeDeleted: true` 返回的 deletion tombstone 上；tombstone 不是可读取的 Session resource。
@@ -1307,6 +1329,7 @@ async function reply(client: ZooworkClient, agentId: string, text: string) { /* 
 class ZooworkError extends Error {
   status: number
   type?: string
+  code?: string // 0.15.0+
   contentType?: string
   bodySnippet?: string
   cfRay?: string
@@ -1316,7 +1339,7 @@ class ZooworkError extends Error {
 ```
 
 所有方法在遇到非 2xx 响应时都会抛出它。匹配 `error.type`，永远不要匹配报错文本。
-完整说明见[错误处理](./errors.md)。
+`code` 是错误 body 的顶层 `code`。body 同时有 `error.type` 时（例如 Session 路由上的 Vault binding 错误），`type` 保存 `error.type`，`code` 保存带点的 code。完整说明见[错误处理](./errors.md)。
 
 ## 事件辅助函数
 
@@ -1445,6 +1468,148 @@ for await (const msg of parseSSE(res.body!)) {
 
 验签前不要解析或重新序列化 JSON。`unwrapWebhook` 检查基础 envelope，同时保留未知 event type 和 data field；handler 仍需验证 event-specific data。它不检查 body `id` 是否等于 `webhook-id`。使用验签得到的 delivery ID 去重，并按应用要求检查两者相等。验证失败会抛 `ZooworkWebhookError`。SDK 的 event 常量是 parser 词表，不是 deployment 可用性保证。
 
+## Vault（beta） {#vault-beta}
+
+::: warning Beta
+Vault 方法、`createSession` 的 `isolation`，以及下面的 helper 都需要 SDK 0.15.0 或更高版本。Vault 还需要 Platform API key 和已启用 Vault 的部署。未启用时，Vault 方法会以 `VaultBetaUnavailableError` reject（服务端 code 为 `404 service_api.not_found`），带 Vault 字段的 `createSession` 也会以它 reject（`400 vault.session_fields_unavailable`）。字段和行为在正式发布前可能变化。工作流见 [Vault](../build/vault.md)。
+:::
+
+`ZooworkClient` 包含这些方法（`VaultApi` interface）：
+
+```ts
+createVault(input: VaultCreateInput, opts: VaultWriteOptions): Promise<VaultRecord>
+listVaults(opts?: VaultListOptions): Promise<VaultPage>
+getVault(vaultId: string): Promise<VaultRecord>
+updateVault(vaultId: string, input: VaultUpdateInput, opts: VaultRevisionWriteOptions): Promise<VaultRecord>
+archiveVault(vaultId: string, opts: VaultRevisionWriteOptions): Promise<VaultRecord>
+deleteVault(vaultId: string, opts: VaultRevisionWriteOptions): Promise<void>
+
+createVaultCredential(vaultId: string, input: VaultCredentialCreateInput, opts: VaultWriteOptions): Promise<VaultCredentialRecord>
+listVaultCredentials(vaultId: string, opts?: VaultCredentialListOptions): Promise<VaultCredentialPage>
+getVaultCredential(vaultId: string, credentialId: string): Promise<VaultCredentialRecord>
+updateVaultCredential(vaultId: string, credentialId: string, input: VaultCredentialUpdateInput, opts: VaultRevisionWriteOptions): Promise<VaultCredentialRecord>
+archiveVaultCredential(vaultId: string, credentialId: string, opts: VaultRevisionWriteOptions): Promise<VaultCredentialRecord>
+deleteVaultCredential(vaultId: string, credentialId: string, opts: VaultRevisionWriteOptions): Promise<void>
+validateVaultCredential(vaultId: string, credentialId: string): Promise<VaultCredentialValidation>
+
+revokeSessionVaultBinding(agentId: string, sessionId: string, opts: VaultRevisionWriteOptions): Promise<VaultBinding>
+createVaultOffboarding(input: VaultOffboardingInput, opts: VaultWriteOptions): Promise<VaultOffboarding>
+getVaultOffboarding(offboardingId: string): Promise<VaultOffboarding>
+```
+
+`VaultWriteOptions` 是 `{ idempotencyKey: string }`，作为 `Idempotency-Key` 发送。`VaultRevisionWriteOptions` 再加 `revision: number`，作为 `If-Match` 发送。`validateVaultCredential` 两者都不发送。这些 option 对象只携带这两个 header；SDK 不提供在 Vault 调用上设置其他 header 的方式。这些方法从不重试。
+
+| 方法 | 说明 |
+|---|---|
+| `createVault` | `201`。`input` 是 `{ scope: 'org', name, metadata? }` 或 `{ scope: 'project', project_id, name, metadata? }`。具名 Project 的 key 为自己的 `proj_…` ID 创建 project Vault；Default Project 的 key 创建 org Vault。 |
+| `listVaults` | key 的 scope 内的 Vault。选项：`cursor`、`limit`（1–100）、`status`（`active` 或 `archived`）、`scope`。 |
+| `updateVault` | 修改 `name`、`metadata` 或两者。保持不变的字段省略即可；不要发送 `null`。 |
+| `archiveVault` / `archiveVaultCredential` | 停止新的使用。正在使用它的 Session 会在下一次 MCP 调用时被拒绝。不可撤销。 |
+| `deleteVault` / `deleteVaultCredential` | `204`。重试时返回 `404 vault.not_found` 说明已经成功。 |
+| `createVaultCredential` | `201`。`auth` 是 `static_bearer`、`static_headers` 之一，或 `refresh_owner: 'external'` 或 `'engine'`（带 `refresh`）的 `mcp_oauth`。 |
+| `updateVaultCredential` | 重命名、轮换 secret，或两者兼有。`auth` 是 `{ headers }` 或 `{ access_token, expires_at?, refresh_owner?, refresh? }`；轮换 `mcp_oauth` token 时要发送 `expires_at`。 |
+| `getVaultCredential` | 包含 `health`；用 `vaultCredentialHealthState` 读取。 |
+| `validateVaultCredential` | 探测 MCP Server；不保存任何内容。 |
+| `revokeSessionVaultBinding` | `revision` 是 `createSession` 返回的 `vault_binding.revision`。它的 `404 service_api.not_found` 也可能表示 Agent 或 Session 不存在，所以它以普通 `ZooworkError` reject，而不是 `VaultBetaUnavailableError`。 |
+| `createVaultOffboarding` | `202`。在后台 revoke 列出的 1–100 个 Session。轮询 `getVaultOffboarding`，直到 `status` 不再是 `in_progress`；处于 `not_found` 的 Session 没有被 revoke。 |
+
+### 带 Vault 字段的 `createSession` {#createsession-with-vault-fields}
+
+```ts
+createSession(agentId: string, input: SessionCreateInput & SessionVaultFields, idempotencyKey: string): Promise<SessionRecord>
+```
+
+`SessionVaultFields` 是：
+
+```ts
+interface SessionVaultFields {
+  isolation: 'shared' | 'session'
+  vault_ids: [string, ...string[]]
+  credential_bindings?: { server_name: string; credential_id: string }[]
+  external_user_ref?: string
+  vault_binding_options?: { expires_at?: string | null; allow_delegate?: false; allow_unattended?: false }
+}
+```
+
+带这些字段时，类型要求 `isolation` 和 idempotency key，但不保证请求会被接受。`SessionCreateInput` 允许 `idle_compaction` 和 `runtime_mode`，而服务端在带 Vault 字段时会以 `400 invalid_request` 拒绝 `idle_compaction`、`config_version`、`skill_config_version` 以及 `'active'` 以外的 `runtime_mode`。不要把 Vault 字段传成 `null` 或 `[]`；任何一个 Vault 字段都会让请求成为 Vault 请求。回执包含 `project_id`、`vault_ids` 和 `vault_binding`（`VaultBinding`）。
+
+### 记录类型 {#records}
+
+```ts
+interface VaultRecord {
+  id: string
+  scope: 'org' | 'project' | string
+  project_id: string | null
+  name: string
+  metadata: Record<string, unknown>
+  status: 'active' | 'archived' | 'deleted' | string
+  revision: number
+  purge_state: 'none' | 'pending' | 'failed' | 'complete' | string
+  created_at: string
+}
+
+interface VaultCredentialRecord {
+  id: string
+  vault_id: string
+  name: string
+  purpose: 'mcp' | string
+  auth_type: 'static_bearer' | 'static_headers' | 'mcp_oauth' | string
+  mcp_server_url: string
+  provider_account_ref: string
+  refresh_owner: 'external' | 'engine' | string | null
+  expires_at: string | null
+  status: 'active' | 'archived' | 'deleted' | string
+  revision: number
+  secret_version: number
+  purge_state: 'none' | 'pending' | 'failed' | 'complete' | string
+  health?: { state: string; reason: string | null; retry_after: string | null } | null
+}
+
+interface VaultBinding {
+  id: string
+  root_binding_id: string
+  parent_binding_id: string | null
+  project_id: string | null
+  source: 'session' | 'schedule' | string
+  session_id: string | null
+  schedule_id: string | null
+  status: 'unrevoked' | 'revoked' | string
+  revision: number
+  expires_at: string | null
+  credential_bindings: { server_name: string; vault_id: string; credential_id: string }[]
+  profile: 'restricted' | 'session_isolated' | 'shared' | string
+  external_user_ref: string | null
+}
+```
+
+Record 从不携带 secret。每种 record 类型也接受未知字段。`VaultPage` 和 `VaultCredentialPage` 是 `{ data, next_cursor, has_more }`。`VaultCredentialValidation` 是 `{ status, stage, http_status, error_code, retryable, validated_at, request_id }`。`VaultOffboarding` 是 `{ id, status, external_user_ref, actor_ref, correlation_id, created_at, updated_at, completed_at, counts, sessions }`，`sessions` 的每一项都有 `agent_id`、`session_id`、`revision`、`state`、`attempts`、`last_code`、`next_attempt_at`、`vault_ids`、`revoked_revision` 和 `attempt_log`。
+
+### 辅助函数与错误 {#helpers-and-errors}
+
+| 导出 | 作用 |
+|---|---|
+| `VaultBetaUnavailableError` | `ZooworkError` 的子类，在客户端无法使用 Vault 时抛出。`type` 和 `code` 保留服务端 code；message 另带提示。 |
+| `isVaultBetaUnavailable(error)` | 对 `VaultBetaUnavailableError` 返回 `true`，对 `code` 或 `type` 为 `vault.session_fields_unavailable` 的任何 `ZooworkError` 也返回 `true`。 |
+| `vaultSessionErrorCode(error)` | 对由 Vault binding 引起的 Session 错误，返回 `'vault.binding_revoked'`、`'vault.binding_expired'` 或 `'vault.profile_restricted'`（两种写法都识别）；否则返回 `undefined`。 |
+| `VAULT_SESSION_ERROR_CODES` | 把 runtime code（`vault_binding_revoked`，…）映射到带点的 code。 |
+| `vaultCredentialHealthState(credential)` | credential 的 health 状态；SDK 不认识的状态返回 `unknown`，没有时返回 `null`。只有 `ok` 表示健康。 |
+
+```ts
+import { isVaultBetaUnavailable, vaultSessionErrorCode } from '@zoowork-ai/sdk'
+
+try {
+  await client.postEvents(agentId, sessionId, [{ type: 'user.message', content: 'Continue.' }])
+} catch (error) {
+  if (vaultSessionErrorCode(error) === 'vault.binding_revoked') {
+    // The user's access was revoked: start a new Session only if they still have access.
+  } else if (isVaultBetaUnavailable(error)) {
+    // Vault is not enabled for this key or deployment.
+  } else {
+    throw error
+  }
+}
+```
+
 ## 完整导出清单
 
 ```ts
@@ -1452,6 +1617,9 @@ import {
   createZooworkClient,
   DEFAULT_BASE_URL,
   ZooworkError,
+  VaultBetaUnavailableError,
+  isVaultBetaUnavailable,
+  type SessionCreateInput,
   type ZooworkClient,
   type ZooworkConfig,
   type ZooworkAuth,
@@ -1594,6 +1762,45 @@ import {
   type VerifyWebhookInput,
   type VerifiedWebhook,
   type SignWebhookInput,
+  // Vault (beta), 0.15.0+
+  VAULT_SESSION_ERROR_CODES,
+  vaultSessionErrorCode,
+  vaultCredentialHealthState,
+  type VaultApi,
+  type VaultSessionErrorCode,
+  type VaultResourceStatus,
+  type VaultPurgeState,
+  type VaultScope,
+  type VaultRecord,
+  type VaultCreateInput,
+  type VaultUpdateInput,
+  type VaultPage,
+  type VaultListOptions,
+  type VaultCredentialListOptions,
+  type VaultWriteOptions,
+  type VaultRevisionWriteOptions,
+  type VaultManagedRefreshInput,
+  type VaultCredentialAuth,
+  type VaultCredentialCreateInput,
+  type VaultCredentialAuthRotation,
+  type VaultCredentialUpdateInput,
+  type VaultCredentialHealthState,
+  type VaultCredentialHealth,
+  type VaultCredentialRecord,
+  type VaultCredentialPage,
+  type VaultCredentialValidation,
+  type VaultBindingCredential,
+  type VaultBinding,
+  type SessionIsolation,
+  type SessionCredentialSelection,
+  type SessionVaultBindingOptions,
+  type SessionVaultFields,
+  type VaultOffboardingSessionInput,
+  type VaultOffboardingInput,
+  type VaultOffboardingSessionState,
+  type VaultOffboardingAttempt,
+  type VaultOffboardingSession,
+  type VaultOffboarding,
 } from '@zoowork-ai/sdk'
 ```
 

@@ -2,14 +2,14 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: a3766a252ed7a847fc56e35be175c4de3740878efdbb9574fee84f2d4f63efe6
+source_hash: 07a48f81e2abe0e95e145330809f081ece69072b22ca1408a110a45a294a6bd1
 ---
 
 # Python SDK 参考
 
 `zoowork` package 导出的 client 方法、类型和 helper。
 
-本参考适用于 Python SDK **0.9.0+**。
+本参考适用于 Python SDK **0.9.0+**。[Vault（beta）](#vault-beta)方法和 helper 需要 **0.10.0+**。
 
 本页是参考手册。按任务组织的说明请从 [Agents](../build/agents.md)、
 [Sessions](../build/sessions.md) 或[快速开始](../get-started/quickstart.md)读起。
@@ -255,6 +255,18 @@ SDK 从不重试请求。非 2xx 响应抛 [`ZooworkError`](#errors)。带 `idem
 | `get_usage(*, range=None, ...)` | `JsonObject` | 读取 key 范围内的用量。 |
 | `get_balance()` | `JsonObject` | 读取所有 Project 共享的组织余额。 |
 | `get_run_output(agent_id, session_id, run_id, *, cursor=None, limit=None)` | `JsonObject` | 读取一次 run 的输出。 |
+
+**Vault（beta）**
+
+需要 SDK 0.10.0+ 和已启用 Vault 的部署。见 [Vault 方法](#vault-beta)。
+
+| 方法 | 返回 | 作用 |
+|---|---|---|
+| `create_vault`、`list_vaults`、`get_vault`、`update_vault`、`archive_vault`、`delete_vault` | `VaultRecord`、`VaultPage` 或 `None` | 在 key 的 scope 内管理 org 或 project Vault。 |
+| `create_vault_credential`、`list_vault_credentials`、`get_vault_credential`、`update_vault_credential`、`archive_vault_credential`、`delete_vault_credential` | `VaultCredentialRecord`、`VaultCredentialPage` 或 `None` | 管理 Vault 中的 MCP credential。响应从不包含 secret。 |
+| `validate_vault_credential(vault_id, credential_id)` | `VaultCredentialValidation` | 探测该 credential 对应的 MCP Server。 |
+| `revoke_session_vault_binding(agent_id, session_id, *, idempotency_key, revision)` | `VaultBinding` | 让某个 Session 不能再使用它的 Vault credential。 |
+| `create_vault_offboarding(offboarding, *, idempotency_key)`、`get_vault_offboarding(offboarding_id)` | `VaultOffboarding` | 在后台 revoke 离开用户的 Session，并报告进度。 |
 
 **Agent webhooks**
 
@@ -726,8 +738,10 @@ async def create_session(
 | `metadata` | 任意 JSON，与 Session 一起保存，由 `get_session()` 返回。服务端不解释它，之后也不能追加。 |
 | `runtime_mode` | `"active"` 在创建时 pin 当前生效的配置。省略时，后续每个 turn 再解析生效配置。 |
 | `idle_compaction` | `True`、`False` 或 `None`；SDK 原样保留 `False`、`None` 和省略。 |
+| `isolation` | `"shared"` 或 `"session"`，在 Session 的整个生命周期内固定。不带 Vault 字段时省略为 `"shared"`。`"session"` 让该 Session 拥有自己的 workspace、Memory 和 Artifact；见 [Session 隔离](../build/per-user-agents.md#session-isolation)。 |
+| `vault_ids`、`credential_bindings`、`external_user_ref`、`vault_binding_options` | Beta，0.10.0+。挂载 [Vault](../build/vault.md#start-a-session-with-the-vault) credential。带上其中任何一个时，`isolation` 必须是 `"shared"` 或 `"session"`，`idempotency_key` 必须非空，否则 SDK 会在发送前抛出 `ValueError`。服务端在带 Vault 字段时还会以 `400 invalid_request` 拒绝 `idle_compaction`、`config_version`、`skill_config_version` 以及 `"active"` 以外的 `runtime_mode`。此时回执会增加 `project_id`、`vault_ids` 和 `vault_binding`；请保存 `vault_binding["revision"]`。 |
 
-`session=None` 时发送空请求体。
+`session=None` 时发送空请求体。不用的 Vault 字段全部省略：只要出现一个，即使是 `None` 或 `[]`，请求就成为 Vault 请求。
 
 ```python
 session = await client.create_session(
@@ -780,7 +794,7 @@ for row in s.get("history", []):
 
 不同响应中的字段不同：`create_session()` 返回 `status: "running"`，没有 `run_status`；`get_session()` 返回 `status: None` 和 `run_status`；`list_sessions()` 的行带 `run_status`，没有 `status`。`run_status` 可能为 `None`，`pending_approvals` 是可选的计数。你创建的 Session 的 `session_key` 是 `api:<session_id>`；这类 Session 的 `channel` 为 `api`，由 schedule 触发的 Session 为 `cron`。
 
-`isolation` 在创建时记录，之后不会改变；用 `create_session()` 创建的 Session 记录为 `"shared"`，共享 Agent 的 `/workspace`。创建回执和列表 row 都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带 `skill_config_version`。只有 `get_session()` 返回 `queue`：`selected_mode` 有值时 `effective_mode` 取它，否则取 Agent 配置中的 `default_mode`。见[读取 Session](../build/session-operations.md#read-a-session)。
+`isolation` 在创建时记录，之后不会改变：不带 Vault 字段时省略为 `"shared"`，共享 Agent 的 `/workspace`；`"session"` 则让 Session 拥有自己的 workspace。创建回执、`get_session()` 和列表 row 都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带 `skill_config_version`。只有 `get_session()` 返回 `queue`：`selected_mode` 有值时 `effective_mode` 取它，否则取 Agent 配置中的 `default_mode`。见[读取 Session](../build/session-operations.md#read-a-session)。
 
 ---
 
@@ -1305,6 +1319,79 @@ async def get_run_output(
 
 ---
 
+### Vault 方法（beta） {#vault-beta}
+
+::: warning Beta
+Vault 方法和 helper 需要 SDK 0.10.0 或更高版本。Vault 还需要 Platform API key 和已启用 Vault 的部署。未启用时，Vault 方法会抛出 `VaultBetaUnavailableError`（服务端 code 为 `404 service_api.not_found`），带 Vault 字段的 `create_session()` 也会抛出它（`400 vault.session_fields_unavailable`）。字段和行为在正式发布前可能变化。工作流见 [Vault](../build/vault.md)。在 SDK 中，每个 beta 项的 docstring 都以 `Beta.` 开头。
+:::
+
+```python
+async def create_vault(vault: VaultCreateInput, *, idempotency_key: str) -> VaultRecord
+async def list_vaults(*, cursor: str | None = None, limit: int | None = None,
+                      status: VaultListStatus | None = None, scope: VaultScope | None = None) -> VaultPage
+async def get_vault(vault_id: str) -> VaultRecord
+async def update_vault(vault_id: str, update: VaultUpdateInput, *, idempotency_key: str, revision: int) -> VaultRecord
+async def archive_vault(vault_id: str, *, idempotency_key: str, revision: int) -> VaultRecord
+async def delete_vault(vault_id: str, *, idempotency_key: str, revision: int) -> None
+
+async def create_vault_credential(vault_id: str, credential: VaultCredentialCreateInput, *,
+                                  idempotency_key: str) -> VaultCredentialRecord
+async def list_vault_credentials(vault_id: str, *, cursor: str | None = None, limit: int | None = None,
+                                 status: VaultListStatus | None = None) -> VaultCredentialPage
+async def get_vault_credential(vault_id: str, credential_id: str) -> VaultCredentialRecord
+async def update_vault_credential(vault_id: str, credential_id: str, update: VaultCredentialUpdateInput, *,
+                                  idempotency_key: str, revision: int) -> VaultCredentialRecord
+async def archive_vault_credential(vault_id: str, credential_id: str, *, idempotency_key: str,
+                                   revision: int) -> VaultCredentialRecord
+async def delete_vault_credential(vault_id: str, credential_id: str, *, idempotency_key: str,
+                                  revision: int) -> None
+async def validate_vault_credential(vault_id: str, credential_id: str) -> VaultCredentialValidation
+
+async def revoke_session_vault_binding(agent_id: str, session_id: str, *, idempotency_key: str,
+                                       revision: int) -> VaultBinding
+async def create_vault_offboarding(offboarding: VaultOffboardingInput, *,
+                                   idempotency_key: str) -> VaultOffboarding
+async def get_vault_offboarding(offboarding_id: str) -> VaultOffboarding
+```
+
+`idempotency_key` 作为 `Idempotency-Key` 发送，`revision` 作为 `If-Match` 发送。每个 Vault 写操作都要求非空的 key；`None` 或 `""` 会在发送前抛出 `ValueError`。`validate_vault_credential` 两个 header 都不发送。写方法不接受其他选项。record 类型是 `zoowork.vault` 中的 `TypedDict`，并由 `zoowork` 重新导出；响应是普通 `dict`，保留未知字段。
+
+| 方法 | 说明 |
+|---|---|
+| `create_vault` | `vault` 是 `{"scope": "org", "name", "metadata"?}` 或 `{"scope": "project", "project_id", "name", "metadata"?}`。具名 Project 的 key 为自己的 `proj_…` ID 创建 project Vault；Default Project 的 key 创建 org Vault。 |
+| `list_vaults` | key 的 scope 内的 Vault。`has_more` 为 true 时，把 `next_cursor` 传回。 |
+| `archive_vault` / `archive_vault_credential` | 停止新的使用。正在使用它的 Session 会在下一次 MCP 调用时被拒绝。不可撤销。 |
+| `delete_vault` / `delete_vault_credential` | 重试时抛出 `404 vault.not_found` 说明已经成功。 |
+| `update_vault_credential` | 重命名、轮换 secret，或两者兼有。`auth` 是 `{"headers": …}` 或 `{"access_token", "expires_at"?, "refresh_owner"?, "refresh"?}`；轮换 `mcp_oauth` token 时要发送 `expires_at`。 |
+| `get_vault_credential` | 包含 `health`；用 `vault_credential_health_state()` 读取。 |
+| `revoke_session_vault_binding` | `revision` 是 `create_session()` 返回的 `vault_binding["revision"]`。它的 `404 service_api.not_found` 也可能表示 Agent 或 Session 不存在，所以它抛出普通 `ZooworkError`，而不是 `VaultBetaUnavailableError`。 |
+| `create_vault_offboarding` | 立即返回（`202`），并在后台 revoke 列出的 1–100 个 Session。轮询 `get_vault_offboarding()`，直到 `status` 不再是 `in_progress`；处于 `not_found` 的 Session 没有被 revoke。 |
+
+| Helper | 作用 |
+|---|---|
+| `VaultBetaUnavailableError` | `ZooworkError` 的子类，在客户端无法使用 Vault 时抛出。`type` 和 `code` 保留服务端 code。 |
+| `is_vault_beta_unavailable(error)` | 对 `VaultBetaUnavailableError` 返回 `True`，对 `code` 或 `type` 为 `vault.session_fields_unavailable` 的任何 `ZooworkError` 也返回 `True`。 |
+| `vault_session_error_code(error)` | 对由 Vault binding 引起的 Session 错误，返回 `"vault.binding_revoked"`、`"vault.binding_expired"` 或 `"vault.profile_restricted"`（两种写法都识别）；否则返回 `None`。 |
+| `VAULT_SESSION_ERROR_CODES` | 把 runtime code（`vault_binding_revoked`，…）映射到带点的 code。 |
+| `vault_credential_health_state(credential)` | credential 的 health 状态；SDK 不认识的状态返回 `"unknown"`，没有时返回 `None`。只有 `"ok"` 表示健康。 |
+| `SESSION_VAULT_FIELDS` | 会让 `create_session()` 请求成为 Vault 请求的键。 |
+
+```python
+from zoowork import ZooworkError, is_vault_beta_unavailable, vault_session_error_code
+
+try:
+    await client.post_events(agent_id, session_id, [{"type": "user.message", "content": "Continue."}])
+except ZooworkError as error:
+    if vault_session_error_code(error) == "vault.binding_revoked":
+        ...  # The user's access was revoked: start a new Session only if they still have access.
+    elif is_vault_beta_unavailable(error):
+        ...  # Vault is not enabled for this key or deployment.
+    else:
+        raise
+```
+
+---
+
 ### Webhook 管理方法 {#webhook-management-methods}
 
 ```python
@@ -1597,6 +1684,7 @@ class ZooworkError(Exception):
         cf_ray: str | None = None,
         request_id: str | None = None,
         retryable: bool | None = None,
+        code: str | None = None,  # 0.10.0+
     ) -> None
 ```
 
@@ -1606,6 +1694,7 @@ class ZooworkError(Exception):
 |---|---|---|
 | `status` | `int` | HTTP 状态码，始终存在。 |
 | `type` | `str \| None` | 机器可读的错误码：取响应体中的 `error.type`，没有时取顶层的 `code`。**有它时按它分支**，同时保留按状态码的兜底。 |
+| `code` | `str \| None` | 0.10.0+。响应体的顶层 `code`，从整个响应体读取。响应体同时有 `error.type` 时（例如 Session 路由上的 Vault binding 错误），`type` 保存 `error.type`，`code` 保存带点的 code。 |
 | `content_type` | `str \| None` | 响应的 `Content-Type`。 |
 | `body_snippet` | `str \| None` | 响应体的前 600 个字符。 |
 | `cf_ray` | `str \| None` | 响应 header `cf-ray`。 |
@@ -1885,6 +1974,8 @@ from zoowork import (
     create_zoowork_client,
     ZooworkClient,
     ZooworkError,
+    VaultBetaUnavailableError,
+    is_vault_beta_unavailable,
     JsonObject,
     ThinkingLevel,
     AgentPage,
@@ -1935,6 +2026,50 @@ from zoowork import (
     WEBHOOK_SECRET_ENV_VAR,
     WEBHOOK_TOLERANCE_SECONDS,
     WEBHOOK_DEFAULT_MAX_BODY_BYTES,
+    # Vault (beta), 0.10.0+
+    SESSION_VAULT_FIELDS,
+    VAULT_SESSION_ERROR_CODES,
+    SessionCredentialSelection,
+    SessionIsolation,
+    SessionVaultBindingOptions,
+    SessionVaultCreateInput,
+    SessionVaultFields,
+    VaultBinding,
+    VaultBindingCredential,
+    VaultConfidentialClientRefreshInput,
+    VaultCreateInput,
+    VaultCredentialAuth,
+    VaultCredentialAuthRotation,
+    VaultCredentialCreateInput,
+    VaultCredentialHealth,
+    VaultCredentialHealthState,
+    VaultCredentialPage,
+    VaultCredentialRecord,
+    VaultCredentialUpdateInput,
+    VaultCredentialValidation,
+    VaultExternalOAuthAuth,
+    VaultHeadersRotation,
+    VaultListStatus,
+    VaultManagedOAuthAuth,
+    VaultManagedRefreshInput,
+    VaultOffboarding,
+    VaultOffboardingAttempt,
+    VaultOffboardingInput,
+    VaultOffboardingSession,
+    VaultOffboardingSessionInput,
+    VaultOrgCreateInput,
+    VaultPage,
+    VaultProjectCreateInput,
+    VaultPublicClientRefreshInput,
+    VaultRecord,
+    VaultScope,
+    VaultSessionErrorCode,
+    VaultStaticBearerAuth,
+    VaultStaticHeadersAuth,
+    VaultTokenRotation,
+    VaultUpdateInput,
+    vault_credential_health_state,
+    vault_session_error_code,
 )
 ```
 

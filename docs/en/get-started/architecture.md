@@ -66,8 +66,11 @@ An **Agent** defines instructions, model selection, tools, and Skills. A **Sessi
 one conversation with that Agent. An optional **Environment** supplies the sandbox's packages,
 files, and network policy; use the default Environment to get started.
 
-By default, Sessions belonging to the same Agent share its sandbox and workspace. For an
-application that needs separate user workspaces, create [an Agent per user](../build/per-user-agents.md).
+By default, Sessions belonging to the same Agent share its sandbox and workspace. A Session
+created with `isolation: "session"` gets its own sandbox, workspace, and Memory instead, on a
+deployment where Session isolation is enabled. For
+the trade-offs between isolated Sessions and a separate Agent per user, see
+[An agent per user](../build/per-user-agents.md).
 
 This page describes how managed execution works. [Agent trajectories](./trajectories.md)
 explains why preserving that execution history matters for evaluation and post-training.

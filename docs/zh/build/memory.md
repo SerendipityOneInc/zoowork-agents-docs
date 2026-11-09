@@ -2,7 +2,7 @@
 title: Agent Memory
 description: 让已启用 Memory 的 Agent 跨 session 保存和查找长期事实，并理解 Agent 与 actor 的作用域。
 source: /en/build/memory
-source_hash: f6c4a04550e8fdf0b14d4341fc2bc03885d09854d1cce48646598224978bf7ca
+source_hash: dae82ab463b8d7ee730e3ff7c6482315e659fdf3668498b77d0d3712dd60efc6
 ---
 
 # Agent Memory
@@ -155,7 +155,9 @@ SESSION_ID=$(jq -er '.session_id' <<<"$session")
 
 direct turn 可以搜索 agent scope 和自身 actor 的 scope。group turns 可以搜索共享 Agent Memory，但不能写入它，也不能使用其他用户的 Memory。没有可用 actor identity 时，user-scoped Memory 操作会被拒绝。
 
-同一个 Agent 服务多个应用用户时，API session 应发送稳定的 `actor: { ref }`。后端必须把已认证的用户映射到这个 ref。省略 `actor` 时使用 Agent owner。`metadata.user_id` 不会选择 actor。ref 格式见 [Events](./events.md#user-message)。
+在使用 `isolation: "session"` 创建的 Session 中，无论 actor 是谁，Memory 工具都只使用该 Session 自己的记忆。搜索或写入 `agent` scope 会被拒绝，Session 被删除后，它的记忆会在保留期后被移除。见 [Session 隔离](./per-user-agents.md#session-isolation)。
+
+同一个 Agent 服务多个应用用户时，`shared` 的 API session 应发送稳定的 `actor: { ref }`。后端必须把已认证的用户映射到这个 ref。省略 `actor` 时使用 Agent owner。`metadata.user_id` 不会选择 actor。ref 格式见 [Events](./events.md#user-message)。
 
 
 例如，后端可以为已认证的应用用户发送这个 event：
@@ -167,7 +169,7 @@ direct turn 可以搜索 agent scope 和自身 actor 的 scope。group turns 可
 该用户后续的消息和 Session 使用同一个 ref。不同 ref 选择不同的 `user_agent` scope，不能通过它读取 `customer-42` 的私有 Memory。不要信任未认证客户端直接提交的 ref。
 
 ::: warning Attribution 不是授权
-`actor.ref` 选择 Memory attribution，不授权 Agent/session 访问，不清除已有 transcript，也不隔离 `/workspace`。应用必须授权每个请求。用户不能共享文件时，使用[不同的 Agent](./per-user-agents.md)。
+`actor.ref` 选择 Memory attribution，不授权 Agent/session 访问，不清除已有 transcript，也不隔离 `/workspace`。应用必须授权每个请求。用户不能共享文件时，使用隔离的 Session 或[不同的 Agent](./per-user-agents.md)。
 :::
 
 ## Memory tool contract {#memory-tool-contract}

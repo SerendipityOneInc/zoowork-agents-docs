@@ -6,7 +6,8 @@ description: Look up Python SDK client methods, signatures, exported types, even
 
 Client methods, types, and helpers exported by the `zoowork` package.
 
-This reference applies to Python SDK **0.9.0+**.
+This reference applies to Python SDK **0.9.0+**. The [Vault (beta)](#vault-beta) methods and
+helpers need **0.10.0+**.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
@@ -287,6 +288,18 @@ deployment verification and the complete workflow.
 | `get_usage(*, range=None, ...)` | `JsonObject` | Reads usage for the key's scope. |
 | `get_balance()` | `JsonObject` | Reads the Organization balance shared by every Project. |
 | `get_run_output(agent_id, session_id, run_id, *, cursor=None, limit=None)` | `JsonObject` | Reads the output of one run. |
+
+**Vault (beta)**
+
+Needs SDK 0.10.0+ and a deployment where Vault is enabled. See [Vault methods](#vault-beta).
+
+| Method | Returns | What it does |
+|---|---|---|
+| `create_vault`, `list_vaults`, `get_vault`, `update_vault`, `archive_vault`, `delete_vault` | `VaultRecord`, `VaultPage`, or `None` | Manage org or project Vaults within your key's scope. |
+| `create_vault_credential`, `list_vault_credentials`, `get_vault_credential`, `update_vault_credential`, `archive_vault_credential`, `delete_vault_credential` | `VaultCredentialRecord`, `VaultCredentialPage`, or `None` | Manage the MCP credentials in a Vault. Responses never include the secret. |
+| `validate_vault_credential(vault_id, credential_id)` | `VaultCredentialValidation` | Probes the credential's MCP server. |
+| `revoke_session_vault_binding(agent_id, session_id, *, idempotency_key, revision)` | `VaultBinding` | Stops one Session from using its Vault credentials. |
+| `create_vault_offboarding(offboarding, *, idempotency_key)`, `get_vault_offboarding(offboarding_id)` | `VaultOffboarding` | Revokes a leaving user's Sessions in the background and reports progress. |
 
 **Agent webhooks**
 
@@ -862,8 +875,11 @@ async def create_session(
 | `metadata` | Arbitrary JSON stored with the Session and returned by `get_session()`. Nothing interprets it, and you cannot add to it later. |
 | `runtime_mode` | `"active"` pins the active configuration at creation. Omitted, active configuration is resolved on later turns. |
 | `idle_compaction` | `True`, `False`, or `None`; the SDK preserves `False`, `None`, and omission as given. |
+| `isolation` | `"shared"` or `"session"`, fixed for the Session's life. Omitted means `"shared"` without Vault fields. `"session"` gives the Session its own workspace, Memory, and Artifacts; see [Session isolation](../build/per-user-agents.md#session-isolation). |
+| `vault_ids`, `credential_bindings`, `external_user_ref`, `vault_binding_options` | Beta, 0.10.0+. Attach [Vault](../build/vault.md#start-a-session-with-the-vault) credentials. With any of them, `isolation` must be `"shared"` or `"session"` and `idempotency_key` must be non-empty, or the SDK raises `ValueError` before sending. The server also refuses `idle_compaction`, `config_version`, `skill_config_version`, and a `runtime_mode` other than `"active"` with Vault fields (`400 invalid_request`). The receipt then adds `project_id`, `vault_ids`, and `vault_binding`; store `vault_binding["revision"]`. |
 
-`session=None` sends an empty body.
+`session=None` sends an empty body. Omit every Vault field you do not use: one that is present,
+even as `None` or `[]`, makes the request a Vault request.
 
 ```python
 session = await client.create_session(
@@ -926,8 +942,9 @@ rows carry `run_status` and omit `status`. `run_status` can be `None`, and `pend
 is an optional count. `session_key` is `api:<session_id>` for Sessions you create; `channel` is
 `api` for those and `cron` for Sessions a schedule fired.
 
-`isolation` is recorded at creation and never changes; Sessions created with `create_session()`
-record `"shared"` and share the Agent's `/workspace`. The create receipt and list rows carry it,
+`isolation` is recorded at creation and never changes: `"shared"` when omitted without Vault fields, which shares the
+Agent's `/workspace`, or `"session"`, which gives the Session its own. The create receipt,
+`get_session()`, and list rows carry it,
 along with `skill_config_version` when the Session takes its Skills from a recorded configuration
 version. Only `get_session()` returns `queue`: its `effective_mode` is `selected_mode` when set,
 otherwise `default_mode` from the Agent configuration. See
@@ -1566,6 +1583,88 @@ cursor back as `cursor` to continue.
 
 ---
 
+### Vault methods (beta) {#vault-beta}
+
+::: warning Beta
+The Vault methods and helpers need SDK 0.10.0 or later. Vault also needs a Platform API key and
+a deployment where Vault is enabled. Where it is not, the Vault methods raise
+`VaultBetaUnavailableError` (server code `404 service_api.not_found`), and `create_session()`
+with Vault fields raises it too (`400 vault.session_fields_unavailable`). Fields and behavior
+may change before general availability. See [Vault](../build/vault.md) for the workflow. In the
+SDK, every beta item's docstring starts with `Beta.`.
+:::
+
+```python
+async def create_vault(vault: VaultCreateInput, *, idempotency_key: str) -> VaultRecord
+async def list_vaults(*, cursor: str | None = None, limit: int | None = None,
+                      status: VaultListStatus | None = None, scope: VaultScope | None = None) -> VaultPage
+async def get_vault(vault_id: str) -> VaultRecord
+async def update_vault(vault_id: str, update: VaultUpdateInput, *, idempotency_key: str, revision: int) -> VaultRecord
+async def archive_vault(vault_id: str, *, idempotency_key: str, revision: int) -> VaultRecord
+async def delete_vault(vault_id: str, *, idempotency_key: str, revision: int) -> None
+
+async def create_vault_credential(vault_id: str, credential: VaultCredentialCreateInput, *,
+                                  idempotency_key: str) -> VaultCredentialRecord
+async def list_vault_credentials(vault_id: str, *, cursor: str | None = None, limit: int | None = None,
+                                 status: VaultListStatus | None = None) -> VaultCredentialPage
+async def get_vault_credential(vault_id: str, credential_id: str) -> VaultCredentialRecord
+async def update_vault_credential(vault_id: str, credential_id: str, update: VaultCredentialUpdateInput, *,
+                                  idempotency_key: str, revision: int) -> VaultCredentialRecord
+async def archive_vault_credential(vault_id: str, credential_id: str, *, idempotency_key: str,
+                                   revision: int) -> VaultCredentialRecord
+async def delete_vault_credential(vault_id: str, credential_id: str, *, idempotency_key: str,
+                                  revision: int) -> None
+async def validate_vault_credential(vault_id: str, credential_id: str) -> VaultCredentialValidation
+
+async def revoke_session_vault_binding(agent_id: str, session_id: str, *, idempotency_key: str,
+                                       revision: int) -> VaultBinding
+async def create_vault_offboarding(offboarding: VaultOffboardingInput, *,
+                                   idempotency_key: str) -> VaultOffboarding
+async def get_vault_offboarding(offboarding_id: str) -> VaultOffboarding
+```
+
+`idempotency_key` is sent as `Idempotency-Key` and `revision` as `If-Match`. Every Vault write
+requires a non-empty key; `None` or `""` raises `ValueError` before sending.
+`validate_vault_credential` sends neither header. The write methods accept no other options.
+The record types are `TypedDict`s in `zoowork.vault`, re-exported from `zoowork`; responses
+are plain `dict`s and keep unknown fields.
+
+| Method | Notes |
+|---|---|
+| `create_vault` | `vault` is `{"scope": "org", "name", "metadata"?}` or `{"scope": "project", "project_id", "name", "metadata"?}`. A named Project key creates project Vaults for its own `proj_…` ID; a Default Project key creates org Vaults. |
+| `list_vaults` | The Vaults of your key's scope. Pass `next_cursor` back while `has_more` is true. |
+| `archive_vault` / `archive_vault_credential` | Stops new use. Sessions that use it are refused at their next MCP call. Cannot be undone. |
+| `delete_vault` / `delete_vault_credential` | A retry that raises `404 vault.not_found` already succeeded. |
+| `update_vault_credential` | Renames, rotates the secret, or both. `auth` is `{"headers": …}` or `{"access_token", "expires_at"?, "refresh_owner"?, "refresh"?}`; send `expires_at` when rotating an `mcp_oauth` token. |
+| `get_vault_credential` | Includes `health`; read it with `vault_credential_health_state()`. |
+| `revoke_session_vault_binding` | `revision` is `vault_binding["revision"]` from `create_session()`. Its `404 service_api.not_found` can also mean an unknown Agent or Session, so it raises a plain `ZooworkError` rather than `VaultBetaUnavailableError`. |
+| `create_vault_offboarding` | Returns at once (`202`) and revokes 1–100 listed Sessions in the background. Poll `get_vault_offboarding()` until `status` is not `in_progress`; a Session in `not_found` is not revoked. |
+
+| Helper | What it does |
+|---|---|
+| `VaultBetaUnavailableError` | A `ZooworkError` subclass raised when Vault is not available to the client. `type` and `code` keep the server code. |
+| `is_vault_beta_unavailable(error)` | `True` for a `VaultBetaUnavailableError`, or any `ZooworkError` whose `code` or `type` is `vault.session_fields_unavailable`. |
+| `vault_session_error_code(error)` | `"vault.binding_revoked"`, `"vault.binding_expired"`, or `"vault.profile_restricted"` for a Session error caused by the Vault binding, under either spelling; otherwise `None`. |
+| `VAULT_SESSION_ERROR_CODES` | Maps the runtime codes (`vault_binding_revoked`, …) to the dotted codes. |
+| `vault_credential_health_state(credential)` | The credential's health state, `"unknown"` for a state the SDK does not know, or `None` when there is none. Only `"ok"` is healthy. |
+| `SESSION_VAULT_FIELDS` | The `create_session()` keys that make a request a Vault request. |
+
+```python
+from zoowork import ZooworkError, is_vault_beta_unavailable, vault_session_error_code
+
+try:
+    await client.post_events(agent_id, session_id, [{"type": "user.message", "content": "Continue."}])
+except ZooworkError as error:
+    if vault_session_error_code(error) == "vault.binding_revoked":
+        ...  # The user's access was revoked: start a new Session only if they still have access.
+    elif is_vault_beta_unavailable(error):
+        ...  # Vault is not enabled for this key or deployment.
+    else:
+        raise
+```
+
+---
+
 ### Webhook management methods {#webhook-management-methods}
 
 ```python
@@ -1885,6 +1984,7 @@ class ZooworkError(Exception):
         cf_ray: str | None = None,
         request_id: str | None = None,
         retryable: bool | None = None,
+        code: str | None = None,  # 0.10.0+
     ) -> None
 ```
 
@@ -1894,6 +1994,7 @@ Raised by every client method on a non-2xx response.
 |---|---|---|
 | `status` | `int` | The HTTP status. Always set. |
 | `type` | `str \| None` | The machine-readable code: the body's `error.type`, else a top-level `code`. **Branch on it when present**, and keep a status fallback. |
+| `code` | `str \| None` | 0.10.0+. The body's top-level `code`, read from the whole body. On a body that also has `error.type`, such as a Vault binding error on a Session route, `type` holds `error.type` and `code` holds the dotted code. |
 | `content_type` | `str \| None` | The response `Content-Type`. |
 | `body_snippet` | `str \| None` | The first 600 characters of the response body. |
 | `cf_ray` | `str \| None` | The `cf-ray` response header. |
@@ -2223,6 +2324,8 @@ from zoowork import (
     create_zoowork_client,
     ZooworkClient,
     ZooworkError,
+    VaultBetaUnavailableError,
+    is_vault_beta_unavailable,
     JsonObject,
     ThinkingLevel,
     AgentPage,
@@ -2273,6 +2376,50 @@ from zoowork import (
     WEBHOOK_SECRET_ENV_VAR,
     WEBHOOK_TOLERANCE_SECONDS,
     WEBHOOK_DEFAULT_MAX_BODY_BYTES,
+    # Vault (beta), 0.10.0+
+    SESSION_VAULT_FIELDS,
+    VAULT_SESSION_ERROR_CODES,
+    SessionCredentialSelection,
+    SessionIsolation,
+    SessionVaultBindingOptions,
+    SessionVaultCreateInput,
+    SessionVaultFields,
+    VaultBinding,
+    VaultBindingCredential,
+    VaultConfidentialClientRefreshInput,
+    VaultCreateInput,
+    VaultCredentialAuth,
+    VaultCredentialAuthRotation,
+    VaultCredentialCreateInput,
+    VaultCredentialHealth,
+    VaultCredentialHealthState,
+    VaultCredentialPage,
+    VaultCredentialRecord,
+    VaultCredentialUpdateInput,
+    VaultCredentialValidation,
+    VaultExternalOAuthAuth,
+    VaultHeadersRotation,
+    VaultListStatus,
+    VaultManagedOAuthAuth,
+    VaultManagedRefreshInput,
+    VaultOffboarding,
+    VaultOffboardingAttempt,
+    VaultOffboardingInput,
+    VaultOffboardingSession,
+    VaultOffboardingSessionInput,
+    VaultOrgCreateInput,
+    VaultPage,
+    VaultProjectCreateInput,
+    VaultPublicClientRefreshInput,
+    VaultRecord,
+    VaultScope,
+    VaultSessionErrorCode,
+    VaultStaticBearerAuth,
+    VaultStaticHeadersAuth,
+    VaultTokenRotation,
+    VaultUpdateInput,
+    vault_credential_health_state,
+    vault_session_error_code,
 )
 ```
 

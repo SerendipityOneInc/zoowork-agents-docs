@@ -2,14 +2,14 @@
 lang: zh-CN
 description: 创建 Session、选择 Agent 配置、发送首条消息并继续对话。
 source: /en/build/sessions
-source_hash: faeade84715c1137923c78d2e973540a3ddde9b77957118598a187914f7dfe8d
+source_hash: 72b9652e3c7d31999c52b5adb9f60cf59ddc0128c31374967d5eefbb81017df4
 ---
 
 # 创建 Session
 
 Session 是属于一个 Agent 的持久对话。先创建 Session，再发送 `user.message` 开始工作；也可以用 `initial_events` 合并这两步。对话历史保存在服务端，后续消息无需重发历史。
 
-Session 属于 Agent。应用应在自己的 conversation ID 旁保存 `agent_id` 和 `session_id`，每个 Session 调用都使用这两个 ID。Session 分开保存对话历史，但同一个 Agent 的 Session 默认共享 workspace。需要分开用户文件时，见 [每用户一个 Agent](./per-user-agents.md)。
+Session 属于 Agent。应用应在自己的 conversation ID 旁保存 `agent_id` 和 `session_id`，每个 Session 调用都使用这两个 ID。Session 分开保存对话历史，但同一个 Agent 的 Session 默认共享 workspace。用 `isolation: "session"` 创建 Session，可让它拥有自己的 workspace 和 Memory，见[选择隔离模式](#choose-an-isolation-mode)。
 
 ## 前置条件 {#prerequisites}
 
@@ -90,6 +90,30 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 | 显式设置 `runtime_mode: "active"` | 在创建时固定当前 active 配置。 |
 
 两种方式都不接受调用方传入 `config_version`。其他 runtime mode 有不同选择规则。这是在选择已保存的配置，不提供 Session-local `model`、`system`、`tools`、`mcp_servers`、`skills` 或 Environment override。这些设置通过 [Agent 配置](./agents.md) 修改。
+
+### 选择隔离模式 {#choose-an-isolation-mode}
+
+`isolation` 在创建时记录，之后不会改变：
+
+| 值 | 行为 |
+|---|---|
+| `shared`（不带 Vault 字段时省略的默认值） | Session 与该 Agent 的其他 `shared` Session 共用 Agent 的 `/workspace`、`agent` scope 的 Memory 和 Artifact。 |
+| `session` | Session 拥有自己的 sandbox、`/workspace` 目录、Memory 和 Artifact。它不隔离 Agent Database、Agent 配置或 Agent owner 的 credential。 |
+
+```bash
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"isolation":"session","metadata":{"source":"my-app"}}'
+```
+
+创建 receipt、`getSession` 和 Session 列表都会返回 `isolation`。为服务多个用户的 Agent 选择模式之前，请先阅读 [Session 隔离](./per-user-agents.md#session-isolation)，了解每种模式分别隔离什么。
+
+Session 隔离是部署级开关，ZooWork 托管服务已启用。未启用的部署上，不带 Vault 字段请求 `isolation: "session"` 会返回 `400`，`type` 为 `"isolation_unavailable"`。
+
+### 挂载 Vault（beta） {#attach-a-vault-beta}
+
+Session 可以使用一个或多个 Vault 中为该 Agent 的 MCP Server 保存的 credential。在创建请求中传入 `vault_ids`，需要时再传 `credential_bindings`、`external_user_ref` 和 `vault_binding_options`，并同时显式指定 `isolation`。带 Vault 字段时省略 `isolation` 目前记录为 `session`，服务端之后可能以 `400 vault.isolation_required` 拒绝这种省略，所以请始终传入；两个 SDK 都已强制要求。这些字段需要 `Idempotency-Key`，receipt 会增加 `project_id`、`vault_ids` 和 `vault_binding`。Vault 处于 beta，需要部署已启用它，见 [Vault](./vault.md#start-a-session-with-the-vault)。
 
 ### 带上首条消息 {#include-the-first-message}
 

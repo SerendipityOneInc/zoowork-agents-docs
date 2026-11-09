@@ -6,7 +6,8 @@ description: Look up TypeScript SDK methods, thinking types, helpers, and errors
 
 Client methods, resource types, and helpers exported by `@zoowork-ai/sdk`.
 
-This reference applies to TypeScript SDK **0.14.0+**.
+This reference applies to TypeScript SDK **0.14.0+**. The [Vault (beta)](#vault-beta) methods
+and the `isolation` field of `createSession` need **0.15.0+**.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
@@ -281,6 +282,18 @@ Platform keys cannot call the root `/environments` routes; these methods return 
 | `archiveEnvironment(environmentId)` | `Promise<EnvironmentRecord>` | Requests archival of an Environment. |
 | `createEnvironmentVersion(environmentId, config, idempotencyKey?)` | `Promise<EnvironmentVersionRecord>` | Submits another configuration version for an Environment. |
 | `getEnvironmentVersion(environmentId, version, opts?)` | `Promise<EnvironmentVersionRecord>` | Reads one version, optionally selecting `opts.resourceClass` (`starter`, `pro`, or `ultra`). |
+
+**Vault (beta)**
+
+Needs SDK 0.15.0+ and a deployment where Vault is enabled. See [Vault (beta)](#vault-beta).
+
+| Method | Returns | What it does |
+|---|---|---|
+| `createVault`, `listVaults`, `getVault`, `updateVault`, `archiveVault`, `deleteVault` | `Promise<VaultRecord>`, `Promise<VaultPage>`, or `Promise<void>` | Manage org or project Vaults within your key's scope. |
+| `createVaultCredential`, `listVaultCredentials`, `getVaultCredential`, `updateVaultCredential`, `archiveVaultCredential`, `deleteVaultCredential` | `Promise<VaultCredentialRecord>`, `Promise<VaultCredentialPage>`, or `Promise<void>` | Manage the MCP credentials in a Vault. Responses never include the secret. |
+| `validateVaultCredential(vaultId, credentialId)` | `Promise<VaultCredentialValidation>` | Probes the credential's MCP server. |
+| `revokeSessionVaultBinding(agentId, sessionId, opts)` | `Promise<VaultBinding>` | Stops one Session from using its Vault credentials. |
+| `createVaultOffboarding(input, opts)`, `getVaultOffboarding(offboardingId)` | `Promise<VaultOffboarding>` | Revokes a leaving user's Sessions in the background and reports progress. |
 
 Only the methods with a section below need behavioral notes beyond their signature. The rest
 are one-call operations described by the table.
@@ -633,18 +646,27 @@ await client.deleteAgentSkill(agentId, 'skl_yourown')
 ### `createSession(agentId, input, idempotencyKey?)`
 
 ```ts
-createSession(
-  agentId: string,
-  input: { initial_events?: OutboundEvent[]; metadata?: Record<string, unknown>; runtime_mode?: 'active'; idle_compaction?: boolean | null },
-  idempotencyKey?: string,
-): Promise<SessionRecord>
+createSession(agentId: string, input: SessionCreateInput, idempotencyKey?: string): Promise<SessionRecord>
+
+interface SessionCreateInput {
+  initial_events?: OutboundEvent[]
+  metadata?: Record<string, unknown>
+  runtime_mode?: 'active'
+  idle_compaction?: boolean | null
+  isolation?: 'shared' | 'session' // 0.15.0+
+}
 ```
 
 | Parameter | Type | Notes |
 |---|---|---|
 | `input.initial_events` | `OutboundEvent[]` | Accepts only `user.message`, at most 50 entries. Supplying one starts the first turn immediately. |
 | `input.metadata` | object | Arbitrary JSON stored with the session and echoed by `getSession()`. Nothing interprets it. You cannot add to it later. |
-| `idempotencyKey` | `string` | Sent as the `Idempotency-Key` header. |
+| `input.isolation` | `'shared' \| 'session'` | Fixed for the Session's life. Omitted means `shared` without Vault fields. `session` gives the Session its own workspace, Memory, and Artifacts; see [Session isolation](../build/per-user-agents.md#session-isolation). |
+| `idempotencyKey` | `string` | Sent as the `Idempotency-Key` header. Required with Vault fields. |
+
+The Vault fields (`vault_ids`, `credential_bindings`, `external_user_ref`,
+`vault_binding_options`) use a second overload; see
+[`createSession` with Vault fields](#createsession-with-vault-fields).
 
 ```ts
 const session = await client.createSession(
@@ -1134,6 +1156,7 @@ interface McpServerDeclaration {
   name: string
   url: string
   transport?: 'streamable-http' | 'sse'
+  // auth?: { type: 'vault' } - accepted through the index signature; see below
   credential?: string
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
@@ -1147,8 +1170,10 @@ interface McpServerDeclaration {
 Omitted `exposure` defaults to `deferred`: tools stay behind `tool_search` / `tool_describe`
 until loaded. `direct` declares them on the first model request. There is no `auto` value, and
 a loaded deferred tool remains available on later turns in the same Session. Public API keys
-cannot populate `credential`; use public, unauthenticated MCP servers only. See
-[MCP servers](../build/mcp.md).
+cannot populate `credential`. To give each user's Sessions their own credentials, declare
+`auth: { type: 'vault' }` and attach a Vault when you create the Session (beta); the declaration
+type accepts the field through its index signature. Otherwise use public, unauthenticated MCP
+servers. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
 
 Both context switches default to `false`. `meta` adds
 `_meta["ai.zooclaw/context"]` and `headers` adds `x-zooclaw-*` headers during tool execution;
@@ -1222,6 +1247,9 @@ interface SessionRecord {
   deleted?: boolean
   skill_config_version?: number
   isolation?: 'shared' | 'session' | string
+  project_id?: string | null   // createSession receipt with Vault fields (beta)
+  vault_ids?: string[]         // createSession receipt with Vault fields (beta)
+  vault_binding?: VaultBinding // createSession receipt with Vault fields (beta)
   queue?: {
     selected_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string | null
     default_mode: 'steer' | 'followup' | 'collect' | 'interrupt' | string
@@ -1245,9 +1273,9 @@ The fields vary by response surface: `createSession()` returns `status: "running
 `run_status`; `listSessions()` rows carry `run_status` and omit `status`. The legacy `status`
 field may differ across deployments and is not the run outcome. Use `run_status` for the latest
 run state.
-`isolation` is recorded at creation and never changes; Sessions created with `createSession()`
-record `shared` and share the Agent's `/workspace`. The create receipt and both list lanes carry
-it, along with `skill_config_version` when the Session takes its Skills from a recorded
+`isolation` is recorded at creation and never changes: `shared` when omitted without Vault fields, which shares the
+Agent's `/workspace`, or `session`, which gives the Session its own. The create receipt,
+`getSession()`, and both list lanes carry it, along with `skill_config_version` when the Session takes its Skills from a recorded
 configuration version. `queue` is present only on `getSession()`: `effective_mode` is
 `selected_mode` when set, otherwise `default_mode` from the Agent configuration. These are
 response fields; see [Read a session](../build/session-operations.md#read-a-session).
@@ -1402,6 +1430,7 @@ async function reply(client: ZooworkClient, agentId: string, text: string) { /* 
 class ZooworkError extends Error {
   status: number
   type?: string
+  code?: string // 0.15.0+
   contentType?: string
   bodySnippet?: string
   cfRay?: string
@@ -1411,7 +1440,9 @@ class ZooworkError extends Error {
 ```
 
 Thrown by every method on a non-2xx response. Match on `error.type`, never on the message.
-See [Errors and retries](./errors.md) for the full treatment.
+`code` is the top-level `code` of the error body. On a body that also has `error.type`, such as
+a Vault binding error on a Session route, `type` holds `error.type` and `code` holds the dotted
+code. See [Errors and retries](./errors.md) for the full treatment.
 
 ## Event helpers
 
@@ -1548,6 +1579,168 @@ Verification input includes `headers`, the unchanged `rawBody` (`Uint8Array` or 
 
 Do not parse or reserialize JSON before verification. `unwrapWebhook` checks the base envelope but preserves unknown event types and data fields; your handler still validates event-specific data. It does not check that the body `id` matches `webhook-id`. Deduplicate using the verified delivery ID and validate any equality required by your application. Verification failures throw `ZooworkWebhookError`. The SDK's known event constants are parser vocabulary, not a deployment availability guarantee.
 
+## Vault (beta) {#vault-beta}
+
+::: warning Beta
+The Vault methods, `isolation` on `createSession`, and the helpers below need SDK 0.15.0 or
+later. Vault also needs a Platform API key and a deployment where Vault is enabled. Where it is
+not, the Vault methods reject with `VaultBetaUnavailableError` (server code
+`404 service_api.not_found`), and `createSession` with Vault fields rejects with it too
+(`400 vault.session_fields_unavailable`). Fields and behavior may change before general
+availability. See [Vault](../build/vault.md) for the workflow.
+:::
+
+`ZooworkClient` includes these methods (the `VaultApi` interface):
+
+```ts
+createVault(input: VaultCreateInput, opts: VaultWriteOptions): Promise<VaultRecord>
+listVaults(opts?: VaultListOptions): Promise<VaultPage>
+getVault(vaultId: string): Promise<VaultRecord>
+updateVault(vaultId: string, input: VaultUpdateInput, opts: VaultRevisionWriteOptions): Promise<VaultRecord>
+archiveVault(vaultId: string, opts: VaultRevisionWriteOptions): Promise<VaultRecord>
+deleteVault(vaultId: string, opts: VaultRevisionWriteOptions): Promise<void>
+
+createVaultCredential(vaultId: string, input: VaultCredentialCreateInput, opts: VaultWriteOptions): Promise<VaultCredentialRecord>
+listVaultCredentials(vaultId: string, opts?: VaultCredentialListOptions): Promise<VaultCredentialPage>
+getVaultCredential(vaultId: string, credentialId: string): Promise<VaultCredentialRecord>
+updateVaultCredential(vaultId: string, credentialId: string, input: VaultCredentialUpdateInput, opts: VaultRevisionWriteOptions): Promise<VaultCredentialRecord>
+archiveVaultCredential(vaultId: string, credentialId: string, opts: VaultRevisionWriteOptions): Promise<VaultCredentialRecord>
+deleteVaultCredential(vaultId: string, credentialId: string, opts: VaultRevisionWriteOptions): Promise<void>
+validateVaultCredential(vaultId: string, credentialId: string): Promise<VaultCredentialValidation>
+
+revokeSessionVaultBinding(agentId: string, sessionId: string, opts: VaultRevisionWriteOptions): Promise<VaultBinding>
+createVaultOffboarding(input: VaultOffboardingInput, opts: VaultWriteOptions): Promise<VaultOffboarding>
+getVaultOffboarding(offboardingId: string): Promise<VaultOffboarding>
+```
+
+`VaultWriteOptions` is `{ idempotencyKey: string }`, sent as `Idempotency-Key`.
+`VaultRevisionWriteOptions` adds `revision: number`, sent as `If-Match`.
+`validateVaultCredential` sends neither. The option objects carry only these two headers; the
+SDK offers no way to set other headers on Vault calls. The methods never retry.
+
+| Method | Notes |
+|---|---|
+| `createVault` | `201`. `input` is `{ scope: 'org', name, metadata? }` or `{ scope: 'project', project_id, name, metadata? }`. A named Project key creates project Vaults for its own `proj_…` ID; a Default Project key creates org Vaults. |
+| `listVaults` | The Vaults of your key's scope. Options: `cursor`, `limit` (1–100), `status` (`active` or `archived`), `scope`. |
+| `updateVault` | Changes `name`, `metadata`, or both. Omit what you keep; never send `null`. |
+| `archiveVault` / `archiveVaultCredential` | Stops new use. Sessions that use it are refused at their next MCP call. Cannot be undone. |
+| `deleteVault` / `deleteVaultCredential` | `204`. A retry that answers `404 vault.not_found` already succeeded. |
+| `createVaultCredential` | `201`. `auth` is one of `static_bearer`, `static_headers`, or `mcp_oauth` with `refresh_owner: 'external'` or `'engine'` (with `refresh`). |
+| `updateVaultCredential` | Renames, rotates the secret, or both. `auth` is `{ headers }` or `{ access_token, expires_at?, refresh_owner?, refresh? }`; send `expires_at` when rotating an `mcp_oauth` token. |
+| `getVaultCredential` | Includes `health`; read it with `vaultCredentialHealthState`. |
+| `validateVaultCredential` | Probes the MCP server; stores nothing. |
+| `revokeSessionVaultBinding` | `revision` is the `vault_binding.revision` from `createSession`. Its `404 service_api.not_found` can also mean an unknown Agent or Session, so it rejects with a plain `ZooworkError` rather than `VaultBetaUnavailableError`. |
+| `createVaultOffboarding` | `202`. Revokes 1–100 listed Sessions in the background. Poll `getVaultOffboarding` until `status` is not `in_progress`; a Session in `not_found` is not revoked. |
+
+### `createSession` with Vault fields
+
+```ts
+createSession(agentId: string, input: SessionCreateInput & SessionVaultFields, idempotencyKey: string): Promise<SessionRecord>
+```
+
+`SessionVaultFields` is:
+
+```ts
+interface SessionVaultFields {
+  isolation: 'shared' | 'session'
+  vault_ids: [string, ...string[]]
+  credential_bindings?: { server_name: string; credential_id: string }[]
+  external_user_ref?: string
+  vault_binding_options?: { expires_at?: string | null; allow_delegate?: false; allow_unattended?: false }
+}
+```
+
+With these fields the types require `isolation` and the idempotency key, but they do not
+guarantee the request is accepted. The server refuses `idle_compaction`, `config_version`,
+`skill_config_version`, and a `runtime_mode` other than `'active'` together with Vault fields,
+with `400 invalid_request`, although `SessionCreateInput` allows `idle_compaction` and
+`runtime_mode`. Do not pass a Vault field as `null` or `[]`; any Vault field makes the request a
+Vault request. The receipt has
+`project_id`, `vault_ids`, and `vault_binding` (`VaultBinding`).
+
+### Records
+
+```ts
+interface VaultRecord {
+  id: string
+  scope: 'org' | 'project' | string
+  project_id: string | null
+  name: string
+  metadata: Record<string, unknown>
+  status: 'active' | 'archived' | 'deleted' | string
+  revision: number
+  purge_state: 'none' | 'pending' | 'failed' | 'complete' | string
+  created_at: string
+}
+
+interface VaultCredentialRecord {
+  id: string
+  vault_id: string
+  name: string
+  purpose: 'mcp' | string
+  auth_type: 'static_bearer' | 'static_headers' | 'mcp_oauth' | string
+  mcp_server_url: string
+  provider_account_ref: string
+  refresh_owner: 'external' | 'engine' | string | null
+  expires_at: string | null
+  status: 'active' | 'archived' | 'deleted' | string
+  revision: number
+  secret_version: number
+  purge_state: 'none' | 'pending' | 'failed' | 'complete' | string
+  health?: { state: string; reason: string | null; retry_after: string | null } | null
+}
+
+interface VaultBinding {
+  id: string
+  root_binding_id: string
+  parent_binding_id: string | null
+  project_id: string | null
+  source: 'session' | 'schedule' | string
+  session_id: string | null
+  schedule_id: string | null
+  status: 'unrevoked' | 'revoked' | string
+  revision: number
+  expires_at: string | null
+  credential_bindings: { server_name: string; vault_id: string; credential_id: string }[]
+  profile: 'restricted' | 'session_isolated' | 'shared' | string
+  external_user_ref: string | null
+}
+```
+
+Records never carry a secret. Each record type also accepts unknown fields. `VaultPage` and
+`VaultCredentialPage` are `{ data, next_cursor, has_more }`. `VaultCredentialValidation` is
+`{ status, stage, http_status, error_code, retryable, validated_at, request_id }`.
+`VaultOffboarding` is `{ id, status, external_user_ref, actor_ref, correlation_id, created_at,
+updated_at, completed_at, counts, sessions }`, and each entry of `sessions` has `agent_id`,
+`session_id`, `revision`, `state`, `attempts`, `last_code`, `next_attempt_at`, `vault_ids`,
+`revoked_revision`, and `attempt_log`.
+
+### Helpers and errors
+
+| Export | What it does |
+|---|---|
+| `VaultBetaUnavailableError` | A `ZooworkError` subclass thrown when Vault is not available to the client. `type` and `code` keep the server code; the message adds a hint. |
+| `isVaultBetaUnavailable(error)` | `true` for a `VaultBetaUnavailableError`, or any `ZooworkError` whose `code` or `type` is `vault.session_fields_unavailable`. |
+| `vaultSessionErrorCode(error)` | Returns `'vault.binding_revoked'`, `'vault.binding_expired'`, or `'vault.profile_restricted'` for a Session error caused by the Vault binding, under either spelling; otherwise `undefined`. |
+| `VAULT_SESSION_ERROR_CODES` | Maps the runtime codes (`vault_binding_revoked`, …) to the dotted codes. |
+| `vaultCredentialHealthState(credential)` | The credential's health state, `unknown` for a state the SDK does not know, or `null` when there is none. Only `ok` is healthy. |
+
+```ts
+import { isVaultBetaUnavailable, vaultSessionErrorCode } from '@zoowork-ai/sdk'
+
+try {
+  await client.postEvents(agentId, sessionId, [{ type: 'user.message', content: 'Continue.' }])
+} catch (error) {
+  if (vaultSessionErrorCode(error) === 'vault.binding_revoked') {
+    // The user's access was revoked: start a new Session only if they still have access.
+  } else if (isVaultBetaUnavailable(error)) {
+    // Vault is not enabled for this key or deployment.
+  } else {
+    throw error
+  }
+}
+```
+
 ## Complete export list
 
 ```ts
@@ -1555,6 +1748,9 @@ import {
   createZooworkClient,
   DEFAULT_BASE_URL,
   ZooworkError,
+  VaultBetaUnavailableError,
+  isVaultBetaUnavailable,
+  type SessionCreateInput,
   type ZooworkClient,
   type ZooworkConfig,
   type ZooworkAuth,
@@ -1697,6 +1893,45 @@ import {
   type VerifyWebhookInput,
   type VerifiedWebhook,
   type SignWebhookInput,
+  // Vault (beta), 0.15.0+
+  VAULT_SESSION_ERROR_CODES,
+  vaultSessionErrorCode,
+  vaultCredentialHealthState,
+  type VaultApi,
+  type VaultSessionErrorCode,
+  type VaultResourceStatus,
+  type VaultPurgeState,
+  type VaultScope,
+  type VaultRecord,
+  type VaultCreateInput,
+  type VaultUpdateInput,
+  type VaultPage,
+  type VaultListOptions,
+  type VaultCredentialListOptions,
+  type VaultWriteOptions,
+  type VaultRevisionWriteOptions,
+  type VaultManagedRefreshInput,
+  type VaultCredentialAuth,
+  type VaultCredentialCreateInput,
+  type VaultCredentialAuthRotation,
+  type VaultCredentialUpdateInput,
+  type VaultCredentialHealthState,
+  type VaultCredentialHealth,
+  type VaultCredentialRecord,
+  type VaultCredentialPage,
+  type VaultCredentialValidation,
+  type VaultBindingCredential,
+  type VaultBinding,
+  type SessionIsolation,
+  type SessionCredentialSelection,
+  type SessionVaultBindingOptions,
+  type SessionVaultFields,
+  type VaultOffboardingSessionInput,
+  type VaultOffboardingInput,
+  type VaultOffboardingSessionState,
+  type VaultOffboardingAttempt,
+  type VaultOffboardingSession,
+  type VaultOffboarding,
 } from '@zoowork-ai/sdk'
 ```
 

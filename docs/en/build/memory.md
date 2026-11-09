@@ -165,7 +165,12 @@ A direct turn can search the agent scope and its own actor's scope. Group turns 
 shared agent memory but cannot write it or use another user's memory. Without a usable actor
 identity, user-scoped memory operations are refused.
 
-For API sessions, send a stable `actor: { ref }` when one agent serves several application
+In a Session created with `isolation: "session"`, Memory tools use only that Session's own
+memory, whatever the actor. Searching or writing the `agent` scope is refused, and the
+Session's memory is removed after a retention period once the Session is deleted. See
+[Session isolation](./per-user-agents.md#session-isolation).
+
+For `shared` API sessions, send a stable `actor: { ref }` when one agent serves several application
 users. Your backend must map an authenticated user to that ref. Omit `actor` to use the
 agent owner. `metadata.user_id` does not select the actor. See [Events](./events.md#user-message)
 for the accepted ref format.
@@ -184,7 +189,7 @@ Do not trust a ref supplied by an unauthenticated client.
 ::: warning Attribution is not authorization
 `actor.ref` selects memory attribution. It does not authorize Agent/session access, erase an
 existing transcript, or isolate `/workspace`. Authorize each request in your application.
-Use [separate agents](./per-user-agents.md) when users must not share files.
+Use isolated Sessions or [separate agents](./per-user-agents.md) when users must not share files.
 :::
 
 ## Memory tool contract

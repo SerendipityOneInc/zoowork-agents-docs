@@ -10,8 +10,9 @@ The conversation stays on the server, so later messages do not need to resend it
 
 Sessions belong to Agents. Store `agent_id` and `session_id` beside your application's
 conversation ID; every Session call uses both. A Session separates conversation history,
-while Sessions on the same Agent share its workspace by default. See
-[An agent per user](./per-user-agents.md) when users need separate file workspaces.
+while Sessions on the same Agent share its workspace by default. Create the Session with
+`isolation: "session"` to give it its own workspace and Memory; see
+[Choose an isolation mode](#choose-an-isolation-mode).
 
 ## Prerequisites
 
@@ -110,6 +111,41 @@ Neither form accepts caller-supplied `config_version`. Other runtime modes have 
 selection rules. These forms select a saved configuration; they do not introduce
 Session-local `model`, `system`, `tools`, `mcp_servers`, `skills`, or Environment overrides.
 Change [Agent configuration](./agents.md) for those settings.
+
+### Choose an isolation mode
+
+`isolation` is recorded at creation and never changes:
+
+| Value | Behavior |
+|---|---|
+| `shared` (default when omitted without Vault fields) | The Session uses the Agent's `/workspace`, `agent`-scoped Memory, and Artifacts together with the Agent's other `shared` Sessions. |
+| `session` | The Session gets its own sandbox, `/workspace` directory, Memory, and Artifacts. It does not isolate the Agent Database, the Agent's configuration, or the Agent owner's credentials. |
+
+```bash
+curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"isolation":"session","metadata":{"source":"my-app"}}'
+```
+
+The create receipt, `getSession`, and the Session lists return `isolation`. Read
+[Session isolation](./per-user-agents.md#session-isolation) for what each mode separates before
+you choose one for an Agent that serves several users.
+
+Session isolation is a deployment setting, enabled on ZooWork's hosted service. Where it is not
+enabled, `isolation: "session"` without Vault fields fails with `400` and
+`type: "isolation_unavailable"`.
+
+### Attach a Vault (beta)
+
+A Session can use credentials for the Agent's MCP servers from one or more Vaults. Pass
+`vault_ids` and, when needed, `credential_bindings`, `external_user_ref`, and
+`vault_binding_options` in the create request, together with an explicit `isolation`. With
+Vault fields an omitted `isolation` is currently recorded as `session`, and the service may start
+rejecting the omission with `400 vault.isolation_required`, so always send it; both SDKs already
+require it. These fields require an `Idempotency-Key`, and the receipt adds `project_id`, `vault_ids`, and
+`vault_binding`. Vault is in beta and needs a deployment where it is enabled; see
+[Vault](./vault.md#start-a-session-with-the-vault).
 
 ### Include the first message
 

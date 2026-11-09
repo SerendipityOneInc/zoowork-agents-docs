@@ -2,7 +2,7 @@
 title: 文件与产物
 description: 把文件发送给 Agent，让它创建工作区文件，再发布和下载产物。
 source: /en/build/files
-source_hash: b1727df134f98aeebbf3a7ba59e19ba25cfc2a2c8209d407b2eb0e5363841ded
+source_hash: bce4542280a434c0121fff1913b7406a83a7f7d33274735a0e1fc3c4e13d2344
 ---
 
 # 文件与产物
@@ -15,11 +15,13 @@ API 没有可用的路由来读取、列举或写入任意工作区路径。SDK 
 
 ## 文件隔离 {#file-isolation}
 
-一个 Agent 的所有 sessions 共享 `/workspace`。默认的 `sandbox.scope: 'agent'` 也共享 sandbox 实例。`sandbox.scope: 'session'` 使用不同实例，但挂载同一个 Agent 工作区。因此新 Session 不会创建文件的私有副本。
+一个 Agent 的所有 `shared` Sessions 共享 `/workspace`。默认的 `sandbox.scope: 'agent'` 也共享 sandbox 实例。`sandbox.scope: 'session'` 使用不同实例，但挂载同一个 Agent 工作区。因此新 Session 不会创建文件的私有副本。
+
+使用 `isolation: "session"` 创建的 Session 有自己的 sandbox 和 `/workspace` 目录。它看不到 Agent 工作区，所以写入 Agent 工作区的 `uploadFile` 和 `exec` 无法给它提供文件。它发布的 Artifact 属于该 Session，不会出现在 `listArtifacts` 的返回中。见 [Session 隔离](./per-user-agents.md#session-isolation)。
 
 任务数据和输出应放在 `/workspace`。进程、运行时安装的依赖、`/tmp` 和其他路径，不具有 sandbox 替换后相同的持久化保证。本指南不规定备份策略或保留 SLA。
 
-`actor.ref` 不隔离文件。用户之间不能共享文件时，使用[每用户一个 Agent](./per-user-agents.md)，并在应用中授权每个 Agent/session 请求。
+`actor.ref` 不隔离文件。用户之间不能共享文件时，使用隔离的 Session 或[每用户一个 Agent](./per-user-agents.md)，并在应用中授权每个 Agent/session 请求。
 
 ## 开始之前 {#before-you-begin}
 

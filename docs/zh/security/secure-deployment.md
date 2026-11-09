@@ -2,7 +2,7 @@
 title: 保护你的部署
 description: 面向真实用户上线前，按优先级检查 API key、终端用户访问、数据隔离、工具、审批、webhook 和用量。
 source: /en/security/secure-deployment
-source_hash: 80a05c46dfd9985220609913a1d6c0effabd725dc8bfeda8ea06708fadec9737
+source_hash: 31e77d018d77b8b9e45df392e149d5109472477ac14c03c3eeabce40d192ecf3
 ---
 
 # 保护你的部署
@@ -50,18 +50,23 @@ Agent 或 Session ID。Labels、Session `metadata` 和 `actor.ref` 都是元数�
 
 见[每用户一个 Agent](../build/per-user-agents.md#authorize-each-agent-and-session-request)。
 
-## 4. 不能共享数据的用户使用独立 Agent {#4-give-users-who-must-not-share-data-separate-agents}
+## 4. 分隔不能共享数据的用户 {#4-separate-users-who-must-not-share-data}
 
-Session 只隔离对话历史。Agent 的 `/workspace` 文件、Agent Database 和 `agent` scope 的 memory
-由它的所有 Sessions 共享。设置 `sandbox.scope: 'session'` 会让各 Session 使用独立的 sandbox 实例，
+默认的 `shared` Session 只隔离对话历史。Agent 的 `/workspace` 文件、Agent Database 和 `agent` scope 的 memory
+由它的所有 `shared` Sessions 共享。设置 `sandbox.scope: 'session'` 会让各 Session 使用独立的 sandbox 实例，
 但它们仍然使用同一个 workspace。
 
-如果用户之间不能看到彼此的文件、数据库记录或保存的事实，为每个用户创建一个 Agent。
-如果多个用户共用一个 Agent，由后端为每个已认证用户发送稳定的 `actor: { ref }`，
+如果用户之间不能看到彼此的文件或保存的事实，要么用 `isolation: "session"` 创建他们的 Session，让每个 Session 拥有自己的 workspace、Memory 和 Artifact，要么为每个用户创建一个 Agent。隔离的 Session 仍然共享 Agent Database、Agent 的配置和 Schedules，以及 Agent owner 的 credential；这些也需要分开时，使用每用户一个 Agent。
+
+如果多个用户通过 `shared` Session 共用一个 Agent，由后端为每个已认证用户发送稳定的 `actor: { ref }`，
 让每个用户拥有独立的 `user_agent` memory scope。没有 actor 的消息使用 Agent owner 的身份：
 这些用户会共用 owner 的私有 memory，并且可以写入共享的 `agent` scope。
 
-见[每用户一个 Agent](../build/per-user-agents.md) 和
+::: warning 隔离不覆盖 owner 的 credential
+无论是隔离的还是 shared 的 Session，sandbox 仍然可以以 Agent owner 的 credential 行事。见 [Owner credential 不被隔离](../build/vault.md#owner-credentials)。
+:::
+
+见[每用户一个 Agent](../build/per-user-agents.md#workspace-isolation) 和
 [Memory scope](../build/memory.md#choose-a-memory-scope)。
 
 ## 5. 在 custom tool 内部检查授权 {#5-check-authorization-inside-custom-tools}
@@ -72,13 +77,16 @@ Agent 调用应用执行的 custom tool 时，实际操作由你的后端执行�
 平台审批可以在请求到达你之前拦下它，但不能代替这些检查。
 
 服务凭据（例如数据库密码和第三方 API token）保存在后端，只在 custom tool 内部使用。
-公共 API 不会向 Agent 下发凭据，平台调用远程 MCP Server 时也不附带保存的凭据。
-一个接受这类无认证请求的 MCP Server，对任何能访问到它的人都同样接受请求，
+除非该 Server 声明使用 [Vault（beta）](../build/vault.md)，平台调用远程 MCP Server 时不附带 credential。
+一个接受无认证请求的 MCP Server，对任何能访问到它的人都同样接受请求，
 所以不要通过它暴露私有数据或写操作。ZooWork 可以附加到 MCP 调用上的 Agent 和 Session 标识
 只是请求上下文，不能证明调用方已获授权。
 
-见 [Custom tool](../build/tools.md#应用执行的自定义工具)和
-[MCP Server](../build/mcp.md#连接要求)。
+当 MCP Server 需要每个用户自己的账号时，把该用户的 credential 存进 Vault，并且只挂载到该用户的 Session。用户离开时，revoke 这些 Session 或归档该 Vault。
+
+见 [Custom tool](../build/tools.md#应用执行的自定义工具)、
+[MCP Server](../build/mcp.md#连接要求)和
+[Vault](../build/vault.md#revoke-access)。
 
 ## 6. 用 `tool_policy` 缩小工具范围 {#6-narrow-the-tool-set-with-tool-policy}
 
@@ -163,4 +171,5 @@ presigned URL 可能在过期或存储对象被移除之前一直可用。
 - [风险与边界](./risks-and-boundaries.md)：数据存在哪里、谁能访问，以及主要风险。
 - [审查与监控 Session](./monitor-sessions.md)：审查工具调用，尽早发现问题。
 - [权限策略](../build/permissions.md)：为工具调用设置审批。
-- [每用户一个 Agent](../build/per-user-agents.md)：独立 workspace 与后端授权。
+- [每用户一个 Agent](../build/per-user-agents.md)：隔离的 Session、独立 Agent 与后端授权。
+- [Vault（beta）](../build/vault.md)：每用户 MCP credential、撤销与离职处理。

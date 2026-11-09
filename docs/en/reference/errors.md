@@ -23,6 +23,7 @@ class ZooworkError extends Error {
 | `status` | `number` | The HTTP status. Always set. |
 | `message` | `string` | Human text lifted from the response body, or `HTTP <status>` when the body carried none. **For humans and logs only.** |
 | `type` | `string \| undefined` | The machine-readable code from the error envelope. **This is the field to branch on** - when it is there. |
+| `code` | `string \| undefined` | TypeScript SDK 0.15.0+ and Python SDK 0.10.0+. The top-level `code` of the error body, read from the whole body. Where the body also has `error.type`, `type` holds that one; see [Vault errors](#vault-errors). |
 
 ```ts
 import { ZooworkError } from '@zoowork-ai/sdk'
@@ -209,6 +210,81 @@ These codes come from the [channel](../build/channels.md) routes. `{platform}` i
 | `channel.conflict` | 409 | Setup on a platform the Agent is already connected to, or `addChannel()` with different credentials for an existing connection. | Remove the connection, then connect again. |
 | `channel.{platform}_setup_in_progress` | 409 | A scan was confirmed and the connection is being saved, so the request cannot be restarted or cancelled. | Keep polling. |
 | *(branch on status)* | 429 | Too many setup requests in a few seconds. | Wait, then retry. |
+
+## Vault errors (beta) {#vault-errors}
+
+These codes come from the [Vault](../build/vault.md) routes, from `createSession()` with Vault
+fields, and from Session routes on a Session that has Vault credentials. Vault is in beta:
+codes and behavior may change before general availability.
+
+Vault routes answer `{ "code": "vault.…", "detail": … }`; `type` holds the same dotted code.
+On Session routes, `vault.binding_revoked`, `vault.binding_expired`, and
+`vault.profile_restricted` arrive as `{ "code": "vault.binding_revoked", "detail": …,
+"error": { "type": "vault_binding_revoked", … } }`: `type` holds the runtime code and `code`
+holds the dotted one. Match them with `vaultSessionErrorCode()` / `vault_session_error_code()`,
+which accepts both spellings and returns the dotted code. `code` is set by TypeScript SDK
+0.15.0+ and Python SDK 0.10.0+.
+
+**Availability and access**
+
+| Code | HTTP | Cause | What to do |
+|---|---:|---|---|
+| `service_api.not_found` | 404 | On a Vault route: Vault is not available to this key or deployment. The SDK raises `VaultBetaUnavailableError`. On the revoke route it can also mean an unknown Agent or Session. | Use a Platform API key on a deployment where Vault is enabled. |
+| `vault.session_fields_unavailable` | 400 | `createSession()` with Vault fields where Vault is not available. The SDK raises `VaultBetaUnavailableError`. | As above, or create the Session without Vault fields. |
+| `vault.management_forbidden` | 403 | The key cannot manage Vaults of this scope: a named Project key reading or changing an org Vault, or any key listing or creating Vaults of the other scope. A Default Project key reading a project Vault by ID gets `404 vault.not_found` instead. | Use the key for that scope. |
+| `vault.not_found` | 404 | Unknown Vault, credential, offboarding ledger, or binding, or one outside the key's scope. A retried delete that already succeeded also answers this. | Check the ID and key; treat it as done after a delete retry. |
+| `vault.project_not_found` | 404 | `project_id` is not the key's own Project. | Send the `proj_…` ID of the key's Project. |
+| `platform.project_rebuild_required` | 409 | The key's Project predates the project records Vault needs. | Contact ZooWork support. |
+
+**Request errors: fix the request, do not retry unchanged**
+
+| Code | HTTP | Cause |
+|---|---:|---|
+| `vault.invalid_request` | 400 | The body or query is invalid. `detail.errors` lists the field locations and reasons; it never echoes submitted values. |
+| `vault.idempotency_key_required` / `vault.invalid_idempotency_key` | 400 | The write has no `Idempotency-Key`, or the key is not 1–256 characters without control characters or surrounding spaces. |
+| `vault.revision_required` / `vault.invalid_revision` | 400 | Update, archive, delete, or revoke without a decimal `If-Match` revision. |
+| `vault.project_required` | 400 | A project Vault without an explicit `project_id`. |
+| `vault.unsupported_purpose` | 400 | A credential `purpose` other than `mcp`. |
+| `vault.unsupported_refresh_owner` | 400 | `refresh_owner: "engine"` where ZooWork-managed refresh is not available. Use `external`. |
+| `vault.invalid_vault_request` | 400 | `credential_bindings`, `external_user_ref`, or `vault_binding_options` without a non-empty `vault_ids`. |
+| `vault.isolation_required` | 400 | Not returned today: with Vault fields, an omitted `isolation` is currently recorded as `session`. The service may start returning this code for the omission, so always send `isolation`. |
+| `vault.unsupported_binding_option` | 400 | `allow_delegate` or `allow_unattended` set to `true`. |
+| `invalid_request` | 400 | With Vault fields: a `runtime_mode` other than `active`, `config_version`, `skill_config_version`, `idle_compaction`, or a past `vault_binding_options.expires_at`. |
+| `isolation_unavailable` (in `type`; no top-level `code`) | 400 | `isolation: "session"` without Vault fields on a deployment where Session isolation is not enabled. The request does not take the Vault path, so the runtime's `{ "error": { "type": "isolation_unavailable" } }` arrives unchanged. |
+| `vault.binding_denied` | 403 | A `credential_bindings` entry names a server that is not a Vault server of the Agent, a credential outside the attached Vaults, or one whose URL does not match. |
+| `vault.payload_too_large` | 413 | The request is too large. |
+
+**Conflicts and state**
+
+| Code | HTTP | Cause | What to do |
+|---|---:|---|---|
+| `vault.credential_missing` | 409 | A Vault server of the Agent has no matching credential in the attached Vaults. | Add a credential with the server's exact URL, or attach the right Vault. |
+| `vault.credential_ambiguous` | 409 | Several credentials match one server. | Name one in `credential_bindings`. |
+| `vault.idempotency_conflict` | 409 | The key was already used for a different request. | Use a new key for a new operation. |
+| `vault.archived` / `vault.credential_archived` | 409 | The Vault or credential is archived. | Create a new one. |
+| `vault.project_archived` | 409 | The Project is archived. | Use an active Project. |
+| `vault.credential_limit` | 409 | The Vault already has 100 active credentials. | Archive or delete unused credentials. |
+| `vault.conflict` | 409 | Another state conflict. | Read the resource again. |
+| `vault.revision_conflict` | 412 | `If-Match` is not the current revision. | Read the resource, then decide whether to retry with its current revision. |
+| `vault.binding_revoked` | 409 | A message, tool result, or approval on a Session whose binding was revoked. | Start a new Session if the user still has access. |
+| `vault.binding_expired` | 409 | The same, after the binding's `expires_at`. | Start a new Session. |
+| `vault.profile_restricted` | 403 | A per-Session configuration change on a Session with Vault credentials. | Change the Agent configuration instead. |
+
+**Temporary failures: retry with the same `Idempotency-Key`**
+
+| Code | HTTP | Meaning |
+|---|---:|---|
+| `vault.unavailable` | 503 | Vault did not answer. A write may already have applied; the retry replays it. |
+| `vault.runtime_unavailable` | 503 | Vault credentials cannot be used right now. |
+| `vault.busy` | 503 | Too many concurrent validations. |
+| `vault.credential_temporarily_unavailable` | 503 | The credential cannot be read right now. |
+| `vault.key_unavailable` | 503 | The stored credential material can no longer be read. Submit new material with an update. |
+| `vault.rate_limited` | 429 | Too many Vault requests. Honor `Retry-After` when present. |
+| `vault.invalid_response` | 502 | Vault returned a response the gateway could not use. |
+
+A failed MCP call inside a run is not an HTTP error. It appears in the event stream as
+`agent.error` with `kind: "mcp_authentication_failed"` or `"mcp_connection_failed"`, the server
+name, and a `reason`; check the credential's `health` and the binding.
 
 ## What is safe to retry
 
