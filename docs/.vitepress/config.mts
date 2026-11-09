@@ -239,6 +239,7 @@ interface PageSet {
   permissions: string
   skills: string
   perUserAgents: string
+  vault: string
   environments: string
   cloudSandboxReference: string
   reference: string
@@ -285,6 +286,7 @@ const EN: PageSet = {
   permissions: 'Permission policies',
   skills: 'Skills',
   perUserAgents: 'An agent per user',
+  vault: 'Vault (beta)',
   environments: 'Environments',
   cloudSandboxReference: 'Cloud sandbox reference',
   reference: 'Reference',
@@ -331,6 +333,7 @@ const ZH: PageSet = {
   permissions: '权限策略',
   skills: 'Skills',
   perUserAgents: '每用户一个 Agent',
+  vault: 'Vault（Beta）',
   environments: 'Environments',
   cloudSandboxReference: '云沙箱参考',
   reference: '参考',
@@ -421,6 +424,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: t.channels, link: `${base}/build/channels` },
         { text: t.perUserAgents, link: `${base}/build/per-user-agents` },
+        { text: t.vault, link: `${base}/build/vault` },
       ],
     },
     {

@@ -101,8 +101,9 @@ Use `sessionTarget: "session:<session_id>"` to target an existing session of thi
 `sessionTarget` is immutable after creation. Create another schedule when the conversation
 target must change.
 
-An isolated session separates conversation history. It does not establish application-user
-file or memory isolation. See [An agent per user](./per-user-agents.md) for that boundary.
+The `isolated` target is not Session isolation. The Session it creates separates
+conversation history only and uses the Agent's workspace and memory. See
+[An agent per user](./per-user-agents.md) for file and memory isolation.
 
 ## Inspect and trigger once
 

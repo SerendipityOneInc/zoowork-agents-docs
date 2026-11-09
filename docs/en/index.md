@@ -103,9 +103,10 @@ home:
         chips:
           - { text: Schedules, link: /en/build/schedules, icon: play }
       - name: Integrate your product
-        hint: Provide separate workspaces for your users
+        hint: Separate your users' data and credentials
         chips:
           - { text: An agent per user, link: /en/build/per-user-agents, icon: users }
+          - { text: Vault (beta), link: /en/build/vault, icon: key }
       - name: Security
         hint: Protect keys, user data, and spending
         chips:

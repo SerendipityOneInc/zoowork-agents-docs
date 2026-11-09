@@ -16,16 +16,24 @@ Examples reuse the client and Agent from [Quickstart](../get-started/quickstart.
 
 ## Connection requirements
 
-Configure a remote HTTP endpoint that is publicly reachable and accepts unauthenticated
-requests from the platform. The public API connects through `streamable-http` or SSE and does
-not attach stored credentials.
+Configure a remote HTTP endpoint that is publicly reachable. The public API connects through
+`streamable-http` or SSE. A server declared as shown below receives no credentials, so it must
+accept unauthenticated requests from the platform.
 
 The URL cannot use loopback, private-network, or cloud-metadata addresses. Redirects are also
 rejected. These checks apply to catalog discovery and tool execution.
 
-The public API does not provide MCP credential provisioning, automatic OAuth setup, or a
-managed private-network tunnel. Runtime context is not a substitute for authentication. For
-a private or authenticated service your backend already accesses, use an
+::: info Per-user credentials with Vault (beta)
+A server declared with `auth: { type: "vault" }` receives a credential from the
+[Vault](./vault.md) attached to each Session: each user's Session calls the server with that
+user's token or headers. Its URL must use HTTPS without a query string or fragment. In a Session
+without Vault credentials, the server is not loaded. Vault is in beta and needs a deployment
+where it is enabled.
+:::
+
+The public API does not provide automatic OAuth setup or a managed private-network tunnel.
+Runtime context is not a substitute for authentication. For a private service that only your
+backend can reach, use an
 [application-executed custom tool](./tools.md#application-executed-custom-tools).
 
 ## Connect a server
@@ -261,6 +269,7 @@ controls exposure after discovery; it does not reduce the server's discovery bud
 
 ## Related
 
+- [Vault (beta)](./vault.md) - give each user's Sessions their own MCP credentials.
 - [Permission policies](./permissions.md) - decide which MCP calls require approval.
 - [Tools](./tools.md) - configure built-in and application-executed tools.
 - [Connect a knowledge base](./retrieval.md) - expose document search through MCP or a custom tool.

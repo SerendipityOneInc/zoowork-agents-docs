@@ -2,7 +2,7 @@
 title: 风险与边界
 description: 了解 key、配置、Session 历史、文件、memory 和数据分别存在哪里，谁能读取或修改，以及如何降低主要风险。
 source: /en/security/risks-and-boundaries
-source_hash: c08eb1d972e7ec7ff1e0d723214b3b429101f35c721a92f5d64a3f264b4ebc56
+source_hash: 71efdb67e43b10f3c70881681ce3fe76627e2b5ba8dc0ec64ce4f8b616470468
 ---
 
 # 风险与边界
@@ -20,12 +20,13 @@ Agent Database 和已发布的 Artifacts。每个地方有各自的读取方和�
 | 内容 | 存在哪里 | 谁能读取 | 谁能修改 |
 |---|---|---|---|
 | Platform API key | 你后端的 secret 存储。Platform 只显示一次 secret。 | 你的后端。 | 在 Platform 中，组织 owner 创建 key，组织管理员可以吊销 key。 |
-| 你的服务凭据 | 你的后端。公共 API 不能向 Agent 下发凭据。 | 你的后端，在 custom tool 内部使用。 | 你的后端。 |
+| 你的服务凭据 | 你的后端。 | 你的后端，在 custom tool 内部使用。 | 你的后端。 |
+| Vault credential（beta） | [Vault](../build/vault.md) 中，加密保存。 | 没有 API 返回 secret。Agent 的 Vault MCP Server 在挂载该 Vault 的 Session 中收到它；sandbox 收不到。 | 你的后端，使用该 Vault scope 的 key。 |
 | Agent 配置：指令、模型、工具、MCP Server、`tool_policy` | 与 Agent 一起保存。 | 你的后端。模型每个回合都会读取指令，并可能在回复中复述。 | 你的后端，通过 `updateAgent`。Agent 也可以在运行中更新自己的 persona 文档，见 [Prompt injection](#prompt-injection)。 |
 | Session 历史和事件 | 按 Session 保存。 | 你的后端。每个 Session 的对话与该 Agent 的其他 Sessions 分开。 | 你的输入和 Agent 的工作会追加到其中。删除 Session 后公共读取不再返回它，但 transcript 和事件会为审计保留。 |
-| `/workspace` 文件 | Agent 的持久化 workspace。 | 每个 Session 中的 Agent，通过文件工具和 `exec`。你的后端，通过 `exec`。 | 每个 Session 中的 Agent；你的后端，通过 `uploadFile` 和 `exec`。 |
-| Agent memory | Memory 服务，分为 `agent` 和 `user_agent` scope。 | `agent` scope：该 Agent 任何 Session 中的回合。`user_agent` scope：该 actor 的回合；消息没有 actor 时为 owner 的回合。 | 只能由 Agent 通过 Memory 工具修改。`agent` scope：owner 的回合和获得授权的系统活动。`user_agent` scope：该 actor。 |
-| Agent Database | 属于该 Agent 的托管数据库。 | Agent 在每个 Session 中通过 `agent_db` 读取。生产环境没有直接查看器。 | Agent 通过 `agent_db` 修改。 |
+| `/workspace` 文件 | Agent 的持久化 workspace。使用 `isolation: "session"` 创建的 Session 则有自己的 workspace 目录。 | 每个 `shared` Session 中的 Agent，通过文件工具和 `exec`。你的后端，通过 `exec`。隔离 Session 的文件：只有该 Session。 | 每个 `shared` Session 中的 Agent；你的后端，通过 `uploadFile` 和 `exec`。 |
+| Agent memory | Memory 服务，分为 `agent` 和 `user_agent` scope。隔离的 Session 有自己的 Memory。 | `agent` scope：该 Agent 任何 `shared` Session 中的回合。`user_agent` scope：该 actor 的回合；消息没有 actor 时为 owner 的回合。 | 只能由 Agent 通过 Memory 工具修改。`agent` scope：owner 的回合和获得授权的系统活动。`user_agent` scope：该 actor。 |
+| Agent Database | 属于该 Agent 的托管数据库。 | Agent 在每个 Session（包括隔离的 Session）中通过 `agent_db` 读取。生产环境没有直接查看器。 | Agent 通过 `agent_db` 修改。 |
 | 已发布的 Artifacts | 独立于 workspace 文件的发布副本。 | 你的后端，以及持有下载 URL 的任何人。 | Agent 发布；你的后端可以删除。 |
 | Sandbox 及其网络 | 托管、隔离的 Linux sandbox。默认用户不是 root，可以免密码执行 `sudo`。 | Agent 执行的命令；你的后端，通过 `exec`。 | 默认 Environment 的出站网络不受限制。Platform key 不能修改 Environment 或其网络策略。 |
 | Webhook signing secret | 在注册 endpoint 或轮换 secret 时返回。 | 你的 webhook 接收端。普通的 endpoint 读取不会返回它。 | 你的后端，通过轮换修改。 |
@@ -52,24 +53,29 @@ Agent Database 记录或 memory；可以用 `cron` 创建 schedule；也可以�
   这样 Agent 对 persona 文档的每次修改都要经过你的审查。见[权限策略](../build/permissions.md)。
 - 在 custom tool 中根据你自己的用户映射授权操作，而不是根据工具输入里的值。
 - Agent 能读到的地方都不放 secret。
-- 不能共享数据的用户使用独立 Agent，让一个用户任务中的内容接触不到另一个用户的文件或 memory。
+- 不能共享数据的用户使用隔离的 Session 或独立 Agent，让一个用户任务中的内容接触不到另一个用户的文件或 memory。见[同一 Agent 的 Sessions 之间共享的数据](#data-shared-between-sessions-of-one-agent)。
 - 在事件日志中审查工具调用。见[审查与监控 Session](./monitor-sessions.md)。
 
 ## 同一 Agent 的 Sessions 之间共享的数据 {#data-shared-between-sessions-of-one-agent}
 
-Session 是一段对话，不是数据边界。同一个 Agent 的所有 Sessions 共享：
+默认的 `shared` Session 是一段对话，不是数据边界。同一个 Agent 的所有 `shared` Sessions 共享：
 
 - `/workspace` 文件，包括 `sandbox.scope` 为 `session` 的情况；
-- Agent Database；
 - `agent` scope 的 memory，以及所有不带 actor 的消息所使用的 owner `user_agent` memory；
-- Agent 的配置、persona 文档和 schedule。
+- 已发布的 Artifacts。
 
 每个 Session 保留自己的对话历史，每个 actor 有自己的 `user_agent` memory。
 
-如果一个 Agent 服务多个终端用户，一个用户上传的文件，或 Agent 为某个用户保存的事实，
-可能出现在另一个用户的任务中。不能接受这一点时，使用[每用户一个 Agent](../build/per-user-agents.md)。
+使用 `isolation: "session"` 创建的 Session 有自己的 workspace 目录、Memory 和 Artifact。该 Agent 的每个 Session，无论是否隔离，仍然共享：
+
+- Agent Database；
+- Agent 的配置、persona 文档、Skills 和 schedule；
+- sandbox 和 owner 身份工具所使用的 Agent owner 的 credential，见[凭据泄露](#credential-exposure)。
+
+如果一个 Agent 通过 `shared` Session 服务多个终端用户，一个用户上传的文件，或 Agent 为某个用户保存的事实，
+可能出现在另一个用户的任务中。不能接受这一点时，使用隔离的 Session 或[每用户一个 Agent](../build/per-user-agents.md)。
 `actor.ref` 只隔离 `user_agent` memory，不隔离文件或数据库，也不授予访问权限。见
-[文件隔离](../build/files.md#file-isolation)、[Agent Database](../build/data-storage.md) 和
+[Session 隔离](../build/per-user-agents.md#session-isolation)、[Agent Database](../build/data-storage.md) 和
 [Memory scope](../build/memory.md#choose-a-memory-scope)。
 
 ## 工具范围过宽 {#over-broad-tools}
@@ -95,10 +101,11 @@ Agent、事件日志或你自己的日志能读到的任何地方，都可能泄
 
 - **放在消息或 `system.message` 中：** 它会保存在 Session 历史里。删除 Session 不会抹除已保存的记录。
 - **放在指令中：** 模型每个回合都会读取，并可能在回复中复述。
-- **放在 workspace 文件中：** 该 Agent 的每个 Session 都能读取，`exec` 执行的命令也能把它发送到任意主机。
+- **放在 workspace 文件中：** 该 Agent 的每个 `shared` Session 都能读取，`exec` 执行的命令也能把它发送到任意主机。
 - **放在工具参数或结果中：** `agent.tool` 事件会在调用开始时记录 `args`，在结束时记录 `resultPreview`。
+- **放在 Agent owner 的账号中：** sandbox 和以 owner 身份执行的内置工具会使用 owner 的平台身份、已连接的 GitHub credential、浏览器登录态和 Agent 的模型计费 key。Session 隔离不改变这一点，所以用户的任务可以以 owner 的权限行事。见 [Owner credential 不被隔离](../build/vault.md#owner-credentials)。
 
-服务凭据保存在后端，只在 custom tool 内部使用。custom tool 只返回任务需要的数据，不返回凭据本身。
+服务凭据保存在后端，只在 custom tool 内部使用；也可以把每用户的 MCP credential 存进 [Vault](../build/vault.md)（beta），这样它们不会进入 sandbox 和 API 响应。custom tool 只返回任务需要的数据，不返回凭据本身。
 Platform API key、webhook signing secret 和 Artifact 下载 URL 也是凭据：
 保存在 secret 存储里，不写进日志；可能泄露时立即吊销或轮换。见
 [Authentication](../get-started/authentication.md#替换或撤销-key)、

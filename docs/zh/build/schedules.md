@@ -2,7 +2,7 @@
 title: Schedules
 description: 定时运行 Agent、覆盖 thinking 档位、检查执行记录并评价结果。
 source: /en/build/schedules
-source_hash: f66c3ef5d5038ba9f5c34b2b063e351b2644b8639c49500ce3d377975730789b
+source_hash: 1766af0d6cd72bceeb3e5585d3da8e711f91ca423d07fb6306c5add302769ebc
 ---
 
 # Schedules
@@ -80,7 +80,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
 
 `sessionTarget: "session:<session_id>"` 指向该 Agent 已有的 session。创建后不能修改 `sessionTarget`。需要改变对话目标时，创建另一个 schedule。
 
-Isolated session 分开保存对话历史，不构成应用用户的文件或记忆隔离。这一边界见[每用户一个 Agent](./per-user-agents.md)。
+`isolated` target 不是 Session 隔离。它创建的 Session 只分开保存对话历史，仍使用 Agent 的 workspace 和 Memory。文件和记忆隔离见[每用户一个 Agent](./per-user-agents.md)。
 
 ## 检查并触发一次 {#inspect-and-trigger-once}
 

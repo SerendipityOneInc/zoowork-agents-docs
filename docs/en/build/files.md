@@ -19,16 +19,21 @@ Use the upload and Artifact flows on this page instead.
 
 ## File isolation
 
-All sessions of an Agent share `/workspace`. The default `sandbox.scope: 'agent'` also shares
-the sandbox instance. `sandbox.scope: 'session'` uses separate instances with the same Agent
-workspace, so a new session does not make a private copy of its files.
+All `shared` Sessions of an Agent share `/workspace`. The default `sandbox.scope: 'agent'` also
+shares the sandbox instance. `sandbox.scope: 'session'` uses separate instances with the same
+Agent workspace, so a new session does not make a private copy of its files.
+
+A Session created with `isolation: "session"` has its own sandbox and `/workspace` directory.
+It does not see the Agent workspace, so `uploadFile` and `exec`, which write there, cannot give
+it files. Artifacts it publishes belong to that Session and are not returned by
+`listArtifacts`. See [Session isolation](./per-user-agents.md#session-isolation).
 
 Keep task data and output in `/workspace`. Processes, runtime installs, `/tmp`, and other
 paths do not have the same persistence guarantee across sandbox replacement. This guide
 does not specify a backup policy or retention SLA.
 
-`actor.ref` does not isolate files. Use [an Agent per user](./per-user-agents.md) when users
-must not share files, and authorize every Agent/session request in your application.
+`actor.ref` does not isolate files. Use isolated Sessions or [an Agent per user](./per-user-agents.md)
+when users must not share files, and authorize every Agent/session request in your application.
 
 ## Before you begin
 

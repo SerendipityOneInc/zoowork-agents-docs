@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 6334dbe689db4fadf649fe6b6b45cb3c17593eb8b5d68e25c4ee345c2016d8ef
+source_hash: 39ce3b7e48aeab394ac62814713c19858bf2000da9d453943d17dcb62aff999e
 ---
 
 # 错误与重试
@@ -25,6 +25,7 @@ class ZooworkError extends Error {
 | `status` | `number` | HTTP 状态码。一定有值。 |
 | `message` | `string` | 从响应体里取出的人类可读文本；响应体里没有时是 `HTTP <status>`。**只给人和日志看。** |
 | `type` | `string \| undefined` | 错误信封里的机器可读代码。**这才是你该拿来做分支的字段** ——在它存在的时候。 |
+| `code` | `string \| undefined` | TypeScript SDK 0.15.0+ 和 Python SDK 0.10.0+。错误 body 的顶层 `code`，从整个 body 中读取。body 同时有 `error.type` 时，`type` 保存的是它；见 [Vault 错误](#vault-errors)。 |
 
 ```ts
 import { ZooworkError } from '@zoowork-ai/sdk'
@@ -174,6 +175,71 @@ if (e instanceof ZooworkError) {
 | `channel.conflict` | 409 | 对 Agent 已连接的平台发起 setup，或者 `addChannel()` 的凭据与已有连接不同。 | 先移除连接，再重新连接。 |
 | `channel.{platform}_setup_in_progress` | 409 | 扫码已确认，连接正在保存，请求不能重新发起或取消。 | 继续轮询。 |
 | *（按 status 判断）* | 429 | 几秒内 setup 请求过多。 | 等待后重试。 |
+
+## Vault 错误（beta） {#vault-errors}
+
+这些错误码来自 [Vault](../build/vault.md) 路由、带 Vault 字段的 `createSession()`，以及带有 Vault credential 的 Session 上的 Session 路由。Vault 处于 beta：错误码和行为在正式发布前可能变化。
+
+Vault 路由返回 `{ "code": "vault.…", "detail": … }`；`type` 保存同一个带点的错误码。在 Session 路由上，`vault.binding_revoked`、`vault.binding_expired` 和 `vault.profile_restricted` 以 `{ "code": "vault.binding_revoked", "detail": …, "error": { "type": "vault_binding_revoked", … } }` 的形式返回：`type` 保存 runtime 错误码，`code` 保存带点的错误码。用 `vaultSessionErrorCode()` / `vault_session_error_code()` 匹配它们，该函数接受两种写法并返回带点的错误码。`code` 由 TypeScript SDK 0.15.0+ 和 Python SDK 0.10.0+ 设置。
+
+**可用性与访问**
+
+| Code | HTTP | 原因 | 处理方式 |
+|---|---:|---|---|
+| `service_api.not_found` | 404 | 在 Vault 路由上：该 key 或部署不可使用 Vault。SDK 抛出 `VaultBetaUnavailableError`。在 revoke 路由上，也可能表示 Agent 或 Session 不存在。 | 在已启用 Vault 的部署上使用 Platform API key。 |
+| `vault.session_fields_unavailable` | 400 | 在 Vault 不可用的地方，`createSession()` 带了 Vault 字段。SDK 抛出 `VaultBetaUnavailableError`。 | 同上，或创建不带 Vault 字段的 Session。 |
+| `vault.management_forbidden` | 403 | 该 key 不能管理这个 scope 的 Vault：具名 Project 的 key 管理 org Vault，或 Default Project 的 key 管理 project Vault。 | 使用对应 scope 的 key。 |
+| `vault.not_found` | 404 | Vault、credential、离职记录（offboarding ledger）或 binding 不存在，或不在该 key 的 scope 内。已经成功的删除被重试时也返回此错误。 | 检查 ID 和 key；删除重试后遇到它，视为已完成。 |
+| `vault.project_not_found` | 404 | `project_id` 不是该 key 自己的 Project。 | 传该 key 所属 Project 的 `proj_…` ID。 |
+| `platform.project_rebuild_required` | 409 | 该 key 的 Project 早于 Vault 所需的 project 记录。 | 联系 ZooWork 支持。 |
+
+**请求错误：修正请求，不要原样重试**
+
+| Code | HTTP | 原因 |
+|---|---:|---|
+| `vault.invalid_request` | 400 | body 或 query 无效。`detail.errors` 列出字段位置和原因，不会回显提交的值。 |
+| `vault.idempotency_key_required` / `vault.invalid_idempotency_key` | 400 | 写请求没有 `Idempotency-Key`，或该 key 不是 1–256 个字符，或含控制字符或首尾空格。 |
+| `vault.revision_required` / `vault.invalid_revision` | 400 | 更新、归档、删除或 revoke 时没有带十进制的 `If-Match` revision。 |
+| `vault.project_required` | 400 | project Vault 没有显式的 `project_id`。 |
+| `vault.unsupported_purpose` | 400 | credential 的 `purpose` 不是 `mcp`。 |
+| `vault.unsupported_refresh_owner` | 400 | 在不提供 ZooWork 托管刷新的地方使用 `refresh_owner: "engine"`。使用 `external`。 |
+| `vault.invalid_vault_request` | 400 | 传了 `credential_bindings`、`external_user_ref` 或 `vault_binding_options`，但没有非空的 `vault_ids`。 |
+| `vault.isolation_required` | 400 | 带 Vault 字段的 Session 没有 `isolation`。始终传它。 |
+| `vault.isolation_unavailable` / `isolation_unavailable` | 400 | 在未启用 Session 隔离的部署上，不带 Vault 字段使用 `isolation: "session"`。 |
+| `vault.unsupported_binding_option` | 400 | `allow_delegate` 或 `allow_unattended` 被设为 `true`。 |
+| `invalid_request` | 400 | 带 Vault 字段时：`runtime_mode` 不是 `active`，或传了 `config_version`、`skill_config_version`、`idle_compaction`，或 `vault_binding_options.expires_at` 已过期。 |
+| `vault.binding_denied` | 403 | `credential_bindings` 中的某项指向不是该 Agent 的 Vault Server，或指向所挂载 Vault 之外的 credential，或 URL 不匹配。 |
+| `vault.payload_too_large` | 413 | 请求过大。 |
+
+**冲突与状态**
+
+| Code | HTTP | 原因 | 处理方式 |
+|---|---:|---|---|
+| `vault.credential_missing` | 409 | 该 Agent 的某个 Vault Server 在所挂载的 Vault 中没有匹配的 credential。 | 用该 Server 的准确 URL 添加 credential，或挂载正确的 Vault。 |
+| `vault.credential_ambiguous` | 409 | 多个 credential 匹配同一个 Server。 | 在 `credential_bindings` 中指定其中一个。 |
+| `vault.idempotency_conflict` | 409 | 该 key 已用于另一个不同的请求。 | 新操作使用新的 key。 |
+| `vault.archived` / `vault.credential_archived` | 409 | Vault 或 credential 已归档。 | 新建一个。 |
+| `vault.project_archived` | 409 | Project 已归档。 | 使用 active 的 Project。 |
+| `vault.credential_limit` | 409 | 该 Vault 已有 100 个 active credential。 | 归档或删除不用的 credential。 |
+| `vault.conflict` | 409 | 其他状态冲突。 | 重新读取该资源。 |
+| `vault.revision_conflict` | 412 | `If-Match` 不是当前 revision。 | 读取该资源，再决定是否用它的当前 revision 重试。 |
+| `vault.binding_revoked` | 409 | 在 binding 已被 revoke 的 Session 上发送消息、工具结果或审批。 | 如果用户仍有访问权限，开启新的 Session。 |
+| `vault.binding_expired` | 409 | 同上，发生在 binding 的 `expires_at` 之后。 | 开启新的 Session。 |
+| `vault.profile_restricted` | 403 | 对带有 Vault credential 的 Session 做单 Session 的配置修改。 | 改为修改 Agent 配置。 |
+
+**临时故障：使用同一个 `Idempotency-Key` 重试**
+
+| Code | HTTP | 含义 |
+|---|---:|---|
+| `vault.unavailable` | 503 | Vault 没有响应。写操作可能已经生效；重试会重放它。 |
+| `vault.runtime_unavailable` | 503 | 当前无法使用 Vault credential。 |
+| `vault.busy` | 503 | 并发验证过多。 |
+| `vault.credential_temporarily_unavailable` | 503 | 当前无法读取该 credential。 |
+| `vault.key_unavailable` | 503 | 已存储的 credential 材料无法再被读取。通过更新提交新的材料。 |
+| `vault.rate_limited` | 429 | Vault 请求过多。存在 `Retry-After` 时按它等待。 |
+| `vault.invalid_response` | 502 | Vault 返回了网关无法使用的响应。 |
+
+run 内部失败的 MCP 调用不是 HTTP 错误。它在事件流中以 `agent.error` 出现，带 `kind: "mcp_authentication_failed"` 或 `"mcp_connection_failed"`、Server 名称和 `reason`；检查 credential 的 `health` 和 binding。
 
 ## 什么可以安全重试
 

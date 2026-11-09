@@ -5,7 +5,7 @@ layout: page
 sidebar: false
 aside: false
 source: /en/
-source_hash: c4a134ebdb22ccfa9613aada82f7f6318e1575c01072c2e347609d0e36ab99a6
+source_hash: 8a7678a0337d2f4f7eba2b7572ef4b89b1cf96ff3b365d8dbc883981dcf46b52
 hero:
   text: 用 Agent 构建应用。运行交给 ZooWork。
   tagline: 让 Agent 在你的应用中完成实际任务。ZooWork 托管任务执行并保留运行记录，帮助你理解结果、持续改进 Agent。
@@ -104,9 +104,10 @@ home:
         chips:
           - { text: Schedules, link: /zh/build/schedules, icon: play }
       - name: 集成到产品
-        hint: 为用户提供独立 workspace
+        hint: 隔离用户的数据和凭据
         chips:
           - { text: 每用户一个 Agent, link: /zh/build/per-user-agents, icon: users }
+          - { text: Vault（Beta）, link: /zh/build/vault, icon: key }
       - name: 安全
         hint: 保护 key、用户数据和花费
         chips:

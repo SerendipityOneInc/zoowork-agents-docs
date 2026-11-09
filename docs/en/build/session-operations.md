@@ -59,8 +59,12 @@ Example response:
 | `pending_approvals` | Count of tool calls waiting on approval. Read the records with `listApprovals()`. |
 | `status` | A legacy Session field; the current `getSession()` path returns `null`. See below. |
 | `queue` | `getSession()` only. The queue mode that decides how input arriving during a running turn is handled. `effective_mode` (`steer`, `followup`, `collect`, or `interrupt`) is the mode in use: `selected_mode` when the Session has one, otherwise `default_mode` from the Agent configuration. The object also carries `selection_version`, `writable`, `unavailable_reason`, and `effective_boundary`. |
-| `isolation` | The isolation mode recorded when the Session was created; it never changes. Sessions you create as shown on this page record `shared`: they use the Agent's `/workspace` like every other Session of that Agent (see [File isolation](./files.md#file-isolation)). Sessions created before the field existed omit it. |
+| `isolation` | The isolation mode recorded when the Session was created; it never changes. `shared`, the default, uses the Agent's `/workspace` like the Agent's other `shared` Sessions. `session` has its own workspace, Memory, and Artifacts; see [Session isolation](./per-user-agents.md#session-isolation). Sessions created before the field existed omit it. |
 | `skill_config_version` | The Agent configuration version the Session takes its Skills from, when one was recorded at creation. Otherwise absent. |
+
+A `createSession` receipt for a request with [Vault](./vault.md) fields (beta) also has
+`project_id`, `vault_ids`, and `vault_binding`. Store `vault_binding.revision` from that
+receipt; revoking the binding and offboarding a user send it back.
 
 ::: info Read run state from `run_status`
 `status` is a legacy Session field and may be `null`. Use `run_status` to read or poll the
@@ -345,11 +349,15 @@ that request fails, deletion fails too. After a successful delete, public sessio
 return 404. Transcripts and events are retained for audit: this is a soft delete, not a
 promise to physically erase every stored record or workspace file.
 
+For a Session created with `isolation: "session"`, its own workspace directory and Memory are
+removed after a retention period, and its Artifacts are removed with it. Deleting a `shared`
+Session does not remove files from the Agent workspace.
+
 Neither lifecycle operation changes the application boundaries above: your application
 still stores its Agent/session mapping, and public session metadata remains write-once.
 
-Sessions separate conversation history. For application-user file and memory isolation, see
-[An agent per user](./per-user-agents.md).
+A `shared` Session separates conversation history only. For application-user file and memory
+isolation, see [An agent per user](./per-user-agents.md).
 
 ## SDK calls
 
