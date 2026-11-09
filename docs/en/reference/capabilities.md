@@ -18,7 +18,7 @@ Available features depend on your key's resource scope, enabled tools, and servi
 | Send, generate, and retrieve files | [Files and artifacts](../build/files.md) | Upload input files into `/workspace`. Ask the Agent to publish an output as an Artifact before downloading. |
 | Store structured data | [Agent Database](../build/data-storage.md) | Use the `agent_db` tool through Sessions; the production read-only viewer is unavailable. |
 | Save Agent memory | [Memory](../build/memory.md) | Tools must be enabled and available; no automatic recall on every new turn is promised. |
-| Separate users within one Agent | [An agent per user](../build/per-user-agents.md) | `isolation: "session"` separates workspace, Memory, and Artifacts; it does not separate the Agent Database or the Agent owner's credentials. |
+| Separate users within one Agent | [An agent per user](../build/per-user-agents.md) | `isolation: "session"` separates workspace, Memory, and Artifacts; it does not separate the Agent Database or the Agent owner's credentials. It needs a deployment where Session isolation is enabled, as it is on ZooWork's hosted service. |
 | Use per-user MCP credentials | [Vault (beta)](../build/vault.md) | Beta. Requires a Platform API key, a deployment where Vault is enabled, and TypeScript SDK 0.15.0+ or Python SDK 0.10.0+. |
 | Continue or cancel work | [Session operations](../build/session-operations.md), [Events](../build/events.md) | A stream disconnection does not cancel the run. |
 | Receive server notifications | [Webhooks](../build/webhooks.md) | Service configuration and signature verification are required. |

@@ -50,10 +50,17 @@ access to anything.
 | `project` | A named Project's key. `project_id` must be that Project's own `proj_…` ID. | Agents in the same Project. |
 | `org` | A Default Project key. | Agents in any Project of the organization, including the Default Project. |
 
-Every Vault route is a management route, reads included. A named Project key cannot read or
-manage org Vaults (`403 vault.management_forbidden`), and a Default Project key does not see
-project Vaults. Agents in the Default Project can use only org Vaults. A named Project's Agent
-can use its own Project's Vaults and org Vaults.
+Every Vault route is a management route, reads included. A key outside a Vault's scope gets:
+
+| Request | Named Project key, org Vault | Default Project key, project Vault |
+|---|---|---|
+| Read, update, archive, or delete by ID, including its credentials | `403 vault.management_forbidden` | `404 vault.not_found`: the Default Project does not see project Vaults |
+| `listVaults` with `scope` set to the other scope | `403 vault.management_forbidden` | `403 vault.management_forbidden` |
+| `listVaults` without `scope` | Returns only the key's project Vaults | Returns only org Vaults |
+| `createVault` in the other scope | `403 vault.management_forbidden` | `404 vault.project_not_found` |
+
+Agents in the Default Project can use only org Vaults. A named Project's Agent can use its own
+Project's Vaults and org Vaults.
 
 The `proj_…` ID is the `ownership.project_id` of an Agent created with that Project's key; read
 it with `getAgent()` / `get_agent()`.
@@ -281,7 +288,7 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 
 | Field | Meaning |
 |---|---|
-| `isolation` | `session` or `shared`. Always send it with Vault fields. Use `session` when the Agent serves more than one end user; see [What a Session with credentials can use](#what-a-session-with-credentials-can-use). |
+| `isolation` | `session` or `shared`. Always send it with Vault fields. If omitted, it is currently recorded as `session`; the service may start rejecting the omission with `400 vault.isolation_required`, and both SDKs already require it. Use `session` when the Agent serves more than one end user; see [What a Session with credentials can use](#what-a-session-with-credentials-can-use). |
 | `vault_ids` | 1–8 unique Vault IDs visible to the Agent's organization and Project. |
 | `credential_bindings` | Optional, up to 16 `{ server_name, credential_id }` entries, one per server. Needed only when several credentials in the attached Vaults match the same server. |
 | `external_user_ref` | Optional label of up to 256 characters, returned on the binding for your own reconciliation. It cannot change and grants nothing. |

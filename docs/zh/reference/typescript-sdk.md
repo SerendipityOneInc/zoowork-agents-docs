@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 0640535a1eee85ec1e2caf994ffa6db2b0d2edb8a7cbb5dc62e34daf4c0969f2
+source_hash: a600bb1e65e60e6adcb54ccc2e59d1e4209e26866175a3a03ac2fe357a1172c8
 ---
 
 # TypeScript SDK 参考
@@ -642,10 +642,10 @@ interface SessionCreateInput {
 |---|---|---|
 | `input.initial_events` | `OutboundEvent[]` | 只接受 `user.message`，最多 50 条。传了就会立刻启动第一个回合。 |
 | `input.metadata` | object | 随 session 存下来的任意 JSON，`getSession()` 会原样回显。没有任何东西会解释它。之后你没法再往里加。 |
-| `input.isolation` | `'shared' \| 'session'` | 在 Session 的整个生命周期内固定。省略时为 `shared`。`session` 让该 Session 拥有自己的 workspace、Memory 和 Artifact；见 [Session 隔离](../build/per-user-agents.md#session-isolation)。 |
+| `input.isolation` | `'shared' \| 'session'` | 在 Session 的整个生命周期内固定。不带 Vault 字段时省略为 `shared`。`session` 让该 Session 拥有自己的 workspace、Memory 和 Artifact；见 [Session 隔离](../build/per-user-agents.md#session-isolation)。 |
 | `idempotencyKey` | `string` | 作为 `Idempotency-Key` 头发送。带 Vault 字段时必填。 |
 
-Vault 字段（`vault_ids`、`credential_bindings`、`external_user_ref`、`vault_binding_options`）使用第二个 overload；见 [`createSession` with Vault fields](#createsession-with-vault-fields)。
+Vault 字段（`vault_ids`、`credential_bindings`、`external_user_ref`、`vault_binding_options`）使用第二个 overload；见[带 Vault 字段的 `createSession`](#createsession-with-vault-fields)。
 
 ```ts
 const session = await client.createSession(
@@ -1188,7 +1188,7 @@ interface SessionRecord {
 `getSession()` 返回 `status: null`，同时返回 `run_status`；`listSessions()` 的每一行包含
 `run_status`，不包含 `status`。旧的 `status` 字段不是 run 的结果，不同部署上的值可能不同。
 最近一次 run 的状态应读取 `run_status`；没有最近 run 时可为 null。`pending_approvals` 是数量，不是数组。
-`isolation` 在创建时记录，之后不会改变：省略时为 `shared`，共享 Agent 的 `/workspace`；`session` 则让 Session 拥有自己的 workspace。创建回执、`getSession()` 和两种列表方式都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带
+`isolation` 在创建时记录，之后不会改变：不带 Vault 字段时省略为 `shared`，共享 Agent 的 `/workspace`；`session` 则让 Session 拥有自己的 workspace。创建回执、`getSession()` 和两种列表方式都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带
 `skill_config_version`。`queue` 只出现在 `getSession()` 上：`selected_mode` 有值时 `effective_mode`
 取它，否则取 Agent 配置中的 `default_mode`。这些都是响应字段，见[读取 Session](../build/session-operations.md#read-a-session)。
 `deleted` 出现在 `listSessionPage()` 用 `includeDeleted: true` 返回的 deletion tombstone 上；tombstone 不是可读取的 Session resource。
@@ -1513,7 +1513,7 @@ getVaultOffboarding(offboardingId: string): Promise<VaultOffboarding>
 | `revokeSessionVaultBinding` | `revision` 是 `createSession` 返回的 `vault_binding.revision`。它的 `404 service_api.not_found` 也可能表示 Agent 或 Session 不存在，所以它以普通 `ZooworkError` reject，而不是 `VaultBetaUnavailableError`。 |
 | `createVaultOffboarding` | `202`。在后台 revoke 列出的 1–100 个 Session。轮询 `getVaultOffboarding`，直到 `status` 不再是 `in_progress`；处于 `not_found` 的 Session 没有被 revoke。 |
 
-### `createSession` with Vault fields {#createsession-with-vault-fields}
+### 带 Vault 字段的 `createSession` {#createsession-with-vault-fields}
 
 ```ts
 createSession(agentId: string, input: SessionCreateInput & SessionVaultFields, idempotencyKey: string): Promise<SessionRecord>
@@ -1531,9 +1531,9 @@ interface SessionVaultFields {
 }
 ```
 
-带这些字段时，类型要求 `isolation` 和 idempotency key。不要把 Vault 字段传成 `null` 或 `[]`；任何一个 Vault 字段都会让请求成为 Vault 请求。回执包含 `project_id`、`vault_ids` 和 `vault_binding`（`VaultBinding`）。
+带这些字段时，类型要求 `isolation` 和 idempotency key，但不保证请求会被接受。`SessionCreateInput` 允许 `idle_compaction` 和 `runtime_mode`，而服务端在带 Vault 字段时会以 `400 invalid_request` 拒绝 `idle_compaction`、`config_version`、`skill_config_version` 以及 `'active'` 以外的 `runtime_mode`。不要把 Vault 字段传成 `null` 或 `[]`；任何一个 Vault 字段都会让请求成为 Vault 请求。回执包含 `project_id`、`vault_ids` 和 `vault_binding`（`VaultBinding`）。
 
-### Records {#records}
+### 记录类型 {#records}
 
 ```ts
 interface VaultRecord {
@@ -1584,7 +1584,7 @@ interface VaultBinding {
 
 Record 从不携带 secret。每种 record 类型也接受未知字段。`VaultPage` 和 `VaultCredentialPage` 是 `{ data, next_cursor, has_more }`。`VaultCredentialValidation` 是 `{ status, stage, http_status, error_code, retryable, validated_at, request_id }`。`VaultOffboarding` 是 `{ id, status, external_user_ref, actor_ref, correlation_id, created_at, updated_at, completed_at, counts, sessions }`，`sessions` 的每一项都有 `agent_id`、`session_id`、`revision`、`state`、`attempts`、`last_code`、`next_attempt_at`、`vault_ids`、`revoked_revision` 和 `attempt_log`。
 
-### Helpers and errors {#helpers-and-errors}
+### 辅助函数与错误 {#helpers-and-errors}
 
 | 导出 | 作用 |
 |---|---|

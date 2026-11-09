@@ -167,7 +167,7 @@ identity, user-scoped memory operations are refused.
 
 In a Session created with `isolation: "session"`, Memory tools use only that Session's own
 memory, whatever the actor. Searching or writing the `agent` scope is refused, and the
-Session's memory is removed after the Session is deleted. See
+Session's memory is removed after a retention period once the Session is deleted. See
 [Session isolation](./per-user-agents.md#session-isolation).
 
 For `shared` API sessions, send a stable `actor: { ref }` when one agent serves several application

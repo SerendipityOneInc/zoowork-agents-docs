@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 17b09c13bc52d8fa228a9cb724dbc47bc335513561f2e227d5656965a1a7996f
+source_hash: 07a48f81e2abe0e95e145330809f081ece69072b22ca1408a110a45a294a6bd1
 ---
 
 # Python SDK 参考
@@ -738,8 +738,8 @@ async def create_session(
 | `metadata` | 任意 JSON，与 Session 一起保存，由 `get_session()` 返回。服务端不解释它，之后也不能追加。 |
 | `runtime_mode` | `"active"` 在创建时 pin 当前生效的配置。省略时，后续每个 turn 再解析生效配置。 |
 | `idle_compaction` | `True`、`False` 或 `None`；SDK 原样保留 `False`、`None` 和省略。 |
-| `isolation` | `"shared"` 或 `"session"`，在 Session 的整个生命周期内固定。省略时为 `"shared"`。`"session"` 让该 Session 拥有自己的 workspace、Memory 和 Artifact；见 [Session 隔离](../build/per-user-agents.md#session-isolation)。 |
-| `vault_ids`、`credential_bindings`、`external_user_ref`、`vault_binding_options` | Beta，0.10.0+。挂载 [Vault](../build/vault.md#start-a-session-with-the-vault) credential。带上其中任何一个时，`isolation` 必须是 `"shared"` 或 `"session"`，`idempotency_key` 必须非空，否则 SDK 会在发送前抛出 `ValueError`。此时回执会增加 `project_id`、`vault_ids` 和 `vault_binding`；请保存 `vault_binding["revision"]`。 |
+| `isolation` | `"shared"` 或 `"session"`，在 Session 的整个生命周期内固定。不带 Vault 字段时省略为 `"shared"`。`"session"` 让该 Session 拥有自己的 workspace、Memory 和 Artifact；见 [Session 隔离](../build/per-user-agents.md#session-isolation)。 |
+| `vault_ids`、`credential_bindings`、`external_user_ref`、`vault_binding_options` | Beta，0.10.0+。挂载 [Vault](../build/vault.md#start-a-session-with-the-vault) credential。带上其中任何一个时，`isolation` 必须是 `"shared"` 或 `"session"`，`idempotency_key` 必须非空，否则 SDK 会在发送前抛出 `ValueError`。服务端在带 Vault 字段时还会以 `400 invalid_request` 拒绝 `idle_compaction`、`config_version`、`skill_config_version` 以及 `"active"` 以外的 `runtime_mode`。此时回执会增加 `project_id`、`vault_ids` 和 `vault_binding`；请保存 `vault_binding["revision"]`。 |
 
 `session=None` 时发送空请求体。不用的 Vault 字段全部省略：只要出现一个，即使是 `None` 或 `[]`，请求就成为 Vault 请求。
 
@@ -794,7 +794,7 @@ for row in s.get("history", []):
 
 不同响应中的字段不同：`create_session()` 返回 `status: "running"`，没有 `run_status`；`get_session()` 返回 `status: None` 和 `run_status`；`list_sessions()` 的行带 `run_status`，没有 `status`。`run_status` 可能为 `None`，`pending_approvals` 是可选的计数。你创建的 Session 的 `session_key` 是 `api:<session_id>`；这类 Session 的 `channel` 为 `api`，由 schedule 触发的 Session 为 `cron`。
 
-`isolation` 在创建时记录，之后不会改变：省略时为 `"shared"`，共享 Agent 的 `/workspace`；`"session"` 则让 Session 拥有自己的 workspace。创建回执、`get_session()` 和列表 row 都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带 `skill_config_version`。只有 `get_session()` 返回 `queue`：`selected_mode` 有值时 `effective_mode` 取它，否则取 Agent 配置中的 `default_mode`。见[读取 Session](../build/session-operations.md#read-a-session)。
+`isolation` 在创建时记录，之后不会改变：不带 Vault 字段时省略为 `"shared"`，共享 Agent 的 `/workspace`；`"session"` 则让 Session 拥有自己的 workspace。创建回执、`get_session()` 和列表 row 都带这个字段；如果 Session 从某个已记录的配置版本获取 Skills，还会带 `skill_config_version`。只有 `get_session()` 返回 `queue`：`selected_mode` 有值时 `effective_mode` 取它，否则取 Agent 配置中的 `default_mode`。见[读取 Session](../build/session-operations.md#read-a-session)。
 
 ---
 

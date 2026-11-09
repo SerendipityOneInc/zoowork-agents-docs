@@ -67,7 +67,8 @@ one conversation with that Agent. An optional **Environment** supplies the sandb
 files, and network policy; use the default Environment to get started.
 
 By default, Sessions belonging to the same Agent share its sandbox and workspace. A Session
-created with `isolation: "session"` gets its own sandbox, workspace, and Memory instead. For
+created with `isolation: "session"` gets its own sandbox, workspace, and Memory instead, on a
+deployment where Session isolation is enabled. For
 the trade-offs between isolated Sessions and a separate Agent per user, see
 [An agent per user](../build/per-user-agents.md).
 

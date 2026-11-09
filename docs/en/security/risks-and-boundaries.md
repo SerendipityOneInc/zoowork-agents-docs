@@ -124,10 +124,8 @@ A secret can leak from any place that the Agent, the event log, or your own logs
   `exec` can send it to any host.
 - **In a tool argument or result:** `agent.tool` events record `args` when a call starts and a
   `resultPreview` when it ends.
-- **In the Agent owner's accounts:** the sandbox and built-in tools that act as the owner use
-  the owner's platform identity, connected GitHub credentials, browser sign-in state, and the
-  Agent's model-billing keys. Session isolation does not change this, so a user's task can act
-  with the owner's authority. See [Owner credentials are not isolated](../build/vault.md#owner-credentials).
+- **In the Agent owner's accounts:** the sandbox can act with the Agent owner's credentials in
+  every Session, isolated or not. See [Owner credentials are not isolated](../build/vault.md#owner-credentials).
 
 Keep service credentials in your backend and use them inside custom tools, or store per-user
 MCP credentials in a [Vault](../build/vault.md) (beta), which keeps them out of the sandbox and

@@ -15,8 +15,9 @@ configuration template. Each user's Agent receives its own copy.
 
 ## Workspace isolation
 
-A Session's `isolation` is chosen when it is created and never changes. Omitting it records
-`shared`.
+A Session's `isolation` is chosen when it is created and never changes. Without Vault fields,
+omitting it records `shared`. With [Vault](./vault.md) fields, an omitted `isolation` is
+currently recorded as `session`; send it explicitly in that case.
 
 With `shared`, a Session separates conversation history only. All `shared` Sessions of an Agent
 use the Agent's `/workspace`, including when `sandbox.scope` is `session`, and the Agent's
@@ -56,6 +57,11 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 
 The TypeScript `isolation` input type requires SDK 0.15.0 or later.
 
+Session isolation is a deployment setting. It is enabled on ZooWork's hosted service. Where it
+is not enabled, `isolation: "session"` without Vault fields fails with `400` and
+`type: "isolation_unavailable"`, and a Session with Vault fields is still created but runs with
+the `restricted` profile; see [Vault](./vault.md#what-a-session-with-credentials-can-use).
+
 An isolated Session gets:
 
 - its own sandbox and its own `/workspace` directory. Other Sessions of the Agent, and the
@@ -68,8 +74,9 @@ An isolated Session gets:
 - Sessions it spawns with `sessions_spawn` share its workspace and Memory. Spawning a Session of
   another Agent is refused.
 
-After you delete an isolated Session, its workspace directory and Memory are removed after a
-retention period.
+Deleting an isolated Session also deletes the Sessions it spawned: their running work is
+cancelled and later reads of them return `404`. The workspace directory and Memory of the deleted
+Sessions are removed after a retention period.
 
 Session isolation does not separate:
 
@@ -79,9 +86,7 @@ Session isolation does not separate:
 - the [Agent Database](./data-storage.md), which every Session of the Agent can use;
 - files you add with `uploadFile` or `exec`. Both write to the Agent workspace, which an
   isolated Session does not mount. Put small inputs in the message text instead;
-- the Agent owner's credentials. Code the model runs in the sandbox, and built-in tools that act
-  as the owner, can still use the owner's platform identity, connected GitHub credentials,
-  browser sign-in state, and the Agent's model-billing keys. See
+- the Agent owner's credentials; see
   [Owner credentials are not isolated](./vault.md#owner-credentials).
 
 Each isolated Session starts with an empty workspace and empty Memory. A user's later

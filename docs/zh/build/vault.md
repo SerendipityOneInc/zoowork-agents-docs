@@ -2,7 +2,7 @@
 title: Vault（Beta）
 description: "Beta：把每个用户的 MCP 凭据存入 Vault，绑定到该用户的 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: a75017d8ad9f2b29d23af1b1de5f223d9ce592e9ae051a7e1bd66546f6e3a94c
+source_hash: cd641973b4e70ed85f11a962a123d88ca0d710ed3cbc5199d0a2b4f103d670dd
 ---
 
 # Vault（Beta）
@@ -49,8 +49,15 @@ Session 只使用你的应用绑定的 Vault。模型不能选择、列出或更
 | `project` | 使用具名 Project 的 key。`project_id` 必须是该 Project 自己的 `proj_…` ID。 | 同一 Project 中的 Agent。 |
 | `org` | 使用 Default Project 的 key。 | 组织内任意 Project 中的 Agent，包括 Default Project。 |
 
-所有 Vault 路由都是管理路由，读取也不例外。具名 Project 的 key 不能读取或管理 org Vault
-（`403 vault.management_forbidden`），Default Project 的 key 看不到 project Vault。
+所有 Vault 路由都是管理路由，读取也不例外。key 访问自己 scope 之外的 Vault 时：
+
+| 请求 | 具名 Project 的 key，org Vault | Default Project 的 key，project Vault |
+|---|---|---|
+| 按 ID 读取、更新、归档或删除，包括其中的 credential | `403 vault.management_forbidden` | `404 vault.not_found`：Default Project 看不到 project Vault |
+| `listVaults` 且 `scope` 设为另一种 scope | `403 vault.management_forbidden` | `403 vault.management_forbidden` |
+| `listVaults` 不带 `scope` | 只返回该 key 的 project Vault | 只返回 org Vault |
+| 在另一种 scope 中 `createVault` | `403 vault.management_forbidden` | `404 vault.project_not_found` |
+
 Default Project 中的 Agent 只能使用 org Vault。具名 Project 的 Agent
 可以使用自己 Project 的 Vault 和 org Vault。
 
@@ -276,7 +283,7 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 
 | 字段 | 含义 |
 |---|---|
-| `isolation` | `session` 或 `shared`。带 Vault 字段时必须发送。Agent 服务多个终端用户时使用 `session`；见[带凭据的 Session 能使用什么](#what-a-session-with-credentials-can-use)。 |
+| `isolation` | `session` 或 `shared`。带 Vault 字段时必须发送。省略时目前记录为 `session`；服务端之后可能以 `400 vault.isolation_required` 拒绝这种省略，两个 SDK 都已强制要求传入。Agent 服务多个终端用户时使用 `session`；见[带凭据的 Session 能使用什么](#what-a-session-with-credentials-can-use)。 |
 | `vault_ids` | 1–8 个唯一的 Vault ID，须对 Agent 所在的组织和 Project 可见。 |
 | `credential_bindings` | 可选，最多 16 个 `{ server_name, credential_id }` 条目，每个 Server 一个。仅当所绑定的 Vault 中有多份 credential 匹配同一个 Server 时才需要。 |
 | `external_user_ref` | 可选，最长 256 个字符的标签，会在 binding 上返回，供你自己对账。它不能更改，也不授予任何权限。 |

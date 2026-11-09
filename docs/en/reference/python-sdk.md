@@ -875,8 +875,8 @@ async def create_session(
 | `metadata` | Arbitrary JSON stored with the Session and returned by `get_session()`. Nothing interprets it, and you cannot add to it later. |
 | `runtime_mode` | `"active"` pins the active configuration at creation. Omitted, active configuration is resolved on later turns. |
 | `idle_compaction` | `True`, `False`, or `None`; the SDK preserves `False`, `None`, and omission as given. |
-| `isolation` | `"shared"` or `"session"`, fixed for the Session's life. Omitted means `"shared"`. `"session"` gives the Session its own workspace, Memory, and Artifacts; see [Session isolation](../build/per-user-agents.md#session-isolation). |
-| `vault_ids`, `credential_bindings`, `external_user_ref`, `vault_binding_options` | Beta, 0.10.0+. Attach [Vault](../build/vault.md#start-a-session-with-the-vault) credentials. With any of them, `isolation` must be `"shared"` or `"session"` and `idempotency_key` must be non-empty, or the SDK raises `ValueError` before sending. The receipt then adds `project_id`, `vault_ids`, and `vault_binding`; store `vault_binding["revision"]`. |
+| `isolation` | `"shared"` or `"session"`, fixed for the Session's life. Omitted means `"shared"` without Vault fields. `"session"` gives the Session its own workspace, Memory, and Artifacts; see [Session isolation](../build/per-user-agents.md#session-isolation). |
+| `vault_ids`, `credential_bindings`, `external_user_ref`, `vault_binding_options` | Beta, 0.10.0+. Attach [Vault](../build/vault.md#start-a-session-with-the-vault) credentials. With any of them, `isolation` must be `"shared"` or `"session"` and `idempotency_key` must be non-empty, or the SDK raises `ValueError` before sending. The server also refuses `idle_compaction`, `config_version`, `skill_config_version`, and a `runtime_mode` other than `"active"` with Vault fields (`400 invalid_request`). The receipt then adds `project_id`, `vault_ids`, and `vault_binding`; store `vault_binding["revision"]`. |
 
 `session=None` sends an empty body. Omit every Vault field you do not use: one that is present,
 even as `None` or `[]`, makes the request a Vault request.
@@ -942,7 +942,7 @@ rows carry `run_status` and omit `status`. `run_status` can be `None`, and `pend
 is an optional count. `session_key` is `api:<session_id>` for Sessions you create; `channel` is
 `api` for those and `cron` for Sessions a schedule fired.
 
-`isolation` is recorded at creation and never changes: `"shared"` when omitted, which shares the
+`isolation` is recorded at creation and never changes: `"shared"` when omitted without Vault fields, which shares the
 Agent's `/workspace`, or `"session"`, which gives the Session its own. The create receipt,
 `get_session()`, and list rows carry it,
 along with `skill_config_version` when the Session takes its Skills from a recorded configuration

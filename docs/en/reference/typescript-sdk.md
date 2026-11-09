@@ -661,7 +661,7 @@ interface SessionCreateInput {
 |---|---|---|
 | `input.initial_events` | `OutboundEvent[]` | Accepts only `user.message`, at most 50 entries. Supplying one starts the first turn immediately. |
 | `input.metadata` | object | Arbitrary JSON stored with the session and echoed by `getSession()`. Nothing interprets it. You cannot add to it later. |
-| `input.isolation` | `'shared' \| 'session'` | Fixed for the Session's life. Omitted means `shared`. `session` gives the Session its own workspace, Memory, and Artifacts; see [Session isolation](../build/per-user-agents.md#session-isolation). |
+| `input.isolation` | `'shared' \| 'session'` | Fixed for the Session's life. Omitted means `shared` without Vault fields. `session` gives the Session its own workspace, Memory, and Artifacts; see [Session isolation](../build/per-user-agents.md#session-isolation). |
 | `idempotencyKey` | `string` | Sent as the `Idempotency-Key` header. Required with Vault fields. |
 
 The Vault fields (`vault_ids`, `credential_bindings`, `external_user_ref`,
@@ -1273,7 +1273,7 @@ The fields vary by response surface: `createSession()` returns `status: "running
 `run_status`; `listSessions()` rows carry `run_status` and omit `status`. The legacy `status`
 field may differ across deployments and is not the run outcome. Use `run_status` for the latest
 run state.
-`isolation` is recorded at creation and never changes: `shared` when omitted, which shares the
+`isolation` is recorded at creation and never changes: `shared` when omitted without Vault fields, which shares the
 Agent's `/workspace`, or `session`, which gives the Session its own. The create receipt,
 `getSession()`, and both list lanes carry it, along with `skill_config_version` when the Session takes its Skills from a recorded
 configuration version. `queue` is present only on `getSession()`: `effective_mode` is
@@ -1650,8 +1650,12 @@ interface SessionVaultFields {
 }
 ```
 
-With these fields the types require `isolation` and the idempotency key. Do not pass a Vault
-field as `null` or `[]`; any Vault field makes the request a Vault request. The receipt has
+With these fields the types require `isolation` and the idempotency key, but they do not
+guarantee the request is accepted. The server refuses `idle_compaction`, `config_version`,
+`skill_config_version`, and a `runtime_mode` other than `'active'` together with Vault fields,
+with `400 invalid_request`, although `SessionCreateInput` allows `idle_compaction` and
+`runtime_mode`. Do not pass a Vault field as `null` or `[]`; any Vault field makes the request a
+Vault request. The receipt has
 `project_id`, `vault_ids`, and `vault_binding` (`VaultBinding`).
 
 ### Records

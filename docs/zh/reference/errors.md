@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 39ce3b7e48aeab394ac62814713c19858bf2000da9d453943d17dcb62aff999e
+source_hash: e30e59aa62672f26360ea3afbd0f561181c6c8b1725593e6068d80e023b50e96
 ---
 
 # 错误与重试
@@ -188,7 +188,7 @@ Vault 路由返回 `{ "code": "vault.…", "detail": … }`；`type` 保存同�
 |---|---:|---|---|
 | `service_api.not_found` | 404 | 在 Vault 路由上：该 key 或部署不可使用 Vault。SDK 抛出 `VaultBetaUnavailableError`。在 revoke 路由上，也可能表示 Agent 或 Session 不存在。 | 在已启用 Vault 的部署上使用 Platform API key。 |
 | `vault.session_fields_unavailable` | 400 | 在 Vault 不可用的地方，`createSession()` 带了 Vault 字段。SDK 抛出 `VaultBetaUnavailableError`。 | 同上，或创建不带 Vault 字段的 Session。 |
-| `vault.management_forbidden` | 403 | 该 key 不能管理这个 scope 的 Vault：具名 Project 的 key 管理 org Vault，或 Default Project 的 key 管理 project Vault。 | 使用对应 scope 的 key。 |
+| `vault.management_forbidden` | 403 | 该 key 不能管理这个 scope 的 Vault：具名 Project 的 key 读取或修改 org Vault，或任意 key 列出、创建另一种 scope 的 Vault。Default Project 的 key 按 ID 读取 project Vault 时得到的是 `404 vault.not_found`。 | 使用对应 scope 的 key。 |
 | `vault.not_found` | 404 | Vault、credential、离职记录（offboarding ledger）或 binding 不存在，或不在该 key 的 scope 内。已经成功的删除被重试时也返回此错误。 | 检查 ID 和 key；删除重试后遇到它，视为已完成。 |
 | `vault.project_not_found` | 404 | `project_id` 不是该 key 自己的 Project。 | 传该 key 所属 Project 的 `proj_…` ID。 |
 | `platform.project_rebuild_required` | 409 | 该 key 的 Project 早于 Vault 所需的 project 记录。 | 联系 ZooWork 支持。 |
@@ -204,10 +204,10 @@ Vault 路由返回 `{ "code": "vault.…", "detail": … }`；`type` 保存同�
 | `vault.unsupported_purpose` | 400 | credential 的 `purpose` 不是 `mcp`。 |
 | `vault.unsupported_refresh_owner` | 400 | 在不提供 ZooWork 托管刷新的地方使用 `refresh_owner: "engine"`。使用 `external`。 |
 | `vault.invalid_vault_request` | 400 | 传了 `credential_bindings`、`external_user_ref` 或 `vault_binding_options`，但没有非空的 `vault_ids`。 |
-| `vault.isolation_required` | 400 | 带 Vault 字段的 Session 没有 `isolation`。始终传它。 |
-| `vault.isolation_unavailable` / `isolation_unavailable` | 400 | 在未启用 Session 隔离的部署上，不带 Vault 字段使用 `isolation: "session"`。 |
+| `vault.isolation_required` | 400 | 目前不会返回：带 Vault 字段时，省略的 `isolation` 记录为 `session`。服务端之后可能对这种省略返回该错误码，所以请始终传 `isolation`。 |
 | `vault.unsupported_binding_option` | 400 | `allow_delegate` 或 `allow_unattended` 被设为 `true`。 |
 | `invalid_request` | 400 | 带 Vault 字段时：`runtime_mode` 不是 `active`，或传了 `config_version`、`skill_config_version`、`idle_compaction`，或 `vault_binding_options.expires_at` 已过期。 |
+| `isolation_unavailable`（在 `type` 中，没有顶层 `code`） | 400 | 在未启用 Session 隔离的部署上，不带 Vault 字段使用 `isolation: "session"`。这个请求不走 Vault 路径，运行时的 `{ "error": { "type": "isolation_unavailable" } }` 原样返回。 |
 | `vault.binding_denied` | 403 | `credential_bindings` 中的某项指向不是该 Agent 的 Vault Server，或指向所挂载 Vault 之外的 credential，或 URL 不匹配。 |
 | `vault.payload_too_large` | 413 | 请求过大。 |
 

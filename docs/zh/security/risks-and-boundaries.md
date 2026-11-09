@@ -2,7 +2,7 @@
 title: 风险与边界
 description: 了解 key、配置、Session 历史、文件、memory 和数据分别存在哪里，谁能读取或修改，以及如何降低主要风险。
 source: /en/security/risks-and-boundaries
-source_hash: 71efdb67e43b10f3c70881681ce3fe76627e2b5ba8dc0ec64ce4f8b616470468
+source_hash: 27fe7ecdcf8c7cbc353ff0e94551f66d5b332f3f1760334e6ea62138f85850b3
 ---
 
 # 风险与边界
@@ -103,7 +103,7 @@ Agent、事件日志或你自己的日志能读到的任何地方，都可能泄
 - **放在指令中：** 模型每个回合都会读取，并可能在回复中复述。
 - **放在 workspace 文件中：** 该 Agent 的每个 `shared` Session 都能读取，`exec` 执行的命令也能把它发送到任意主机。
 - **放在工具参数或结果中：** `agent.tool` 事件会在调用开始时记录 `args`，在结束时记录 `resultPreview`。
-- **放在 Agent owner 的账号中：** sandbox 和以 owner 身份执行的内置工具会使用 owner 的平台身份、已连接的 GitHub credential、浏览器登录态和 Agent 的模型计费 key。Session 隔离不改变这一点，所以用户的任务可以以 owner 的权限行事。见 [Owner credential 不被隔离](../build/vault.md#owner-credentials)。
+- **放在 Agent owner 的账号中：** 无论 Session 是否隔离，sandbox 都可以以 Agent owner 的 credential 行事。见 [Owner credential 不被隔离](../build/vault.md#owner-credentials)。
 
 服务凭据保存在后端，只在 custom tool 内部使用；也可以把每用户的 MCP credential 存进 [Vault](../build/vault.md)（beta），这样它们不会进入 sandbox 和 API 响应。custom tool 只返回任务需要的数据，不返回凭据本身。
 Platform API key、webhook signing secret 和 Artifact 下载 URL 也是凭据：

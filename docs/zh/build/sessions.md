@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 创建 Session、选择 Agent 配置、发送首条消息并继续对话。
 source: /en/build/sessions
-source_hash: eaac3efd8bfb06e0ac32a71297ea52ae300da441679dfb19ebbc18da00fbd4df
+source_hash: 72b9652e3c7d31999c52b5adb9f60cf59ddc0128c31374967d5eefbb81017df4
 ---
 
 # 创建 Session
@@ -97,7 +97,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 
 | 值 | 行为 |
 |---|---|
-| `shared`（省略时的默认值） | Session 与该 Agent 的其他 `shared` Session 共用 Agent 的 `/workspace`、`agent` scope 的 Memory 和 Artifact。 |
+| `shared`（不带 Vault 字段时省略的默认值） | Session 与该 Agent 的其他 `shared` Session 共用 Agent 的 `/workspace`、`agent` scope 的 Memory 和 Artifact。 |
 | `session` | Session 拥有自己的 sandbox、`/workspace` 目录、Memory 和 Artifact。它不隔离 Agent Database、Agent 配置或 Agent owner 的 credential。 |
 
 ```bash
@@ -109,9 +109,11 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 
 创建 receipt、`getSession` 和 Session 列表都会返回 `isolation`。为服务多个用户的 Agent 选择模式之前，请先阅读 [Session 隔离](./per-user-agents.md#session-isolation)，了解每种模式分别隔离什么。
 
+Session 隔离是部署级开关，ZooWork 托管服务已启用。未启用的部署上，不带 Vault 字段请求 `isolation: "session"` 会返回 `400`，`type` 为 `"isolation_unavailable"`。
+
 ### 挂载 Vault（beta） {#attach-a-vault-beta}
 
-Session 可以使用一个或多个 Vault 中为该 Agent 的 MCP Server 保存的 credential。在创建请求中传入 `vault_ids`，需要时再传 `credential_bindings`、`external_user_ref` 和 `vault_binding_options`，并同时显式指定 `isolation`。这些字段需要 `Idempotency-Key`，receipt 会增加 `project_id`、`vault_ids` 和 `vault_binding`。Vault 处于 beta，需要部署已启用它，见 [Vault](./vault.md#start-a-session-with-the-vault)。
+Session 可以使用一个或多个 Vault 中为该 Agent 的 MCP Server 保存的 credential。在创建请求中传入 `vault_ids`，需要时再传 `credential_bindings`、`external_user_ref` 和 `vault_binding_options`，并同时显式指定 `isolation`。带 Vault 字段时省略 `isolation` 目前记录为 `session`，服务端之后可能以 `400 vault.isolation_required` 拒绝这种省略，所以请始终传入；两个 SDK 都已强制要求。这些字段需要 `Idempotency-Key`，receipt 会增加 `project_id`、`vault_ids` 和 `vault_binding`。Vault 处于 beta，需要部署已启用它，见 [Vault](./vault.md#start-a-session-with-the-vault)。
 
 ### 带上首条消息 {#include-the-first-message}
 

@@ -2,7 +2,7 @@
 title: 保护你的部署
 description: 面向真实用户上线前，按优先级检查 API key、终端用户访问、数据隔离、工具、审批、webhook 和用量。
 source: /en/security/secure-deployment
-source_hash: 3e3bacbec527c00eedcc6b93ffc68dd748ca55f629287e4c09f0283afe13a694
+source_hash: 31e77d018d77b8b9e45df392e149d5109472477ac14c03c3eeabce40d192ecf3
 ---
 
 # 保护你的部署
@@ -63,7 +63,7 @@ Agent 或 Session ID。Labels、Session `metadata` 和 `actor.ref` 都是元数�
 这些用户会共用 owner 的私有 memory，并且可以写入共享的 `agent` scope。
 
 ::: warning 隔离不覆盖 owner 的 credential
-无论是隔离的还是 shared 的 Session，模型在 sandbox 中运行的代码，以及以 owner 身份执行的内置工具，都可以使用 Agent owner 的平台身份、已连接的 GitHub credential、浏览器登录态和 Agent 的模型计费 key。除非确实需要这种访问，不要把 owner 账号连接到服务其他用户的 Agent，并移除任务不需要的工具。见 [Owner credential 不被隔离](../build/vault.md#owner-credentials)。
+无论是隔离的还是 shared 的 Session，sandbox 仍然可以以 Agent owner 的 credential 行事。见 [Owner credential 不被隔离](../build/vault.md#owner-credentials)。
 :::
 
 见[每用户一个 Agent](../build/per-user-agents.md#workspace-isolation) 和

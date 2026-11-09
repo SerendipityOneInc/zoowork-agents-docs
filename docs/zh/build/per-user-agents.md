@@ -2,7 +2,7 @@
 title: 每用户一个 Agent
 description: 用隔离的 Session 或每用户独立的 Agent 分隔应用用户，并通过后端授权访问。
 source: /en/build/per-user-agents
-source_hash: 9d678f81b657920ab4edf7644d7e9b31e05dce06dee6a5f442a349ab939f7f4e
+source_hash: 9d445e1a1d97ecc4ef7c3cf7bb8b06a650a650880e224f3c24630b48cb3cf924
 ---
 
 # 每用户一个 Agent
@@ -14,7 +14,7 @@ source_hash: 9d678f81b657920ab4edf7644d7e9b31e05dce06dee6a5f442a349ab939f7f4e
 
 ## Workspace 隔离 {#workspace-isolation}
 
-Session 的 `isolation` 在创建时选定，之后不会改变。省略时记录为 `shared`。
+Session 的 `isolation` 在创建时选定，之后不会改变。不带 Vault 字段时，省略记录为 `shared`。带 [Vault](./vault.md) 字段时，省略的 `isolation` 目前记录为 `session`；这种情况下请显式传入。
 
 `shared` 的 Session 只分隔对话历史。同一个 Agent 的所有 `shared` Sessions 使用该 Agent 的 `/workspace`，包括 `sandbox.scope` 为 `session` 的情况，也使用该 Agent `agent` scope 的 Memory。API 消息可以通过 `actor: { ref: 'customer-42' }` 选择记忆归属，省略时归属 owner。Actor 不会授予访问权限、清空已有 transcript 或隔离文件。见[事件](./events.md#user-message)和 [Memory](./memory.md)。
 
@@ -49,6 +49,8 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 
 TypeScript 的 `isolation` 输入类型需要 SDK 0.15.0 或更高版本。
 
+Session 隔离是部署级开关，ZooWork 托管服务已启用。未启用的部署上，不带 Vault 字段请求 `isolation: "session"` 会返回 `400`，`type` 为 `"isolation_unavailable"`；带 Vault 字段的 Session 仍会创建，但以 `restricted` profile 运行，见 [Vault](./vault.md#what-a-session-with-credentials-can-use)。
+
 隔离的 Session 拥有：
 
 - 自己的 sandbox 和自己的 `/workspace` 目录。该 Agent 的其他 Sessions 和 Agent workspace 都看不到它的文件；
@@ -56,14 +58,14 @@ TypeScript 的 `isolation` 输入类型需要 SDK 0.15.0 或更高版本。
 - 自己的大结果文件和 Artifact。它发布的 Artifact 不会出现在 Agent 级 `listArtifacts` 的返回中；它们列在 `/agents/{agent_id}/sessions/{session_id}/artifacts` 下，并随 Session 一起移除；
 - 它通过 `sessions_spawn` 派生的 Session 共享它的 workspace 和 Memory。派生其他 Agent 的 Session 会被拒绝。
 
-删除隔离的 Session 后，它的 workspace 目录和 Memory 会在保留期后被移除。
+删除隔离的 Session 会同时删除它派生出的 Sessions：这些 Session 正在进行的工作会被取消，之后读取它们返回 `404`。被删除 Session 的 workspace 目录和 Memory 会在保留期后被移除。
 
 Session 隔离不会分隔：
 
 - Agent 的配置、persona 文档、Skills 和 Schedules。隔离的 Session 可以读取 persona 文档但不能修改，也不会运行 onboarding：正在等待 onboarding 的 Agent 会一直等待，直到某个 `shared` Session 完成它；
 - [Agent Database](./data-storage.md)，该 Agent 的每个 Session 都可以使用；
 - 用 `uploadFile` 或 `exec` 添加的文件。两者都写入 Agent workspace，而隔离的 Session 不挂载它。较小的输入请直接放进消息文本；
-- Agent owner 的 credential。模型在 sandbox 中运行的代码，以及以 owner 身份执行的内置工具，仍然可以使用 owner 的平台身份、已连接的 GitHub credential、浏览器登录态和 Agent 的模型计费 key。见 [Owner credential 不被隔离](./vault.md#owner-credentials)。
+- Agent owner 的 credential；见 [Owner credential 不被隔离](./vault.md#owner-credentials)。
 
 每个隔离的 Session 从空的 workspace 和空的 Memory 开始。用户之后的对话看不到他之前 Session 里的文件或事实。
 

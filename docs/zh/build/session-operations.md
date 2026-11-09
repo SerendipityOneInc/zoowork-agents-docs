@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 读取 Session 状态和 transcript，获取 run output，列出、归档或删除 Session。
 source: /en/build/session-operations
-source_hash: e255089dccffe3e8efe7605840d8c3e5443fd8ebd2ab4ba750472533029a8ef6
+source_hash: 3a2f44df914f8881039b97551a516a7340aa0b6029186243308bff66c0743b21
 ---
 
 # Session 操作
@@ -58,7 +58,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID" \
 | `pending_approvals` | 正在等待审批的工具调用数量。记录本身通过 `listApprovals()` 读取。 |
 | `status` | 旧的 Session 字段；当前 `getSession()` 路径返回 `null`。见下面。 |
 | `queue` | 只有 `getSession()` 返回。queue mode 决定 turn 运行期间到达的输入如何处理。`effective_mode`（`steer`、`followup`、`collect` 或 `interrupt`）是当前使用的模式：Session 设置了 `selected_mode` 时取它，否则取 Agent 配置中的 `default_mode`。该对象还包含 `selection_version`、`writable`、`unavailable_reason` 和 `effective_boundary`。 |
-| `isolation` | Session 创建时记录的隔离模式，之后不会改变。默认的 `shared` 和该 Agent 的其他 `shared` Session 一样使用 Agent 的 `/workspace`；`session` 有自己的 workspace、Memory 和 Artifact，见 [Session 隔离](./per-user-agents.md#session-isolation)。这个字段出现之前创建的 Session 不带它。 |
+| `isolation` | Session 创建时记录的隔离模式，之后不会改变。不带 Vault 字段时默认的 `shared` 和该 Agent 的其他 `shared` Session 一样使用 Agent 的 `/workspace`；`session` 有自己的 workspace、Memory 和 Artifact，见 [Session 隔离](./per-user-agents.md#session-isolation)。这个字段出现之前创建的 Session 不带它。 |
 | `skill_config_version` | 如果创建时记录了版本，这是 Session 获取 Skills 所用的 Agent 配置版本；否则不出现。 |
 
 带有 [Vault](./vault.md) 字段（beta）的 `createSession` 请求，其 receipt 还包含 `project_id`、`vault_ids` 和 `vault_binding`。请保存该 receipt 中的 `vault_binding.revision`；撤销 binding 和用户离职处理时需要把它传回。
@@ -292,7 +292,7 @@ curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions/$SESSION_ID" \
 
 删除会先向进行中的 run 发送取消请求，再隐藏 session。取消请求失败时，删除也失败。删除成功后，公共 session 读取返回 404。Transcript 和事件保留用于审计；这是 soft delete，不是物理擦除全部记录或 workspace 文件的保证。
 
-对于使用 `isolation: "session"` 创建的 Session，它自己的 workspace 目录和 Memory 会在保留期后被移除，其 Artifact 随之移除。删除 `shared` Session 不会移除 Agent workspace 中的文件。
+删除使用 `isolation: "session"` 创建的 Session 时，它派生出的 Sessions 也会一并删除，正在进行的工作会被取消。被删除 Session 的 workspace 目录和 Memory 会在保留期后被移除，其 Artifact 随之移除。删除 `shared` Session 不会移除 Agent workspace 中的文件。
 
 这些生命周期操作不改变前面的应用边界：应用仍需保存 Agent/session 映射，公共 session metadata 仍然只能在创建时写入。
 

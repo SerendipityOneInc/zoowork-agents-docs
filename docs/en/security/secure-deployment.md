@@ -75,11 +75,8 @@ scope. Without an actor, a message uses the Agent owner's identity: every such u
 owner's private memory and can write to the shared `agent` scope.
 
 ::: warning Isolation does not cover the owner's credentials
-In isolated and shared Sessions alike, code that the model runs in the sandbox, and built-in
-tools that act as the owner, can use the Agent owner's platform identity, connected GitHub
-credentials, browser sign-in state, and the Agent's model-billing keys. Do not connect owner
-accounts to an Agent that serves other users unless that access is intended, and remove tools
-the task does not need. See [Owner credentials are not isolated](../build/vault.md#owner-credentials).
+In isolated and shared Sessions alike, the sandbox can still act with the Agent owner's
+credentials. See [Owner credentials are not isolated](../build/vault.md#owner-credentials).
 :::
 
 See [An agent per user](../build/per-user-agents.md#workspace-isolation) and

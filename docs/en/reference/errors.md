@@ -231,7 +231,7 @@ which accepts both spellings and returns the dotted code. `code` is set by TypeS
 |---|---:|---|---|
 | `service_api.not_found` | 404 | On a Vault route: Vault is not available to this key or deployment. The SDK raises `VaultBetaUnavailableError`. On the revoke route it can also mean an unknown Agent or Session. | Use a Platform API key on a deployment where Vault is enabled. |
 | `vault.session_fields_unavailable` | 400 | `createSession()` with Vault fields where Vault is not available. The SDK raises `VaultBetaUnavailableError`. | As above, or create the Session without Vault fields. |
-| `vault.management_forbidden` | 403 | The key cannot manage Vaults of this scope: a named Project key and an org Vault, or a Default Project key and a project Vault. | Use the key for that scope. |
+| `vault.management_forbidden` | 403 | The key cannot manage Vaults of this scope: a named Project key reading or changing an org Vault, or any key listing or creating Vaults of the other scope. A Default Project key reading a project Vault by ID gets `404 vault.not_found` instead. | Use the key for that scope. |
 | `vault.not_found` | 404 | Unknown Vault, credential, offboarding ledger, or binding, or one outside the key's scope. A retried delete that already succeeded also answers this. | Check the ID and key; treat it as done after a delete retry. |
 | `vault.project_not_found` | 404 | `project_id` is not the key's own Project. | Send the `proj_…` ID of the key's Project. |
 | `platform.project_rebuild_required` | 409 | The key's Project predates the project records Vault needs. | Contact ZooWork support. |
@@ -247,10 +247,10 @@ which accepts both spellings and returns the dotted code. `code` is set by TypeS
 | `vault.unsupported_purpose` | 400 | A credential `purpose` other than `mcp`. |
 | `vault.unsupported_refresh_owner` | 400 | `refresh_owner: "engine"` where ZooWork-managed refresh is not available. Use `external`. |
 | `vault.invalid_vault_request` | 400 | `credential_bindings`, `external_user_ref`, or `vault_binding_options` without a non-empty `vault_ids`. |
-| `vault.isolation_required` | 400 | A Session with Vault fields without `isolation`. Always send it. |
-| `vault.isolation_unavailable` / `isolation_unavailable` | 400 | `isolation: "session"` without Vault fields on a deployment where Session isolation is not enabled. |
+| `vault.isolation_required` | 400 | Not returned today: with Vault fields, an omitted `isolation` is currently recorded as `session`. The service may start returning this code for the omission, so always send `isolation`. |
 | `vault.unsupported_binding_option` | 400 | `allow_delegate` or `allow_unattended` set to `true`. |
 | `invalid_request` | 400 | With Vault fields: a `runtime_mode` other than `active`, `config_version`, `skill_config_version`, `idle_compaction`, or a past `vault_binding_options.expires_at`. |
+| `isolation_unavailable` (in `type`; no top-level `code`) | 400 | `isolation: "session"` without Vault fields on a deployment where Session isolation is not enabled. The request does not take the Vault path, so the runtime's `{ "error": { "type": "isolation_unavailable" } }` arrives unchanged. |
 | `vault.binding_denied` | 403 | A `credential_bindings` entry names a server that is not a Vault server of the Agent, a credential outside the attached Vaults, or one whose URL does not match. |
 | `vault.payload_too_large` | 413 | The request is too large. |
 
