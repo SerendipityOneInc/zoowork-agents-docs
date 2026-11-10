@@ -6,8 +6,7 @@ description: Look up Python SDK client methods, signatures, exported types, even
 
 Client methods, types, and helpers exported by the `zoowork` package.
 
-This reference applies to Python SDK **0.9.0+**. The [Vault (beta)](#vault-beta) methods and
-helpers need **0.10.0+**.
+This reference applies to Python SDK **0.10.0+**.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).

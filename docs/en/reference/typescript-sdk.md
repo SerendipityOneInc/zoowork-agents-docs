@@ -6,8 +6,7 @@ description: Look up TypeScript SDK methods, thinking types, helpers, and errors
 
 Client methods, resource types, and helpers exported by `@zoowork-ai/sdk`.
 
-This reference applies to TypeScript SDK **0.14.0+**. The [Vault (beta)](#vault-beta) methods
-and the `isolation` field of `createSession` need **0.15.0+**.
+This reference applies to TypeScript SDK **0.15.0+**.
 
 This page is the reference. For task-shaped guidance start at [Agents](../build/agents.md),
 [Sessions](../build/sessions.md), or the [Quickstart](../get-started/quickstart.md).
