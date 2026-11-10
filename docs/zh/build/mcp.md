@@ -2,13 +2,13 @@
 title: MCP Server
 description: 为 Agent 连接远程 MCP Server，选择工具、加载方式，并传递运行时 context。
 source: /en/build/mcp
-source_hash: 72248530b5455bd702c127efaad5b5a6bdcbf4e4f51146cdb25a5857783c97a6
+source_hash: 442a21e88193257517f627b14ad5e2d46690dcc58de30a2d718ad8de6fdf0efa
 ---
 
 # MCP Server
 
 Model Context Protocol（MCP）Server 为 Agent 提供运行在远程基础设施上的工具。每个 Server 都声明在 Agent 的
-`resource.mcp` 数组里。平台读取它的工具目录，把选中的工具提供给模型，并直接调用远程 endpoint。
+`mcp` 数组里：创建时是 `createAgent` / `create_agent` 的 `resource.mcp`，更新时是 `updateAgent` / `update_agent` 的 `mcp`，本页示例用的是后者。平台读取它的工具目录，把选中的工具提供给模型，并直接调用远程 endpoint。
 
 如果操作应由你的应用执行并返回结果，请使用[应用执行的 custom tool](./tools.md#应用执行的自定义工具)。
 如果操作应由平台直接调用远程 Server，请使用 MCP。

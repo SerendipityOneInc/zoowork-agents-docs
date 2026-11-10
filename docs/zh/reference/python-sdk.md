@@ -2,14 +2,14 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 80deda8bdbb887a050e0332f7209f1c48754aa0cc30a88520ad65f309c369f52
+source_hash: 6d3f1d371dd1191e0268d3ad3cb07b066f5c0c80594587fe2c60641bdee1deeb
 ---
 
 # Python SDK 参考
 
 `zoowork` package 导出的 client 方法、类型和 helper。
 
-本参考适用于 Python SDK **0.9.0+**。[Vault（beta）](#vault-beta)方法和 helper 需要 **0.10.0+**。
+本参考适用于 Python SDK **0.10.0+**。
 
 本页是参考手册。按任务组织的说明请从 [Agents](../build/agents.md)、
 [Sessions](../build/sessions.md) 或[快速开始](../get-started/quickstart.md)读起。

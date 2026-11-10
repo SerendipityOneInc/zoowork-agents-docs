@@ -5,8 +5,9 @@ description: Connect an Agent to remote MCP servers, select tools, choose when t
 # MCP servers
 
 A Model Context Protocol (MCP) server gives an Agent tools that run on remote infrastructure. Declare each server in
-the Agent's `resource.mcp` array. The platform reads its tool catalog, exposes the selected
-tools to the model, and executes calls against the remote endpoint.
+the Agent's `mcp` array: `resource.mcp` in `createAgent` / `create_agent`, or `mcp` in
+`updateAgent` / `update_agent`, as the examples on this page do. The platform reads its tool
+catalog, exposes the selected tools to the model, and executes calls against the remote endpoint.
 
 Use an [application-executed custom tool](./tools.md#application-executed-custom-tools) when
 your own application should run the operation and return its result. Use MCP when the platform
