@@ -2,7 +2,7 @@
 title: Vault（Beta）
 description: "Beta：把每个用户的 MCP 凭据存入 Vault，绑定到该用户的 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: dc2663ccc737c57115c85ce73180c8fe32a81bc2fb882d662e729ec32f286eae
+source_hash: 6a0a8502691ecd62cadf7f75fbde919abbac21ac6ae3871a9d94448b95b71d4e
 ---
 
 # Vault（Beta）
@@ -26,6 +26,13 @@ MCP 结果或错误写入 Session 之前，平台会从中移除凭据的原文�
 示例复用[快速开始](../get-started/quickstart.md)中的 `client`。Python 调用在 async 函数内运行。
 使用 curl 时，先完成 [Authentication](../get-started/authentication.md) 中的准备工作。
 `yourDb` 和 `your_db` 代表你自己的数据层。
+
+整个流程分四步：
+
+1. 在 Agent 上用 `auth: { type: "vault" }` [声明 MCP Server](#declare-the-mcp-server)。
+2. 为用户[创建 Vault](#create-a-vault)，并[添加该用户的 credential](#add-a-credential)。
+3. 启动 Agent，和创建任何 Session 之前一样，见[快速开始](../get-started/quickstart.md)。
+4. [创建该用户的 Session](#start-a-session-with-the-vault)，并挂上 Vault。
 
 ## 工作原理 {#how-the-pieces-fit}
 
@@ -58,8 +65,8 @@ Session 只使用你的应用绑定的 Vault。模型不能选择、列出或更
 Default Project 中的 Agent 只能使用 org Vault。具名 Project 的 Agent
 可以使用自己 Project 的 Vault 和 org Vault。
 
-`proj_…` ID 是用该 Project 的 key 创建的 Agent 的 `ownership.project_id`；
-用 `getAgent()` / `get_agent()` 读取。
+要知道手里的 key 属于哪一种，用 `getAgent()` / `get_agent()` 读取一个用它创建的 Agent。
+具名 Project 的 key 创建的 Agent，`ownership.project_id` 是 `proj_…` ID；Default Project 的 key 创建的 Agent，这个字段是 `null`。
 
 ## 声明 MCP Server {#declare-the-mcp-server}
 
@@ -106,6 +113,8 @@ curl -sS --fail-with-body --request PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
 
 :::
 
+创建 Agent 时声明 Server，把同样的条目放进 `createAgent` / `create_agent` 的 `resource.mcp`。
+
 `mcp` 数组会整体替换，因此要包含 Agent 需要保留的每个 Server。
 一个 Server 不能同时声明 `auth` 和 `credential`。在没有 Vault 凭据的 Session 中，
 Vault Server 不会加载。两种 Session 中，其他 MCP Server 都按声明继续工作。
@@ -113,7 +122,7 @@ Vault Server 不会加载。两种 Session 中，其他 MCP Server 都按声明�
 ## 创建 Vault {#create-a-vault}
 
 为用户创建一个 Vault，并把它的 ID 保存到你的用户映射中。每次 Vault 写入都需要 idempotency key；
-重试同一操作时复用它。
+重试同一操作时复用它。示例使用具名 Project 的 key。使用 Default Project 的 key 时，发送不带 `project_id` 的 `{ "scope": "org", "name": … }`。
 
 ::: code-group
 
@@ -150,7 +159,6 @@ jq -n --arg project "$PROJECT_ID" --arg user "$USER_ID" \
 
 :::
 
-创建 org Vault 时，使用 Default Project 的 key，并发送不带 `project_id` 的 `{ "scope": "org", "name": … }`。
 作用域和 Project 之后不能更改。响应包含 `id`、`scope`、`project_id`、`name`、`metadata`、
 `status`、`revision`、`purge_state` 和 `created_at`。
 
@@ -436,6 +444,9 @@ jq -n --arg token "$NEW_TOKEN" '{auth:{access_token:$token}}' |
 `stage: "resolve"` 和 `error_code: "credential_expired"`，不发出请求。
 校验不会刷新由 ZooWork 刷新的 token。
 
+`valid` 表示 Server 接受了带该 credential 的 MCP `initialize` 请求。校验不会调用工具，所以 Server 仍然可能拒绝之后的工具调用。
+除非 Server 返回了 HTTP 错误状态，否则 `http_status` 为 `null`。
+
 ### 让 ZooWork 刷新 OAuth token {#managed-refresh}
 
 使用 `refresh_owner: "engine"` 时，ZooWork 会在 Session 需要时刷新过期的 access token，
@@ -501,7 +512,37 @@ curl -sS --fail-with-body --request POST \
 **归档或删除用户自己的 Vault 或 credential。** 下一次需要它的 MCP 连接或调用，
 会在所有使用它的 Session 中失败，其他用户的 Session 不受影响。
 这些 Session 的其余部分继续工作。归档保留 metadata 并报告 `purge_state`；
-删除返回 `204`，之后的读取返回 `404`。两者都不能撤销。
+删除返回 `204`，之后的读取返回 `404`。两者都不能撤销。归档或删除 Vault 后，其中的每个 credential 也随之停止使用，不需要先逐个移除。
+
+::: code-group
+
+```ts [TypeScript]
+const vault = await client.getVault(vaultId)
+await client.deleteVault(vaultId, {
+  idempotencyKey: `delete-vault-${vaultId}`,
+  revision: vault.revision,
+})
+```
+
+```python [Python]
+vault = await client.get_vault(vault_id)
+await client.delete_vault(
+    vault_id,
+    idempotency_key=f"delete-vault-{vault_id}",
+    revision=vault["revision"],
+)
+```
+
+```bash [curl]
+curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/vaults/$VAULT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H "Idempotency-Key: delete-vault-$VAULT_ID" \
+  -H "If-Match: $REVISION"
+```
+
+:::
+
+`deleteVaultCredential` / `delete_vault_credential` 以同样的方式接收 Vault ID、credential ID 和该 credential 的 `revision`。
 
 **删除 Session。** 见 [Session 操作](./session-operations.md#delete-a-session)。
 
@@ -589,7 +630,7 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/vault-offboardings/$OFFBOARDING_ID"
 `sessions` 中的每个条目都有 `state`、尝试次数、`last_code` 和 `attempt_log`。
 `not_found` 表示经过多次尝试，仍无法用该 key 找到对应的 Agent 或 Session；
 它**不是**撤销。请自行检查这些 Session。`failed` 表示被拒绝（例如 `vault.revision_conflict`）或重试已耗尽。
-同一组织和 Project 的 key 都可以读取该 ledger，它会把操作者记录为 `actor_ref`，并附带 `correlation_id`。
+同一组织和 Project 的 key 都可以读取该 ledger，它会把操作者记录为 `actor_ref`，并附带 `correlation_id`。ledger 作为这次请求的记录保留，没有删除它的路由。
 
 ## Idempotency key 与 revision {#idempotency-keys-and-revisions}
 

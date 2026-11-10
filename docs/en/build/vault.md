@@ -27,6 +27,13 @@ inside an async function. For curl, complete the setup in
 [Authentication](../get-started/authentication.md). `yourDb` and `your_db` stand for your own
 data layer.
 
+The workflow has four steps:
+
+1. [Declare the MCP server](#declare-the-mcp-server) on the Agent with `auth: { type: "vault" }`.
+2. [Create a Vault](#create-a-vault) for the user and [add the user's credential](#add-a-credential).
+3. Start the Agent, as for any Session; see [Quickstart](../get-started/quickstart.md).
+4. [Create the user's Session](#start-a-session-with-the-vault) with the Vault attached.
+
 ## How the pieces fit
 
 | Resource | What it is |
@@ -59,8 +66,9 @@ Every Vault route is a management route, reads included. A key outside a Vault's
 Agents in the Default Project can use only org Vaults. A named Project's Agent can use its own
 Project's Vaults and org Vaults.
 
-The `proj_…` ID is the `ownership.project_id` of an Agent created with that Project's key; read
-it with `getAgent()` / `get_agent()`.
+To find out which kind of key you have, read an Agent created with it using `getAgent()` /
+`get_agent()`. Its `ownership.project_id` is the `proj_…` ID for a named Project's key and `null`
+for a Default Project key.
 
 ## Declare the MCP server
 
@@ -108,6 +116,9 @@ curl -sS --fail-with-body --request PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
 
 :::
 
+To declare the server when you create the Agent, put the same entry in `resource.mcp` of
+`createAgent` / `create_agent`.
+
 The `mcp` array is replaced as a whole, so include every server the Agent should keep. A server
 cannot declare both `auth` and `credential`. In a Session without Vault credentials, a Vault
 server is not loaded. Other MCP servers keep working as declared in both kinds of Session.
@@ -115,7 +126,8 @@ server is not loaded. Other MCP servers keep working as declared in both kinds o
 ## Create a Vault
 
 Create a Vault for the user and save its ID in your user mapping. Every Vault write needs an
-idempotency key; reuse it to retry the same operation.
+idempotency key; reuse it to retry the same operation. The example uses a named Project's key.
+With a Default Project key, send `{ "scope": "org", "name": … }` without `project_id`.
 
 ::: code-group
 
@@ -152,8 +164,7 @@ jq -n --arg project "$PROJECT_ID" --arg user "$USER_ID" \
 
 :::
 
-For an org Vault, use a Default Project key and send `{ "scope": "org", "name": … }` without
-`project_id`. Scope and project cannot change later. The response has `id`, `scope`,
+Scope and project cannot change later. The response has `id`, `scope`,
 `project_id`, `name`, `metadata`, `status`, `revision`, `purge_state`, and `created_at`.
 
 `listVaults` / `list_vaults` returns the Vaults of your key's scope. It accepts `cursor`,
@@ -452,6 +463,10 @@ never returns the provider's response body. A credential already known to be exp
 `stage: "resolve"` and `error_code: "credential_expired"` without a request. Validation does not
 refresh a ZooWork-refreshed token.
 
+`valid` means the server accepted the MCP `initialize` request with the credential. Validation
+does not call a tool, so the server can still refuse a later tool call. `http_status` is `null`
+unless the server answered with an HTTP error status.
+
 ### Let ZooWork refresh an OAuth token {#managed-refresh}
 
 With `refresh_owner: "engine"`, ZooWork refreshes an expired access token when a Session needs
@@ -519,7 +534,39 @@ Agent or Session, or a Session without Vault credentials.
 **Archive or delete the user's own Vault or credential.** The next MCP connection or call that
 needs it fails in every Session that uses it, and other users' Sessions are not affected. The
 rest of those Sessions keeps working. Archive keeps the metadata and reports `purge_state`;
-delete answers `204`, and later reads return `404`. Neither can be undone.
+delete answers `204`, and later reads return `404`. Neither can be undone. Archiving or deleting
+a Vault also ends the use of every credential in it; you do not need to remove them first.
+
+::: code-group
+
+```ts [TypeScript]
+const vault = await client.getVault(vaultId)
+await client.deleteVault(vaultId, {
+  idempotencyKey: `delete-vault-${vaultId}`,
+  revision: vault.revision,
+})
+```
+
+```python [Python]
+vault = await client.get_vault(vault_id)
+await client.delete_vault(
+    vault_id,
+    idempotency_key=f"delete-vault-{vault_id}",
+    revision=vault["revision"],
+)
+```
+
+```bash [curl]
+curl -sS --fail-with-body --request DELETE "$ZOOWORK_BASE_URL/vaults/$VAULT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H "Idempotency-Key: delete-vault-$VAULT_ID" \
+  -H "If-Match: $REVISION"
+```
+
+:::
+
+`deleteVaultCredential` / `delete_vault_credential` takes the Vault ID, the credential ID, and
+the credential's `revision` in the same way.
 
 **Delete the Session.** See [Session operations](./session-operations.md#delete-a-session).
 
@@ -610,7 +657,8 @@ Each entry in `sessions` has a `state`, the attempt count, `last_code`, and an `
 `not_found` means the Agent or Session could not be found for the key after several attempts;
 it is **not** a revocation. Check those Sessions yourself. `failed` means a refusal such as
 `vault.revision_conflict`, or retries ran out. The ledger is readable with keys of the same
-organization and Project, and records the operator as `actor_ref` with a `correlation_id`.
+organization and Project, and records the operator as `actor_ref` with a `correlation_id`. It is
+kept as a record of the request; no route deletes it.
 
 ## Idempotency keys and revisions
 
