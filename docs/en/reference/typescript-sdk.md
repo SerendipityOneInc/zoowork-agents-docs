@@ -285,7 +285,7 @@ Platform keys cannot call the root `/environments` routes; these methods return 
 
 **Vault (beta)**
 
-Needs SDK 0.15.0+ and a deployment where Vault is enabled. See [Vault (beta)](#vault-beta).
+Needs SDK 0.15.0+ and a Platform API key. See [Vault (beta)](#vault-beta).
 
 | Method | Returns | What it does |
 |---|---|---|
@@ -1583,8 +1583,7 @@ Do not parse or reserialize JSON before verification. `unwrapWebhook` checks the
 
 ::: warning Beta
 The Vault methods, `isolation` on `createSession`, and the helpers below need SDK 0.15.0 or
-later. Vault also needs a Platform API key and a deployment where Vault is enabled. Where it is
-not, the Vault methods reject with `VaultBetaUnavailableError` (server code
+later. Vault also needs a Platform API key. With another kind of key, the Vault methods reject with `VaultBetaUnavailableError` (server code
 `404 service_api.not_found`), and `createSession` with Vault fields rejects with it too
 (`400 vault.session_fields_unavailable`). Fields and behavior may change before general
 availability. See [Vault](../build/vault.md) for the workflow.

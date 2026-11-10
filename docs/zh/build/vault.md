@@ -2,16 +2,13 @@
 title: Vault（Beta）
 description: "Beta：把每个用户的 MCP 凭据存入 Vault，绑定到该用户的 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: cd641973b4e70ed85f11a962a123d88ca0d710ed3cbc5199d0a2b4f103d670dd
+source_hash: dc2663ccc737c57115c85ce73180c8fe32a81bc2fb882d662e729ec32f286eae
 ---
 
 # Vault（Beta）
 
 ::: warning Beta
-Vault 是 beta 功能，需要 Platform API key，并且部署中已启用 Vault。
-在不可用的部署上，Vault 路由返回 `404 service_api.not_found`，
-带有 Vault 字段的 `createSession` 请求返回 `400 vault.session_fields_unavailable`。
-TypeScript SDK 0.15.0 及以上、Python SDK 0.10.0 及以上会对这两种情况抛出 `VaultBetaUnavailableError`。
+Vault 是 beta 功能，需要 Platform API key，以及 TypeScript SDK 0.15.0 及以上或 Python SDK 0.10.0 及以上。
 字段和行为在正式发布（GA）前可能变化。
 :::
 
@@ -333,11 +330,10 @@ binding 的 `profile` 在创建 Session 时确定：
 |---|---|---|
 | `session_isolated` | `isolation: "session"` | Agent 的 tool policy，在该 Session 自己的 workspace 和 Memory 内。配对设备的工具不可用。 |
 | `shared` | `isolation: "shared"` | Agent 的 tool policy，与不带凭据的 Session 相同。该 Session 与其他所有 Session 共享 Agent 的 workspace、Memory 和 Artifacts。只用于只服务一个终端用户的 Agent。 |
-| `restricted` | 未启用上述模式的部署 | 仅 Agent 的 MCP 工具和 `tool_search` / `tool_describe`。没有 sandbox、Memory 或其他内置工具。 |
 
 [Session 隔离](./per-user-agents.md#session-isolation)说明了 `session` 隔离什么、不隔离什么。
 
-在所有 profile 中：
+在这两种 profile 中：
 
 - Vault 凭据只会发送给声明了 `auth: { type: "vault" }` 的 MCP Server。
   sandbox 读不到它们，因此 Agent 运行的命令不能用它们调用 provider。
@@ -458,8 +454,6 @@ jq -n --arg token "$NEW_TOKEN" '{auth:{access_token:$token}}' |
 `token_endpoint`、`client_id` 和 `token_endpoint_auth` 在首次提交后固定；
 要更改它们，请创建新的 credential。不带 `refresh_owner` 的 update 保留已存储的 owner。
 重新授权时，发送新的 `access_token`、`expires_at` 和 `refresh`；省略 `rotates_refresh_token` 则保留已存储的值。
-如果你的部署不支持刷新，请求会以 `400 vault.unsupported_refresh_owner` 失败；
-请改用 `refresh_owner: "external"`，自行轮换 token。
 
 不要让两个系统刷新同一个 refresh token。每个 credential 只选一个 owner。
 
@@ -501,8 +495,8 @@ curl -sS --fail-with-body --request POST \
 
 撤销之后，Session 仍可读取，其 Artifacts 也仍可读取。新的消息、tool result 或非拒绝类的审批会返回
 `409 vault.binding_revoked`；中断和显式拒绝仍然有效。binding 已过期的 Session 在相同位置返回
-`409 vault.binding_expired`。该路由返回 `404` 可能表示 Agent 或 Session 未知、
-Session 没有 Vault 凭据，或 Vault 不可用。
+`409 vault.binding_expired`。该路由返回 `404` 可能表示 Agent 或 Session 未知，
+或者 Session 没有 Vault 凭据。
 
 **归档或删除用户自己的 Vault 或 credential。** 下一次需要它的 MCP 连接或调用，
 会在所有使用它的 Session 中失败，其他用户的 Session 不受影响。
@@ -623,10 +617,8 @@ SDK 方法接受 `idempotencyKey` / `idempotency_key` 和 `revision`，并发送
 
 ## 错误 {#errors}
 
-Vault 路由返回 `{ "code": "vault.…", "detail": … }`。在 Session 路由上，binding 错误同时在顶层携带带点的 code，
-并在 `error.type` 中携带运行时 code，例如 `"code": "vault.binding_revoked"` 对应
-`"error": { "type": "vault_binding_revoked" }`。SDK 的 `vaultSessionErrorCode` /
-`vault_session_error_code` 两种写法都接受。完整列表见[错误](../reference/errors.md#vault-errors)。
+Vault 路由返回 `{ "code": "vault.…", "detail": … }`。每个错误码、它的原因，以及 Session 路由上 binding 错误的形状，
+见[错误](../reference/errors.md#vault-errors)。
 
 ## 相关 {#related}
 

@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: a600bb1e65e60e6adcb54ccc2e59d1e4209e26866175a3a03ac2fe357a1172c8
+source_hash: 178559f5578f0fea8c42c2a470aa8fd73e6fa5b806d834a236f7672fccde8d82
 ---
 
 # TypeScript SDK 参考
@@ -281,7 +281,7 @@ Platform key 不能调用根 `/environments` 路由，这些方法返回 404。A
 
 **Vault（beta）**
 
-需要 SDK 0.15.0+ 和已启用 Vault 的部署。见 [Vault（beta）](#vault-beta)。
+需要 SDK 0.15.0+ 和 Platform API key。见 [Vault（beta）](#vault-beta)。
 
 | 方法 | 返回 | 作用 |
 |---|---|---|
@@ -1471,7 +1471,7 @@ for await (const msg of parseSSE(res.body!)) {
 ## Vault（beta） {#vault-beta}
 
 ::: warning Beta
-Vault 方法、`createSession` 的 `isolation`，以及下面的 helper 都需要 SDK 0.15.0 或更高版本。Vault 还需要 Platform API key 和已启用 Vault 的部署。未启用时，Vault 方法会以 `VaultBetaUnavailableError` reject（服务端 code 为 `404 service_api.not_found`），带 Vault 字段的 `createSession` 也会以它 reject（`400 vault.session_fields_unavailable`）。字段和行为在正式发布前可能变化。工作流见 [Vault](../build/vault.md)。
+Vault 方法、`createSession` 的 `isolation`，以及下面的 helper 都需要 SDK 0.15.0 或更高版本。Vault 还需要 Platform API key。使用其他类型的 key 时，Vault 方法会以 `VaultBetaUnavailableError` reject（服务端 code 为 `404 service_api.not_found`），带 Vault 字段的 `createSession` 也会以它 reject（`400 vault.session_fields_unavailable`）。字段和行为在正式发布前可能变化。工作流见 [Vault](../build/vault.md)。
 :::
 
 `ZooworkClient` 包含这些方法（`VaultApi` interface）：

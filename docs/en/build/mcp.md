@@ -27,8 +27,7 @@ rejected. These checks apply to catalog discovery and tool execution.
 A server declared with `auth: { type: "vault" }` receives a credential from the
 [Vault](./vault.md) attached to each Session: each user's Session calls the server with that
 user's token or headers. Its URL must use HTTPS without a query string or fragment. In a Session
-without Vault credentials, the server is not loaded. Vault is in beta and needs a deployment
-where it is enabled.
+without Vault credentials, the server is not loaded.
 :::
 
 The public API does not provide automatic OAuth setup or a managed private-network tunnel.

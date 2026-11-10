@@ -2,7 +2,7 @@
 title: 架构
 description: 了解 Managed Agents API 如何连接应用、模型、工具与隔离执行环境，以及状态持久保存、计算按需启停的工作方式。
 source: /en/get-started/architecture
-source_hash: 9c157bbcd5b9e4a6b8a7dc64db9e08868ca927953d869c7c331c9ba40abb675e
+source_hash: f6ebec9adf3f7f11c77a2834852683bc4a0d276e6ae2289fdff5ed47caf3f801
 ---
 
 # 架构
@@ -61,7 +61,7 @@ Agent 生成 `report.md` 后，可以等待你的下一条消息。当你让它�
 **Agent** 定义指令、模型、工具和 Skills。**Session** 保存与该 Agent 的一段会话。
 可选的 **Environment** 提供沙箱依赖、文件和网络策略；开始时使用默认 Environment 即可。
 
-默认情况下，同一 Agent 的多个 Session 共享沙箱和工作区。在启用了 Session 隔离的部署上，使用 `isolation: "session"` 创建的 Session 则拥有自己的沙箱、工作区和 Memory。隔离的 Session 与每用户一个 Agent 之间的取舍，见[每用户一个 Agent](../build/per-user-agents.md)。
+默认情况下，同一 Agent 的多个 Session 共享沙箱和工作区。使用 `isolation: "session"` 创建的 Session 则拥有自己的沙箱、工作区和 Memory。隔离的 Session 与每用户一个 Agent 之间的取舍，见[每用户一个 Agent](../build/per-user-agents.md)。
 
 本页介绍托管执行在工程上如何运作。[Agent 轨迹](./trajectories.md)介绍为什么保留这些执行历史对评估和后训练很重要。
 

@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 07a48f81e2abe0e95e145330809f081ece69072b22ca1408a110a45a294a6bd1
+source_hash: 80deda8bdbb887a050e0332f7209f1c48754aa0cc30a88520ad65f309c369f52
 ---
 
 # Python SDK 参考
@@ -258,7 +258,7 @@ SDK 从不重试请求。非 2xx 响应抛 [`ZooworkError`](#errors)。带 `idem
 
 **Vault（beta）**
 
-需要 SDK 0.10.0+ 和已启用 Vault 的部署。见 [Vault 方法](#vault-beta)。
+需要 SDK 0.10.0+ 和 Platform API key。见 [Vault 方法](#vault-beta)。
 
 | 方法 | 返回 | 作用 |
 |---|---|---|
@@ -1322,7 +1322,7 @@ async def get_run_output(
 ### Vault 方法（beta） {#vault-beta}
 
 ::: warning Beta
-Vault 方法和 helper 需要 SDK 0.10.0 或更高版本。Vault 还需要 Platform API key 和已启用 Vault 的部署。未启用时，Vault 方法会抛出 `VaultBetaUnavailableError`（服务端 code 为 `404 service_api.not_found`），带 Vault 字段的 `create_session()` 也会抛出它（`400 vault.session_fields_unavailable`）。字段和行为在正式发布前可能变化。工作流见 [Vault](../build/vault.md)。在 SDK 中，每个 beta 项的 docstring 都以 `Beta.` 开头。
+Vault 方法和 helper 需要 SDK 0.10.0 或更高版本。Vault 还需要 Platform API key。使用其他类型的 key 时，Vault 方法会抛出 `VaultBetaUnavailableError`（服务端 code 为 `404 service_api.not_found`），带 Vault 字段的 `create_session()` 也会抛出它（`400 vault.session_fields_unavailable`）。字段和行为在正式发布前可能变化。工作流见 [Vault](../build/vault.md)。在 SDK 中，每个 beta 项的 docstring 都以 `Beta.` 开头。
 :::
 
 ```python

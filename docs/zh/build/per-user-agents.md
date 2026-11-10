@@ -2,7 +2,7 @@
 title: 每用户一个 Agent
 description: 用隔离的 Session 或每用户独立的 Agent 分隔应用用户，并通过后端授权访问。
 source: /en/build/per-user-agents
-source_hash: 9d445e1a1d97ecc4ef7c3cf7bb8b06a650a650880e224f3c24630b48cb3cf924
+source_hash: 1960a2e6d6251540d07da5d344ef74a8d944c26e894feadf6b1e2761180a5d1f
 ---
 
 # 每用户一个 Agent
@@ -48,8 +48,6 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 :::
 
 TypeScript 的 `isolation` 输入类型需要 SDK 0.15.0 或更高版本。
-
-Session 隔离是部署级开关，ZooWork 托管服务已启用。未启用的部署上，不带 Vault 字段请求 `isolation: "session"` 会返回 `400`，`type` 为 `"isolation_unavailable"`；带 Vault 字段的 Session 仍会创建，但以 `restricted` profile 运行，见 [Vault](./vault.md#what-a-session-with-credentials-can-use)。
 
 隔离的 Session 拥有：
 

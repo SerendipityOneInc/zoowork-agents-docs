@@ -291,7 +291,7 @@ deployment verification and the complete workflow.
 
 **Vault (beta)**
 
-Needs SDK 0.10.0+ and a deployment where Vault is enabled. See [Vault methods](#vault-beta).
+Needs SDK 0.10.0+ and a Platform API key. See [Vault methods](#vault-beta).
 
 | Method | Returns | What it does |
 |---|---|---|
@@ -1586,8 +1586,8 @@ cursor back as `cursor` to continue.
 ### Vault methods (beta) {#vault-beta}
 
 ::: warning Beta
-The Vault methods and helpers need SDK 0.10.0 or later. Vault also needs a Platform API key and
-a deployment where Vault is enabled. Where it is not, the Vault methods raise
+The Vault methods and helpers need SDK 0.10.0 or later. Vault also needs a Platform API key.
+With another kind of key, the Vault methods raise
 `VaultBetaUnavailableError` (server code `404 service_api.not_found`), and `create_session()`
 with Vault fields raises it too (`400 vault.session_fields_unavailable`). Fields and behavior
 may change before general availability. See [Vault](../build/vault.md) for the workflow. In the
