@@ -384,6 +384,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
         { text: t.agents, link: `${base}/build/agents` },
         { text: t.tools, link: `${base}/build/tools` },
         { text: t.mcp, link: `${base}/build/mcp` },
+        { text: t.vault, link: `${base}/build/vault` },
         { text: t.permissions, link: `${base}/build/permissions` },
         { text: t.skills, link: `${base}/build/skills` },
       ],
@@ -424,7 +425,6 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
       items: [
         { text: t.channels, link: `${base}/build/channels` },
         { text: t.perUserAgents, link: `${base}/build/per-user-agents` },
-        { text: t.vault, link: `${base}/build/vault` },
       ],
     },
     {

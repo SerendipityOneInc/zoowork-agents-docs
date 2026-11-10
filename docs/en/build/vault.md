@@ -5,11 +5,8 @@ description: "Beta: store each user's MCP credentials in a Vault, attach them to
 # Vault (beta)
 
 ::: warning Beta
-Vault is a beta feature. It needs a Platform API key and a deployment where Vault is enabled.
-Where it is not available, the Vault routes answer `404 service_api.not_found` and a
-`createSession` request with Vault fields answers `400 vault.session_fields_unavailable`.
-TypeScript SDK 0.15.0 or later and Python SDK 0.10.0 or later raise `VaultBetaUnavailableError`
-for both. Fields and behavior may change before general availability.
+Vault is a beta feature. It needs a Platform API key, and TypeScript SDK 0.15.0 or later or
+Python SDK 0.10.0 or later. Fields and behavior may change before general availability.
 :::
 
 A Vault stores credentials for an Agent's remote MCP servers. Your application saves a user's
@@ -341,12 +338,11 @@ The binding's `profile` is fixed when the Session is created:
 |---|---|---|
 | `session_isolated` | `isolation: "session"` | The Agent's tool policy, inside the Session's own workspace and Memory. Paired-device tools are unavailable. |
 | `shared` | `isolation: "shared"` | The Agent's tool policy, like a Session without credentials. The Session shares the Agent's workspace, Memory, and Artifacts with every other Session. Use it only for an Agent that serves one end user. |
-| `restricted` | A deployment where those modes are not enabled | Only the Agent's MCP tools and `tool_search` / `tool_describe`. No sandbox, Memory, or other built-in tools. |
 
 [Session isolation](./per-user-agents.md#session-isolation) describes what `session` separates
 and what it does not.
 
-In every profile:
+In both profiles:
 
 - Vault credentials go only to MCP servers declared with `auth: { type: "vault" }`. The sandbox
   cannot read them, so commands the Agent runs cannot call the provider with them.
@@ -474,9 +470,7 @@ it, and reports problems through `health`. Send a `refresh` object with the cred
 `token_endpoint`, `client_id`, and `token_endpoint_auth` are fixed after the first submission;
 create a new credential to change them. An update without `refresh_owner` keeps the stored
 owner. To re-authorize, send a new `access_token`, `expires_at`, and `refresh`; an omitted
-`rotates_refresh_token` keeps the stored value. If refresh is
-not available on your deployment, the request fails with `400 vault.unsupported_refresh_owner`;
-use `refresh_owner: "external"` and rotate the token yourself.
+`rotates_refresh_token` keeps the stored value.
 
 Do not let two systems refresh the same refresh token. Choose one owner per credential.
 
@@ -520,7 +514,7 @@ After a revoke, reads of the Session still work, and its Artifacts can still be 
 message, tool result, or non-deny approval returns `409 vault.binding_revoked`; interrupts and
 explicit denials still work. A Session whose binding expired returns
 `409 vault.binding_expired` in the same places. A `404` from this route can mean an unknown
-Agent or Session, a Session without Vault credentials, or Vault being unavailable.
+Agent or Session, or a Session without Vault credentials.
 
 **Archive or delete the user's own Vault or credential.** The next MCP connection or call that
 needs it fails in every Session that uses it, and other users' Sessions are not affected. The
@@ -644,11 +638,8 @@ The SDK methods take `idempotencyKey` / `idempotency_key` and `revision` and sen
 
 ## Errors
 
-Vault routes answer `{ "code": "vault.…", "detail": … }`. On Session routes, binding errors
-carry both the dotted code at the top level and the runtime code in `error.type`, for example
-`"code": "vault.binding_revoked"` with `"error": { "type": "vault_binding_revoked" }`. The SDK's
-`vaultSessionErrorCode` / `vault_session_error_code` accepts either spelling. The full list is
-in [Errors](../reference/errors.md#vault-errors).
+Vault routes answer `{ "code": "vault.…", "detail": … }`. For every code, its cause, and the
+shape of binding errors on Session routes, see [Errors](../reference/errors.md#vault-errors).
 
 ## Related
 

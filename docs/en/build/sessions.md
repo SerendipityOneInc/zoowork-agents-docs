@@ -132,10 +132,6 @@ The create receipt, `getSession`, and the Session lists return `isolation`. Read
 [Session isolation](./per-user-agents.md#session-isolation) for what each mode separates before
 you choose one for an Agent that serves several users.
 
-Session isolation is a deployment setting, enabled on ZooWork's hosted service. Where it is not
-enabled, `isolation: "session"` without Vault fields fails with `400` and
-`type: "isolation_unavailable"`.
-
 ### Attach a Vault (beta)
 
 A Session can use credentials for the Agent's MCP servers from one or more Vaults. Pass
@@ -144,7 +140,7 @@ A Session can use credentials for the Agent's MCP servers from one or more Vault
 Vault fields an omitted `isolation` is currently recorded as `session`, and the service may start
 rejecting the omission with `400 vault.isolation_required`, so always send it; both SDKs already
 require it. These fields require an `Idempotency-Key`, and the receipt adds `project_id`, `vault_ids`, and
-`vault_binding`. Vault is in beta and needs a deployment where it is enabled; see
+`vault_binding`. Vault is in beta; see
 [Vault](./vault.md#start-a-session-with-the-vault).
 
 ### Include the first message

@@ -2,7 +2,7 @@
 title: MCP Server
 description: 为 Agent 连接远程 MCP Server，选择工具、加载方式，并传递运行时 context。
 source: /en/build/mcp
-source_hash: 59d71e80796f8b07c1e63b9bf0fbe68d92041c42b95859da3b785677c0aecc40
+source_hash: 72248530b5455bd702c127efaad5b5a6bdcbf4e4f51146cdb25a5857783c97a6
 ---
 
 # MCP Server
@@ -24,7 +24,7 @@ URL 不能指向 loopback、私有网络或 cloud metadata 地址，也不能经
 平台在目录发现和工具执行时都会进行这些检查。
 
 ::: info 用 Vault 提供每用户 credential（beta）
-声明为 `auth: { type: "vault" }` 的 Server 会从每个 Session 挂载的 [Vault](./vault.md) 获取 credential：每个用户的 Session 用该用户的 token 或 header 调用该 Server。它的 URL 必须使用 HTTPS，且不能带 query string 或 fragment。没有 Vault credential 的 Session 不会加载该 Server。Vault 处于 beta，需要部署已启用它。
+声明为 `auth: { type: "vault" }` 的 Server 会从每个 Session 挂载的 [Vault](./vault.md) 获取 credential：每个用户的 Session 用该用户的 token 或 header 调用该 Server。它的 URL 必须使用 HTTPS，且不能带 query string 或 fragment。没有 Vault credential 的 Session 不会加载该 Server。
 :::
 
 公共 API 不提供自动 OAuth 配置或托管的私网 tunnel。

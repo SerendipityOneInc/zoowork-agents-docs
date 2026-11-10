@@ -1,7 +1,7 @@
 ---
 description: 查看 API key 要求、工具可用性与当前公共 API 限制。
 source: /en/reference/capabilities
-source_hash: 86b6fed6f6b45b5f2ee39937499456ef26bc62b0c03d2af98787da8550610ec7
+source_hash: b29dfaed154be611f852bfe67240963e97c0f278ca4c0a6ec9d896c599e10622
 ---
 
 # 可用性与限制
@@ -20,8 +20,8 @@ source_hash: 86b6fed6f6b45b5f2ee39937499456ef26bc62b0c03d2af98787da8550610ec7
 | 发送、生成并获取文件 | [文件与产物](../build/files.md) | 把输入文件上传到 `/workspace`。让 Agent 把输出发布为 Artifact，再下载结果。 |
 | 保存结构化数据 | [Agent Database](../build/data-storage.md) | 通过 Session 使用 `agent_db`；production 只读 viewer 当前不可用。 |
 | 保存 Agent memory | [Memory](../build/memory.md) | 工具必须已启用且可用，不承诺每个新 turn 自动 recall。 |
-| 在一个 Agent 内分隔用户 | [每用户一个 Agent](../build/per-user-agents.md) | `isolation: "session"` 分隔 workspace、Memory 和 Artifact；不分隔 Agent Database 和 Agent owner 的 credential。需要部署启用 Session 隔离，ZooWork 托管服务已启用。 |
-| 使用每用户 MCP credential | [Vault（beta）](../build/vault.md) | Beta。需要 Platform API key、已启用 Vault 的部署，以及 TypeScript SDK 0.15.0+ 或 Python SDK 0.10.0+。 |
+| 在一个 Agent 内分隔用户 | [每用户一个 Agent](../build/per-user-agents.md) | `isolation: "session"` 分隔 workspace、Memory 和 Artifact；不分隔 Agent Database 和 Agent owner 的 credential。 |
+| 使用每用户 MCP credential | [Vault（beta）](../build/vault.md) | Beta。需要 Platform API key，以及 TypeScript SDK 0.15.0+ 或 Python SDK 0.10.0+。 |
 | 继续或取消任务 | [Session 操作](../build/session-operations.md)、[Events](../build/events.md) | stream 断开不会取消 run。 |
 | 接收服务器通知 | [Webhooks](../build/webhooks.md) | 需要服务配置和签名验证。 |
 | 创建周期任务 | [Schedules](../build/schedules.md) | Outcome evaluation 限于文档所述的 scheduled agentTurn 流程。 |

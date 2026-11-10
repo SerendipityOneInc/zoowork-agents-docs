@@ -57,11 +57,6 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/agents/$AGENT_ID/sessions" \
 
 The TypeScript `isolation` input type requires SDK 0.15.0 or later.
 
-Session isolation is a deployment setting. It is enabled on ZooWork's hosted service. Where it
-is not enabled, `isolation: "session"` without Vault fields fails with `400` and
-`type: "isolation_unavailable"`, and a Session with Vault fields is still created but runs with
-the `restricted` profile; see [Vault](./vault.md#what-a-session-with-credentials-can-use).
-
 An isolated Session gets:
 
 - its own sandbox and its own `/workspace` directory. Other Sessions of the Agent, and the
