@@ -94,7 +94,7 @@ The API is a Developer Preview. Responses can gain fields within a version, so i
 event types your application does not recognize instead of failing on them.
 
 Agent tasks draw on your organization's prepaid balance, which all Projects in the
-organization share. [Usage](../reference/usage.md) reports consumption in Platform credits.
+organization share. [Usage](../reference/usage.md) reports spend in USD.
 Usage reporting is not a spending cap: the public API has no server-enforced per-Session cap,
 so enforce your own policy and [interrupt work](../build/events.md#user-interrupt) when
 needed. Check the balance and actual charges in [ZooWork Platform](https://platform.zoowork.ai).

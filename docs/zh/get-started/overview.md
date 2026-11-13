@@ -1,7 +1,7 @@
 ---
 description: 对比 Managed Agents 与自建 agent loop，了解核心资源、支持的工具、执行流程、预览状态和计费。
 source: /en/get-started/overview
-source_hash: 8998b97d7af4d5f3773b3c9bc0e5f7d09af1528b1116ff5750d40e91770cf174
+source_hash: e2e6e4a7c5ef7e33d963e852fa4175c156bce2457d865e4c1fbd716d8680f952
 ---
 
 # ZooWork Managed Agents 概览
@@ -90,7 +90,7 @@ API 目前处于 Developer Preview。同一版本内响应可能增加字段，�
 事件类型，而不是直接报错。
 
 Agent 任务从组织的预充值余额中扣费，组织内所有 Project 共用这份余额。
-[Usage](../reference/usage.md) 以 Platform credits 报告消耗。Usage 只是报告，不是花费上限：
+[Usage](../reference/usage.md) 以美元报告消耗金额。Usage 只是报告，不是花费上限：
 公共 API 没有服务端强制执行的 per-Session 花费上限，应用需要自己执行策略，必要时
 [中断任务](../build/events.md#user-interrupt)。余额和实际扣费请在
 [ZooWork Platform](https://platform.zoowork.ai) 查看。

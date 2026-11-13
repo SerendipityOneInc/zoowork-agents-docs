@@ -23,11 +23,23 @@ Use `getUsage()` / `get_usage()` or HTTP for Usage queries.
 
 A Platform key can read only usage attributed to that key. Omit `api_key_id` to query that scope. Passing another key's ID is rejected. Organization administrators use Platform's Usage page for organization-wide usage, including shared sandbox costs; an API key does not inherit that UI access.
 
-## Credits and account balance
+## Amounts and account balance
 
-`credits` measures consumption in Platform credits, not tokens, cents, or a request count.
-The Platform wallet uses **200 credits per USD**; 100 credits corresponds to USD 0.50 in
-that unit. This is a unit conversion, not a fixed price per model call or per Session.
+Usage reports spend as `amount`, a decimal string in USD, on `totals`, on each group, and on
+each record. The top-level `currency` is `"usd"`.
+
+```json
+{
+  "currency": "usd",
+  "totals": { "amount": "12.434", "requests": 94 },
+  "groups": [{ "id": "<session-id>", "attribution": "exact", "amount": "1.00", "requests": 7 }]
+}
+```
+
+The example omits the other fields. `amount` is not rounded to cents: an amount in whole cents
+has two decimal places (`"1.00"`), and any other amount keeps its exact digits (`"12.434"`,
+`"0.01123"`). Add or compare amounts as decimals, not floats. Responses also carry `credits`,
+the same spend in a legacy unit kept for existing integrations; read `amount`.
 
 Usage for a Project key includes only consumption attributed to that key and the selected
 query range. It is not the Organization's remaining balance. Other keys, shared sandbox
