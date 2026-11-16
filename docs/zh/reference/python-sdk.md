@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 6d3f1d371dd1191e0268d3ad3cb07b066f5c0c80594587fe2c60641bdee1deeb
+source_hash: aee58cf8fc2a17d09882d781882f6f5539b4e6bec1535cd9cfaf5f270adf2266
 ---
 
 # Python SDK 参考
@@ -1275,7 +1275,7 @@ async def get_usage(
 ) -> JsonObject
 ```
 
-每个参数作为同名的 query parameter 发送，值为 `None` 的会省略。用量结果限定在当前 key 的范围内。
+每个参数作为同名的 query parameter 发送，值为 `None` 的会省略。用量结果限定在当前 key 的范围内。`totals`、每个 group 和每条 record 用 `amount` 报告消耗金额，它是美元的十进制字符串；见 [Usage](./usage.md#amounts-and-account-balance)。
 
 ```python
 usage = await client.get_usage(range="7d", group_by="session", view="both", per_page=50)

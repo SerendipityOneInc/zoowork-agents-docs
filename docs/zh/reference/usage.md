@@ -1,7 +1,7 @@
 ---
 description: 通过SDK或公共HTTP API查询Usage和组织余额，理解key scope、筛选与分页。
 source: /en/reference/usage
-source_hash: 70c99599402a55ae44c1c5cf570d9eb845ad44768915253cf1cb2282b2afd105
+source_hash: b88324d4ad17c96f5dc1d09549d3b2f6ec6290c0b0eb51f4049f5550be3abec8
 ---
 
 # Usage
@@ -25,9 +25,19 @@ Usage 查询可以使用 `getUsage()` / `get_usage()` 或 HTTP。
 
 Platform key 只能读取归属于自身的 Usage。省略 `api_key_id` 就查询这一 scope；传入其他 key 的 ID 会被拒绝。组织管理员使用 Platform 的 Usage 页面查看组织整体 Usage，包括共享 sandbox 成本。API key 不会继承 UI 的组织级权限。
 
-## Credits 与账户余额 {#credits-and-account-balance}
+## 金额与账户余额 {#amounts-and-account-balance}
 
-`credits` 表示 Platform credits 消耗，不是 token 数、美元分或请求次数。Platform 钱包使用 **200 credits/USD**；例如 100 credits 对应 USD 0.50。这是单位换算，不是每次模型调用或每个 Session 的固定价格。
+Usage 用 `amount` 报告消耗金额，它是美元的十进制字符串，出现在 `totals`、每个 group 和每条 record 上。顶层的 `currency` 是 `"usd"`。
+
+```json
+{
+  "currency": "usd",
+  "totals": { "amount": "12.434", "requests": 94 },
+  "groups": [{ "id": "<session-id>", "attribution": "exact", "amount": "1.00", "requests": 7 }]
+}
+```
+
+示例省略了其他字段。`amount` 不会四舍五入到分：恰好是整分的金额保留两位小数（`"1.00"`），其他金额保留精确位数（`"12.434"`、`"0.01123"`）。对金额做加总或比较时，按十进制数计算，不要用浮点数。响应里还带有 `credits`，它是同一笔消耗的旧单位表示，为已有集成保留；请读取 `amount`。
 
 Project key 的 Usage 只包含所选时间范围内归属于该 key 的消耗，不是 Organization 的剩余余额。其他 key、共享 sandbox 费用、充值和报表时间差都会影响对账，不能用某次余额直接减去这份结果来推算当前余额。剩余余额请用 [`GET /balance`](#read-the-organization-balance) 读取，组织范围的 Usage 请在 Platform 查看。
 
