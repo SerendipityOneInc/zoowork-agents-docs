@@ -38,8 +38,11 @@ each record. The top-level `currency` is `"usd"`.
 
 The example omits the other fields. `amount` is not rounded to cents: an amount in whole cents
 has two decimal places (`"1.00"`), and any other amount keeps its exact digits (`"12.434"`,
-`"0.01123"`). Add or compare amounts as decimals, not floats. Responses also carry `credits`,
-the same spend in a legacy unit kept for existing integrations; read `amount`.
+`"0.01123"`). Add or compare amounts as decimals, not floats.
+
+Use `amount` with `currency` for billing, cost display, and reconciliation. `credits` in the
+same response is deprecated: it is the same spend in an internal accounting unit, not a
+currency amount, and is returned only for integrations that already read it.
 
 Usage for a Project key includes only consumption attributed to that key and the selected
 query range. It is not the Organization's remaining balance. Other keys, shared sandbox

@@ -1,7 +1,7 @@
 ---
 description: 通过SDK或公共HTTP API查询Usage和组织余额，理解key scope、筛选与分页。
 source: /en/reference/usage
-source_hash: b88324d4ad17c96f5dc1d09549d3b2f6ec6290c0b0eb51f4049f5550be3abec8
+source_hash: 1857750d043f3d95bf365c141724773081b9f4106833303930287532fa401597
 ---
 
 # Usage
@@ -37,7 +37,9 @@ Usage 用 `amount` 报告消耗金额，它是美元的十进制字符串，出�
 }
 ```
 
-示例省略了其他字段。`amount` 不会四舍五入到分：恰好是整分的金额保留两位小数（`"1.00"`），其他金额保留精确位数（`"12.434"`、`"0.01123"`）。对金额做加总或比较时，按十进制数计算，不要用浮点数。响应里还带有 `credits`，它是同一笔消耗的旧单位表示，为已有集成保留；请读取 `amount`。
+示例省略了其他字段。`amount` 不会四舍五入到分：恰好是整分的金额保留两位小数（`"1.00"`），其他金额保留精确位数（`"12.434"`、`"0.01123"`）。对金额做加总或比较时，按十进制数计算，不要用浮点数。
+
+计费、费用展示和对账请使用 `amount` 和 `currency`。同一响应里的 `credits` 已废弃（deprecated）：它是同一笔消耗的内部记账单位，不是货币金额，只为已经在读取它的集成继续返回。
 
 Project key 的 Usage 只包含所选时间范围内归属于该 key 的消耗，不是 Organization 的剩余余额。其他 key、共享 sandbox 费用、充值和报表时间差都会影响对账，不能用某次余额直接减去这份结果来推算当前余额。剩余余额请用 [`GET /balance`](#read-the-organization-balance) 读取，组织范围的 Usage 请在 Platform 查看。
 
