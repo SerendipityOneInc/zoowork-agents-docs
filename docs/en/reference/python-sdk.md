@@ -1532,7 +1532,8 @@ async def get_usage(
 
 Each argument is sent as the query parameter of the same name, and `None` values are omitted.
 Usage stays within the current key scope. `totals`, each group and each record report spend as
-`amount`, a USD decimal string; see [Usage](./usage.md#amounts-and-account-balance).
+`amount`, a USD decimal string; `credits` is deprecated. See
+[Usage](./usage.md#amounts-and-account-balance).
 
 ```python
 usage = await client.get_usage(range="7d", group_by="session", view="both", per_page=50)
