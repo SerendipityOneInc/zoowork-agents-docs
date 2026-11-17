@@ -410,6 +410,9 @@ is a server-wide default, that grant can cover other tools from the same server.
 change the Agent's stored policy.
 
 Generated `always_ask` rules wait up to ten minutes for a decision and deny the call on timeout.
+A run that ends after a denied or timed-out approval keeps `status: succeeded` and reports
+`terminal_outcome: approval_rejected` in run output and the `run.finished` webhook; check it
+before treating the run's result as complete.
 This is an approval-response deadline, not the execution time allowed for a command. An
 in-loop `exec` call's `timeout` controls command execution after approval; it does not need to
 fit within the approval-response deadline. The custom-tool result timeout is separate too.

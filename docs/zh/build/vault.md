@@ -2,7 +2,7 @@
 title: Vault（Beta）
 description: "Beta：把每个用户的 MCP 凭据存入 Vault，绑定到该用户的 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: 55ba199cdd27fe421dc8976e8db75d132099c0a44e871480a82d7635bf58a634
+source_hash: d4887b8f3e280093fc210a744de91dae1a80a5946998c07df97246a8a9ac2105
 ---
 
 # Vault（Beta）
@@ -640,7 +640,7 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/vault-offboardings/$OFFBOARDING_ID"
   key 的作用域是你的组织和 Project。
 - update、archive、delete 和 revoke 还需要把资源当前的 `revision` 作为十进制 `If-Match` header 发送。
   revision 过期返回 `412 vault.revision_conflict`：重新读取，再决定如何处理。
-- 重试的 delete 如果返回 `404 vault.not_found`，说明它已经成功。
+- 重试 delete 仍返回 `204`；之后读取已删除的资源返回 `404 vault.not_found`。
 
 SDK 方法接受 `idempotencyKey` / `idempotency_key` 和 `revision`，并发送这些 header。
 

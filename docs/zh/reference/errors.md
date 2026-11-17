@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 11e52ff1cb781791e10716adbafdc4ccbb57972473d53798ffe42952ffa78430
+source_hash: e8c70fb76950cc0979319c6fccbb622b147cacc9d020046315dce5d90a7680f9
 ---
 
 # 错误与重试
@@ -168,6 +168,8 @@ if (e instanceof ZooworkError) {
 | `channel.dm_policy_invalid` / `channel.group_policy_invalid` | 400 | 不支持的策略值。 | 使用 `open`、`allowlist` 或 `disabled`。 |
 | `channel.pairing_unsupported` | 400 | `dm_policy: 'pairing'`。 | 使用其他策略。 |
 | `channel.allowlist_unsupported` | 400 | 微信 setup 使用了 `dm_policy: 'allowlist'`。 | 使用 `open` 或 `disabled`。 |
+| `channel.unsupported_setting` | 400 | 平台不支持这项交互设置，例如 Slack 的群白名单。 | 发送前先看 `interaction_settings.supports_*`。 |
+| `channel.settings_conflict` | 409 | `expected_config_version` 与连接当前的设置版本不一致。 | 重新读取连接，用当前的 `config_version` 重试。 |
 | `channel.dingtalk_dm_policy_unsupported` | 400 | 钉钉策略不是 `open` 或 `allowlist`，或者 `allowlist` 没有列出具体的发送者 ID。 | 使用 `open`，或者配合具体 `allow_from` ID 使用 `allowlist`。 |
 | `channel.permission_admin_not_supported` | 400 | 在飞书以外的平台上传了 `permission_admin_enabled`。 | 去掉该字段。 |
 | `channel.not_found` | 404 | 对 Agent 没有连接的平台调用 `updateChannel()`。 | 先连接该平台。 |
@@ -189,7 +191,7 @@ Vault 路由返回 `{ "code": "vault.…", "detail": … }`；`type` 保存同�
 | `service_api.not_found` | 404 | 在 Vault 路由上：该 key 不是 Platform API key。SDK 抛出 `VaultBetaUnavailableError`。在 revoke 路由上，也可能表示 Agent 或 Session 不存在。 | 使用 Platform API key。 |
 | `vault.session_fields_unavailable` | 400 | `createSession()` 带了 Vault 字段，而 key 不是 Platform API key。SDK 抛出 `VaultBetaUnavailableError`。 | 同上，或创建不带 Vault 字段的 Session。 |
 | `vault.management_forbidden` | 403 | 该 key 不能管理这个 scope 的 Vault：具名 Project 的 key 读取或修改 org Vault，或任意 key 列出、创建另一种 scope 的 Vault。Default Project 的 key 按 ID 读取 project Vault 时得到的是 `404 vault.not_found`。 | 使用对应 scope 的 key。 |
-| `vault.not_found` | 404 | Vault、credential、离职记录（offboarding ledger）或 binding 不存在，或不在该 key 的 scope 内。已经成功的删除被重试时也返回此错误。 | 检查 ID 和 key；删除重试后遇到它，视为已完成。 |
+| `vault.not_found` | 404 | Vault、credential、离职记录（offboarding ledger）或 binding 不存在，或不在该 key 的 scope 内。读取已删除的资源也返回此错误；重试 delete 仍返回 `204`。 | 检查 ID 和 key。 |
 | `vault.project_not_found` | 404 | `project_id` 不是该 key 自己的 Project。 | 传该 key 所属 Project 的 `proj_…` ID。 |
 | `platform.project_rebuild_required` | 409 | 该 key 的 Project 早于 Vault 所需的 project 记录。 | 联系 ZooWork 支持。 |
 

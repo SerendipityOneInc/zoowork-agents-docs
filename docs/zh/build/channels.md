@@ -2,7 +2,7 @@
 title: 渠道
 description: 把微信、企业微信、飞书、Slack 或钉钉连接到 Agent，并查看、修改或移除连接。
 source: /en/build/channels
-source_hash: 32f8418fddab3ae981ef045b5efb5b0536c2cd59adc9a86a965c777c9741936c
+source_hash: 351b0150d2649011aeb389f1873ff77fd01526707d7c8bb2f92fdb245448dbc8
 ---
 
 # 渠道
@@ -72,6 +72,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/channels/weixin/poll?session_id=$SETUP_
 | `group_policy` | 飞书和企业微信的群消息策略：`open`（默认）、`allowlist` 或 `disabled`。微信固定为 `disabled`。 |
 | `brand` | 仅飞书：`feishu`（默认）或 `lark`，必须与批准扫码的工作区一致。 |
 | `permission_admin_enabled` | 仅飞书：启用文档权限管理，默认 `false`。 |
+| `allow_from`、`group_allow_from`、`require_mention`、`topic_followup` | 谁能联系 Agent，以及 Agent 在群里何时回复；仅在平台支持时可用。见[使用应用凭据连接](#connect-with-app-credentials)。 |
 
 poll 返回 `pending`、`success`、`expired`、`denied`（仅飞书）或 `error`。`waitForChannelSetup` / `wait_for_channel_setup` 返回第一个不是 `pending` 的状态，超过时间限制时抛出 `408` 超时错误。它们的默认时限是 600 秒，所以要像上面那样传入 setup 响应的 `expires_in`。要放弃一个请求，调用 `cancelChannelSetup` / `cancel_channel_setup`，或者 `POST /agents/{agent_id}/channels/{platform}/setup/cancel?session_id=…`。对已取消的请求调用 poll，会返回 `404 channel.{platform}_session_not_found`。
 
@@ -124,7 +125,12 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/channels" \
 | `dm_policy` | 私信策略：`open`（默认）、配合 `allow_from` 的 `allowlist`，或 `disabled`。钉钉接受 `open` 或 `allowlist`。 |
 | `allow_from` | `dm_policy` 为 `allowlist` 时允许发私信的发送者 ID。钉钉要求列出具体 ID，不接受 `*`。 |
 | `group_policy` | 群消息策略：`open`（默认）、`allowlist` 或 `disabled`。 |
+| `group_allow_from` | `group_policy` 为 `allowlist` 时，Agent 会回复的群 ID。 |
+| `require_mention` | 群消息是否需要 @ Agent。 |
+| `topic_followup` | 飞书，且 `supports_topic_followup` 为 true 时可用。`auto` 表示 Agent 已加入的话题里的后续消息不用再 @；`require_mention` 表示需要 @。创建时设置它，每个群话题还会有自己的 Session。 |
 | `permission_admin_enabled` | 仅飞书，默认 `false`。 |
+
+各平台支持的设置不同。连接的 `interaction_settings` 会给出 `supports_group_allowlist`、`supports_mention` 和 `supports_topic_followup`；平台不支持的设置会返回 `400 channel.unsupported_setting`。例如 Slack 没有群白名单，企业微信没有 `require_mention`。每个列表最多 500 个 ID。策略为 `allowlist` 时必须列出具体 ID，不接受 `*`。新建的飞书连接默认在原话题内回复；要在主聊天里回复，在 `config` 中加 `"replyInThread": "disabled"`。
 
 连接保存后，接口返回 `201`。凭据在连接启动时才会校验，保存时不校验：凭据错误会在下一次[列出连接](#check-a-connection)时表现为 `health: unhealthy`。再次发送相同的请求体，会返回已有的连接。同一平台使用不同的 `config` 会返回 `409 channel.conflict`；要替换凭据，先移除连接，再重新添加。
 
@@ -156,12 +162,14 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/channels" \
 | `enabled` | 连接是否开启。 |
 | `health` | `unknown`、`healthy`、`degraded` 或 `unhealthy`。连接健康状况看这里。 |
 | `status` | 连接状态，例如 `configured`、`running`、`disabled` 或 `error`。 |
+| `channel_id` | 连接的稳定 ID。 |
+| `interaction_settings` | 已保存的 `allow_from`、`group_allow_from`、`require_mention` 和 `topic_followup`，以及 `config_version` 和 `apply_state`（平台生效前为 `pending`）。 |
 
 Agent 的 `status.actual_state` 和 `status.channels` 不反映渠道健康，见 [Agent 生命周期](./agents.md#agent-生命周期)。
 
 ## 修改或移除连接 {#change-or-remove-a-connection}
 
-`updateChannel` / `update_channel` 修改 `enabled`、`dm_policy` 和 `group_policy`，并返回修改后的连接。它不能修改凭据。对没有连接的平台调用 update，会返回 `404 channel.not_found`。
+`updateChannel` / `update_channel` 修改 `enabled`、`dm_policy`、`group_policy`、`allow_from`、`group_allow_from`、`require_mention` 和 `topic_followup`，并返回修改后的连接。省略的字段保持不变，传 `null` 会返回 `400 service_api.invalid_body`。传入读取时的 `interaction_settings.config_version` 作为 `expected_config_version`；设置在此之后被改过时，写入返回 `409 channel.settings_conflict`。update 不能修改凭据。对没有连接的平台调用 update，会返回 `404 channel.not_found`。
 
 `removeChannel` / `remove_channel` 移除该平台的连接。移除一个不存在的连接也会成功。删除 Agent 会移除它的所有连接。
 
@@ -200,6 +208,8 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/channels/weixin/remove" \
 | `409 channel.conflict` | Agent 已经连接了这个平台，或者凭据与已保存的不同。先移除连接。 |
 | `409 channel.{platform}_setup_in_progress` | 扫码已确认，连接正在保存。继续轮询。 |
 | `429` | setup 请求过多。等几秒再重试。 |
+| `400 channel.unsupported_setting` | 平台不支持这项交互设置。先看 `interaction_settings.supports_*`。 |
+| `409 channel.settings_conflict` | 读取 `config_version` 之后设置被改过。重新读取连接，用新版本号重试。 |
 
 完整的渠道错误码见[错误](../reference/errors.md#channel-errors)。
 

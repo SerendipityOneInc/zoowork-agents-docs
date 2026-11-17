@@ -668,7 +668,7 @@ kept as a record of the request; no route deletes it.
   your organization and Project.
 - Update, archive, delete, and revoke also need the resource's current `revision` as a decimal
   `If-Match` header. A stale revision is `412 vault.revision_conflict`: read again, then decide.
-- A retried delete that answers `404 vault.not_found` has already succeeded.
+- A retried delete answers `204` again; reads of the deleted resource answer `404 vault.not_found`.
 
 The SDK methods take `idempotencyKey` / `idempotency_key` and `revision` and send these headers.
 

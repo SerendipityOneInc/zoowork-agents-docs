@@ -129,7 +129,7 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | Creates an agent. Returns the **flat create receipt**, not the read projection. The agent comes back stopped. |
 | `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | Lists Agents within the key's organization, Project, and owner scope. By-ID access uses the same scope. `opts.labels` filters on declared labels, `opts.page` is 1-based, and page size is fixed at 100. |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | Reads an agent. Returns the **projection**: config under `declared`, version at `status.config_version`. |
-| `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUTs the named declared sections, merging per section. Bumps `config_version` on every call. |
+| `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUTs the named declared sections, merging per section. Every configuration write bumps `config_version`, including identical values; ownership-only writes do not. |
 | `deleteAgent(agentId)` | `Promise<void>` | Soft-deletes the agent. Does not stop it. |
 | `startAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `running`. Required before any session call. |
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `stopped`. |
@@ -1622,7 +1622,7 @@ SDK offers no way to set other headers on Vault calls. The methods never retry.
 | `listVaults` | The Vaults of your key's scope. Options: `cursor`, `limit` (1–100), `status` (`active` or `archived`), `scope`. |
 | `updateVault` | Changes `name`, `metadata`, or both. Omit what you keep; never send `null`. |
 | `archiveVault` / `archiveVaultCredential` | Stops new use. Sessions that use it are refused at their next MCP call. Cannot be undone. |
-| `deleteVault` / `deleteVaultCredential` | `204`. A retry that answers `404 vault.not_found` already succeeded. |
+| `deleteVault` / `deleteVaultCredential` | `204`, and `204` again on a retry. Later reads answer `404 vault.not_found`. |
 | `createVaultCredential` | `201`. `auth` is one of `static_bearer`, `static_headers`, or `mcp_oauth` with `refresh_owner: 'external'` or `'engine'` (with `refresh`). |
 | `updateVaultCredential` | Renames, rotates the secret, or both. `auth` is `{ headers }` or `{ access_token, expires_at?, refresh_owner?, refresh? }`; send `expires_at` when rotating an `mcp_oauth` token. |
 | `getVaultCredential` | Includes `health`; read it with `vaultCredentialHealthState`. |
@@ -1973,4 +1973,4 @@ Use the Agent's `agent_db` tool through a Session; see [Agent Database](../build
   redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
 ```
 
-Responses preserve unknown fields. `AgentWebhookPage.webhooks` contains endpoint rows. Action pages retain pagination; the original array methods retain their return shapes. MCP tool overrides accept `requireConfirmation?: boolean`.
+Responses preserve unknown fields. `AgentWebhookPage.webhooks` contains endpoint rows. `WebhookDeliveryOptions.receiptId` takes the `receipt_id` from `testAgentWebhook` and returns only that test's delivery. Action pages retain pagination; the original array methods retain their return shapes. MCP tool overrides accept `requireConfirmation?: boolean`.

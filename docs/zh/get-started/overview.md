@@ -1,7 +1,7 @@
 ---
 description: 对比 Managed Agents 与自建 agent loop，了解核心资源、支持的工具、执行流程、预览状态和计费。
 source: /en/get-started/overview
-source_hash: e2e6e4a7c5ef7e33d963e852fa4175c156bce2457d865e4c1fbd716d8680f952
+source_hash: 5ae56b905f50b1024e24daffe3476eaa9695ebc4f4ae0b4981c415297ddc80a5
 ---
 
 # ZooWork Managed Agents 概览
@@ -70,7 +70,7 @@ Agent 通过工具完成工作。有的工具在托管 sandbox 或平台服务�
 
 | 能力 | 工具或机制 | 指南 |
 |---|---|---|
-| sandbox 文件与命令 | `read`、`write`、`edit`、`apply_patch`、`exec`、`process` | [工具](../build/tools.md)、[云沙箱参考](../build/cloud-sandbox-reference.md) |
+| sandbox 文件与命令 | `read`、`glob`、`grep`、`write`、`edit`、`apply_patch`、`exec`、`process` | [工具](../build/tools.md)、[云沙箱参考](../build/cloud-sandbox-reference.md) |
 | 网页搜索与抓取 | `web_fetch`、`web_search`、`web_image_search` | [工具](../build/tools.md) |
 | PDF 与图片 | `pdf`、`image` | [图像与 PDF 工具](../build/tools.md#图像与-pdf-工具) |
 | 输出文件 | `artifact_publish`；把输入文件上传到 `/workspace` | [文件与产物](../build/files.md) |

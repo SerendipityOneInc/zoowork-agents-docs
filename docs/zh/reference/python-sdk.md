@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 0fd9947381dbee2e38c492d5c59ab9d4ae044b65fb7106e8abdb52ca9e0e40d0
+source_hash: 2eece598a938c56bb8d85c02185cfc633c5c99c702a531a100fadef4ce1dd180
 ---
 
 # Python SDK 参考
@@ -1361,7 +1361,7 @@ async def get_vault_offboarding(offboarding_id: str) -> VaultOffboarding
 | `create_vault` | `vault` 是 `{"scope": "org", "name", "metadata"?}` 或 `{"scope": "project", "project_id", "name", "metadata"?}`。具名 Project 的 key 为自己的 `proj_…` ID 创建 project Vault；Default Project 的 key 创建 org Vault。 |
 | `list_vaults` | key 的 scope 内的 Vault。`has_more` 为 true 时，把 `next_cursor` 传回。 |
 | `archive_vault` / `archive_vault_credential` | 停止新的使用。正在使用它的 Session 会在下一次 MCP 调用时被拒绝。不可撤销。 |
-| `delete_vault` / `delete_vault_credential` | 重试时抛出 `404 vault.not_found` 说明已经成功。 |
+| `delete_vault` / `delete_vault_credential` | `204` 时返回 `None`，重试时也一样。之后读取会抛出 `404 vault.not_found`。 |
 | `update_vault_credential` | 重命名、轮换 secret，或两者兼有。`auth` 是 `{"headers": …}` 或 `{"access_token", "expires_at"?, "refresh_owner"?, "refresh"?}`；轮换 `mcp_oauth` token 时要发送 `expires_at`。 |
 | `get_vault_credential` | 包含 `health`；用 `vault_credential_health_state()` 读取。 |
 | `revoke_session_vault_binding` | `revision` 是 `create_session()` 返回的 `vault_binding["revision"]`。它的 `404 service_api.not_found` 也可能表示 Agent 或 Session 不存在，所以它抛出普通 `ZooworkError`，而不是 `VaultBetaUnavailableError`。 |
@@ -1420,6 +1420,7 @@ async def list_agent_webhook_deliveries(
     status: Literal["pending", "in_flight", "succeeded", "dead", "cancelled"] | None = None,
     event_type: str | None = None,
     event_id: str | None = None,
+    receipt_id: str | None = None,
     session_id: str | None = None,
     run_id: str | None = None,
     schedule_id: str | None = None,
@@ -1445,9 +1446,9 @@ created = await client.create_agent_webhook(
 )
 # Save created["signing_secret"] securely when present; an idempotent replay may return None.
 webhook_id = created["endpoint"]["id"]
-await client.test_agent_webhook(agent_id, webhook_id, idempotency_key="test-hook-v1")
+receipt = await client.test_agent_webhook(agent_id, webhook_id, idempotency_key="test-hook-v1")
 deliveries = await client.list_agent_webhook_deliveries(
-    agent_id, webhook_id, event_type="webhook.test"
+    agent_id, webhook_id, receipt_id=receipt["receipt_id"]
 )
 ```
 

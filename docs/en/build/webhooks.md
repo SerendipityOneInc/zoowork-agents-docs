@@ -301,6 +301,9 @@ The examples use Agent-scoped paths and require access to that Agent. See
 [Authentication](../get-started/authentication.md) for key setup and resource scope.
 Caller-supplied organization, owner, or project query parameters never widen key authority.
 
+In the Platform console, the Webhooks page manages the selected Project's webhooks, including test
+delivery, delivery history, and redelivery.
+
 ## SDK calls
 
 ::: code-group
@@ -311,7 +314,7 @@ const created = await client.createAgentWebhook(agentId, {
 }, 'register-hook-v1')
 const page = await client.listAgentWebhooks(agentId) // page.webhooks
 const receipt = await client.testAgentWebhook(agentId, created.endpoint.id, 'test-hook-v1')
-const deliveries = await client.listAgentWebhookDeliveries(agentId, created.endpoint.id, { eventType: 'webhook.test' })
+const deliveries = await client.listAgentWebhookDeliveries(agentId, created.endpoint.id, { receiptId: receipt.receipt_id })
 ```
 
 ```python [Python]
@@ -321,7 +324,7 @@ created = await client.create_agent_webhook(
 )
 page = await client.list_agent_webhooks(agent_id)  # page["webhooks"]
 receipt = await client.test_agent_webhook(agent_id, created["endpoint"]["id"], idempotency_key="test-hook-v1")
-deliveries = await client.list_agent_webhook_deliveries(agent_id, created["endpoint"]["id"], event_type="webhook.test")
+deliveries = await client.list_agent_webhook_deliveries(agent_id, created["endpoint"]["id"], receipt_id=receipt["receipt_id"])
 ```
 
 :::
