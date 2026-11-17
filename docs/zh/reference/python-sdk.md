@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: efe6ec0f244ebec92e8c87ee6f618f0390d29d8ea226ef8a48424eff95f79be9
+source_hash: 0fd9947381dbee2e38c492d5c59ab9d4ae044b65fb7106e8abdb52ca9e0e40d0
 ---
 
 # Python SDK 参考
@@ -356,7 +356,7 @@ async def create_agent(
 | `ownership` | `Mapping[str, str] \| None` | 创建 Agent 时省略。公共 gateway 根据 key 推导 ownership。 |
 | `idempotency_key` | `str \| None` | 作为 `Idempotency-Key` header 发送。 |
 
-常用的 `resource` key 有 `name`、`model`（`primary`，以及可选的 `thinking`）、`userTimezone`、`include_global_skills`、`skills`、`labels`、`tool_policy`、`mcp`、`custom_tools`、`system_prompt` 和 `outcome`。逐字段说明见 [Agents](../build/agents.md)。
+常用的 `resource` key 有 `name`、`model`（`primary`，以及可选的 `thinking`）、`userTimezone`、`include_global_skills`、`skills`、`labels`、`tool_policy`、`mcp`、`custom_tools`、`system_prompt`、`outcome` 和 `memory`。逐字段说明见 [Agents](../build/agents.md)。
 
 返回**创建回执**：一个扁平 mapping，包含 `agent_id`、顶层的 `config_version`、`ownership` 和 `resolved_skills`，没有 `declared`，也没有 `status`。
 

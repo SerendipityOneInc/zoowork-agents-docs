@@ -407,7 +407,7 @@ async def create_agent(
 
 Common `resource` keys are `name`, `model` (`primary`, and optionally `thinking`),
 `userTimezone`, `include_global_skills`, `skills`, `labels`, `tool_policy`, `mcp`,
-`custom_tools`, `system_prompt`, and `outcome`. See [Agents](../build/agents.md) for the
+`custom_tools`, `system_prompt`, `outcome`, and `memory`. See [Agents](../build/agents.md) for the
 field-by-field notes.
 
 Returns the **create receipt**: a flat mapping with `agent_id`, a top-level `config_version`,

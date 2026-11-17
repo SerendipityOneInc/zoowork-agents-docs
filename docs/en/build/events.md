@@ -541,7 +541,7 @@ One tool call produces multiple `agent.tool` events that share a `toolCallId`.
 | `phase` | Meaning | Carries |
 |---|---|---|
 | `start` | The call was proposed; policy and approval checks can still prevent execution. | `args` |
-| `end` | The call returned. | `isError`, `resultPreview`, `executionStarted` |
+| `end` | The call returned. | `isError`, `resultPreview`, `executionStarted`; `errorCode` when a Memory tool fails |
 | `blocked` | The call ended without execution. This is terminal; inspect `deniedReason`. | `policyId`, `deniedReason` |
 
 Two rules:
@@ -695,7 +695,7 @@ of 20), plus the five input types under [Your inputs, echoed](#your-inputs-echoe
 | `agent.lifecycle` | Bookends the agent loop inside a turn. | `phase`: `start` or `end`. Scheduled agents can also emit `phase: 'heartbeat-skipped'` with `reason`, `scheduleId`, `firedAt`. |
 | `agent.assistant` | One assistant message segment is committed. | `message` (`{ role, content[] }`), `segment` (1-based step index), optional `artifacts`. Use `assistantText()`. |
 | `agent.thinking` | Reasoning text for the segment just committed. | `text` |
-| `agent.tool` | A tool call changes phase. See [Tool call phases](#tool-call-phases). | `phase`, `toolCallId`, `toolName`; `args` on start; `isError`, `resultPreview`, `executionStarted` on end; `policyId`, `deniedReason` on blocked. |
+| `agent.tool` | A tool call changes phase. See [Tool call phases](#tool-call-phases). | `phase`, `toolCallId`, `toolName`; `args` on start; `isError`, `resultPreview`, `executionStarted`, and for a failed Memory tool `errorCode`, on end; `policyId`, `deniedReason` on blocked. |
 | `agent.item` | Internal loop markers, not conversation. | `kind`: `assistant_segment` (with `phase`, `segment`) or `llm_request` (captured provider request/response). Safe to ignore when rendering a chat. |
 | `agent.plan` | Reserved in the vocabulary. The core loop does not emit it. | - |
 | `agent.approval` | A tool call needs approval, or that approval resolved. | `phase`: `requested` or `resolved`; `approvalId`, `toolCallId`, `toolName`, `arguments`, optional `stake`, `timeoutAt`; on `resolved`, `resolution` plus optional `resolvedBy`, `resolutionChannel`. |

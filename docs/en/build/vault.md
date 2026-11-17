@@ -296,7 +296,7 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 
 | Field | Meaning |
 |---|---|
-| `isolation` | `session` or `shared`. Always send it with Vault fields. If omitted, it is currently recorded as `session`; the service may start rejecting the omission with `400 vault.isolation_required`, and both SDKs already require it. Use `session` when the Agent serves more than one end user; see [What a Session with credentials can use](#what-a-session-with-credentials-can-use). |
+| `isolation` | Required. `session` or `shared`; omitting it returns `400 vault.isolation_required`. Use `session` when the Agent serves more than one end user; see [What a Session with credentials can use](#what-a-session-with-credentials-can-use). |
 | `vault_ids` | 1–8 unique Vault IDs visible to the Agent's organization and Project. |
 | `credential_bindings` | Optional, up to 16 `{ server_name, credential_id }` entries, one per server. Needed only when several credentials in the attached Vaults match the same server. |
 | `external_user_ref` | Optional label of up to 256 characters, returned on the binding for your own reconciliation. It cannot change and grants nothing. |

@@ -2,7 +2,7 @@
 title: Vault（Beta）
 description: "Beta：把每个用户的 MCP 凭据存入 Vault，绑定到该用户的 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: 6a0a8502691ecd62cadf7f75fbde919abbac21ac6ae3871a9d94448b95b71d4e
+source_hash: 55ba199cdd27fe421dc8976e8db75d132099c0a44e871480a82d7635bf58a634
 ---
 
 # Vault（Beta）
@@ -288,7 +288,7 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 
 | 字段 | 含义 |
 |---|---|
-| `isolation` | `session` 或 `shared`。带 Vault 字段时必须发送。省略时目前记录为 `session`；服务端之后可能以 `400 vault.isolation_required` 拒绝这种省略，两个 SDK 都已强制要求传入。Agent 服务多个终端用户时使用 `session`；见[带凭据的 Session 能使用什么](#what-a-session-with-credentials-can-use)。 |
+| `isolation` | 必填。`session` 或 `shared`；省略会返回 `400 vault.isolation_required`。Agent 服务多个终端用户时使用 `session`；见[带凭据的 Session 能使用什么](#what-a-session-with-credentials-can-use)。 |
 | `vault_ids` | 1–8 个唯一的 Vault ID，须对 Agent 所在的组织和 Project 可见。 |
 | `credential_bindings` | 可选，最多 16 个 `{ server_name, credential_id }` 条目，每个 Server 一个。仅当所绑定的 Vault 中有多份 credential 匹配同一个 Server 时才需要。 |
 | `external_user_ref` | 可选，最长 256 个字符的标签，会在 binding 上返回，供你自己对账。它不能更改，也不授予任何权限。 |

@@ -459,13 +459,18 @@ by `user.message`.
 
 | Tool | Input and limits |
 |---|---|
-| `pdf` | Requires `prompt`, and accepts `pdf` or `pdfs`. At most 10 files, 30 MiB per file and 30 MiB total. |
+| `pdf` | Accepts `pdf` or `pdfs`. At most 10 files, 30 MiB per file and 30 MiB total. Requires `prompt`, except with `find`. Optional `pages`, `find`, `mode` (`native` or `text`), `password`, and `maxTokens` (default 16384). |
 | `image` | Accepts `image` or `images`, with an optional `prompt`. At most 20 PNG, JPEG, GIF, or WebP images, 10 MiB per image and 25 MiB total. `maxImages` and `maxBytesMb` can only lower those limits. |
 
-A PDF of at most 10 MiB with neither `pages` nor `password` uses native PDF processing.
-Other cases use `pdftotext`, with at most 512 KiB of extracted text per file. `pages` accepts a
-single page or a continuous range covering at most 20 pages. Text extraction can lose visual
-layout and may not recover scanned content.
+For a long document, call `pdf` with `find` first. It takes literal keywords separated by `|`
+and returns the pages that contain them, without a model call. Then call `pdf` with `pages`, such
+as `"1,3,5-7"`; one call selects at most 50 pages across its PDFs. Without `pages`, the PDFs
+in one call can have at most 50 pages in total when they are sent as PDF.
+
+The tool sends the selected pages to the model as PDF when they total at most 10 MiB. It
+extracts text instead, at most 512 KiB per file, when `mode` is `text`, when `password` is set,
+when the selection is larger than 10 MiB, or when the configured model does not accept PDF
+input. Text extraction can lose visual layout and may not recover scanned content.
 
 The loaders accept `/workspace` paths, data URLs, HTTP(S) URLs, and owned artifact references
 from the current Session. Session messages carry text only, so to give the Agent a local file,

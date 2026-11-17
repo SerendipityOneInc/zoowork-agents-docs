@@ -2,7 +2,7 @@
 title: 错误处理
 description: 处理 ZooworkError、选择安全的重试方式，并正确使用幂等键。
 source: /en/reference/errors
-source_hash: 7d772e0837369c4afeb019304b0c119ff89664302e04797f0c907ae497ab5bb2
+source_hash: 11e52ff1cb781791e10716adbafdc4ccbb57972473d53798ffe42952ffa78430
 ---
 
 # 错误与重试
@@ -100,7 +100,7 @@ if (e instanceof ZooworkError) {
 | `model_not_selectable` | 409 | create 或 update 选择了一个仍保留给已有引用、但不再接受新选择的模型目录条目。 | 重新调用 `listModels()`，选择 `selectable` 不为 `false` 的条目；目录提供 `expired_fallback_to` 时使用它。不要原样重试同一个 alias。 |
 | `not_found` / `service_api.not_found` | 404 | 未知或已删除的 Agent、Session ID，或者资源不在 key 的组织、Project 或 owner 范围内。Agent 路由使用 `service_api.not_found`；Session 和 Schedule 路由可能使用 `not_found`。 | 匹配两种拼写，或按 `status === 404` 处理。404 不能证明资源已删除。保存创建的 ID，并使用对应范围的 key。 |
 | `idempotency_conflict` | 409 | 同一个 `Idempotency-Key` 在 `createAgent()` 上被重放，但带的是**不同的** body。同 key 同 body 是重放，返回第一次的结果。 | 换一个新 key，或者把原来的 body 发过去。key 要从你自己系统里稳定的东西派生。 |
-| `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本、runtime 无法解析的 `tool_policy`。 | 改请求。原样重试会一模一样地失败。 |
+| `invalid_request` | 400 | 格式错误或被拒绝的请求体：读取时缺选择器、skill 版本固定到一个还没 ready 的版本、runtime 无法解析的 `tool_policy`、`tz` 无法识别或表达式无法被调度器解析的 schedule。 | 改请求。原样重试会一模一样地失败。 |
 | *（可能没有 type）* | 404 | `putAgentSkill()` 使用未知 Skill ID，或 Skill 不在 key 的可见范围内。 | 按 `status === 404` 分支，因为这个响应可能省略 `type`。检查 Skill 的可见范围；见 [Skills](../build/skills.md)。 |
 
 ### 更多 400
@@ -203,7 +203,7 @@ Vault 路由返回 `{ "code": "vault.…", "detail": … }`；`type` 保存同�
 | `vault.project_required` | 400 | project Vault 没有显式的 `project_id`。 |
 | `vault.unsupported_purpose` | 400 | credential 的 `purpose` 不是 `mcp`。 |
 | `vault.invalid_vault_request` | 400 | 传了 `credential_bindings`、`external_user_ref` 或 `vault_binding_options`，但没有非空的 `vault_ids`。 |
-| `vault.isolation_required` | 400 | 目前不会返回：带 Vault 字段时，省略的 `isolation` 记录为 `session`。服务端之后可能对这种省略返回该错误码，所以请始终传 `isolation`。 |
+| `vault.isolation_required` | 400 | 带 Vault 字段创建 Session 时没有传 `isolation`。传入 `isolation: "session"` 或 `"shared"`。复用同一个 `Idempotency-Key` 重试时也要传。 |
 | `vault.unsupported_binding_option` | 400 | `allow_delegate` 或 `allow_unattended` 被设为 `true`。 |
 | `invalid_request` | 400 | 带 Vault 字段时：`runtime_mode` 不是 `active`，或传了 `config_version`、`skill_config_version`、`idle_compaction`，或 `vault_binding_options.expires_at` 已过期。 |
 | `vault.binding_denied` | 403 | `credential_bindings` 中的某项指向不是该 Agent 的 Vault Server，或指向所挂载 Vault 之外的 credential，或 URL 不匹配。 |

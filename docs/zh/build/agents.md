@@ -2,7 +2,7 @@
 title: Agents
 description: 创建、更新和管理带版本的 Agent，并设置模型 thinking 档位。
 source: /en/build/agents
-source_hash: f72762f7d4e6ba5c296363c5503e901889e00b3aef11ddad5729a4d56def2b29
+source_hash: b5b41af86246c7210457dac0cbf3e79681fe4b45e25df3b257fa02c349115d3f
 ---
 
 # Agents
@@ -458,6 +458,7 @@ API 页码从 1 开始，每页 100 条。分页不提供快照保证：并发�
 | `sandbox.scope` | `'agent' \| 'session'` | 沙箱 runtime 是在 Agent 的 Sessions 之间共享，还是每个 Session 建一个。默认 `agent`。持久化 workspace 仍属于 Agent。见[云沙箱参考](./cloud-sandbox-reference.md)。 |
 | `mcp` | array | 远程 MCP Server 声明，包括加载方式、运行时 context 和审批策略。见 [MCP Server](./mcp.md)和[权限策略](./permissions.md)。 |
 | `custom_tools` | array | 由你的应用执行的工具；run 等待应用返回结果。见[工具](./tools.md#应用执行的自定义工具)。 |
+| `memory.dreaming.enabled` | boolean | 默认 `true`。设为 `false` 时，runtime 不再在回合之外整理该 Agent 的 Memory。见[在回合之外整理 Memory](./memory.md#consolidate-memory-between-turns)。 |
 
 创建时的 `skills` 会安装 Skills，但创建回执和 `getAgent().declared` 不回显安装关系。
 用 `listAgentSkills(agentId)` 确认。`environment_id` 和 `environment_version` 也可用于创建；

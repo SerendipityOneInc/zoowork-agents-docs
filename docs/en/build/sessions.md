@@ -136,10 +136,8 @@ you choose one for an Agent that serves several users.
 
 A Session can use credentials for the Agent's MCP servers from one or more Vaults. Pass
 `vault_ids` and, when needed, `credential_bindings`, `external_user_ref`, and
-`vault_binding_options` in the create request, together with an explicit `isolation`. With
-Vault fields an omitted `isolation` is currently recorded as `session`, and the service may start
-rejecting the omission with `400 vault.isolation_required`, so always send it; both SDKs already
-require it. These fields require an `Idempotency-Key`, and the receipt adds `project_id`, `vault_ids`, and
+`vault_binding_options` in the create request, together with `isolation`. With Vault fields,
+`isolation` is required: omitting it returns `400 vault.isolation_required`. These fields require an `Idempotency-Key`, and the receipt adds `project_id`, `vault_ids`, and
 `vault_binding`. Vault is in beta; see
 [Vault](./vault.md#start-a-session-with-the-vault).
 

@@ -2,7 +2,7 @@
 title: 每用户一个 Agent
 description: 用隔离的 Session 或每用户独立的 Agent 分隔应用用户，并通过后端授权访问。
 source: /en/build/per-user-agents
-source_hash: 1960a2e6d6251540d07da5d344ef74a8d944c26e894feadf6b1e2761180a5d1f
+source_hash: 105d9fa4c9bf93e583e05fd0c9294b852bf014edf4c221b87cb818513774e3f2
 ---
 
 # 每用户一个 Agent
@@ -14,7 +14,7 @@ source_hash: 1960a2e6d6251540d07da5d344ef74a8d944c26e894feadf6b1e2761180a5d1f
 
 ## Workspace 隔离 {#workspace-isolation}
 
-Session 的 `isolation` 在创建时选定，之后不会改变。不带 Vault 字段时，省略记录为 `shared`。带 [Vault](./vault.md) 字段时，省略的 `isolation` 目前记录为 `session`；这种情况下请显式传入。
+Session 的 `isolation` 在创建时选定，之后不会改变。不带 Vault 字段时，省略记录为 `shared`。带 [Vault](./vault.md) 字段时必须传 `isolation`，省略会返回 `400 vault.isolation_required`。
 
 `shared` 的 Session 只分隔对话历史。同一个 Agent 的所有 `shared` Sessions 使用该 Agent 的 `/workspace`，包括 `sandbox.scope` 为 `session` 的情况，也使用该 Agent `agent` scope 的 Memory。API 消息可以通过 `actor: { ref: 'customer-42' }` 选择记忆归属，省略时归属 owner。Actor 不会授予访问权限、清空已有 transcript 或隔离文件。见[事件](./events.md#user-message)和 [Memory](./memory.md)。
 

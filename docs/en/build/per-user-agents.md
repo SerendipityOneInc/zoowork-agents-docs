@@ -16,8 +16,8 @@ configuration template. Each user's Agent receives its own copy.
 ## Workspace isolation
 
 A Session's `isolation` is chosen when it is created and never changes. Without Vault fields,
-omitting it records `shared`. With [Vault](./vault.md) fields, an omitted `isolation` is
-currently recorded as `session`; send it explicitly in that case.
+omitting it records `shared`. With [Vault](./vault.md) fields, `isolation` is required, and
+omitting it returns `400 vault.isolation_required`.
 
 With `shared`, a Session separates conversation history only. All `shared` Sessions of an Agent
 use the Agent's `/workspace`, including when `sandbox.scope` is `session`, and the Agent's

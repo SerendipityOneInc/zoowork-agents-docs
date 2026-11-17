@@ -2,7 +2,7 @@
 title: 工具
 description: 配置内置工具和由应用执行的工具，并观察调用结果。
 source: /en/build/tools
-source_hash: 01ae8ccb2317d384d12b5c5f15c4fceb7743d3dc6966db7d39379fa3609569b1
+source_hash: 2cad7425883efb3d6fc556180708683e66cf89f79cb015af7db58bd101c292fe
 ---
 
 # 工具
@@ -399,12 +399,12 @@ if call is not None and call.phase == "requested":
 
 | 工具 | 输入与限制 |
 |---|---|
-| `pdf` | 必须提供 `prompt`，接受 `pdf` 或 `pdfs`。最多 10 份文件，单份最多 30 MiB，总计最多 30 MiB。 |
+| `pdf` | 接受 `pdf` 或 `pdfs`。最多 10 份文件，单份最多 30 MiB，总计最多 30 MiB。除使用 `find` 外必须提供 `prompt`。可选 `pages`、`find`、`mode`（`native` 或 `text`）、`password` 和 `maxTokens`（默认 16384）。 |
 | `image` | 接受 `image` 或 `images`，`prompt` 可选。最多 20 张 PNG、JPEG、GIF 或 WebP，单张最多 10 MiB，总计最多 25 MiB。`maxImages` 和 `maxBytesMb` 只能降低这些上限。 |
 
-PDF 不超过 10 MiB，且未指定 `pages` 或 `password` 时，使用 native PDF 处理。
-其他情况使用 `pdftotext`，每份文件最多提取 512 KiB 文字。
-`pages` 接受单页或最多包含 20 页的连续页码范围。文字提取可能丢失视觉布局，也可能无法恢复扫描内容。
+长文档先用 `find` 调用 `pdf`。`find` 接受用 `|` 分隔的字面关键词，返回包含这些关键词的页码，不调用模型。然后用 `pages` 再次调用 `pdf`，例如 `"1,3,5-7"`；一次调用在所有 PDF 中最多选择 50 页。不指定 `pages` 且按 PDF 发送时，一次调用的 PDF 合计最多 50 页。
+
+选中的页合计不超过 10 MiB 时，工具把它们作为 PDF 发给模型。以下情况改为提取文字，每份文件最多 512 KiB：`mode` 为 `text`、设置了 `password`、选中部分超过 10 MiB，或配置的模型不接受 PDF 输入。文字提取可能丢失视觉布局，也可能无法恢复扫描内容。
 
 Loader 接受 `/workspace` 路径、data URL、HTTP(S) URL，以及当前 Session 所有的 artifact reference。
 Session 消息只能携带文本。要把本地文件交给 Agent，先[上传到 `/workspace`](./files.md#send-a-file-to-the-agent)，再在消息中写出路径。

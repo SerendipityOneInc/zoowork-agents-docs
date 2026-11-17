@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 61398b953685f904d63f22d922b2e7be0a4074680fad8f5833d9557c2d9758ca
+source_hash: 04fa4ce7694478cdce346a0d7f6dfdebae7bd3d397b4214976a9e1bf0996c73e
 ---
 
 # Session 事件流
@@ -469,7 +469,7 @@ await client.postEvents(agentId, sessionId, [
 | `phase` | 含义 | 携带 |
 |---|---|---|
 | `start` | 已提出工具调用，策略或审批仍可能阻止执行。 | `args` |
-| `end` | 调用已返回。 | `isError`、`resultPreview`、`executionStarted` |
+| `end` | 调用已返回。 | `isError`、`resultPreview`、`executionStarted`；Memory 工具失败时还有 `errorCode` |
 | `blocked` | 调用在执行前结束，未执行；这是终态，具体原因见 `deniedReason`。 | `policyId`、`deniedReason` |
 
 两条规则：
@@ -593,7 +593,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // the frame's SSE i
 | `agent.lifecycle` | 给回合内的 agent 循环封头封尾。 | `phase`：`start`、`end`。定时触发的 agent 还可能发出 `phase: 'heartbeat-skipped'`，带 `reason`、`scheduleId`、`firedAt`。 |
 | `agent.assistant` | 一个 assistant 消息片段被提交。 | `message`（`{ role, content[] }`）、`segment`（从 1 开始的步骤序号）、可选的 `artifacts`。用 `assistantText()`。 |
 | `agent.thinking` | 刚提交的那个片段对应的推理文本。 | `text` |
-| `agent.tool` | 一次工具调用切换了 phase。见[工具调用的 phase](#tool-call-phases)。 | `phase`、`toolCallId`、`toolName`；start 时有 `args`；end 时有 `isError`、`resultPreview`、`executionStarted`；blocked 时有 `policyId`、`deniedReason`。 |
+| `agent.tool` | 一次工具调用切换了 phase。见[工具调用的 phase](#tool-call-phases)。 | `phase`、`toolCallId`、`toolName`；start 时有 `args`；end 时有 `isError`、`resultPreview`、`executionStarted`，Memory 工具失败时还有 `errorCode`；blocked 时有 `policyId`、`deniedReason`。 |
 | `agent.item` | 内部循环标记，不是对话内容。 | `kind`：`assistant_segment`（带 `phase`、`segment`）或 `llm_request`（抓取到的 provider 请求/响应）。渲染聊天界面时可以安全忽略。 |
 | `agent.plan` | 词表里保留的类型。核心循环不会发出它。 | - |
 | `agent.approval` | 某次工具调用需要审批，或该审批已经有了结果。 | `phase`：`requested`、`resolved`；`approvalId`、`toolCallId`、`toolName`、`arguments`，可选的 `stake`、`timeoutAt`；`resolved` 时还有 `resolution`，以及可选的 `resolvedBy`、`resolutionChannel`。 |

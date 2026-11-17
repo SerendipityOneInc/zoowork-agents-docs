@@ -119,7 +119,7 @@ your catch block.
 | `model_not_selectable` | 409 | A create or update selects a model catalog row that remains visible for existing references but no longer accepts new selection. | Refresh `listModels()`, choose a row whose `selectable` is not `false`, and use `expired_fallback_to` when the catalog supplies one. Do not retry the same alias unchanged. |
 | `not_found` / `service_api.not_found` | 404 | Unknown or deleted Agent or Session ID, or a resource outside the key's organization, Project, or owner scope. The Agent routes use `service_api.not_found`; Session and Schedule routes can use `not_found`. | Match both spellings or use `status === 404`. A 404 does not prove deletion. Keep a record of the IDs you create and use the key for their scope. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
-| `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready, a `tool_policy` the runtime cannot parse. | Fix the request. Retrying unchanged fails identically. |
+| `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready, a `tool_policy` the runtime cannot parse, a schedule with an unknown `tz` or an expression the scheduler cannot parse. | Fix the request. Retrying unchanged fails identically. |
 | *(may be absent)* | 404 | `putAgentSkill()` with an unknown Skill ID or one outside the key's visible scopes. | Branch on `status === 404` because this response may omit `type`. Check the Skill's visibility; see [Skills](../build/skills.md). |
 
 ### More 400s
@@ -246,7 +246,7 @@ which accepts both spellings and returns the dotted code. `code` is set by TypeS
 | `vault.project_required` | 400 | A project Vault without an explicit `project_id`. |
 | `vault.unsupported_purpose` | 400 | A credential `purpose` other than `mcp`. |
 | `vault.invalid_vault_request` | 400 | `credential_bindings`, `external_user_ref`, or `vault_binding_options` without a non-empty `vault_ids`. |
-| `vault.isolation_required` | 400 | Not returned today: with Vault fields, an omitted `isolation` is currently recorded as `session`. The service may start returning this code for the omission, so always send `isolation`. |
+| `vault.isolation_required` | 400 | A Session create with Vault fields omitted `isolation`. Send `isolation: "session"` or `"shared"`. A retry that reuses the `Idempotency-Key` must also send it. |
 | `vault.unsupported_binding_option` | 400 | `allow_delegate` or `allow_unattended` set to `true`. |
 | `invalid_request` | 400 | With Vault fields: a `runtime_mode` other than `active`, `config_version`, `skill_config_version`, `idle_compaction`, or a past `vault_binding_options.expires_at`. |
 | `vault.binding_denied` | 403 | A `credential_bindings` entry names a server that is not a Vault server of the Agent, a credential outside the attached Vaults, or one whose URL does not match. |
