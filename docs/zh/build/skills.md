@@ -2,7 +2,7 @@
 title: Skills
 description: 使用 Project API key 打包、上传、发布版本并挂载 Skill，了解 registry 权限和 SDK 兼容要求。
 source: /en/build/skills
-source_hash: 5cc55726de04f5611b140e910b643006a5c4dcadc01d33a67a21a9f66d0ba5e9
+source_hash: 20eb0fce68a2999765fb51690e5f9dbd769a37eb759a58f859ecf2bce342689a
 ---
 
 # Skills
@@ -47,7 +47,8 @@ curl 示例复用已配置的
 
 每个本地 Skill 单独打包。ZIP 包含非空 `SKILL.md`、YAML frontmatter 中的 `name` 和
 `description`，以及引用的脚本和资源。可以把 `SKILL.md` 放在 ZIP 根目录，或者把所有文件
-放在一个与 frontmatter name 匹配的顶层目录中：
+放在一个与 frontmatter name 匹配的顶层目录中。条目路径必须用 `/`；路径含反斜杠会返回
+`400 invalid_zip`，某些 Windows 工具打出的包会遇到这个问题：
 
 ```text
 slide-layout/

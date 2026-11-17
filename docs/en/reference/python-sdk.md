@@ -1635,7 +1635,7 @@ are plain `dict`s and keep unknown fields.
 | `create_vault` | `vault` is `{"scope": "org", "name", "metadata"?}` or `{"scope": "project", "project_id", "name", "metadata"?}`. A named Project key creates project Vaults for its own `proj_…` ID; a Default Project key creates org Vaults. |
 | `list_vaults` | The Vaults of your key's scope. Pass `next_cursor` back while `has_more` is true. |
 | `archive_vault` / `archive_vault_credential` | Stops new use. Sessions that use it are refused at their next MCP call. Cannot be undone. |
-| `delete_vault` / `delete_vault_credential` | A retry that raises `404 vault.not_found` already succeeded. |
+| `delete_vault` / `delete_vault_credential` | Returns `None` on `204`, and again on a retry. Later reads raise `404 vault.not_found`. |
 | `update_vault_credential` | Renames, rotates the secret, or both. `auth` is `{"headers": …}` or `{"access_token", "expires_at"?, "refresh_owner"?, "refresh"?}`; send `expires_at` when rotating an `mcp_oauth` token. |
 | `get_vault_credential` | Includes `health`; read it with `vault_credential_health_state()`. |
 | `revoke_session_vault_binding` | `revision` is `vault_binding["revision"]` from `create_session()`. Its `404 service_api.not_found` can also mean an unknown Agent or Session, so it raises a plain `ZooworkError` rather than `VaultBetaUnavailableError`. |
@@ -1694,6 +1694,7 @@ async def list_agent_webhook_deliveries(
     status: Literal["pending", "in_flight", "succeeded", "dead", "cancelled"] | None = None,
     event_type: str | None = None,
     event_id: str | None = None,
+    receipt_id: str | None = None,
     session_id: str | None = None,
     run_id: str | None = None,
     schedule_id: str | None = None,
@@ -1720,9 +1721,9 @@ created = await client.create_agent_webhook(
 )
 # Save created["signing_secret"] securely when present; an idempotent replay may return None.
 webhook_id = created["endpoint"]["id"]
-await client.test_agent_webhook(agent_id, webhook_id, idempotency_key="test-hook-v1")
+receipt = await client.test_agent_webhook(agent_id, webhook_id, idempotency_key="test-hook-v1")
 deliveries = await client.list_agent_webhook_deliveries(
-    agent_id, webhook_id, event_type="webhook.test"
+    agent_id, webhook_id, receipt_id=receipt["receipt_id"]
 )
 ```
 

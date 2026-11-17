@@ -77,6 +77,7 @@ until `status` is no longer `pending`.
 | `group_policy` | Group messages for Feishu and WeCom: `open` (default), `allowlist`, or `disabled`. WeChat always uses `disabled`. |
 | `brand` | Feishu only: `feishu` (default) or `lark`. It must match the workspace that approves the scan. |
 | `permission_admin_enabled` | Feishu only: enable document-permission administration. Defaults to `false`. |
+| `allow_from`, `group_allow_from`, `require_mention`, `topic_followup` | Who can reach the Agent and when it answers in groups, where the platform supports them. See [Connect with app credentials](#connect-with-app-credentials). |
 
 A poll reports `pending`, `success`, `expired`, `denied` (Feishu only), or `error`.
 `waitForChannelSetup` / `wait_for_channel_setup` return the first status other than `pending`
@@ -139,7 +140,17 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/channels" \
 | `dm_policy` | Direct messages: `open` (default), `allowlist` with `allow_from`, or `disabled`. DingTalk accepts `open` or `allowlist`. |
 | `allow_from` | Sender IDs allowed to send direct messages when `dm_policy` is `allowlist`. DingTalk requires explicit IDs; `*` is rejected. |
 | `group_policy` | Group messages: `open` (default), `allowlist`, or `disabled`. |
+| `group_allow_from` | Group IDs the Agent answers in when `group_policy` is `allowlist`. |
+| `require_mention` | Whether a group message needs an @mention of the Agent. |
+| `topic_followup` | Feishu, when `supports_topic_followup` is true. `auto` answers follow-ups in a topic the Agent already joined without a new @mention; `require_mention` needs one. Set at creation, it also gives each group topic its own Session. |
 | `permission_admin_enabled` | Feishu only. Defaults to `false`. |
+
+Platforms support different settings. The connection's `interaction_settings` reports
+`supports_group_allowlist`, `supports_mention`, and `supports_topic_followup`; a setting the
+platform does not support returns `400 channel.unsupported_setting`. For example, Slack has no
+group allowlist and WeCom has no `require_mention`. Lists hold at most 500 IDs. With an
+`allowlist` policy they must be explicit IDs, so `*` is rejected. A new Feishu connection replies inside the originating topic; to reply in the main
+chat instead, add `"replyInThread": "disabled"` to `config`.
 
 The response answers `201` once the connection is stored. Credentials are checked when the
 connection starts, not when it is stored: wrong credentials show up as `health: unhealthy` on
@@ -176,15 +187,20 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/channels" \
 | `enabled` | Whether the connection is switched on. |
 | `health` | `unknown`, `healthy`, `degraded`, or `unhealthy`. Read connection health here. |
 | `status` | Connection state, such as `configured`, `running`, `disabled`, or `error`. |
+| `channel_id` | Stable ID of the connection. |
+| `interaction_settings` | The saved `allow_from`, `group_allow_from`, `require_mention`, and `topic_followup`, with `config_version` and `apply_state` (`pending` until the platform applies them). |
 
 The Agent's `status.actual_state` and `status.channels` do not report channel health; see
 [Agent lifecycle](./agents.md#agent-lifecycle).
 
 ## Change or remove a connection
 
-`updateChannel` / `update_channel` changes `enabled`, `dm_policy`, and `group_policy`, and
-returns the connection in its new state. It does not change credentials. Updating a platform
-with no connection returns `404 channel.not_found`.
+`updateChannel` / `update_channel` changes `enabled`, `dm_policy`, `group_policy`, `allow_from`,
+`group_allow_from`, `require_mention`, and `topic_followup`, and returns the connection in its
+new state. Omit a field to keep it; `null` returns `400 service_api.invalid_body`. Pass
+`expected_config_version` from `interaction_settings.config_version`; if the settings changed
+since you read them, the write returns `409 channel.settings_conflict`. Update does not change credentials. Updating a platform with no connection returns
+`404 channel.not_found`.
 
 `removeChannel` / `remove_channel` removes the platform's connection. Removing a connection
 that does not exist also succeeds. Deleting an Agent removes all of its connections.
@@ -224,6 +240,8 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/channels/weixin/remove" \
 | `409 channel.conflict` | The Agent already has this platform, or the credentials differ from the stored ones. Remove the connection first. |
 | `409 channel.{platform}_setup_in_progress` | A scan was confirmed and the connection is being saved. Keep polling. |
 | `429` | Too many setup requests. Wait a few seconds before retrying. |
+| `400 channel.unsupported_setting` | The platform does not support that interaction setting. Check `interaction_settings.supports_*` first. |
+| `409 channel.settings_conflict` | The settings changed after you read `config_version`. Read the connection again, then retry with the new version. |
 
 The full list of channel error codes is in [Errors](../reference/errors.md#channel-errors).
 

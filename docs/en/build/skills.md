@@ -47,7 +47,9 @@ an async function. The curl examples reuse your configured
 
 Package each local Skill separately. Include a nonempty `SKILL.md` with YAML `name` and
 `description`, plus the scripts and resources it references. Either place `SKILL.md` at the
-ZIP root, or put everything in one top-level directory matching the frontmatter name:
+ZIP root, or put everything in one top-level directory matching the frontmatter name. Entry paths
+must use `/`; a path containing a backslash returns `400 invalid_zip`, which catches archives some
+Windows tools build:
 
 ```text
 slide-layout/

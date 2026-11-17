@@ -2,7 +2,7 @@
 title: Webhooks
 description: 注册 webhook receiver，验证签名事件，检查并重试投递。
 source: /en/build/webhooks
-source_hash: 9137a22e4705c935b1866359ad0f82673f89f1e8d7b7829e219c8927c5f37b1c
+source_hash: c0c4fbafae3f3e8c67165b3a25039d519a99a79b7dbcb7be6dc7b58e9af64103
 ---
 
 # 订阅 Webhooks
@@ -233,7 +233,9 @@ curl -X POST "$ZOOWORK_BASE_URL/agents/$AGENT_ID/webhooks/$WEBHOOK_ID/update" \
 
 ## API key scope
 
-示例使用 Agent-scoped path，并要求有该 Agent 的访问权限。Key 的设置和资源范围见[认证](../get-started/authentication.md)。调用方传入的 organization、owner、project query 不会扩大 key 权限。
+示例使用 Agent-scoped path，并要求有该 Agent 的访问权限。Key 的设置和资源范围见[认证](../get-started/authentication.md)。在 Platform 控制台中，Webhooks 页面管理当前 Project 的 webhook，包括测试投递、投递记录和重新投递。
+
+调用方传入的 organization、owner、project query 不会扩大 key 权限。
 
 ## SDK 调用
 
@@ -245,7 +247,7 @@ const created = await client.createAgentWebhook(agentId, {
 }, 'register-hook-v1')
 const page = await client.listAgentWebhooks(agentId) // page.webhooks
 const receipt = await client.testAgentWebhook(agentId, created.endpoint.id, 'test-hook-v1')
-const deliveries = await client.listAgentWebhookDeliveries(agentId, created.endpoint.id, { eventType: 'webhook.test' })
+const deliveries = await client.listAgentWebhookDeliveries(agentId, created.endpoint.id, { receiptId: receipt.receipt_id })
 ```
 
 ```python [Python]
@@ -255,7 +257,7 @@ created = await client.create_agent_webhook(
 )
 page = await client.list_agent_webhooks(agent_id)  # page["webhooks"]
 receipt = await client.test_agent_webhook(agent_id, created["endpoint"]["id"], idempotency_key="test-hook-v1")
-deliveries = await client.list_agent_webhook_deliveries(agent_id, created["endpoint"]["id"], event_type="webhook.test")
+deliveries = await client.list_agent_webhook_deliveries(agent_id, created["endpoint"]["id"], receipt_id=receipt["receipt_id"])
 ```
 
 :::

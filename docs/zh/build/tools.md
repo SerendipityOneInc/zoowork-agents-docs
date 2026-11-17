@@ -2,7 +2,7 @@
 title: 工具
 description: 配置内置工具和由应用执行的工具，并观察调用结果。
 source: /en/build/tools
-source_hash: 2cad7425883efb3d6fc556180708683e66cf89f79cb015af7db58bd101c292fe
+source_hash: 7834bfb7fe0fc7c2ed268ae793094733272d58e117e8540f94ef3f320283ef96
 ---
 
 # 工具
@@ -20,6 +20,8 @@ ZooWork 通过托管 runtime 执行内置工具。Custom tool 由应用执行并
 | 工具 | Agent 可以做什么 | 边界 |
 |---|---|---|
 | `read` | 读取沙箱中的文件。 | 相对路径从 `/workspace` 解析。 |
+| `glob` | 按 glob 模式查找沙箱文件。 | 只读。`tool_policy.deny` 匹配到 `read` 时一起隐藏；写了显式 `allow` 列表时要列上它。 |
+| `grep` | 按正则或固定字符串搜索沙箱中的文本文件。 | 只读。和 `glob` 一样受 `read` 规则约束。 |
 | `write` | 新建或覆盖沙箱中的文件。 | 只能写入声明的可写目录。 |
 | `edit` | 修改已有文件中的文字。 | 同样受可写目录限制。 |
 | `apply_patch` | 对沙箱文件应用 patch。 | 同样受可写目录限制。 |

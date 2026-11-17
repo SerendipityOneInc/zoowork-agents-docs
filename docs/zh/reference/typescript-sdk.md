@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 3607f9673b422f03d0508d55fe63112be87d16c97cdf1fac477cc5277ae6c83e
+source_hash: d440d57036829f545a9765aa91b4c8172a1f52dc9a7e5ed78ec3e25cc43c47c1
 ---
 
 # TypeScript SDK 参考
@@ -130,7 +130,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | 创建一个 agent。返回的是**扁平的创建回执** ，不是读取投影。返回的 agent 处于停止状态。 |
 | `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | 列出 key 的组织、Project 和 owner 范围内的 Agent，按 ID 访问也检查同样的范围。`opts.labels` 按 declared labels 筛选，`opts.page` 从 1 开始，每页 100 条。 |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | 读取一个 agent。返回的是**投影** ：配置在 `declared` 下，版本号在 `status.config_version`。 |
-| `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUT 你点名的 declared section，按 section 合并。每次调用都会 bump `config_version`。 |
+| `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUT 你点名的 declared section，按 section 合并。每次配置写入都会 bump `config_version`，值相同也一样；只改 ownership 的写入不会。 |
 | `deleteAgent(agentId)` | `Promise<void>` | 软删除该 agent。不会停止它。 |
 | `startAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `running`。任何 session 调用之前都必须先做这一步。 |
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `stopped`。 |
@@ -1505,7 +1505,7 @@ getVaultOffboarding(offboardingId: string): Promise<VaultOffboarding>
 | `listVaults` | key 的 scope 内的 Vault。选项：`cursor`、`limit`（1–100）、`status`（`active` 或 `archived`）、`scope`。 |
 | `updateVault` | 修改 `name`、`metadata` 或两者。保持不变的字段省略即可；不要发送 `null`。 |
 | `archiveVault` / `archiveVaultCredential` | 停止新的使用。正在使用它的 Session 会在下一次 MCP 调用时被拒绝。不可撤销。 |
-| `deleteVault` / `deleteVaultCredential` | `204`。重试时返回 `404 vault.not_found` 说明已经成功。 |
+| `deleteVault` / `deleteVaultCredential` | `204`，重试时仍返回 `204`。之后读取返回 `404 vault.not_found`。 |
 | `createVaultCredential` | `201`。`auth` 是 `static_bearer`、`static_headers` 之一，或 `refresh_owner: 'external'` 或 `'engine'`（带 `refresh`）的 `mcp_oauth`。 |
 | `updateVaultCredential` | 重命名、轮换 secret，或两者兼有。`auth` 是 `{ headers }` 或 `{ access_token, expires_at?, refresh_owner?, refresh? }`；轮换 `mcp_oauth` token 时要发送 `expires_at`。 |
 | `getVaultCredential` | 包含 `health`；用 `vaultCredentialHealthState` 读取。 |
@@ -1842,4 +1842,4 @@ SDK 中的数据库 viewer 方法在 production 当前不可用，因此不列�
   redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
 ```
 
-响应保留未知字段。`AgentWebhookPage.webhooks` 是 endpoint 列表。action page 保留分页，原有数组方法保持返回类型。MCP tool override 接受 `requireConfirmation?: boolean`。
+响应保留未知字段。`AgentWebhookPage.webhooks` 是 endpoint 列表。`WebhookDeliveryOptions.receiptId` 传入 `testAgentWebhook` 返回的 `receipt_id`，只返回这次测试的投递。action page 保留分页，原有数组方法保持返回类型。MCP tool override 接受 `requireConfirmation?: boolean`。

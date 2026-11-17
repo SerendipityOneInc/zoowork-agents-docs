@@ -73,7 +73,7 @@ run in your backend or in a service you connect.
 
 | Capability | Tools or mechanism | Guide |
 |---|---|---|
-| Sandbox files and commands | `read`, `write`, `edit`, `apply_patch`, `exec`, `process` | [Tools](../build/tools.md), [Cloud sandbox reference](../build/cloud-sandbox-reference.md) |
+| Sandbox files and commands | `read`, `glob`, `grep`, `write`, `edit`, `apply_patch`, `exec`, `process` | [Tools](../build/tools.md), [Cloud sandbox reference](../build/cloud-sandbox-reference.md) |
 | Web search and fetch | `web_fetch`, `web_search`, `web_image_search` | [Tools](../build/tools.md) |
 | PDFs and images | `pdf`, `image` | [Media tools](../build/tools.md#media-tools) |
 | Output files | `artifact_publish`; upload input files into `/workspace` | [Files and artifacts](../build/files.md) |
