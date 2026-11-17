@@ -241,6 +241,10 @@ The minimal flow uses `agentTurn`. Its additional fields include `model`, `think
 `toolsAllow`, `timeoutSeconds`, and the `outcome` described below. `timeoutSeconds` limits
 execution time; it is not a monetary budget, and `0` removes that timeout override.
 
+If the model ends a scheduled turn without a reply and the turn has nothing else to deliver, such
+as a published Artifact or a `message` tool send, the runtime retries the model call once. A
+second empty reply fails the run instead of announcing nothing.
+
 The management HTTP API also recognizes `systemEvent` and `command` payloads. They are
 different execution modes, not alternate ways to write an `agentTurn` message. Agent-created
 schedules have narrower rules than management requests. Do not apply their limits to every

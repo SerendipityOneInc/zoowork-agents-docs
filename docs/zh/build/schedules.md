@@ -2,7 +2,7 @@
 title: Schedules
 description: 定时运行 Agent、覆盖 thinking 档位、检查执行记录并评价结果。
 source: /en/build/schedules
-source_hash: 1f5ef1de1bea35241dbd5997187ec5a29619a1c2c26e15ee1c4575692e4092f2
+source_hash: e7027f00df7f1cba13f9951e1289c5386b1f2aa68d8c0e7fefc1df3d63a5db69
 ---
 
 # Schedules
@@ -194,6 +194,8 @@ curl -X DELETE "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules/$SCHEDULE_ID" \
 ## Payload 和限制 {#payloads-and-limits}
 
 最小流程使用 `agentTurn`。它的其他字段包括 `model`、`thinking`、`toolsAllow`、`timeoutSeconds` 和下面的 `outcome`。`timeoutSeconds` 限制执行时间，不是金额 budget；`0` 清除这个 timeout override。
+
+如果模型结束一个定时回合时没有回复，而这个回合也没有别的可交付内容（例如已发布的 Artifact 或 `message` 工具发出的消息），runtime 会重试一次模型调用。第二次仍然没有回复时，run 会失败，而不是发出一条空消息。
 
 管理 HTTP API 也识别 `systemEvent` 和 `command` payload。它们是不同执行方式，不是填写 `agentTurn` message 的另两种写法。Agent 自己创建的 schedule 有更窄规则，不能把这些限制套在所有 API 请求上，也不能假设 runtime scheduling tool 与公共 SDK 的选项完全相同。
 

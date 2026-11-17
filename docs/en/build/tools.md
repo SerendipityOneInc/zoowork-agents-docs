@@ -21,6 +21,7 @@ be available, and file access and network requests remain subject to their respe
 | `read` | Read a sandbox file. | Relative paths resolve under `/workspace`. |
 | `glob` | Find sandbox files by glob pattern. | Read-only. Hidden when `tool_policy.deny` matches `read`; an explicit `allow` list must name it. |
 | `grep` | Search sandbox text files by regular expression or fixed string. | Read-only. The same `read` rule as `glob` applies. |
+| `session_search` | Search the original text of earlier conversation, including parts compacted out of context. | Read-only. Searches the current Session and the Sessions it started. |
 | `write` | Create or replace a sandbox file. | Writes must stay within declared writable roots. |
 | `edit` | Change text in an existing sandbox file. | The same writable-root limit applies. |
 | `apply_patch` | Apply a patch to sandbox files. | The same writable-root limit applies. |

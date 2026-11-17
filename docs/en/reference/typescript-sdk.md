@@ -1973,4 +1973,22 @@ Use the Agent's `agent_db` tool through a Session; see [Agent Database](../build
   redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
 ```
 
-Responses preserve unknown fields. `AgentWebhookPage.webhooks` contains endpoint rows. `WebhookDeliveryOptions.receiptId` takes the `receipt_id` from `testAgentWebhook` and returns only that test's delivery. Action pages retain pagination; the original array methods retain their return shapes. MCP tool overrides accept `requireConfirmation?: boolean`.
+| Method | Notes |
+|---|---|
+| `getUsage` | Each option is sent as the query parameter of the same name in snake_case. Usage stays within the current key scope. `totals`, each group and each record report spend as `amount`, a USD decimal string; `credits` is deprecated. Keep the returned `snapshot` and `cursor` with the same filters when continuing. See [Usage](./usage.md). |
+| `getBalance` | The Organization balance shared by every Project; needs a Platform key. `available_amount` is a USD decimal string with two places. |
+| `getRunOutput` | One run's output in a Session. Pass a returned cursor back to continue. |
+| `getApproval` / `getCustomToolCall` | One record, terminal as well as pending. |
+| `listApprovalPage` / `listCustomToolCallPage` | One cursor page as the API sends it, with `next_cursor` and `has_more`. Keep the same filters when you pass `next_cursor` back as `cursor`. |
+| `listAgentWebhooks` | Endpoint rows are in `webhooks`. |
+| `createAgentWebhook` | Store a non-null `signing_secret` securely; an idempotent replay can return `null`. |
+| `updateAgentWebhook` / `deleteAgentWebhook` | Sent as `POST .../update` and `POST .../delete`. |
+| `rotateAgentWebhookSecret` | `revoke_previous_after` is `86400` to keep the previous secret for 24 hours, or `0` to revoke it at once. |
+| `testAgentWebhook` | A `202` receipt acknowledges queuing, not delivery. Pass its `receipt_id` as `listAgentWebhookDeliveries(agentId, webhookId, { receiptId })` to read only that test's delivery. |
+| `getAgentWebhookEvent` | One event within the authorized scope; it is not nested under an endpoint. |
+| `redeliverAgentWebhookDelivery` / `redeliverAgentWebhookDeliveries` | Queue another delivery of existing events; they do not rerun the Agent. |
+
+Create, secret rotation, test and redelivery need a stable idempotency key. Responses preserve
+unknown fields. Action pages retain pagination; the original array methods retain their return
+shapes. MCP tool overrides accept `requireConfirmation?: boolean`. See
+[Webhooks](../build/webhooks.md) for the receiver and management flow.
