@@ -325,3 +325,7 @@ remain stable while the record's access version is unchanged.
 For PDFs or images in `/workspace`, including files you
 [uploaded](#send-a-file-to-the-agent), ask the Agent to use its `pdf` or `image` tool. See
 [Media tools](./tools.md#media-tools) for arguments, model requirements, and limits.
+
+In a long Session the model sees only the most recent images from earlier turns: between 20 and
+39 by count, and at most 48 MiB together, always keeping the newest one. Older images reach the
+model as a note that the image was omitted; the Session's transcript still keeps them.

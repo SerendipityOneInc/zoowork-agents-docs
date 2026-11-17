@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 2eece598a938c56bb8d85c02185cfc633c5c99c702a531a100fadef4ce1dd180
+source_hash: 9809e92c3a7ad4f1b571e1007a4eaea36e686ab1c72ea5aae1df020464579dc5
 ---
 
 # Python SDK 参考
@@ -357,6 +357,8 @@ async def create_agent(
 | `idempotency_key` | `str \| None` | 作为 `Idempotency-Key` header 发送。 |
 
 常用的 `resource` key 有 `name`、`model`（`primary`，以及可选的 `thinking`）、`userTimezone`、`include_global_skills`、`skills`、`labels`、`tool_policy`、`mcp`、`custom_tools`、`system_prompt`、`outcome` 和 `memory`。逐字段说明见 [Agents](../build/agents.md)。
+
+每个 `mcp` 条目是一个 mapping，包含 `name` 和 `url`，可选 `transport`（`"streamable-http"` 或 `"sse"`）、`toolFilter`、`exposure`、`context`、`permission`、`tools` 和 `auth`。省略 `exposure` 时为 `"deferred"`：工具在加载前藏在 `tool_search` / `tool_describe` 后面；`"direct"` 在第一次模型请求时就声明它们。`context` 是 `{"meta": bool, "headers": bool}`，默认都为 `False`；它把 Agent 和 Session 的标识传给 server，不是认证。`permission`（`"always_ask"` 或 `"always_allow"`）是 server 级默认值，`tools` 按精确的工具名覆盖它，最多 64 条。要给每个用户单独的凭据，声明 `"auth": {"type": "vault"}`，并在创建 Session 时挂上 Vault。见 [MCP servers](../build/mcp.md) 和 [Vault](../build/vault.md)。
 
 返回**创建回执**：一个扁平 mapping，包含 `agent_id`、顶层的 `config_version`、`ownership` 和 `resolved_skills`，没有 `declared`，也没有 `status`。
 

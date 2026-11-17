@@ -434,6 +434,16 @@ the version resolved at creation; an entry with `name` makes the list the Agent'
 set. See [Choose Skills at creation](../build/skills.md#choose-skills-at-creation). `userTimezone` is a named IANA timezone for
 prompt and message time context; it does not set a schedule's timezone.
 
+Each `mcp` entry is a mapping with `name` and `url`, and optionally `transport`
+(`"streamable-http"` or `"sse"`), `toolFilter`, `exposure`, `context`, `permission`, `tools` and
+`auth`. Omitted `exposure` is `"deferred"`: tools stay behind `tool_search` / `tool_describe`
+until loaded; `"direct"` declares them on the first model request. `context` is
+`{"meta": bool, "headers": bool}`, both `False` by default; it passes Agent and Session
+coordinates to the server and is not authentication. `permission` (`"always_ask"` or
+`"always_allow"`) is the server default, and `tools` overrides it per exact tool name, at most 64
+entries. For per-user credentials, declare `"auth": {"type": "vault"}` and attach a Vault when
+you create the Session. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
+
 ---
 
 ### `list_agents()` and `iter_agents()` {#list-agents}

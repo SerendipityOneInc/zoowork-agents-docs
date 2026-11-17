@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: d440d57036829f545a9765aa91b4c8172a1f52dc9a7e5ed78ec3e25cc43c47c1
+source_hash: 01bf818fc1858761d66f810c8c3f6da5a72d0c5c23c1d0ec2c67479bd4dcec04
 ---
 
 # TypeScript SDK 参考
@@ -1842,4 +1842,19 @@ SDK 中的数据库 viewer 方法在 production 当前不可用，因此不列�
   redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
 ```
 
-响应保留未知字段。`AgentWebhookPage.webhooks` 是 endpoint 列表。`WebhookDeliveryOptions.receiptId` 传入 `testAgentWebhook` 返回的 `receipt_id`，只返回这次测试的投递。action page 保留分页，原有数组方法保持返回类型。MCP tool override 接受 `requireConfirmation?: boolean`。
+| 方法 | 说明 |
+|---|---|
+| `getUsage` | 每个选项按同名的 snake_case query 参数发送。Usage 限于当前 key 的 scope。`totals`、每个 group 和每条 record 都用 `amount` 报告花费，是 USD 小数字符串；`credits` 已弃用。继续查询时，用相同的过滤条件带上返回的 `snapshot` 和 `cursor`。见 [Usage](./usage.md)。 |
+| `getBalance` | 组织内所有 Project 共享的余额，需要 Platform key。`available_amount` 是两位小数的 USD 字符串。 |
+| `getRunOutput` | Session 中一次 run 的输出。把返回的 cursor 传回去继续读取。 |
+| `getApproval` / `getCustomToolCall` | 读取一条记录，已结束和待处理的都可以。 |
+| `listApprovalPage` / `listCustomToolCallPage` | 按 API 原样返回一页 cursor 分页，带 `next_cursor` 和 `has_more`。把 `next_cursor` 作为 `cursor` 传回时保持相同的过滤条件。 |
+| `listAgentWebhooks` | endpoint 列表在 `webhooks` 中。 |
+| `createAgentWebhook` | 安全保存非 null 的 `signing_secret`；幂等重放可能返回 `null`。 |
+| `updateAgentWebhook` / `deleteAgentWebhook` | 以 `POST .../update` 和 `POST .../delete` 发送。 |
+| `rotateAgentWebhookSecret` | `revoke_previous_after` 为 `86400` 时旧 secret 保留 24 小时，为 `0` 时立即撤销。 |
+| `testAgentWebhook` | `202` receipt 只确认入队，不代表投递成功。把它的 `receipt_id` 传给 `listAgentWebhookDeliveries(agentId, webhookId, { receiptId })`，只读取这次测试的投递。 |
+| `getAgentWebhookEvent` | 在授权范围内读取一个事件，它不挂在某个 endpoint 下。 |
+| `redeliverAgentWebhookDelivery` / `redeliverAgentWebhookDeliveries` | 把已有事件重新排入投递队列，不会重新运行 Agent。 |
+
+创建、轮换 secret、测试和重新投递都需要稳定的幂等 key。响应保留未知字段。action page 保留分页，原有数组方法保持返回类型。MCP tool override 接受 `requireConfirmation?: boolean`。完整的接收和管理流程见 [Webhooks](../build/webhooks.md)。
