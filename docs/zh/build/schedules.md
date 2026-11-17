@@ -2,7 +2,7 @@
 title: Schedules
 description: 定时运行 Agent、覆盖 thinking 档位、检查执行记录并评价结果。
 source: /en/build/schedules
-source_hash: 1766af0d6cd72bceeb3e5585d3da8e711f91ca423d07fb6306c5add302769ebc
+source_hash: 1f5ef1de1bea35241dbd5997187ec5a29619a1c2c26e15ee1c4575692e4092f2
 ---
 
 # Schedules
@@ -70,7 +70,7 @@ curl "$ZOOWORK_BASE_URL/agents/$AGENT_ID/schedules" \
 
 ### 编写 cron 表达式 {#write-the-cron-expression}
 
-使用标准的五段式表达式（分钟、小时、日、月、星期），时区写在 `tz` 里。不要在 `expr` 里加 `CRON_TZ=` 或 `TZ=` 前缀，也不要用 `@daily` 这类 macro 或六段式写法。API 会把 `expr` 原样交给调度器，不会拒绝这些写法，所以一个不标准的表达式可能被接受，然后在你没想到的时间触发。保存后用 GET 读回定义，检查 `scheduleSpec`。
+使用标准的五段式表达式（分钟、小时、日、月、星期），时区以 IANA 名称写在 `tz` 里，例如 `Asia/Shanghai` 或 `UTC`。`tz` 无法识别，或调度器无法解析表达式（例如分钟写成 `61`）时，创建和更新返回 `400 invalid_request`，错误消息会说明原因。不要在 `expr` 里加 `CRON_TZ=` 或 `TZ=` 前缀，也不要用 `@daily` 这类 macro 或六段式写法。API 会把 `expr` 原样交给调度器，不会拒绝这些写法，所以一个不标准的表达式可能被接受，然后在你没想到的时间触发。保存后用 GET 读回定义，检查 `scheduleSpec`。
 
 ### 触发重叠时 {#when-firings-overlap}
 

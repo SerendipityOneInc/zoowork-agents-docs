@@ -494,6 +494,7 @@ continuation, and migrating array callers.
 | `sandbox.scope` | `'agent' \| 'session'` | Whether the sandbox runtime is shared across sessions or created per session. Defaults to `agent`. The persisted workspace still belongs to the Agent. See [Cloud sandbox](./cloud-sandbox-reference.md). |
 | `mcp` | array | Remote MCP server declarations, including exposure, runtime context, and approval policies. See [MCP servers](./mcp.md) and [Permission policies](./permissions.md). |
 | `custom_tools` | array | Tools your application executes while the run waits for a result. See [Tools](./tools.md#application-executed-custom-tools). |
+| `memory.dreaming.enabled` | boolean | Defaults to `true`. `false` stops the runtime from consolidating the Agent's Memory between turns. See [Consolidate Memory between turns](./memory.md#consolidate-memory-between-turns). |
 
 `skills` at create time installs Skills, but the create receipt and `getAgent().declared` do
 not echo the assignments. Confirm them with `listAgentSkills(agentId)`.

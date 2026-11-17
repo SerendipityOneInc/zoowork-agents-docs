@@ -82,7 +82,9 @@ see [Errors and retries](../reference/errors.md).
 ### Write the cron expression
 
 Use a standard five-field expression (minute, hour, day of month, month, day of week) and set
-the timezone in `tz`. Do not put a `CRON_TZ=` or `TZ=` prefix in `expr`, and do not use macros
+the timezone in `tz` as an IANA name such as `Asia/Shanghai` or `UTC`. Create and update return
+`400 invalid_request` for an unknown `tz` and for an expression the scheduler cannot parse, such
+as a minute of `61`; the message names the problem. Do not put a `CRON_TZ=` or `TZ=` prefix in `expr`, and do not use macros
 such as `@daily` or a six-field form. The API passes `expr` to the scheduler as written and
 does not reject these forms, so a non-standard expression can be accepted and fire at a time
 you did not intend. Read the saved definition back with GET and check `scheduleSpec`.
