@@ -2,7 +2,7 @@
 title: Vault（Beta）
 description: "Beta：把 MCP Server 的凭据存入 Vault（每个用户自己的，或所有 Session 共用的一份），绑定到 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: 5c62b5c21b88c26050d415100d5fa0eebabb0c5cf526e852875a31cf14be0948
+source_hash: 38ef64796408836fb9068c93bb061852727dcb787bba3118bb702dbc800a7c99
 ---
 
 # Vault（Beta）
@@ -310,7 +310,9 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 没有匹配 credential 的 Server 会使请求以 `409 vault.credential_missing` 失败；
 有多份匹配时，请求以 `409 vault.credential_ambiguous` 失败，直到你在 `credential_bindings` 中指定其一。
 所选 credential 不属于所绑定的 Vault，或与 Server URL 不匹配时，返回 `403 vault.binding_denied`。
-选定的 credential 保持不变：之后加入 Vault 的 credential 不会被已有 Session 使用。
+选定的 credential 在 Session 存续期间保持不变：之后加入 Vault 的 credential 不会被已有 Session 使用。
+轮换已选 credential 的 secret 则不同：已有 Session 在下一次调用时就会使用新的 secret，
+见[轮换并监控 credential](#rotate-and-monitor-a-credential)。
 
 创建响应在通常的 Session 回执上增加以下字段：
 

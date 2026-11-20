@@ -321,8 +321,10 @@ At creation, each Vault server of the Agent gets exactly one credential. A serve
 matching credential fails the request with `409 vault.credential_missing`, and several matches
 fail it with `409 vault.credential_ambiguous` until you name one in `credential_bindings`. A
 selection that does not belong to the attached Vaults or does not match the server URL is
-`403 vault.binding_denied`. The selected credentials stay fixed: a credential added to the
-Vault later is not used by existing Sessions.
+`403 vault.binding_denied`. The selection stays fixed for the life of the Session: a credential
+added to the Vault later is not used by existing Sessions. Rotating the secret of a selected
+credential is different: existing Sessions use the new secret on their next call; see
+[Rotate and monitor a credential](#rotate-and-monitor-a-credential).
 
 The create response adds these fields to the usual Session receipt:
 
