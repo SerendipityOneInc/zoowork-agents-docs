@@ -1,5 +1,5 @@
 ---
-description: "Beta: store each user's MCP credentials in a Vault, attach them to that user's Sessions, and revoke them when the user leaves."
+description: "Beta: store MCP server credentials in a Vault, each user's own or one shared by every Session, attach them to Sessions, and revoke them when a user leaves."
 ---
 
 # Vault (beta)
@@ -19,7 +19,9 @@ credential's literal value from it. It cannot recognize a value the server retur
 encoded form.
 
 Use Vault when one Agent calls the same MCP server on behalf of several users, each with their
-own account. For a service that only your backend can reach, use an
+own account. Use it also when the server needs one credential for every Session, such as an API
+key that belongs to your application; see [How the pieces fit](#how-the-pieces-fit). For a
+service that only your backend can reach, use an
 [application-executed custom tool](./tools.md#application-executed-custom-tools) instead.
 
 Examples reuse the `client` from [Quickstart](../get-started/quickstart.md). Python calls run
@@ -46,6 +48,14 @@ The workflow has four steps:
 A Session uses only the Vaults your application attaches. The model cannot choose, list, or
 change Vaults or credentials. `external_user_ref` and `actor.ref` are labels; they do not grant
 access to anything.
+
+One Vault can also serve every Session. When the server needs one credential for the whole
+deployment, store it once in a Vault, keep that Vault's ID in your configuration, and pass it
+in `vault_ids` each time you create a Session. Rotating the credential then reaches every
+Session on its next call, and archiving or deleting it stops them all. The server receives the
+same credential from every Session and cannot tell your users apart, so expose only tools that
+every user of the Agent may use. If Agents in several Projects need the credential, use an org
+Vault.
 
 ### Scopes and keys
 
@@ -311,8 +321,10 @@ At creation, each Vault server of the Agent gets exactly one credential. A serve
 matching credential fails the request with `409 vault.credential_missing`, and several matches
 fail it with `409 vault.credential_ambiguous` until you name one in `credential_bindings`. A
 selection that does not belong to the attached Vaults or does not match the server URL is
-`403 vault.binding_denied`. The selected credentials stay fixed: a credential added to the
-Vault later is not used by existing Sessions.
+`403 vault.binding_denied`. The selection stays fixed for the life of the Session: a credential
+added to the Vault later is not used by existing Sessions. Rotating the secret of a selected
+credential is different: existing Sessions use the new secret on their next call; see
+[Rotate and monitor a credential](#rotate-and-monitor-a-credential).
 
 The create response adds these fields to the usual Session receipt:
 

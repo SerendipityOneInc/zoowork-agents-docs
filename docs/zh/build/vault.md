@@ -1,8 +1,8 @@
 ---
 title: Vault（Beta）
-description: "Beta：把每个用户的 MCP 凭据存入 Vault，绑定到该用户的 Sessions，并在用户离开时撤销。"
+description: "Beta：把 MCP Server 的凭据存入 Vault（每个用户自己的，或所有 Session 共用的一份），绑定到 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: d4887b8f3e280093fc210a744de91dae1a80a5946998c07df97246a8a9ac2105
+source_hash: 38ef64796408836fb9068c93bb061852727dcb787bba3118bb702dbc800a7c99
 ---
 
 # Vault（Beta）
@@ -21,6 +21,8 @@ MCP 结果或错误写入 Session 之前，平台会从中移除凭据的原文�
 如果 Server 以编码后的形式返回该值，平台无法识别。
 
 当同一个 Agent 要代表多个用户调用同一个 MCP Server、且每个用户有各自的账号时，使用 Vault。
+当该 Server 需要所有 Session 共用的一份凭据（例如属于你的应用的 API key）时，也使用 Vault，
+见[工作原理](#how-the-pieces-fit)。
 如果服务只有你的后端能访问，请改用[应用执行的 custom tool](./tools.md#应用执行的自定义工具)。
 
 示例复用[快速开始](../get-started/quickstart.md)中的 `client`。Python 调用在 async 函数内运行。
@@ -45,6 +47,12 @@ MCP 结果或错误写入 Session 之前，平台会从中移除凭据的原文�
 
 Session 只使用你的应用绑定的 Vault。模型不能选择、列出或更改 Vault 或 credential。
 `external_user_ref` 和 `actor.ref` 只是标签，不授予任何访问权限。
+
+一个 Vault 也可以供所有 Session 使用。Server 需要整个部署共用的一份凭据时，把它存进一个
+Vault，在你的配置中保存这个 Vault 的 ID，每次创建 Session 时都在 `vault_ids` 中传入它。
+之后轮换这份凭据，所有 Session 在下一次调用时都会使用新值；归档或删除它，所有 Session 都会停止使用。
+Server 从每个 Session 收到的都是同一份凭据，无法区分你的用户，所以只暴露 Agent 的所有用户都可以使用的工具。
+如果多个 Project 中的 Agent 都需要这份凭据，使用 org Vault。
 
 ### 作用域与 key {#scopes-and-keys}
 
@@ -302,7 +310,9 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 没有匹配 credential 的 Server 会使请求以 `409 vault.credential_missing` 失败；
 有多份匹配时，请求以 `409 vault.credential_ambiguous` 失败，直到你在 `credential_bindings` 中指定其一。
 所选 credential 不属于所绑定的 Vault，或与 Server URL 不匹配时，返回 `403 vault.binding_denied`。
-选定的 credential 保持不变：之后加入 Vault 的 credential 不会被已有 Session 使用。
+选定的 credential 在 Session 存续期间保持不变：之后加入 Vault 的 credential 不会被已有 Session 使用。
+轮换已选 credential 的 secret 则不同：已有 Session 在下一次调用时就会使用新的 secret，
+见[轮换并监控 credential](#rotate-and-monitor-a-credential)。
 
 创建响应在通常的 Session 回执上增加以下字段：
 

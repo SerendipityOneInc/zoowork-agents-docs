@@ -92,15 +92,18 @@ it. A platform approval can stop the request before it reaches you; it does not 
 checks.
 
 Keep service credentials, such as database passwords and third-party API tokens, in your
-backend and use them only inside custom tools. The platform calls a remote MCP server without
-credentials unless the server is declared for [Vault (beta)](../build/vault.md). An MCP server
+backend and use them only inside custom tools. A credential that a remote MCP server needs can
+go in a [Vault (beta)](../build/vault.md) instead: the platform sends it only to that server
+and keeps it out of the sandbox. Without one, the platform calls the server without
+credentials. An MCP server
 that accepts unauthenticated requests accepts them from anyone who can reach it, so do not
 expose private data or write operations through it. The Agent and Session identifiers that
 ZooWork can add to MCP calls are request context, not proof of authorization.
 
 When an MCP server needs each user's own account, store that user's credential in a Vault and
 attach it only to that user's Sessions. Revoke the Sessions or archive the Vault when the user
-leaves.
+leaves. When every Session uses one credential that your application owns, the server cannot
+tell your users apart: expose only tools that every user of the Agent may use.
 
 See [Custom tools](../build/tools.md#application-executed-custom-tools),
 [MCP servers](../build/mcp.md#connection-requirements), and
@@ -202,4 +205,4 @@ See [Review and monitor sessions](./monitor-sessions.md) and
 - [Review and monitor sessions](./monitor-sessions.md): review tool calls and catch problems early.
 - [Permission policies](../build/permissions.md): approvals for tool calls.
 - [An agent per user](../build/per-user-agents.md): isolated Sessions, separate Agents, and backend authorization.
-- [Vault (beta)](../build/vault.md): per-user MCP credentials, revocation, and offboarding.
+- [Vault (beta)](../build/vault.md): MCP credentials per user or shared by every Session, revocation, and offboarding.

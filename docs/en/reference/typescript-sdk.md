@@ -1155,8 +1155,8 @@ interface McpServerDeclaration {
   name: string
   url: string
   transport?: 'streamable-http' | 'sse'
-  // auth?: { type: 'vault' } - accepted through the index signature; see below
   credential?: string
+  auth?: { type: 'vault' } // beta
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
   context?: { meta?: boolean; headers?: boolean }
@@ -1169,10 +1169,10 @@ interface McpServerDeclaration {
 Omitted `exposure` defaults to `deferred`: tools stay behind `tool_search` / `tool_describe`
 until loaded. `direct` declares them on the first model request. There is no `auto` value, and
 a loaded deferred tool remains available on later turns in the same Session. Public API keys
-cannot populate `credential`. To give each user's Sessions their own credentials, declare
-`auth: { type: 'vault' }` and attach a Vault when you create the Session (beta); the declaration
-type accepts the field through its index signature. Otherwise use public, unauthenticated MCP
-servers. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
+cannot populate `credential`. A server that needs a credential declares
+`auth: { type: 'vault' }` and gets it from the Vault you attach when you create each Session
+(beta): each user's own Vault, or one Vault that every Session shares. Otherwise the server must
+accept unauthenticated requests. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
 
 Both context switches default to `false`. `meta` adds
 `_meta["ai.zooclaw/context"]` and `headers` adds `x-zooclaw-*` headers during tool execution;
