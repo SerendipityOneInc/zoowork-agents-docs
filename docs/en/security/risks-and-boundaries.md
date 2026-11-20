@@ -127,9 +127,9 @@ A secret can leak from any place that the Agent, the event log, or your own logs
 - **In the Agent owner's accounts:** the sandbox can act with the Agent owner's credentials in
   every Session, isolated or not. See [Owner credentials are not isolated](../build/vault.md#owner-credentials).
 
-Keep service credentials in your backend and use them inside custom tools, or store per-user
-MCP credentials in a [Vault](../build/vault.md) (beta), which keeps them out of the sandbox and
-API responses. Return only the data the task needs from a custom tool, never the credential
+Keep service credentials in your backend and use them inside custom tools, or store MCP
+credentials, each user's own or one shared by every Session, in a [Vault](../build/vault.md)
+(beta), which keeps them out of the sandbox and API responses. Return only the data the task needs from a custom tool, never the credential
 itself. The Platform API key,
 the webhook signing secret, and Artifact download URLs are credentials as well: keep them in
 secret storage and out of logs. Revoke or rotate them when they may have been exposed. See

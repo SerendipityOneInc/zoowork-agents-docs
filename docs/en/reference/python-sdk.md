@@ -441,8 +441,9 @@ until loaded; `"direct"` declares them on the first model request. `context` is
 `{"meta": bool, "headers": bool}`, both `False` by default; it passes Agent and Session
 coordinates to the server and is not authentication. `permission` (`"always_ask"` or
 `"always_allow"`) is the server default, and `tools` overrides it per exact tool name, at most 64
-entries. For per-user credentials, declare `"auth": {"type": "vault"}` and attach a Vault when
-you create the Session. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
+entries. A server that needs a credential declares `"auth": {"type": "vault"}` and gets it from
+the Vault you attach when you create each Session (beta): each user's own Vault, or one Vault
+that every Session shares. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
 
 ---
 

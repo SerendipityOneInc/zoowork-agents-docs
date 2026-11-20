@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 01bf818fc1858761d66f810c8c3f6da5a72d0c5c23c1d0ec2c67479bd4dcec04
+source_hash: d6d39deff55cc2e793428be43d7948da107477eef2486cfdd3391e98c2b6a57d
 ---
 
 # TypeScript SDK 参考
@@ -1086,8 +1086,8 @@ interface McpServerDeclaration {
   name: string
   url: string
   transport?: 'streamable-http' | 'sse'
-  // auth?: { type: 'vault' } - accepted through the index signature; see below
   credential?: string
+  auth?: { type: 'vault' } // beta
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
   context?: { meta?: boolean; headers?: boolean }
@@ -1097,7 +1097,7 @@ interface McpServerDeclaration {
 }
 ```
 
-省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 无法写入 `credential`。要让每个用户的 Session 使用各自的 credential，声明 `auth: { type: 'vault' }`，并在创建 Session 时挂载 Vault（beta）；声明类型通过索引签名接受该字段。否则请使用公开、免鉴权的 MCP Server。见 [MCP Server](../build/mcp.md) 和 [Vault](../build/vault.md)。
+省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 无法写入 `credential`。需要 credential 的 Server 声明 `auth: { type: 'vault' }`，从每次创建 Session 时挂载的 Vault 获取 credential（beta）：可以是每个用户自己的 Vault，也可以是所有 Session 共用的一个 Vault。否则该 Server 必须接受免鉴权请求。见 [MCP Server](../build/mcp.md) 和 [Vault](../build/vault.md)。
 
 两个 context 开关都默认是 `false`。`meta` 在工具执行时添加 `_meta["ai.zooclaw/context"]`，`headers` 添加 `x-zooclaw-*` header；目录发现阶段两者都不带。context 包含 agent/session/computer 标识和可选 run/turn/config/actor 字段。它是上下文，不是鉴权凭据。
 

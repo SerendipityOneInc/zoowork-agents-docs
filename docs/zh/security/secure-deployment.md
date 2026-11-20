@@ -2,7 +2,7 @@
 title: 保护你的部署
 description: 面向真实用户上线前，按优先级检查 API key、终端用户访问、数据隔离、工具、审批、webhook 和用量。
 source: /en/security/secure-deployment
-source_hash: 31e77d018d77b8b9e45df392e149d5109472477ac14c03c3eeabce40d192ecf3
+source_hash: 2fc22d9e9a35871a5c045d21aa9d132b32d4d9f3f6a0aefb7f0ecaac0cbf7e59
 ---
 
 # 保护你的部署
@@ -77,12 +77,13 @@ Agent 调用应用执行的 custom tool 时，实际操作由你的后端执行�
 平台审批可以在请求到达你之前拦下它，但不能代替这些检查。
 
 服务凭据（例如数据库密码和第三方 API token）保存在后端，只在 custom tool 内部使用。
-除非该 Server 声明使用 [Vault（beta）](../build/vault.md)，平台调用远程 MCP Server 时不附带 credential。
+远程 MCP Server 需要的 credential 也可以改存到 [Vault（beta）](../build/vault.md)：平台只把它发给该 Server，
+也不会放进 sandbox。没有 Vault 时，平台调用该 Server 不附带 credential。
 一个接受无认证请求的 MCP Server，对任何能访问到它的人都同样接受请求，
 所以不要通过它暴露私有数据或写操作。ZooWork 可以附加到 MCP 调用上的 Agent 和 Session 标识
 只是请求上下文，不能证明调用方已获授权。
 
-当 MCP Server 需要每个用户自己的账号时，把该用户的 credential 存进 Vault，并且只挂载到该用户的 Session。用户离开时，revoke 这些 Session 或归档该 Vault。
+当 MCP Server 需要每个用户自己的账号时，把该用户的 credential 存进 Vault，并且只挂载到该用户的 Session。用户离开时，revoke 这些 Session 或归档该 Vault。所有 Session 共用你的应用持有的一份 credential 时，该 Server 无法区分你的用户：只暴露 Agent 的所有用户都可以使用的工具。
 
 见 [Custom tool](../build/tools.md#应用执行的自定义工具)、
 [MCP Server](../build/mcp.md#连接要求)和
@@ -172,4 +173,4 @@ presigned URL 可能在过期或存储对象被移除之前一直可用。
 - [审查与监控 Session](./monitor-sessions.md)：审查工具调用，尽早发现问题。
 - [权限策略](../build/permissions.md)：为工具调用设置审批。
 - [每用户一个 Agent](../build/per-user-agents.md)：隔离的 Session、独立 Agent 与后端授权。
-- [Vault（beta）](../build/vault.md)：每用户 MCP credential、撤销与离职处理。
+- [Vault（beta）](../build/vault.md)：每用户或所有 Session 共用的 MCP credential、撤销与离职处理。
