@@ -443,10 +443,20 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
 }
 
 function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
+  const english = base === '/en'
   return [
-    { text: t.getStarted, link: `${base}/get-started/overview` },
-    { text: t.build, link: `${base}/build/agents` },
-    { text: t.reference, link: `${base}/reference/typescript-sdk` },
+    {
+      text: t.getStarted, link: `${base}/get-started/overview`,
+      activeMatch: english ? '^/en/get-started/(?!authentication$)' : undefined,
+    },
+    {
+      text: t.build, link: `${base}/build/agents`,
+      activeMatch: english ? '^/en/(build|security)/' : undefined,
+    },
+    {
+      text: t.reference, link: `${base}/reference/typescript-sdk`,
+      activeMatch: english ? '^/en/(reference/|get-started/authentication$)' : undefined,
+    },
   ]
 }
 
