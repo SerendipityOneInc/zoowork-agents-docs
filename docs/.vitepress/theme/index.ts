@@ -7,6 +7,7 @@ import AgentPrompt from './components/AgentPrompt.vue'
 import LinkCards from './components/LinkCards.vue'
 import DocsLayout from './components/DocsLayout.vue'
 import './custom.css'
+import './english-docs.css'
 
 export default {
   extends: DefaultTheme,

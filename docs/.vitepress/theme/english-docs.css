@@ -1,0 +1,208 @@
+/* Shared by the English documentation home, guides and API reference. */
+.zc-english-docs {
+  --docs-selected: color-mix(in srgb, var(--zc-link) 10%, var(--zc-paper));
+}
+
+.zc-english-docs .VPNavBarMenuLink:is(:hover, .active),
+.zc-english-docs .VPNavScreenMenuLink:hover {
+  color: var(--zc-link);
+}
+
+.zc-english-docs .VPNavBarMenuLink.active span {
+  box-shadow: inset 0 -2px var(--zc-link);
+}
+
+.zc-english-docs .VPSidebar .group + .group {
+  border-top: 0;
+  padding-top: 20px;
+}
+
+.zc-english-docs .VPSidebarItem.level-0 > .item > .text {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.zc-english-docs .VPSidebarItem.is-link > .item > .link {
+  margin-inline: -8px;
+  padding-inline: 8px;
+  border-radius: var(--zc-radius-sm);
+}
+
+.zc-english-docs .VPSidebarItem.is-link > .item > .link:hover {
+  background: var(--zc-paper);
+}
+
+.zc-english-docs .VPSidebarItem.is-active > .item > .link {
+  background: var(--docs-selected);
+}
+
+.zc-english-docs .VPSidebarItem.is-active > .item > .link > .text,
+.zc-english-docs .VPSidebarItem.is-link > .item > .link:hover > .text {
+  color: var(--zc-link);
+}
+
+.zc-english-docs .VPSidebarItem.level-1.is-active > .item > .indicator,
+.zc-english-docs .VPDocAsideOutline .outline-marker {
+  background: var(--zc-link);
+}
+
+.zc-english-docs .VPDocAsideOutline .outline-link {
+  padding-block: 5px;
+  line-height: 22px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.zc-english-docs .VPDocAsideOutline .outline-link:is(:hover, .active),
+.zc-english-docs .VPDocFooter .pager-link:is(:hover, :focus-visible) .title {
+  color: var(--zc-link);
+}
+
+.zc-english-docs .zc-page-action {
+  height: 34px;
+  padding-inline: 12px;
+}
+
+.zc-english-docs .VPDocFooter .pager-link:is(:hover, :focus-visible) {
+  border-color: var(--zc-link);
+}
+
+.zc-english-docs .vp-doc h1 {
+  color: var(--zc-ink);
+  font: 400 clamp(44px, 5vw, 68px) / 1.08 var(--zc-font-display);
+  letter-spacing: -0.018em;
+  font-synthesis: none;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.zc-english-docs .vp-doc h1 + p {
+  margin: 16px 0 32px;
+  max-width: 57ch;
+  color: var(--zc-ink-2);
+  font-size: clamp(17px, 1.5vw, 20px);
+  line-height: 1.6;
+}
+
+.zc-english-docs .vp-doc h2 {
+  margin-top: clamp(40px, 5vw, 64px);
+  font-size: clamp(26px, 3vw, 34px);
+}
+
+.zc-english-docs .vp-doc h3 {
+  margin-top: 36px;
+  font-size: clamp(20px, 2.2vw, 24px);
+}
+
+.zc-english-docs .vp-doc h2 + h3 {
+  margin-top: 24px;
+}
+
+.zc-english-docs .zc-agent-prompt {
+  border: 0;
+  border-radius: var(--zc-radius-xl);
+  --vp-code-block-bg: var(--zc-surface-subtle);
+}
+
+.zc-english-docs .zc-agent-prompt-header {
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 16px 20px;
+  border: 0;
+  background: var(--docs-selected);
+}
+
+.zc-english-docs .zc-agent-prompt-title {
+  flex: 1 1 160px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.zc-english-docs .zc-prompt-manual {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  font-size: 14px;
+}
+
+.zc-english-docs .zc-agent-prompt :is(.zc-agent-prompt-copy, .zc-agent-prompt-expand) {
+  min-height: 40px;
+  padding-inline: 14px;
+}
+
+:where(.zc-english-docs) .vp-doc table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+:where(.zc-english-docs) .vp-doc table :is(th, td) {
+  padding: 12px 16px;
+  border: 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.zc-english-docs .vp-doc table th {
+  background: var(--zc-surface-subtle);
+  color: var(--zc-ink-2);
+  font-size: 14px;
+}
+
+:where(.zc-english-docs) .vp-doc table tr {
+  border: 0;
+  background: transparent;
+}
+
+:where(.zc-english-docs) .vp-doc table:not([data-stackable]) tbody tr + tr {
+  border-top: 1px solid var(--zc-line);
+}
+
+.zc-english-docs .vp-doc table td:first-child {
+  font-weight: 600;
+}
+
+.zc-english-docs .vp-code-group {
+  --vp-code-tab-active-bar-color: var(--zc-link);
+}
+
+.zc-english-docs .vp-code-group .tabs input:checked + label {
+  color: var(--zc-link);
+  font-weight: 600;
+}
+
+.zc-english-docs .vp-code-group .tabs input:focus-visible + label {
+  outline: 2px solid var(--zc-link);
+  outline-offset: -3px;
+}
+
+.zc-english-docs .zc-link-cards li {
+  padding: 20px;
+  border: 0;
+  background: var(--zc-surface-subtle);
+  box-shadow: none;
+}
+
+.zc-english-docs .zc-link-cards li:is(:hover, :focus-within) {
+  background: color-mix(in srgb, var(--zc-link) 9%, var(--zc-paper));
+}
+
+.zc-english-docs .zc-link-cards li:is(:hover, :focus-within) a {
+  color: var(--zc-link);
+  text-decoration: underline;
+}
+
+@media (max-width: 639px) {
+  .zc-english-docs .zc-agent-prompt-title {
+    flex-basis: 100%;
+  }
+
+  .zc-english-docs .vp-doc table:not([data-stackable]) :is(th, td) {
+    padding: 10px 8px;
+  }
+
+  .zc-english-docs .vp-code-group .tabs,
+  .zc-english-docs .vp-code-group .blocks div[class*='language-'] {
+    margin-inline: 0;
+  }
+}
