@@ -1,5 +1,5 @@
 ---
-description: Configure built-in tools and tools executed by your application, and observe their results.
+description: Configure built-in tools, generate images, video and speech, connect tools executed by your application, and observe their results.
 ---
 
 # Tools
@@ -12,9 +12,12 @@ Examples reuse the client and Agent from [Quickstart](../get-started/quickstart.
 
 ## Basic Agent tools
 
-These names are on the default tool surface for an active Agent with an empty `tool_policy`.
-Visibility does not guarantee a call will succeed: the sandbox backend or web proxy must also
-be available, and file access and network requests remain subject to their respective limits.
+These common tools are on the default tool surface for an active Agent with an empty
+`tool_policy`. This page does not list every tool: the runtime and deployment decide the full
+surface, and [media generation tools](#media-generation-tools) and the tools described on other
+pages are available too. Visibility does not guarantee a call will succeed: the sandbox backend
+or web proxy must also be available, and file access and network requests remain subject to
+their respective limits.
 
 | Tool | What the Agent can do | Boundary |
 |---|---|---|
@@ -38,6 +41,12 @@ remove those web tools from the Agent's tool surface when necessary.
 
 These are Agent tools, not SDK methods to invoke by name. The SDK's separate
 `exec(agentId, args)` runs a command in an agent-scope sandbox outside the Agent's tool loop.
+Use it to prepare or inspect the workspace. The sandbox environment also holds variables the
+platform sets for its own runtime, including model credentials. They are not a supported
+interface: do not read them from your commands or scripts, and do not use them to call models
+or other platform services. Model calls made that way are not recorded in the Agent's runs. To
+generate images, video, or speech, ask the Agent to use the
+[media generation tools](#media-generation-tools).
 
 ## Narrowing the tool set with `tool_policy`
 
@@ -482,6 +491,103 @@ from the current Session. Session messages carry text only, so to give the Agent
 `model.input: ['image']` declares that the primary model reads images itself. That is separate
 from the `image` tool and image generation. `imageModel` and `pdfModel` are not configurable
 fields in the typed `AgentResource`; see [Models](../reference/models.md).
+
+## Media generation tools {#media-generation-tools}
+
+The Agent can generate images, video, and speech with built-in tools. You do not need a custom
+tool or your own model key for this. Ask for the result in the Session message, or describe in
+the persona documents when the Agent should use these tools; the Agent decides when to call them.
+
+| Tool | What it does | Main arguments |
+|---|---|---|
+| `image_generate` | Generate or edit images. Runs in the background. | `prompt`, `model`, `image` or `images` as references for an edit, `size`, `aspectRatio`, `resolution`, `quality`, `outputFormat`, `background`, `count`, `save`. |
+| `video_generate` | Generate one video per call. Runs in the background. | `prompt`, `model`, `mode` (`text_to_video`, `image_to_video`, or `reference_to_video`), `references` (image references with role `first_frame` or `reference`), `durationSeconds`, `aspectRatio`, `resolution`, `generateAudio`, `seed`, `save`. |
+| `tts` | Turn text into speech. Returns when the audio is ready. | `text`, `voice`, `speed`, `instructions` for style and tone. |
+| `tts_voices` | List the voices `tts` can use. | None. |
+
+Available models and parameter ranges differ by deployment and change over time, so do not
+hard-code them. `image_generate` and `video_generate` called with `action: "list"` return the
+current models, modes, parameter ranges, and defaults. Without `model`, the tool uses the
+deployment default. To use a specific model, name it in the message or persona documents, and
+the Agent passes it as `model`. Unsupported parameters are rejected before generation starts.
+A provider's safety rejection is final; do not ask the Agent to retry the same request.
+
+`image_generate` and `video_generate` start a background task and return at once. The result
+comes back to the conversation when the task completes, and the Agent normally waits for it
+before its final reply. With `save` (`directory` under `/workspace`, optional `fileName` and
+`overwrite`), the tool also writes the result into the workspace; set it only when you want the
+file there.
+
+### Download generated files
+
+Each generated file produces an `attachment.created` event. Read `toolName`, `toolCallId`,
+`fileName`, `mimeType`, and `size` from its payload, and treat the other payload fields as
+internal. Do not infer files from the Agent's reply text.
+
+Request a download URL with the event's `id`, then download the file without your API key.
+Treat the URL as a bearer credential. The SDKs do not wrap this route, so call it over HTTP:
+
+::: code-group
+
+```ts [TypeScript]
+import { writeFile } from 'node:fs/promises'
+
+// ZOOWORK_BASE_URL is the Service API base URL from Authentication.
+const events = await client.listAllEvents(agentId, sessionId, { types: ['attachment.created'] })
+for (const ev of events) {
+  if (!ev.id) continue
+  const route = `${process.env.ZOOWORK_BASE_URL}/agents/${agentId}/conversations/${sessionId}/attachments/${ev.id}:0/download`
+  const res = await fetch(route, { headers: { Authorization: `Bearer ${process.env.ZOOWORK_API_KEY}` } })
+  if (!res.ok) throw new Error(`Download URL failed: ${res.status}`)
+  const { url } = (await res.json()) as { url: string }
+  const file = await fetch(url)
+  if (!file.ok) throw new Error(`Download failed: ${file.status}`)
+  await writeFile(String(ev.payload.fileName), Buffer.from(await file.arrayBuffer()))
+}
+```
+
+```python [Python]
+import os
+from pathlib import Path
+import httpx
+
+events = await client.list_all_events(agent_id, session_id, types=["attachment.created"])
+base = os.environ["ZOOWORK_BASE_URL"]  # the Service API base URL from Authentication
+headers = {"Authorization": f"Bearer {os.environ['ZOOWORK_API_KEY']}"}
+async with httpx.AsyncClient(follow_redirects=True) as http:
+    for event in events:
+        if not event.id:
+            continue
+        route = f"{base}/agents/{agent_id}/conversations/{session_id}/attachments/{event.id}:0/download"
+        response = await http.get(route, headers=headers)
+        response.raise_for_status()
+        file = await http.get(response.json()["url"])
+        file.raise_for_status()
+        Path(event.payload["fileName"]).write_bytes(file.content)
+```
+
+```bash [curl]
+EVENT_ID='event-id-from-attachment.created'
+download=$(curl -sS --fail-with-body \
+  "$ZOOWORK_BASE_URL/agents/$AGENT_ID/conversations/$SESSION_ID/attachments/$EVENT_ID:0/download" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY")
+FILE_URL=$(jq -er '.url' <<<"$download")
+curl -L -sS --fail-with-body "$FILE_URL" --output generated-file
+```
+
+:::
+
+The attachment ID is the event `id` followed by `:0`; each `attachment.created` event carries
+one file. The response is `{url}`. In a Session created with `isolation: "session"`, the route
+returns `409 attachment_stream_required`; request `.../attachments/{id}/content` instead, which
+streams the file through the API rather than returning a URL.
+
+A `video_generate` result is also published as an Artifact of the Session. Download a video
+with `listArtifacts` and `downloadArtifact`; see [Files and artifacts](./files.md).
+
+Your own image or speech provider, with your own key, belongs in a
+[custom tool](#application-executed-custom-tools) that your backend executes. Keep that key in
+your backend, not in the sandbox.
 
 ## Observe tool calls
 

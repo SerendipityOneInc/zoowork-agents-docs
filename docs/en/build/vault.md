@@ -392,7 +392,9 @@ Not supported in this beta:
 separate the Agent owner's credentials. In `session` and `shared` Sessions alike, code that the
 model runs in the sandbox, and built-in tools that act as the owner, can still use the owner's
 platform identity, the owner's connected GitHub credentials, the owner's browser sign-in state,
-and the Agent's model-billing keys. Existing Skills keep these credentials.
+and the Agent's model-billing keys. Existing Skills keep these credentials. Sandbox code that
+calls a model with the billing key bypasses the Agent's runs and tool policy, and the usage is
+billed to the owner.
 
 A request from one of your users can therefore lead to actions with the owner's authority. Do
 not describe a Vault Session to your users as isolated from the Agent owner's accounts. Remove

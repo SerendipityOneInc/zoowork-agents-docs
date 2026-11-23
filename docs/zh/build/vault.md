@@ -2,7 +2,7 @@
 title: Vault（Beta）
 description: "Beta：把 MCP Server 的凭据存入 Vault（每个用户自己的，或所有 Session 共用的一份），绑定到 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: 38ef64796408836fb9068c93bb061852727dcb787bba3118bb702dbc800a7c99
+source_hash: 14ccb2f0b8dca7727126475ec4a72769082ecce33158bb46258c27702f7de5c5
 ---
 
 # Vault（Beta）
@@ -374,7 +374,8 @@ binding 的 `profile` 在创建 Session 时确定：
 `isolation: "session"` 在 Session 之间隔离文件、Memory 和 Artifacts，但不隔离 Agent owner 的凭据。
 无论是 `session` 还是 `shared` Session，模型在 sandbox 中运行的代码，以及以 owner 身份行动的内置工具，
 仍然可以使用 owner 的平台身份、owner 已连接的 GitHub 凭据、owner 的浏览器登录状态，
-以及 Agent 的模型计费 key。已有的 Skills 会保留这些凭据。
+以及 Agent 的模型计费 key。已有的 Skills 会保留这些凭据。沙箱代码用这把计费 key 调用模型时，
+会绕过 Agent 的 run 和工具策略，费用记在 owner 名下。
 
 因此，你的某个用户的一次请求，可能导致以 owner 的权限执行操作。
 不要向你的用户宣称 Vault Session 与 Agent owner 的账号是隔离的。
