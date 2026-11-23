@@ -16,6 +16,7 @@ Available features depend on your key's resource scope, enabled tools, and servi
 | Reuse task instructions | [Skills](../build/skills.md) | Assign visible Skills; on supporting deployments, upload and version Skills within the key's registry write scope. |
 | Customize the sandbox | [Environments](../build/environments.md), [Cloud reference](../build/cloud-sandbox-reference.md) | Environment management is not available to Platform keys. |
 | Send, generate, and retrieve files | [Files and artifacts](../build/files.md) | Upload input files into `/workspace`. Ask the Agent to publish an output as an Artifact before downloading. |
+| Generate images, video, and speech | [Media generation tools](../build/tools.md#media-generation-tools) | Built-in tools; no custom tool or model key needed. Available models differ by deployment; the SDKs do not wrap the generated-file download route. |
 | Store structured data | [Agent Database](../build/data-storage.md) | Use the `agent_db` tool through Sessions; the production read-only viewer is unavailable. |
 | Save Agent memory | [Memory](../build/memory.md) | Tools must be enabled and available; no automatic recall on every new turn is promised. |
 | Separate users within one Agent | [An agent per user](../build/per-user-agents.md) | `isolation: "session"` separates workspace, Memory, and Artifacts; it does not separate the Agent Database or the Agent owner's credentials. |

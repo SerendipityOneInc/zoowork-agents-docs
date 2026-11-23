@@ -2,7 +2,7 @@
 title: 工具
 description: 配置内置工具，生成图片、视频和语音，接入由应用执行的工具，并观察调用结果。
 source: /en/build/tools
-source_hash: 1fd64a1c65017f69ce7ba052ac1c7e5245b7218190c9b8272a42d0aaf1a6ffd3
+source_hash: 7bcbc4a91346d44524b4c658db7a9433a23d1f1304dd29aa80c03e24a8d9479f
 ---
 
 # 工具
@@ -438,7 +438,7 @@ Agent 可以用内置工具生成图片、视频和语音，不需要自己写 c
 `image_generate` 和 `video_generate` 启动后台任务后立即返回。任务完成后结果回到对话中，Agent 通常会等到结果再给出最终回复。
 传入 `save`（`/workspace` 下的 `directory`，可选 `fileName` 和 `overwrite`）时，工具还会把结果写入 workspace；只在确实需要文件留在那里时设置。
 
-### 下载生成的文件
+### 下载生成的文件 {#download-generated-files}
 
 每个生成的文件都会产生一个 `attachment.created` 事件。从 payload 中读取 `toolName`、`toolCallId`、
 `fileName`、`mimeType` 和 `size`，其他 payload 字段视为内部字段。不要根据 Agent 的回复文字推断文件。
@@ -450,18 +450,22 @@ SDK 没有封装这个路由，直接用 HTTP 调用：
 
 ```ts [TypeScript]
 import { writeFile } from 'node:fs/promises'
+import { basename } from 'node:path'
+import { DEFAULT_BASE_URL } from '@zoowork-ai/sdk'
 
-// ZOOWORK_BASE_URL 是鉴权页中的 Service API base URL。
+// 使用与 client 相同的 base URL：设置了 ZOOWORK_BASE_URL 就用它，否则用 SDK 默认值。
+const baseUrl = process.env.ZOOWORK_BASE_URL ?? DEFAULT_BASE_URL
 const events = await client.listAllEvents(agentId, sessionId, { types: ['attachment.created'] })
 for (const ev of events) {
   if (!ev.id) continue
-  const route = `${process.env.ZOOWORK_BASE_URL}/agents/${agentId}/conversations/${sessionId}/attachments/${ev.id}:0/download`
+  const route = `${baseUrl}/agents/${agentId}/conversations/${sessionId}/attachments/${ev.id}:0/download`
   const res = await fetch(route, { headers: { Authorization: `Bearer ${process.env.ZOOWORK_API_KEY}` } })
   if (!res.ok) throw new Error(`Download URL failed: ${res.status}`)
   const { url } = (await res.json()) as { url: string }
   const file = await fetch(url)
   if (!file.ok) throw new Error(`Download failed: ${file.status}`)
-  await writeFile(String(ev.payload.fileName), Buffer.from(await file.arrayBuffer()))
+  const name = typeof ev.payload.fileName === 'string' ? basename(ev.payload.fileName) : `${ev.id}.bin`
+  await writeFile(name, Buffer.from(await file.arrayBuffer()))
 }
 ```
 
@@ -469,9 +473,10 @@ for (const ev of events) {
 import os
 from pathlib import Path
 import httpx
+from zoowork import DEFAULT_BASE_URL
 
 events = await client.list_all_events(agent_id, session_id, types=["attachment.created"])
-base = os.environ["ZOOWORK_BASE_URL"]  # 鉴权页中的 Service API base URL
+base = os.environ.get("ZOOWORK_BASE_URL") or DEFAULT_BASE_URL  # 与 client 相同的 base URL
 headers = {"Authorization": f"Bearer {os.environ['ZOOWORK_API_KEY']}"}
 async with httpx.AsyncClient(follow_redirects=True) as http:
     for event in events:
@@ -482,7 +487,8 @@ async with httpx.AsyncClient(follow_redirects=True) as http:
         response.raise_for_status()
         file = await http.get(response.json()["url"])
         file.raise_for_status()
-        Path(event.payload["fileName"]).write_bytes(file.content)
+        name = Path(str(event.payload.get("fileName") or f"{event.id}.bin")).name
+        Path(name).write_bytes(file.content)
 ```
 
 ```bash [curl]

@@ -709,7 +709,7 @@ of 20), plus the five input types under [Your inputs, echoed](#your-inputs-echoe
 
 | Type | Fires | `payload` |
 |---|---|---|
-| `attachment.created` | A tool produced a file or attachment. | `source`, `toolName`, `toolCallId`, `index`, plus the storage reference fields. |
+| `attachment.created` | A tool produced a file or attachment. | `source`, `toolName`, `toolCallId`, `index`, `fileName`, `mimeType`, `size`, plus internal storage reference fields. To download a generated file, see [Download generated files](./tools.md#download-generated-files). |
 | `message.outbound` | The agent sent a proactive message (message tool, schedule announce, or heartbeat) rather than replying in-session. | `source`, `sourceRef`, `delivery`, `text`, `action`, `index`, `computerId`, `agentId`, optional `card`, `artifacts`. |
 
 #### Your inputs, echoed
