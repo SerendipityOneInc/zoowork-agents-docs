@@ -76,6 +76,7 @@ run in your backend or in a service you connect.
 | Sandbox files and commands | `read`, `glob`, `grep`, `write`, `edit`, `apply_patch`, `exec`, `process` | [Tools](../build/tools.md), [Cloud sandbox reference](../build/cloud-sandbox-reference.md) |
 | Web search and fetch | `web_fetch`, `web_search`, `web_image_search` | [Tools](../build/tools.md) |
 | PDFs and images | `pdf`, `image` | [Media tools](../build/tools.md#media-tools) |
+| Image, video, and speech generation | `image_generate`, `video_generate`, `tts`, `tts_voices` | [Media generation tools](../build/tools.md#media-generation-tools) |
 | Output files | `artifact_publish`; upload input files into `/workspace` | [Files and artifacts](../build/files.md) |
 | Durable facts | Memory tools, when enabled | [Agent memory](../build/memory.md) |
 | Structured data | `agent_db` | [Agent Database](../build/data-storage.md) |
