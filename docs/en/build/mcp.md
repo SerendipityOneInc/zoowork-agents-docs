@@ -17,9 +17,14 @@ Examples reuse the client and Agent from [Quickstart](../get-started/quickstart.
 
 ## Connection requirements
 
-Configure a remote HTTP endpoint that is publicly reachable. The public API connects through
-`streamable-http` or SSE. A server declared as shown below receives no credentials, so it must
-accept unauthenticated requests from the platform.
+Use a publicly reachable HTTP endpoint with one of these transports.
+
+- **Streamable HTTP (`streamable-http`, the default).** ZooWork first tries `server/discover` to
+  negotiate MCP `2026-07-28`. For older servers, it can fall back to the `initialize` handshake.
+- **SSE (`sse`).** ZooWork uses the `initialize` handshake.
+
+ZooWork selects the protocol version automatically. A server configured without Vault must
+accept unauthenticated requests from ZooWork.
 
 The URL cannot use loopback, private-network, or cloud-metadata addresses. Redirects are also
 rejected. These checks apply to catalog discovery and tool execution.
@@ -134,6 +139,8 @@ mcp__pricing__quote
 
 Omit `toolFilter` to expose every tool in the catalog. Use it when an Agent needs only part of
 a server, especially when the server may add more tools later.
+
+On MCP `2026-07-28` connections, ZooWork omits tools with invalid `x-mcp-header` declarations.
 
 The Agent's [`tool_policy`](./tools.md#narrowing-the-tool-set-with-tool-policy) can further
 limit the combined tool surface by matching the prefixed name.
