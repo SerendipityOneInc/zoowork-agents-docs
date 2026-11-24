@@ -2,7 +2,7 @@
 lang: zh-CN
 description: 发送 Session 事件、流式读取响应、判断 turn 结束状态并用持久 cursor 续传。
 source: /en/build/events
-source_hash: 04fa4ce7694478cdce346a0d7f6dfdebae7bd3d397b4214976a9e1bf0996c73e
+source_hash: b313a7c31338d384090fbf972193c5e601932213decf76ef5f544657c58e8cad
 ---
 
 # Session 事件流
@@ -607,7 +607,7 @@ const ev = normalizeEvent(JSON.parse(frameData), sseIdLine) // the frame's SSE i
 
 | 类型 | 何时触发 | `payload` |
 |---|---|---|
-| `attachment.created` | 某个工具产出了一个文件或附件。 | `source`、`toolName`、`toolCallId`、`index`，以及存储引用相关的字段。 |
+| `attachment.created` | 某个工具产出了一个文件或附件。 | `source`、`toolName`、`toolCallId`、`index`、`fileName`、`mimeType`、`size`，以及内部的存储引用字段。下载生成的文件见[下载生成的文件](./tools.md#download-generated-files)。 |
 | `message.outbound` | Agent 主动发出了一条消息（message 工具、schedule announce 或 heartbeat），而不是在 session 内回复。 | `source`、`sourceRef`、`delivery`、`text`、`action`、`index`、`computerId`、`agentId`，可选的 `card`、`artifacts`。 |
 
 #### 你自己的输入，回显

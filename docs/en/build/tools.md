@@ -518,7 +518,7 @@ before its final reply. With `save` (`directory` under `/workspace`, optional `f
 `overwrite`), the tool also writes the result into the workspace; set it only when you want the
 file there.
 
-### Download generated files
+### Download generated files {#download-generated-files}
 
 Each generated file produces an `attachment.created` event. Read `toolName`, `toolCallId`,
 `fileName`, `mimeType`, and `size` from its payload, and treat the other payload fields as
@@ -531,18 +531,22 @@ Treat the URL as a bearer credential. The SDKs do not wrap this route, so call i
 
 ```ts [TypeScript]
 import { writeFile } from 'node:fs/promises'
+import { basename } from 'node:path'
+import { DEFAULT_BASE_URL } from '@zoowork-ai/sdk'
 
-// ZOOWORK_BASE_URL is the Service API base URL from Authentication.
+// Use the base URL your client uses: ZOOWORK_BASE_URL when set, otherwise the SDK default.
+const baseUrl = process.env.ZOOWORK_BASE_URL ?? DEFAULT_BASE_URL
 const events = await client.listAllEvents(agentId, sessionId, { types: ['attachment.created'] })
 for (const ev of events) {
   if (!ev.id) continue
-  const route = `${process.env.ZOOWORK_BASE_URL}/agents/${agentId}/conversations/${sessionId}/attachments/${ev.id}:0/download`
+  const route = `${baseUrl}/agents/${agentId}/conversations/${sessionId}/attachments/${ev.id}:0/download`
   const res = await fetch(route, { headers: { Authorization: `Bearer ${process.env.ZOOWORK_API_KEY}` } })
   if (!res.ok) throw new Error(`Download URL failed: ${res.status}`)
   const { url } = (await res.json()) as { url: string }
   const file = await fetch(url)
   if (!file.ok) throw new Error(`Download failed: ${file.status}`)
-  await writeFile(String(ev.payload.fileName), Buffer.from(await file.arrayBuffer()))
+  const name = typeof ev.payload.fileName === 'string' ? basename(ev.payload.fileName) : `${ev.id}.bin`
+  await writeFile(name, Buffer.from(await file.arrayBuffer()))
 }
 ```
 
@@ -550,9 +554,10 @@ for (const ev of events) {
 import os
 from pathlib import Path
 import httpx
+from zoowork import DEFAULT_BASE_URL
 
 events = await client.list_all_events(agent_id, session_id, types=["attachment.created"])
-base = os.environ["ZOOWORK_BASE_URL"]  # the Service API base URL from Authentication
+base = os.environ.get("ZOOWORK_BASE_URL") or DEFAULT_BASE_URL  # the base URL your client uses
 headers = {"Authorization": f"Bearer {os.environ['ZOOWORK_API_KEY']}"}
 async with httpx.AsyncClient(follow_redirects=True) as http:
     for event in events:
@@ -563,7 +568,8 @@ async with httpx.AsyncClient(follow_redirects=True) as http:
         response.raise_for_status()
         file = await http.get(response.json()["url"])
         file.raise_for_status()
-        Path(event.payload["fileName"]).write_bytes(file.content)
+        name = Path(str(event.payload.get("fileName") or f"{event.id}.bin")).name
+        Path(name).write_bytes(file.content)
 ```
 
 ```bash [curl]
