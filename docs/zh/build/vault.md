@@ -2,7 +2,7 @@
 title: Vault（Beta）
 description: "Beta：把 MCP Server 的凭据存入 Vault（每个用户自己的，或所有 Session 共用的一份），绑定到 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: 14ccb2f0b8dca7727126475ec4a72769082ecce33158bb46258c27702f7de5c5
+source_hash: 2bc602c81a9384f0abe1294f39ca2c8c19f2ebddd0cc071606b7a19babd42da3
 ---
 
 # Vault（Beta）
@@ -455,8 +455,11 @@ jq -n --arg token "$NEW_TOKEN" '{auth:{access_token:$token}}' |
 `stage: "resolve"` 和 `error_code: "credential_expired"`，不发出请求。
 校验不会刷新由 ZooWork 刷新的 token。
 
-`valid` 表示 Server 接受了带该 credential 的 MCP `initialize` 请求。校验不会调用工具，所以 Server 仍然可能拒绝之后的工具调用。
-除非 Server 返回了 HTTP 错误状态，否则 `http_status` 为 `null`。
+`valid` 表示 ZooWork 使用存储的 credential 成功连接 Server，并完成 MCP 协议探测。
+响应以 `stage: "initialize"` 表示这个阶段，也适用于
+[MCP `2026-07-28` 连接](./mcp.md#连接要求)使用的 `server/discover` 请求。
+校验不会调用工具，所以 Server 仍然可能拒绝之后的工具调用。
+`http_status` 默认为 `null`，校验报告 Server 的 HTTP 错误时会返回对应状态码。
 
 ### 让 ZooWork 刷新 OAuth token {#managed-refresh}
 

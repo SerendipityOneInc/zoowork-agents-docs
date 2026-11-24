@@ -477,9 +477,11 @@ never returns the provider's response body. A credential already known to be exp
 `stage: "resolve"` and `error_code: "credential_expired"` without a request. Validation does not
 refresh a ZooWork-refreshed token.
 
-`valid` means the server accepted the MCP `initialize` request with the credential. Validation
-does not call a tool, so the server can still refuse a later tool call. `http_status` is `null`
-unless the server answered with an HTTP error status.
+`valid` means ZooWork connected to the server with the stored credential and completed the
+MCP protocol probe. The response uses `stage: "initialize"` for this stage, including when
+the request is `server/discover` on an [MCP `2026-07-28` connection](./mcp.md#connection-requirements).
+Validation does not call a tool, so the server can still refuse a later tool call.
+`http_status` is `null` unless validation reports an HTTP error status from the server.
 
 ### Let ZooWork refresh an OAuth token {#managed-refresh}
 
