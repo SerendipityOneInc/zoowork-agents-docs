@@ -1,7 +1,7 @@
 ---
 description: 安装和配置 ZooWork Go SDK，查找 client 方法，并处理事件、webhook 和 API 错误。
 source: /en/reference/go-sdk
-source_hash: 4500c0a206ee5dc4a862388a4edf4af6add5cf9151dbf03a2bdad1d21b1970d6
+source_hash: e9ad77787dd445fb253cc81225e14771e406d44adeb35837003a09e22fccd357
 ---
 
 # Go SDK 参考
@@ -41,10 +41,14 @@ go get github.com/SerendipityOneInc/zoowork-sdk-go
 | 操作 | 方法 |
 | --- | --- |
 | [配置和启动 Agent](../build/agents.md) | `CreateAgent`、`ListAgents`、`IterAgents`、`IterAgentPages`、`GetAgent`、`UpdateAgent`、`DeleteAgent`、`StartAgent`、`StopAgent`、`WaitUntilRunning`、`GetSystemPrompt`、`PreviewSystemPrompt`、`UpgradeSystemPrompt` |
+| 构建 Agent 并应用修订 | `CreateBuildAgent`、`GetBuild`、`OpenBuildSession`、`GetBuildRun`、`RetryBuildApply`、`PublishBuild` |
+| 分享、安装或更新 Agent | `CreateShareLink`、`ListShareLinks`、`RevokeShareLink`、`PreviewInstall`、`InstallSharedAgent`、`ListInstalledAgents`、`UpdateInstalledAgent`、`GetUpdateStatus` |
+| 查看 Build 保存的修订 | `ListRevisions`、`GetRevisionDiff` |
 | [选择模型](./models.md) | `ListModels` |
 | [连接 Channel](../build/channels.md) | `ListChannels`、`AddChannel`、`UpdateChannel`、`RemoveChannel`、`StartChannelSetup`、`PollChannelSetup`、`CancelChannelSetup`、`WaitForChannelSetup`，以及对应的 `FeishuSetup` 方法 |
 | [发布或添加 Skill](../build/skills.md) | `UploadSkill`、`UploadSkillVersion`、`ListSkills`、`DeleteSkill`、`ListAgentSkills`、`PutAgentSkill`、`DeleteAgentSkill` |
 | [管理 Session](../build/session-operations.md) | `CreateSession`、`GetSession`、`ListSessions`、`ListSessionPage`、`ArchiveSession`、`DeleteSession`、`GetRunOutput` |
+| 读取或修改 Session 的模型与 thinking 档位 | `GetSessionModel`、`UpdateSessionModel` |
 | [发送或读取事件](../build/events.md) | `PostEvents`、`ListEvents`、`ListEventsPage`、`ListAllEvents`、`StreamEvents` |
 | [处理工具调用](../build/tools.md) | `ListApprovals`、`ListApprovalPage`、`GetApproval`、`ResolveApproval`、`ListCustomToolCalls`、`ListCustomToolCallPage`、`GetCustomToolCall`、`ResolveCustomToolCall` |
 | [传输文件和产物](../build/files.md) | `UploadFile`、`ListArtifacts`、`GetArtifact`、`DownloadArtifact`、`DeleteArtifact` |
@@ -56,6 +60,16 @@ go get github.com/SerendipityOneInc/zoowork-sdk-go
 | [管理 webhook](../build/webhooks.md) | `ListAgentWebhooks`、`CreateAgentWebhook`、`GetAgentWebhook`、`UpdateAgentWebhook`、`DeleteAgentWebhook`、`RotateAgentWebhookSecret`、`TestAgentWebhook`、`GetAgentWebhookEvent`、`ListAgentWebhookDeliveries`、`GetAgentWebhookDelivery`、`RedeliverAgentWebhookDelivery`、`RedeliverAgentWebhookDeliveries` |
 
 Platform key 可以调用哪些方法，见[可用性与限制](./capabilities.md)。
+
+构建 Agent 时，从 `CreateBuildAgent` 读取 `build_session_id`，或从 `OpenBuildSession` 读取
+`session_id`。用 `PostEvents` 向该 Session 发送只含文本的 `user.message` 事件。将事件里的
+run ID 传给 `GetBuildRun`，查看修订是否已保存和应用。安装共享 Agent 时先调用 `PreviewInstall`，
+再把返回的 `source_revision_id` 作为预期源修订 ID 传给 `InstallSharedAgent`。
+
+用 `GetSessionModel` 读取 Session 的模型配置。在 `UpdateSessionModel` 中，将返回的
+`selection_version` 和 `config_version` 分别作为 `expected_selection_version` 和
+`expected_config_version` 传入。将 `model_id` 设为 `nil` 会恢复使用 Agent 的模型和 thinking 设置。
+更新从下一回合生效。
 
 ## 事件与 webhook
 

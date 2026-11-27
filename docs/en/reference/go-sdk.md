@@ -43,10 +43,14 @@ Use the linked guides for request and response fields, limits, and availability.
 | Task | Methods |
 | --- | --- |
 | [Configure and start an Agent](../build/agents.md) | `CreateAgent`, `ListAgents`, `IterAgents`, `IterAgentPages`, `GetAgent`, `UpdateAgent`, `DeleteAgent`, `StartAgent`, `StopAgent`, `WaitUntilRunning`, `GetSystemPrompt`, `PreviewSystemPrompt`, `UpgradeSystemPrompt` |
+| Build and apply an Agent | `CreateBuildAgent`, `GetBuild`, `OpenBuildSession`, `GetBuildRun`, `RetryBuildApply`, `PublishBuild` |
+| Share, install, or update an Agent | `CreateShareLink`, `ListShareLinks`, `RevokeShareLink`, `PreviewInstall`, `InstallSharedAgent`, `ListInstalledAgents`, `UpdateInstalledAgent`, `GetUpdateStatus` |
+| Inspect saved Build revisions | `ListRevisions`, `GetRevisionDiff` |
 | [Choose a model](./models.md) | `ListModels` |
 | [Connect a channel](../build/channels.md) | `ListChannels`, `AddChannel`, `UpdateChannel`, `RemoveChannel`, `StartChannelSetup`, `PollChannelSetup`, `CancelChannelSetup`, `WaitForChannelSetup`, and the corresponding `FeishuSetup` helpers |
 | [Publish or attach a Skill](../build/skills.md) | `UploadSkill`, `UploadSkillVersion`, `ListSkills`, `DeleteSkill`, `ListAgentSkills`, `PutAgentSkill`, `DeleteAgentSkill` |
 | [Manage Sessions](../build/session-operations.md) | `CreateSession`, `GetSession`, `ListSessions`, `ListSessionPage`, `ArchiveSession`, `DeleteSession`, `GetRunOutput` |
+| Read or update a Session's model and thinking level | `GetSessionModel`, `UpdateSessionModel` |
 | [Send or read events](../build/events.md) | `PostEvents`, `ListEvents`, `ListEventsPage`, `ListAllEvents`, `StreamEvents` |
 | [Resolve tool activity](../build/tools.md) | `ListApprovals`, `ListApprovalPage`, `GetApproval`, `ResolveApproval`, `ListCustomToolCalls`, `ListCustomToolCallPage`, `GetCustomToolCall`, `ResolveCustomToolCall` |
 | [Transfer files and artifacts](../build/files.md) | `UploadFile`, `ListArtifacts`, `GetArtifact`, `DownloadArtifact`, `DeleteArtifact` |
@@ -58,6 +62,17 @@ Use the linked guides for request and response fields, limits, and availability.
 | [Manage webhooks](../build/webhooks.md) | `ListAgentWebhooks`, `CreateAgentWebhook`, `GetAgentWebhook`, `UpdateAgentWebhook`, `DeleteAgentWebhook`, `RotateAgentWebhookSecret`, `TestAgentWebhook`, `GetAgentWebhookEvent`, `ListAgentWebhookDeliveries`, `GetAgentWebhookDelivery`, `RedeliverAgentWebhookDelivery`, `RedeliverAgentWebhookDeliveries` |
 
 For method availability with a Platform key, see [Availability and limits](./capabilities.md).
+
+For Agent Build, read `build_session_id` from `CreateBuildAgent` or `session_id` from
+`OpenBuildSession`. Use `PostEvents` to send text-only `user.message` events to that Session.
+Use the run ID from its events with `GetBuildRun` to check whether the revision was saved and
+applied. To install a shared Agent, call `PreviewInstall` and pass its `source_revision_id`
+to `InstallSharedAgent` as the expected source revision.
+
+Read the Session's model settings with `GetSessionModel`. Pass its `selection_version` and
+`config_version` to `UpdateSessionModel` as `expected_selection_version` and
+`expected_config_version`. Set `model_id` to `nil` to restore the Agent's model and thinking
+settings. Updates apply to the next turn.
 
 ## Event and webhook helpers
 
