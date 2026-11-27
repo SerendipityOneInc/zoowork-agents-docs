@@ -35,7 +35,7 @@ Set your key on the server or in your local development terminal:
 export ZOOWORK_API_KEY='zwp_live_...'
 ```
 
-Both SDKs read this variable. After [installing the SDK](./quickstart.md#set-up), create a client and make a request:
+The SDKs read this variable. After [installing the SDK](./quickstart.md#set-up), create a client and make a request:
 
 ::: code-group
 
@@ -57,9 +57,39 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+```go [Go]
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    zoowork "github.com/SerendipityOneInc/zoowork-sdk-go"
+)
+
+func main() {
+    ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+    defer cancel()
+
+    client, err := zoowork.NewClient(zoowork.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer client.CloseIdleConnections()
+
+    models, err := client.ListModels(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(models)
+}
+```
+
 :::
 
-The SDK supplies the API address, `https://clawapi.ecap.gsmo.ai/service/v1`. This ZooWork API host uses a different domain from the zoowork.ai website. You do not need to configure it for normal use. See the [TypeScript configuration](../reference/typescript-sdk.md#zooworkconfig) or [Python configuration](../reference/python-sdk.md#configuration) if you need to override it.
+The SDK supplies the API address, `https://clawapi.ecap.gsmo.ai/service/v1`. This ZooWork API host uses a different domain from the zoowork.ai website. You do not need to configure it for normal use. To override it, see the configuration for [TypeScript](../reference/typescript-sdk.md#zooworkconfig), [Python](../reference/python-sdk.md#configuration), or [Go](../reference/go-sdk.md#configuration).
 
 ## Use HTTP
 

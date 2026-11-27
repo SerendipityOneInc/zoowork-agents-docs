@@ -119,6 +119,7 @@ home:
           - { text: Authentication, link: /en/get-started/authentication, icon: key }
           - { text: TypeScript SDK, link: /en/reference/typescript-sdk, icon: brackets }
           - { text: Python SDK, link: /en/reference/python-sdk, icon: brackets }
+          - { text: Go SDK, link: /en/reference/go-sdk, icon: brackets }
           - { text: Models, link: /en/reference/models, icon: layers }
           - { text: Usage, link: /en/reference/usage, icon: pulse }
           - { text: Errors, link: /en/reference/errors, icon: alert }

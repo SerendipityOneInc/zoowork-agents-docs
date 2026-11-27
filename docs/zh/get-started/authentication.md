@@ -1,7 +1,7 @@
 ---
 description: 在 ZooWork Platform 获取 API key、充值，并配置第一个 SDK 或 HTTP 请求。
 source: /en/get-started/authentication
-source_hash: d35fc03ab3273692407aa4fdaecd3c33988f1c96ad3b570de262c752fa495d75
+source_hash: e3ca68bd67136bbd36bff52d2f3e25f67d089eee9892dc101227db52bf65fcfe
 ---
 
 # Authentication 与 API key
@@ -37,7 +37,7 @@ key 由组织 owner 创建。如果使用的组织不归你所有，请组织 ow
 export ZOOWORK_API_KEY='zwp_live_...'
 ```
 
-两个 SDK 都读取这个变量。[安装 SDK](./quickstart.md#准备) 后，创建 client 并发送请求：
+SDK 会读取这个变量。[安装 SDK](./quickstart.md#准备) 后，创建 client 并发送请求：
 
 ::: code-group
 
@@ -59,9 +59,39 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+```go [Go]
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    zoowork "github.com/SerendipityOneInc/zoowork-sdk-go"
+)
+
+func main() {
+    ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+    defer cancel()
+
+    client, err := zoowork.NewClient(zoowork.Config{})
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer client.CloseIdleConnections()
+
+    models, err := client.ListModels(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(models)
+}
+```
+
 :::
 
-SDK 已提供 API 地址 `https://clawapi.ecap.gsmo.ai/service/v1`。这是 ZooWork 的 API 主机，域名与 zoowork.ai 网站不同。正常使用无需配置。需要覆盖时，见 [TypeScript 配置](../reference/typescript-sdk.md#zooworkconfig) 或 [Python 配置](../reference/python-sdk.md#配置)。
+SDK 已提供 API 地址 `https://clawapi.ecap.gsmo.ai/service/v1`。这是 ZooWork 的 API 主机，域名与 zoowork.ai 网站不同。正常使用无需配置。需要覆盖时，见 [TypeScript](../reference/typescript-sdk.md#zooworkconfig)、[Python](../reference/python-sdk.md#配置) 或 [Go](../reference/go-sdk.md#配置) 的配置说明。
 
 ## 使用 HTTP
 

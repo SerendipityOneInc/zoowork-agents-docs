@@ -1,5 +1,5 @@
 ---
-description: Create your first agent, start a session, and stream its response using TypeScript, Python, or curl.
+description: Create your first agent, start a session, and stream its response using TypeScript, Python, Go, or curl.
 ---
 
 # Quickstart
@@ -30,9 +30,10 @@ for Python. The docs describe the newest SDK; that file explains how to
 check them against the installed version.
 
 Before writing code:
-1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk)
-   or the Python SDK (zoowork). If one is already installed, use that
-   version; do not upgrade it without asking.
+1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk),
+   Python SDK (zoowork), or Go SDK (github.com/SerendipityOneInc/zoowork-sdk-go).
+   If one is already installed, use that version; do not upgrade it
+   without asking.
 2. Check whether ZOOWORK_API_KEY is set, without printing its value.
    If it is missing, ask me to create an API key and add funds at
    https://platform.zoowork.ai, then set the variable myself. Never
@@ -71,11 +72,12 @@ The SDK examples in this documentation use TypeScript SDK **0.15.0+** and Python
 - An API key and a funded organization balance. Follow [Authentication and API keys](./authentication.md) to create the key and add funds in ZooWork Platform.
 - **TypeScript:** Node.js **22 or later** and npm. Use the latest security release of your Node.js line; Node.js 20 is end of life.
 - **Python:** Python **3.11 or later** and pip. Python 3.10 is end of life.
+- **Go:** Go **1.26 or later** and a released version of the [Go SDK](../reference/go-sdk.md).
 - **curl:** Bash, curl **7.76+**, and `jq` **1.6+**.
 
 ## Set up
 
-Choose TypeScript, Python, or curl and use that tab throughout the guide.
+Choose TypeScript, Python, Go, or curl and use that tab throughout the guide. In an existing Go module, start with `go get`.
 
 ::: code-group
 
@@ -85,6 +87,11 @@ npm install @zoowork-ai/sdk
 
 ```bash [Python]
 python -m pip install zoowork
+```
+
+```bash [Go]
+go mod init example.com/zoowork-quickstart
+go get github.com/SerendipityOneInc/zoowork-sdk-go
 ```
 
 ```bash [curl]
@@ -110,6 +117,8 @@ cleanup. Run the file with the command at the end of the guide.
 **Python:** Copy the Python blocks below into `quickstart.py` in order. The blocks include
 their required indentation. Run the file with the command at the end of the guide.
 
+**Go:** Copy the Go blocks below into `main.go` in order, including the cleanup function. Run the file with the command at the end of the guide.
+
 **curl:** Complete the [HTTP setup in Authentication](./authentication.md#use-http) first, including `ZOOWORK_BASE_URL`. Run each block in the same Bash terminal. Check that each request succeeds before continuing. The commands save the returned IDs for the next step.
 
 ## Create your first session
@@ -123,6 +132,8 @@ Create an agent and save its ID. The SDK reads `ZOOWORK_API_KEY`. The curl examp
 <<< ../../snippets/quickstart.ts#create [TypeScript]
 
 <<< ../../snippets/quickstart.py#create [Python]
+
+<<< ../../snippets/quickstart.go#create [Go]
 
 <<< ../../snippets/quickstart.sh#create [curl]
 
@@ -141,6 +152,8 @@ Start the agent before creating a session. The SDK examples then wait until its 
 
 <<< ../../snippets/quickstart.py#start [Python]
 
+<<< ../../snippets/quickstart.go#start [Go]
+
 <<< ../../snippets/quickstart.sh#start [curl]
 
 :::
@@ -157,6 +170,8 @@ Create a session for this task and save its `session_id`.
 
 <<< ../../snippets/quickstart.py#session [Python]
 
+<<< ../../snippets/quickstart.go#session [Go]
+
 <<< ../../snippets/quickstart.sh#session [curl]
 
 :::
@@ -171,6 +186,8 @@ or external service is needed.
 <<< ../../snippets/quickstart.ts#send [TypeScript]
 
 <<< ../../snippets/quickstart.py#send [Python]
+
+<<< ../../snippets/quickstart.go#send [Go]
 
 <<< ../../snippets/quickstart.sh#send [curl]
 
@@ -193,6 +210,8 @@ your terminal.
 
 <<< ../../snippets/quickstart.py#stream [Python]
 
+<<< ../../snippets/quickstart.go#stream [Go]
+
 <<< ../../snippets/quickstart.sh#stream [curl]
 
 :::
@@ -213,6 +232,12 @@ Turn: succeeded
 ```
 
 ```text [Python]
+[tool] exec
+I saved report.md and read it back to verify the three monthly sales and the $300 total.
+Turn: succeeded
+```
+
+```text [Go]
 [tool] exec
 I saved report.md and read it back to verify the three monthly sales and the $300 total.
 Turn: succeeded
@@ -253,6 +278,8 @@ Save anything you want to keep first. If stopping fails, resolve the error befor
 
 <<< ../../snippets/quickstart.py#cleanup [Python]
 
+<<< ../../snippets/quickstart.go#cleanup [Go]
+
 <<< ../../snippets/quickstart.sh#cleanup [curl]
 
 :::
@@ -269,9 +296,13 @@ Run the assembled Python example with:
 python quickstart.py
 ```
 
-If the program exits early, use the printed agent ID with the cleanup requests above.
-For curl, run cleanup after pressing Ctrl+C to close the stream. Both SDK programs close their
-HTTP client when they exit.
+Run the assembled Go example with the following command.
+
+```bash
+go run .
+```
+
+The Go example attempts cleanup even if the turn fails. If an Agent is still present, use its printed ID with the cleanup requests above. For curl, run cleanup after pressing Ctrl+C to close the stream.
 
 ## Build a complete app
 

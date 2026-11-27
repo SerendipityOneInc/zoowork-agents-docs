@@ -1,8 +1,8 @@
 ---
 title: 快速开始
-description: 使用 TypeScript、Python 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
+description: 使用 TypeScript、Python、Go 或 curl 创建第一个 Agent、启动会话，并流式读取回复。
 source: /en/get-started/quickstart
-source_hash: 4576595b4611dba52082a82a5c2a44fc752429c7d8a00f3e84e5092874f91265
+source_hash: 6e9126d4c41c96404df0137f2c07b422324d257c76b381ce065ac03d9fb61e09
 ---
 
 # 快速开始
@@ -32,9 +32,10 @@ for Python. The docs describe the newest SDK; that file explains how to
 check them against the installed version.
 
 Before writing code:
-1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk)
-   or the Python SDK (zoowork). If one is already installed, use that
-   version; do not upgrade it without asking.
+1. Inspect the project and choose the TypeScript SDK (@zoowork-ai/sdk),
+   Python SDK (zoowork), or Go SDK (github.com/SerendipityOneInc/zoowork-sdk-go).
+   If one is already installed, use that version; do not upgrade it
+   without asking.
 2. Check whether ZOOWORK_API_KEY is set, without printing its value.
    If it is missing, ask me to create an API key and add funds at
    https://platform.zoowork.ai, then set the variable myself. Never
@@ -73,11 +74,12 @@ sessions in this project start from these docs.
 - 一个 API key，以及已充值的组织余额。按 [Authentication 与 API key](./authentication.md) 在 ZooWork Platform 创建 key 并充值。
 - **TypeScript：** Node.js **22 或更高版本**和 npm。请使用所在版本线的最新安全版本；Node.js 20 已停止维护。
 - **Python：** Python **3.11 或更高版本**和 pip。Python 3.10 已停止维护。
+- **Go：** Go **1.26 或更高版本**，以及已发布的 [Go SDK](../reference/go-sdk.md)。
 - **curl：** Bash、curl **7.76+** 和 `jq` **1.6+**。
 
 ## 准备
 
-选择 TypeScript、Python 或 curl，按同一个标签完成本页操作。
+选择 TypeScript、Python、Go 或 curl，按同一个标签完成本页操作。已有 Go module 的项目从 `go get` 开始。
 
 ::: code-group
 
@@ -87,6 +89,11 @@ npm install @zoowork-ai/sdk
 
 ```bash [Python]
 python -m pip install zoowork
+```
+
+```bash [Go]
+go mod init example.com/zoowork-quickstart
+go get github.com/SerendipityOneInc/zoowork-sdk-go
 ```
 
 ```bash [curl]
@@ -112,6 +119,8 @@ export ZOOWORK_API_KEY='zwp_live_...'
 **Python：** 将下方 Python 代码块按顺序复制到 `quickstart.py`。代码块已经保留所需缩进，
 最后使用页面末尾的命令运行。
 
+**Go：** 按顺序将下方 Go 代码块复制到 `main.go`，包括清理函数，再用本页末尾的命令运行。
+
 **curl：** 先完成 [Authentication 中的 HTTP 配置](./authentication.md#使用-http)，包括 `ZOOWORK_BASE_URL`。在同一个 Bash 终端里逐块执行。确认每次请求成功后再继续，命令会保存返回的 ID，供下一步使用。
 
 ## 创建第一个 Session
@@ -125,6 +134,8 @@ export ZOOWORK_API_KEY='zwp_live_...'
 <<< ../../snippets/quickstart.ts#create [TypeScript]
 
 <<< ../../snippets/quickstart.py#create [Python]
+
+<<< ../../snippets/quickstart.go#create [Go]
 
 <<< ../../snippets/quickstart.sh#create [curl]
 
@@ -142,6 +153,8 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 <<< ../../snippets/quickstart.py#start [Python]
 
+<<< ../../snippets/quickstart.go#start [Go]
+
 <<< ../../snippets/quickstart.sh#start [curl]
 
 :::
@@ -158,6 +171,8 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 
 <<< ../../snippets/quickstart.py#session [Python]
 
+<<< ../../snippets/quickstart.go#session [Go]
+
 <<< ../../snippets/quickstart.sh#session [curl]
 
 :::
@@ -171,6 +186,8 @@ curl 请求中的 `onboarding: false` 由 SDK 自动补充。
 <<< ../../snippets/quickstart.ts#send [TypeScript]
 
 <<< ../../snippets/quickstart.py#send [Python]
+
+<<< ../../snippets/quickstart.go#send [Go]
 
 <<< ../../snippets/quickstart.sh#send [curl]
 
@@ -191,6 +208,8 @@ SDK 示例会检查回执中的消息是否已被接受，否则直接停止。�
 
 <<< ../../snippets/quickstart.py#stream [Python]
 
+<<< ../../snippets/quickstart.go#stream [Go]
+
 <<< ../../snippets/quickstart.sh#stream [curl]
 
 :::
@@ -209,6 +228,12 @@ Turn: succeeded
 ```
 
 ```text [Python]
+[tool] exec
+I saved report.md and read it back to verify the three monthly sales and the $300 total.
+Turn: succeeded
+```
+
+```text [Go]
 [tool] exec
 I saved report.md and read it back to verify the three monthly sales and the $300 total.
 Turn: succeeded
@@ -249,6 +274,8 @@ data: {"event_type":"run.finished","payload":{"status":"succeeded"}}
 
 <<< ../../snippets/quickstart.py#cleanup [Python]
 
+<<< ../../snippets/quickstart.go#cleanup [Go]
+
 <<< ../../snippets/quickstart.sh#cleanup [curl]
 
 :::
@@ -265,8 +292,13 @@ node quickstart.mts
 python quickstart.py
 ```
 
-如果程序提前退出，使用已打印的 Agent ID 执行上面的清理请求。
-curl 用户在按 Ctrl+C 关闭事件流后执行清理。两个 SDK 程序退出时都会关闭 HTTP client。
+使用以下命令运行拼接好的 Go 示例。
+
+```bash
+go run .
+```
+
+Go 示例在回合失败后也会尝试清理。如果 Agent 仍然存在，用已打印的 ID 执行上面的清理请求。curl 用户在按 Ctrl+C 关闭事件流后执行清理。
 
 ## 构建完整应用
 
