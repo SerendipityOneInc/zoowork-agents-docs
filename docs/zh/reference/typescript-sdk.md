@@ -2,7 +2,7 @@
 title: TypeScript SDK 参考
 description: 查询公共 API 的 TypeScript SDK 方法、thinking 类型、helper 和错误类。
 source: /en/reference/typescript-sdk
-source_hash: 3607f9673b422f03d0508d55fe63112be87d16c97cdf1fac477cc5277ae6c83e
+source_hash: d6d39deff55cc2e793428be43d7948da107477eef2486cfdd3391e98c2b6a57d
 ---
 
 # TypeScript SDK 参考
@@ -130,7 +130,7 @@ auth: { apiKey: process.env.ZOOWORK_API_KEY! }
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | 创建一个 agent。返回的是**扁平的创建回执** ，不是读取投影。返回的 agent 处于停止状态。 |
 | `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | 列出 key 的组织、Project 和 owner 范围内的 Agent，按 ID 访问也检查同样的范围。`opts.labels` 按 declared labels 筛选，`opts.page` 从 1 开始，每页 100 条。 |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | 读取一个 agent。返回的是**投影** ：配置在 `declared` 下，版本号在 `status.config_version`。 |
-| `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUT 你点名的 declared section，按 section 合并。每次调用都会 bump `config_version`。 |
+| `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUT 你点名的 declared section，按 section 合并。每次配置写入都会 bump `config_version`，值相同也一样；只改 ownership 的写入不会。 |
 | `deleteAgent(agentId)` | `Promise<void>` | 软删除该 agent。不会停止它。 |
 | `startAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `running`。任何 session 调用之前都必须先做这一步。 |
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | 把 `desired_state` 翻成 `stopped`。 |
@@ -1086,8 +1086,8 @@ interface McpServerDeclaration {
   name: string
   url: string
   transport?: 'streamable-http' | 'sse'
-  // auth?: { type: 'vault' } - accepted through the index signature; see below
   credential?: string
+  auth?: { type: 'vault' } // beta
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
   context?: { meta?: boolean; headers?: boolean }
@@ -1097,7 +1097,7 @@ interface McpServerDeclaration {
 }
 ```
 
-省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 无法写入 `credential`。要让每个用户的 Session 使用各自的 credential，声明 `auth: { type: 'vault' }`，并在创建 Session 时挂载 Vault（beta）；声明类型通过索引签名接受该字段。否则请使用公开、免鉴权的 MCP Server。见 [MCP Server](../build/mcp.md) 和 [Vault](../build/vault.md)。
+省略 `exposure` 默认走 `deferred`：工具先留在 `tool_search` / `tool_describe` 后面，加载后才可用。`direct` 会在首个模型请求就声明工具。没有 `auto` 这个值，已加载的延迟工具会在同一个 Session 的后续回合继续可用。公共 API key 无法写入 `credential`。需要 credential 的 Server 声明 `auth: { type: 'vault' }`，从每次创建 Session 时挂载的 Vault 获取 credential（beta）：可以是每个用户自己的 Vault，也可以是所有 Session 共用的一个 Vault。否则该 Server 必须接受免鉴权请求。见 [MCP Server](../build/mcp.md) 和 [Vault](../build/vault.md)。
 
 两个 context 开关都默认是 `false`。`meta` 在工具执行时添加 `_meta["ai.zooclaw/context"]`，`headers` 添加 `x-zooclaw-*` header；目录发现阶段两者都不带。context 包含 agent/session/computer 标识和可选 run/turn/config/actor 字段。它是上下文，不是鉴权凭据。
 
@@ -1505,7 +1505,7 @@ getVaultOffboarding(offboardingId: string): Promise<VaultOffboarding>
 | `listVaults` | key 的 scope 内的 Vault。选项：`cursor`、`limit`（1–100）、`status`（`active` 或 `archived`）、`scope`。 |
 | `updateVault` | 修改 `name`、`metadata` 或两者。保持不变的字段省略即可；不要发送 `null`。 |
 | `archiveVault` / `archiveVaultCredential` | 停止新的使用。正在使用它的 Session 会在下一次 MCP 调用时被拒绝。不可撤销。 |
-| `deleteVault` / `deleteVaultCredential` | `204`。重试时返回 `404 vault.not_found` 说明已经成功。 |
+| `deleteVault` / `deleteVaultCredential` | `204`，重试时仍返回 `204`。之后读取返回 `404 vault.not_found`。 |
 | `createVaultCredential` | `201`。`auth` 是 `static_bearer`、`static_headers` 之一，或 `refresh_owner: 'external'` 或 `'engine'`（带 `refresh`）的 `mcp_oauth`。 |
 | `updateVaultCredential` | 重命名、轮换 secret，或两者兼有。`auth` 是 `{ headers }` 或 `{ access_token, expires_at?, refresh_owner?, refresh? }`；轮换 `mcp_oauth` token 时要发送 `expires_at`。 |
 | `getVaultCredential` | 包含 `health`；用 `vaultCredentialHealthState` 读取。 |
@@ -1842,4 +1842,19 @@ SDK 中的数据库 viewer 方法在 production 当前不可用，因此不列�
   redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
 ```
 
-响应保留未知字段。`AgentWebhookPage.webhooks` 是 endpoint 列表。action page 保留分页，原有数组方法保持返回类型。MCP tool override 接受 `requireConfirmation?: boolean`。
+| 方法 | 说明 |
+|---|---|
+| `getUsage` | 每个选项按同名的 snake_case query 参数发送。Usage 限于当前 key 的 scope。`totals`、每个 group 和每条 record 都用 `amount` 报告花费，是 USD 小数字符串；`credits` 已弃用。继续查询时，用相同的过滤条件带上返回的 `snapshot` 和 `cursor`。见 [Usage](./usage.md)。 |
+| `getBalance` | 组织内所有 Project 共享的余额，需要 Platform key。`available_amount` 是两位小数的 USD 字符串。 |
+| `getRunOutput` | Session 中一次 run 的输出。把返回的 cursor 传回去继续读取。 |
+| `getApproval` / `getCustomToolCall` | 读取一条记录，已结束和待处理的都可以。 |
+| `listApprovalPage` / `listCustomToolCallPage` | 按 API 原样返回一页 cursor 分页，带 `next_cursor` 和 `has_more`。把 `next_cursor` 作为 `cursor` 传回时保持相同的过滤条件。 |
+| `listAgentWebhooks` | endpoint 列表在 `webhooks` 中。 |
+| `createAgentWebhook` | 安全保存非 null 的 `signing_secret`；幂等重放可能返回 `null`。 |
+| `updateAgentWebhook` / `deleteAgentWebhook` | 以 `POST .../update` 和 `POST .../delete` 发送。 |
+| `rotateAgentWebhookSecret` | `revoke_previous_after` 为 `86400` 时旧 secret 保留 24 小时，为 `0` 时立即撤销。 |
+| `testAgentWebhook` | `202` receipt 只确认入队，不代表投递成功。把它的 `receipt_id` 传给 `listAgentWebhookDeliveries(agentId, webhookId, { receiptId })`，只读取这次测试的投递。 |
+| `getAgentWebhookEvent` | 在授权范围内读取一个事件，它不挂在某个 endpoint 下。 |
+| `redeliverAgentWebhookDelivery` / `redeliverAgentWebhookDeliveries` | 把已有事件重新排入投递队列，不会重新运行 Agent。 |
+
+创建、轮换 secret、测试和重新投递都需要稳定的幂等 key。响应保留未知字段。action page 保留分页，原有数组方法保持返回类型。MCP tool override 接受 `requireConfirmation?: boolean`。完整的接收和管理流程见 [Webhooks](../build/webhooks.md)。

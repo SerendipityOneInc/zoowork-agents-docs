@@ -1,5 +1,5 @@
 ---
-description: "Beta: store each user's MCP credentials in a Vault, attach them to that user's Sessions, and revoke them when the user leaves."
+description: "Beta: store MCP server credentials in a Vault, each user's own or one shared by every Session, attach them to Sessions, and revoke them when a user leaves."
 ---
 
 # Vault (beta)
@@ -19,7 +19,9 @@ credential's literal value from it. It cannot recognize a value the server retur
 encoded form.
 
 Use Vault when one Agent calls the same MCP server on behalf of several users, each with their
-own account. For a service that only your backend can reach, use an
+own account. Use it also when the server needs one credential for every Session, such as an API
+key that belongs to your application; see [How the pieces fit](#how-the-pieces-fit). For a
+service that only your backend can reach, use an
 [application-executed custom tool](./tools.md#application-executed-custom-tools) instead.
 
 Examples reuse the `client` from [Quickstart](../get-started/quickstart.md). Python calls run
@@ -46,6 +48,14 @@ The workflow has four steps:
 A Session uses only the Vaults your application attaches. The model cannot choose, list, or
 change Vaults or credentials. `external_user_ref` and `actor.ref` are labels; they do not grant
 access to anything.
+
+One Vault can also serve every Session. When the server needs one credential for the whole
+deployment, store it once in a Vault, keep that Vault's ID in your configuration, and pass it
+in `vault_ids` each time you create a Session. Rotating the credential then reaches every
+Session on its next call, and archiving or deleting it stops them all. The server receives the
+same credential from every Session and cannot tell your users apart, so expose only tools that
+every user of the Agent may use. If Agents in several Projects need the credential, use an org
+Vault.
 
 ### Scopes and keys
 
@@ -296,7 +306,7 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 
 | Field | Meaning |
 |---|---|
-| `isolation` | `session` or `shared`. Always send it with Vault fields. If omitted, it is currently recorded as `session`; the service may start rejecting the omission with `400 vault.isolation_required`, and both SDKs already require it. Use `session` when the Agent serves more than one end user; see [What a Session with credentials can use](#what-a-session-with-credentials-can-use). |
+| `isolation` | Required. `session` or `shared`; omitting it returns `400 vault.isolation_required`. Use `session` when the Agent serves more than one end user; see [What a Session with credentials can use](#what-a-session-with-credentials-can-use). |
 | `vault_ids` | 1–8 unique Vault IDs visible to the Agent's organization and Project. |
 | `credential_bindings` | Optional, up to 16 `{ server_name, credential_id }` entries, one per server. Needed only when several credentials in the attached Vaults match the same server. |
 | `external_user_ref` | Optional label of up to 256 characters, returned on the binding for your own reconciliation. It cannot change and grants nothing. |
@@ -311,8 +321,10 @@ At creation, each Vault server of the Agent gets exactly one credential. A serve
 matching credential fails the request with `409 vault.credential_missing`, and several matches
 fail it with `409 vault.credential_ambiguous` until you name one in `credential_bindings`. A
 selection that does not belong to the attached Vaults or does not match the server URL is
-`403 vault.binding_denied`. The selected credentials stay fixed: a credential added to the
-Vault later is not used by existing Sessions.
+`403 vault.binding_denied`. The selection stays fixed for the life of the Session: a credential
+added to the Vault later is not used by existing Sessions. Rotating the secret of a selected
+credential is different: existing Sessions use the new secret on their next call; see
+[Rotate and monitor a credential](#rotate-and-monitor-a-credential).
 
 The create response adds these fields to the usual Session receipt:
 
@@ -380,7 +392,9 @@ Not supported in this beta:
 separate the Agent owner's credentials. In `session` and `shared` Sessions alike, code that the
 model runs in the sandbox, and built-in tools that act as the owner, can still use the owner's
 platform identity, the owner's connected GitHub credentials, the owner's browser sign-in state,
-and the Agent's model-billing keys. Existing Skills keep these credentials.
+and the Agent's model-billing keys. Existing Skills keep these credentials. Sandbox code that
+calls a model with the billing key bypasses the Agent's runs and tool policy, and the usage is
+billed to the owner.
 
 A request from one of your users can therefore lead to actions with the owner's authority. Do
 not describe a Vault Session to your users as isolated from the Agent owner's accounts. Remove
@@ -463,9 +477,11 @@ never returns the provider's response body. A credential already known to be exp
 `stage: "resolve"` and `error_code: "credential_expired"` without a request. Validation does not
 refresh a ZooWork-refreshed token.
 
-`valid` means the server accepted the MCP `initialize` request with the credential. Validation
-does not call a tool, so the server can still refuse a later tool call. `http_status` is `null`
-unless the server answered with an HTTP error status.
+`valid` means ZooWork connected to the server with the stored credential and completed the
+MCP protocol probe. The response uses `stage: "initialize"` for this stage, including when
+the request is `server/discover` on an [MCP `2026-07-28` connection](./mcp.md#connection-requirements).
+Validation does not call a tool, so the server can still refuse a later tool call.
+`http_status` is `null` unless validation reports an HTTP error status from the server.
 
 ### Let ZooWork refresh an OAuth token {#managed-refresh}
 
@@ -668,7 +684,7 @@ kept as a record of the request; no route deletes it.
   your organization and Project.
 - Update, archive, delete, and revoke also need the resource's current `revision` as a decimal
   `If-Match` header. A stale revision is `412 vault.revision_conflict`: read again, then decide.
-- A retried delete that answers `404 vault.not_found` has already succeeded.
+- A retried delete answers `204` again; reads of the deleted resource answer `404 vault.not_found`.
 
 The SDK methods take `idempotencyKey` / `idempotency_key` and `revision` and send these headers.
 

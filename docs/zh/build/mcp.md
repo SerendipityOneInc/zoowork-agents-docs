@@ -2,7 +2,7 @@
 title: MCP Server
 description: 为 Agent 连接远程 MCP Server，选择工具、加载方式，并传递运行时 context。
 source: /en/build/mcp
-source_hash: 442a21e88193257517f627b14ad5e2d46690dcc58de30a2d718ad8de6fdf0efa
+source_hash: cd14b663881cd2102fd9b1f82ba495ba512530052418b351daa6dd24b0f95563
 ---
 
 # MCP Server
@@ -17,17 +17,23 @@ Model Context Protocol（MCP）Server 为 Agent 提供运行在远程基础设�
 
 ## 连接要求
 
-远程 HTTP endpoint 需要能从公网访问。公共 API 通过
-`streamable-http` 或 SSE 连接。按下文方式声明的 Server 不会收到 credential，因此必须接受平台发出的免鉴权请求。
+使用可从公网访问的 HTTP endpoint，并选择一种传输方式。
+
+- **Streamable HTTP（`streamable-http`，默认）。** ZooWork 优先发出 `server/discover`，
+  协商 MCP `2026-07-28`。对旧版 Server 可以回退到 `initialize` 握手。
+- **SSE（`sse`）。** ZooWork 使用 `initialize` 握手。
+
+ZooWork 自动选择协议版本。未配置 Vault 的 Server 必须接受 ZooWork 发出的免鉴权请求。
 
 URL 不能指向 loopback、私有网络或 cloud metadata 地址，也不能经过 redirect。
 平台在目录发现和工具执行时都会进行这些检查。
 
-::: info 用 Vault 提供每用户 credential（beta）
-声明为 `auth: { type: "vault" }` 的 Server 会从每个 Session 挂载的 [Vault](./vault.md) 获取 credential：每个用户的 Session 用该用户的 token 或 header 调用该 Server。它的 URL 必须使用 HTTPS，且不能带 query string 或 fragment。没有 Vault credential 的 Session 不会加载该 Server。
+::: info 用 Vault 提供 credential（beta）
+声明为 `auth: { type: "vault" }` 的 Server 会从每个 Session 挂载的 [Vault](./vault.md) 获取 credential：可以是每个用户自己的 token 或 header，也可以是所有 Session 共用的一份 credential。它的 URL 必须使用 HTTPS，且不能带 query string 或 fragment。没有 Vault credential 的 Session 不会加载该 Server。
 :::
 
-公共 API 不提供自动 OAuth 配置或托管的私网 tunnel。
+公共 API 不提供自动 OAuth 配置或托管的私网 tunnel。使用 OAuth 保护的 Server 时，由你的应用获取
+token，并以 `mcp_oauth` credential 存入 Vault。
 运行时 context 不能代替鉴权。对于只有你的后端能访问的私有服务，
 使用[应用执行的 custom tool](./tools.md#应用执行的自定义工具)。
 
@@ -127,6 +133,8 @@ mcp__pricing__quote
 
 省略 `toolFilter` 会暴露目录里的所有工具。当 Agent 只需要 Server 的一部分能力时，建议明确列出工具名，
 这样 Server 后续新增工具也不会自动扩大 Agent 的工具范围。
+
+使用 MCP `2026-07-28` 连接时，ZooWork 会省略 `x-mcp-header` 声明无效的工具。
 
 Agent 的 [`tool_policy`](./tools.md#用-tool-policy-收窄工具集) 可以继续按带前缀的名称，
 收窄所有来源合并后的工具范围。
@@ -254,7 +262,7 @@ payload 还包含 `server`、`errorMessage`，也可能包含 `reason`。保留�
 
 ## 相关
 
-- [Vault（beta）](./vault.md)：为每个用户的 Session 提供各自的 MCP credential。
+- [Vault（beta）](./vault.md)：为每个用户或所有 Session 存放 MCP credential。
 - [权限策略](./permissions.md)——决定哪些 MCP 调用需要审批。
 - [工具](./tools.md)——配置内置工具和应用执行的工具。
 - [通过工具接入知识库](./retrieval.md)——通过 MCP 或 custom tool 提供文档搜索。

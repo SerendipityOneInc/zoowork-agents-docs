@@ -1,7 +1,7 @@
 ---
 description: 对比 Managed Agents 与自建 agent loop，了解核心资源、支持的工具、执行流程、预览状态和计费。
 source: /en/get-started/overview
-source_hash: 303a2f18d3d85bb55fd641cb8869bf93225c4aefba64abc95b94cdc71e902aba
+source_hash: 21b01192e7420e38f2f4c442bb1f67f9fc20e3c8ed6d435b52c3da5d80a357d1
 ---
 
 # ZooWork Managed Agents 概览
@@ -70,9 +70,10 @@ Agent 通过工具完成工作。有的工具在托管 sandbox 或平台服务�
 
 | 能力 | 工具或机制 | 指南 |
 |---|---|---|
-| sandbox 文件与命令 | `read`、`write`、`edit`、`apply_patch`、`exec`、`process` | [工具](../build/tools.md)、[云沙箱参考](../build/cloud-sandbox-reference.md) |
+| sandbox 文件与命令 | `read`、`glob`、`grep`、`write`、`edit`、`apply_patch`、`exec`、`process` | [工具](../build/tools.md)、[云沙箱参考](../build/cloud-sandbox-reference.md) |
 | 网页搜索与抓取 | `web_fetch`、`web_search`、`web_image_search` | [工具](../build/tools.md) |
 | PDF 与图片 | `pdf`、`image` | [图像与 PDF 工具](../build/tools.md#图像与-pdf-工具) |
+| 图片、视频与语音生成 | `image_generate`、`video_generate`、`tts`、`tts_voices` | [媒体生成工具](../build/tools.md#media-generation-tools) |
 | 输出文件 | `artifact_publish`；把输入文件上传到 `/workspace` | [文件与产物](../build/files.md) |
 | 长期事实 | Memory 工具（启用时） | [Agent Memory](../build/memory.md) |
 | 结构化数据 | `agent_db` | [Agent Database](../build/data-storage.md) |
@@ -90,7 +91,7 @@ API 目前处于 Developer Preview。同一版本内响应可能增加字段，�
 事件类型，而不是直接报错。
 
 Agent 任务从组织的预充值余额中扣费，组织内所有 Project 共用这份余额。
-[Usage](../reference/usage.md) 以 Platform credits 报告消耗。Usage 只是报告，不是花费上限：
+[Usage](../reference/usage.md) 以美元报告消耗金额。Usage 只是报告，不是花费上限：
 公共 API 没有服务端强制执行的 per-Session 花费上限，应用需要自己执行策略，必要时
 [中断任务](../build/events.md#user-interrupt)。余额和实际扣费请在
 [ZooWork Platform](https://platform.zoowork.ai) 查看。

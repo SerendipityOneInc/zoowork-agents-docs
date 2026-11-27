@@ -407,7 +407,7 @@ async def create_agent(
 
 Common `resource` keys are `name`, `model` (`primary`, and optionally `thinking`),
 `userTimezone`, `include_global_skills`, `skills`, `labels`, `tool_policy`, `mcp`,
-`custom_tools`, `system_prompt`, and `outcome`. See [Agents](../build/agents.md) for the
+`custom_tools`, `system_prompt`, `outcome`, and `memory`. See [Agents](../build/agents.md) for the
 field-by-field notes.
 
 Returns the **create receipt**: a flat mapping with `agent_id`, a top-level `config_version`,
@@ -433,6 +433,17 @@ list, to disable automatic global Skills. Each `skills` entry needs `skill_id` a
 the version resolved at creation; an entry with `name` makes the list the Agent's exact Skill
 set. See [Choose Skills at creation](../build/skills.md#choose-skills-at-creation). `userTimezone` is a named IANA timezone for
 prompt and message time context; it does not set a schedule's timezone.
+
+Each `mcp` entry is a mapping with `name` and `url`, and optionally `transport`
+(`"streamable-http"` or `"sse"`), `toolFilter`, `exposure`, `context`, `permission`, `tools` and
+`auth`. Omitted `exposure` is `"deferred"`: tools stay behind `tool_search` / `tool_describe`
+until loaded; `"direct"` declares them on the first model request. `context` is
+`{"meta": bool, "headers": bool}`, both `False` by default; it passes Agent and Session
+coordinates to the server and is not authentication. `permission` (`"always_ask"` or
+`"always_allow"`) is the server default, and `tools` overrides it per exact tool name, at most 64
+entries. A server that needs a credential declares `"auth": {"type": "vault"}` and gets it from
+the Vault you attach when you create each Session (beta): each user's own Vault, or one Vault
+that every Session shares. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
 
 ---
 
@@ -1531,7 +1542,9 @@ async def get_usage(
 ```
 
 Each argument is sent as the query parameter of the same name, and `None` values are omitted.
-Usage stays within the current key scope.
+Usage stays within the current key scope. `totals`, each group and each record report spend as
+`amount`, a USD decimal string; `credits` is deprecated. See
+[Usage](./usage.md#amounts-and-account-balance).
 
 ```python
 usage = await client.get_usage(range="7d", group_by="session", view="both", per_page=50)
@@ -1633,7 +1646,7 @@ are plain `dict`s and keep unknown fields.
 | `create_vault` | `vault` is `{"scope": "org", "name", "metadata"?}` or `{"scope": "project", "project_id", "name", "metadata"?}`. A named Project key creates project Vaults for its own `proj_…` ID; a Default Project key creates org Vaults. |
 | `list_vaults` | The Vaults of your key's scope. Pass `next_cursor` back while `has_more` is true. |
 | `archive_vault` / `archive_vault_credential` | Stops new use. Sessions that use it are refused at their next MCP call. Cannot be undone. |
-| `delete_vault` / `delete_vault_credential` | A retry that raises `404 vault.not_found` already succeeded. |
+| `delete_vault` / `delete_vault_credential` | Returns `None` on `204`, and again on a retry. Later reads raise `404 vault.not_found`. |
 | `update_vault_credential` | Renames, rotates the secret, or both. `auth` is `{"headers": …}` or `{"access_token", "expires_at"?, "refresh_owner"?, "refresh"?}`; send `expires_at` when rotating an `mcp_oauth` token. |
 | `get_vault_credential` | Includes `health`; read it with `vault_credential_health_state()`. |
 | `revoke_session_vault_binding` | `revision` is `vault_binding["revision"]` from `create_session()`. Its `404 service_api.not_found` can also mean an unknown Agent or Session, so it raises a plain `ZooworkError` rather than `VaultBetaUnavailableError`. |
@@ -1692,6 +1705,7 @@ async def list_agent_webhook_deliveries(
     status: Literal["pending", "in_flight", "succeeded", "dead", "cancelled"] | None = None,
     event_type: str | None = None,
     event_id: str | None = None,
+    receipt_id: str | None = None,
     session_id: str | None = None,
     run_id: str | None = None,
     schedule_id: str | None = None,
@@ -1718,9 +1732,9 @@ created = await client.create_agent_webhook(
 )
 # Save created["signing_secret"] securely when present; an idempotent replay may return None.
 webhook_id = created["endpoint"]["id"]
-await client.test_agent_webhook(agent_id, webhook_id, idempotency_key="test-hook-v1")
+receipt = await client.test_agent_webhook(agent_id, webhook_id, idempotency_key="test-hook-v1")
 deliveries = await client.list_agent_webhook_deliveries(
-    agent_id, webhook_id, event_type="webhook.test"
+    agent_id, webhook_id, receipt_id=receipt["receipt_id"]
 )
 ```
 

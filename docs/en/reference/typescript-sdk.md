@@ -129,7 +129,7 @@ the wire nests under an agent - sessions, events, approvals, schedules, `wake`, 
 | `createAgent(input, idempotencyKey?)` | `Promise<AgentRecord>` | Creates an agent. Returns the **flat create receipt**, not the read projection. The agent comes back stopped. |
 | `listAgents(opts?)` | [`AgentPagePromise`](#listagentsopts) | Lists Agents within the key's organization, Project, and owner scope. By-ID access uses the same scope. `opts.labels` filters on declared labels, `opts.page` is 1-based, and page size is fixed at 100. |
 | `getAgent(agentId)` | `Promise<AgentRecord>` | Reads an agent. Returns the **projection**: config under `declared`, version at `status.config_version`. |
-| `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUTs the named declared sections, merging per section. Bumps `config_version` on every call. |
+| `updateAgent(agentId, sections)` | `Promise<AgentRecord>` | PUTs the named declared sections, merging per section. Every configuration write bumps `config_version`, including identical values; ownership-only writes do not. |
 | `deleteAgent(agentId)` | `Promise<void>` | Soft-deletes the agent. Does not stop it. |
 | `startAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `running`. Required before any session call. |
 | `stopAgent(agentId)` | `Promise<{ warnings: string[] }>` | Flips `desired_state` to `stopped`. |
@@ -1155,8 +1155,8 @@ interface McpServerDeclaration {
   name: string
   url: string
   transport?: 'streamable-http' | 'sse'
-  // auth?: { type: 'vault' } - accepted through the index signature; see below
   credential?: string
+  auth?: { type: 'vault' } // beta
   toolFilter?: string[]
   exposure?: 'deferred' | 'direct'
   context?: { meta?: boolean; headers?: boolean }
@@ -1169,10 +1169,10 @@ interface McpServerDeclaration {
 Omitted `exposure` defaults to `deferred`: tools stay behind `tool_search` / `tool_describe`
 until loaded. `direct` declares them on the first model request. There is no `auto` value, and
 a loaded deferred tool remains available on later turns in the same Session. Public API keys
-cannot populate `credential`. To give each user's Sessions their own credentials, declare
-`auth: { type: 'vault' }` and attach a Vault when you create the Session (beta); the declaration
-type accepts the field through its index signature. Otherwise use public, unauthenticated MCP
-servers. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
+cannot populate `credential`. A server that needs a credential declares
+`auth: { type: 'vault' }` and gets it from the Vault you attach when you create each Session
+(beta): each user's own Vault, or one Vault that every Session shares. Otherwise the server must
+accept unauthenticated requests. See [MCP servers](../build/mcp.md) and [Vault](../build/vault.md).
 
 Both context switches default to `false`. `meta` adds
 `_meta["ai.zooclaw/context"]` and `headers` adds `x-zooclaw-*` headers during tool execution;
@@ -1622,7 +1622,7 @@ SDK offers no way to set other headers on Vault calls. The methods never retry.
 | `listVaults` | The Vaults of your key's scope. Options: `cursor`, `limit` (1–100), `status` (`active` or `archived`), `scope`. |
 | `updateVault` | Changes `name`, `metadata`, or both. Omit what you keep; never send `null`. |
 | `archiveVault` / `archiveVaultCredential` | Stops new use. Sessions that use it are refused at their next MCP call. Cannot be undone. |
-| `deleteVault` / `deleteVaultCredential` | `204`. A retry that answers `404 vault.not_found` already succeeded. |
+| `deleteVault` / `deleteVaultCredential` | `204`, and `204` again on a retry. Later reads answer `404 vault.not_found`. |
 | `createVaultCredential` | `201`. `auth` is one of `static_bearer`, `static_headers`, or `mcp_oauth` with `refresh_owner: 'external'` or `'engine'` (with `refresh`). |
 | `updateVaultCredential` | Renames, rotates the secret, or both. `auth` is `{ headers }` or `{ access_token, expires_at?, refresh_owner?, refresh? }`; send `expires_at` when rotating an `mcp_oauth` token. |
 | `getVaultCredential` | Includes `health`; read it with `vaultCredentialHealthState`. |
@@ -1973,4 +1973,22 @@ Use the Agent's `agent_db` tool through a Session; see [Agent Database](../build
   redeliverAgentWebhookDeliveries(agentId: string, webhookId: string, input: WebhookBatchRedeliveryInput, idempotencyKey: string): Promise<WebhookBatchRedeliveryReceipt>
 ```
 
-Responses preserve unknown fields. `AgentWebhookPage.webhooks` contains endpoint rows. Action pages retain pagination; the original array methods retain their return shapes. MCP tool overrides accept `requireConfirmation?: boolean`.
+| Method | Notes |
+|---|---|
+| `getUsage` | Each option is sent as the query parameter of the same name in snake_case. Usage stays within the current key scope. `totals`, each group and each record report spend as `amount`, a USD decimal string; `credits` is deprecated. Keep the returned `snapshot` and `cursor` with the same filters when continuing. See [Usage](./usage.md). |
+| `getBalance` | The Organization balance shared by every Project; needs a Platform key. `available_amount` is a USD decimal string with two places. |
+| `getRunOutput` | One run's output in a Session. Pass a returned cursor back to continue. |
+| `getApproval` / `getCustomToolCall` | One record, terminal as well as pending. |
+| `listApprovalPage` / `listCustomToolCallPage` | One cursor page as the API sends it, with `next_cursor` and `has_more`. Keep the same filters when you pass `next_cursor` back as `cursor`. |
+| `listAgentWebhooks` | Endpoint rows are in `webhooks`. |
+| `createAgentWebhook` | Store a non-null `signing_secret` securely; an idempotent replay can return `null`. |
+| `updateAgentWebhook` / `deleteAgentWebhook` | Sent as `POST .../update` and `POST .../delete`. |
+| `rotateAgentWebhookSecret` | `revoke_previous_after` is `86400` to keep the previous secret for 24 hours, or `0` to revoke it at once. |
+| `testAgentWebhook` | A `202` receipt acknowledges queuing, not delivery. Pass its `receipt_id` as `listAgentWebhookDeliveries(agentId, webhookId, { receiptId })` to read only that test's delivery. |
+| `getAgentWebhookEvent` | One event within the authorized scope; it is not nested under an endpoint. |
+| `redeliverAgentWebhookDelivery` / `redeliverAgentWebhookDeliveries` | Queue another delivery of existing events; they do not rerun the Agent. |
+
+Create, secret rotation, test and redelivery need a stable idempotency key. Responses preserve
+unknown fields. Action pages retain pagination; the original array methods retain their return
+shapes. MCP tool overrides accept `requireConfirmation?: boolean`. See
+[Webhooks](../build/webhooks.md) for the receiver and management flow.

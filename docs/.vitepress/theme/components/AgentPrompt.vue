@@ -7,7 +7,7 @@ import { useData } from 'vitepress'
 // reader sees it: a short preview with Copy and Expand, and the full prompt in a dialog.
 defineProps<{ title: string }>()
 
-const { lang } = useData()
+const { lang, page } = useData()
 const zh = () => lang.value.startsWith('zh')
 const label = (en: string, cn: string) => (zh() ? cn : en)
 
@@ -58,6 +58,9 @@ function onBackdropClick(event: MouseEvent) {
       <button type="button" class="zc-agent-prompt-copy" @click="copy">
         {{ copied ? label('Copied', '已复制') : label('Copy prompt', '复制 prompt') }}
       </button>
+      <a v-if="page.relativePath === 'en/get-started/quickstart.md'" href="#prerequisites" class="zc-prompt-manual">
+        Set up manually
+      </a>
     </div>
     <div ref="preview" class="zc-agent-prompt-preview">
       <slot />

@@ -2,7 +2,7 @@
 title: Python SDK 参考
 description: 查询公共 API 的 Python SDK client 方法、签名、导出类型、event 与 webhook helper，以及错误类。
 source: /en/reference/python-sdk
-source_hash: 6d3f1d371dd1191e0268d3ad3cb07b066f5c0c80594587fe2c60641bdee1deeb
+source_hash: d9c4da938b9ae2bacfb67e54edf500ef84441f3596402244a623b13a6e80752c
 ---
 
 # Python SDK 参考
@@ -356,7 +356,9 @@ async def create_agent(
 | `ownership` | `Mapping[str, str] \| None` | 创建 Agent 时省略。公共 gateway 根据 key 推导 ownership。 |
 | `idempotency_key` | `str \| None` | 作为 `Idempotency-Key` header 发送。 |
 
-常用的 `resource` key 有 `name`、`model`（`primary`，以及可选的 `thinking`）、`userTimezone`、`include_global_skills`、`skills`、`labels`、`tool_policy`、`mcp`、`custom_tools`、`system_prompt` 和 `outcome`。逐字段说明见 [Agents](../build/agents.md)。
+常用的 `resource` key 有 `name`、`model`（`primary`，以及可选的 `thinking`）、`userTimezone`、`include_global_skills`、`skills`、`labels`、`tool_policy`、`mcp`、`custom_tools`、`system_prompt`、`outcome` 和 `memory`。逐字段说明见 [Agents](../build/agents.md)。
+
+每个 `mcp` 条目是一个 mapping，包含 `name` 和 `url`，可选 `transport`（`"streamable-http"` 或 `"sse"`）、`toolFilter`、`exposure`、`context`、`permission`、`tools` 和 `auth`。省略 `exposure` 时为 `"deferred"`：工具在加载前藏在 `tool_search` / `tool_describe` 后面；`"direct"` 在第一次模型请求时就声明它们。`context` 是 `{"meta": bool, "headers": bool}`，默认都为 `False`；它把 Agent 和 Session 的标识传给 server，不是认证。`permission`（`"always_ask"` 或 `"always_allow"`）是 server 级默认值，`tools` 按精确的工具名覆盖它，最多 64 条。需要凭据的 server 声明 `"auth": {"type": "vault"}`，从每次创建 Session 时挂上的 Vault 获取凭据（beta）：可以是每个用户自己的 Vault，也可以是所有 Session 共用的一个 Vault。见 [MCP servers](../build/mcp.md) 和 [Vault](../build/vault.md)。
 
 返回**创建回执**：一个扁平 mapping，包含 `agent_id`、顶层的 `config_version`、`ownership` 和 `resolved_skills`，没有 `declared`，也没有 `status`。
 
@@ -1275,7 +1277,7 @@ async def get_usage(
 ) -> JsonObject
 ```
 
-每个参数作为同名的 query parameter 发送，值为 `None` 的会省略。用量结果限定在当前 key 的范围内。
+每个参数作为同名的 query parameter 发送，值为 `None` 的会省略。用量结果限定在当前 key 的范围内。`totals`、每个 group 和每条 record 用 `amount` 报告消耗金额，它是美元的十进制字符串；`credits` 已废弃。见 [Usage](./usage.md#amounts-and-account-balance)。
 
 ```python
 usage = await client.get_usage(range="7d", group_by="session", view="both", per_page=50)
@@ -1361,7 +1363,7 @@ async def get_vault_offboarding(offboarding_id: str) -> VaultOffboarding
 | `create_vault` | `vault` 是 `{"scope": "org", "name", "metadata"?}` 或 `{"scope": "project", "project_id", "name", "metadata"?}`。具名 Project 的 key 为自己的 `proj_…` ID 创建 project Vault；Default Project 的 key 创建 org Vault。 |
 | `list_vaults` | key 的 scope 内的 Vault。`has_more` 为 true 时，把 `next_cursor` 传回。 |
 | `archive_vault` / `archive_vault_credential` | 停止新的使用。正在使用它的 Session 会在下一次 MCP 调用时被拒绝。不可撤销。 |
-| `delete_vault` / `delete_vault_credential` | 重试时抛出 `404 vault.not_found` 说明已经成功。 |
+| `delete_vault` / `delete_vault_credential` | `204` 时返回 `None`，重试时也一样。之后读取会抛出 `404 vault.not_found`。 |
 | `update_vault_credential` | 重命名、轮换 secret，或两者兼有。`auth` 是 `{"headers": …}` 或 `{"access_token", "expires_at"?, "refresh_owner"?, "refresh"?}`；轮换 `mcp_oauth` token 时要发送 `expires_at`。 |
 | `get_vault_credential` | 包含 `health`；用 `vault_credential_health_state()` 读取。 |
 | `revoke_session_vault_binding` | `revision` 是 `create_session()` 返回的 `vault_binding["revision"]`。它的 `404 service_api.not_found` 也可能表示 Agent 或 Session 不存在，所以它抛出普通 `ZooworkError`，而不是 `VaultBetaUnavailableError`。 |
@@ -1420,6 +1422,7 @@ async def list_agent_webhook_deliveries(
     status: Literal["pending", "in_flight", "succeeded", "dead", "cancelled"] | None = None,
     event_type: str | None = None,
     event_id: str | None = None,
+    receipt_id: str | None = None,
     session_id: str | None = None,
     run_id: str | None = None,
     schedule_id: str | None = None,
@@ -1445,9 +1448,9 @@ created = await client.create_agent_webhook(
 )
 # Save created["signing_secret"] securely when present; an idempotent replay may return None.
 webhook_id = created["endpoint"]["id"]
-await client.test_agent_webhook(agent_id, webhook_id, idempotency_key="test-hook-v1")
+receipt = await client.test_agent_webhook(agent_id, webhook_id, idempotency_key="test-hook-v1")
 deliveries = await client.list_agent_webhook_deliveries(
-    agent_id, webhook_id, event_type="webhook.test"
+    agent_id, webhook_id, receipt_id=receipt["receipt_id"]
 )
 ```
 

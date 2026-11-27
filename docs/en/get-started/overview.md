@@ -73,9 +73,10 @@ run in your backend or in a service you connect.
 
 | Capability | Tools or mechanism | Guide |
 |---|---|---|
-| Sandbox files and commands | `read`, `write`, `edit`, `apply_patch`, `exec`, `process` | [Tools](../build/tools.md), [Cloud sandbox reference](../build/cloud-sandbox-reference.md) |
+| Sandbox files and commands | `read`, `glob`, `grep`, `write`, `edit`, `apply_patch`, `exec`, `process` | [Tools](../build/tools.md), [Cloud sandbox reference](../build/cloud-sandbox-reference.md) |
 | Web search and fetch | `web_fetch`, `web_search`, `web_image_search` | [Tools](../build/tools.md) |
 | PDFs and images | `pdf`, `image` | [Media tools](../build/tools.md#media-tools) |
+| Image, video, and speech generation | `image_generate`, `video_generate`, `tts`, `tts_voices` | [Media generation tools](../build/tools.md#media-generation-tools) |
 | Output files | `artifact_publish`; upload input files into `/workspace` | [Files and artifacts](../build/files.md) |
 | Durable facts | Memory tools, when enabled | [Agent memory](../build/memory.md) |
 | Structured data | `agent_db` | [Agent Database](../build/data-storage.md) |
@@ -94,7 +95,7 @@ The API is a Developer Preview. Responses can gain fields within a version, so i
 event types your application does not recognize instead of failing on them.
 
 Agent tasks draw on your organization's prepaid balance, which all Projects in the
-organization share. [Usage](../reference/usage.md) reports consumption in Platform credits.
+organization share. [Usage](../reference/usage.md) reports spend in USD.
 Usage reporting is not a spending cap: the public API has no server-enforced per-Session cap,
 so enforce your own policy and [interrupt work](../build/events.md#user-interrupt) when
 needed. Check the balance and actual charges in [ZooWork Platform](https://platform.zoowork.ai).

@@ -217,6 +217,8 @@ private memory.
 
 Updates and deletes use a version from the current record. A write against a changed version
 can fail with `MEMORY_VERSION_CONFLICT`; search again and use the current result before retrying.
+When a Memory tool fails, the `agent.tool` event with `phase: 'end'` carries the code in
+`errorCode`, for example `MEMORY_SCOPE_FORBIDDEN` or `MEMORY_QUOTA_EXCEEDED`.
 An update whose content is already unchanged can return the saved result without a new write.
 Use the ID and current version returned by the Memory tools. These tools run through
 the Agent; the public SDK does not provide `memoryCreate()` or related methods.
@@ -233,3 +235,43 @@ When Memory is available and writes are permitted, the runtime can preserve usef
 before compacting conversation context. It uses the same Memory tools to keep facts and
 lessons, resolve contradictions, and avoid duplicates. This does not guarantee that every
 statement is saved or that every turn searches Memory.
+
+## Consolidate Memory between turns {#consolidate-memory-between-turns}
+
+When an Agent has had no run for 30 minutes, the runtime can review its Memory without a
+turn, at most four times a day per Agent. It reviews the `agent` scope and each `user_agent`
+actor's Memory separately. It merges duplicates, replaces a fact that a later statement
+corrects, rewrites relative dates as absolute ones, retires entries that another entry fully
+covers, and saves facts that a user stated in a finished conversation but no tool call stored.
+It does not review
+channel conversations, Sessions created with `isolation: "session"`, or Sessions that use a
+restricted Vault profile. Each review makes its own model calls, charged like the Agent's
+other model usage.
+
+A review changes Memory IDs and versions. A Memory tool call that uses an older version then
+fails with `MEMORY_VERSION_CONFLICT`; search again before retrying.
+
+Consolidation is on by default. To turn it off for an Agent, set `memory.dreaming.enabled` to
+`false`:
+
+::: code-group
+
+```ts [TypeScript]
+await client.updateAgent(agentId, { memory: { dreaming: { enabled: false } } })
+```
+
+```python [Python]
+await client.update_agent(agent_id, {"memory": {"dreaming": {"enabled": False}}})
+```
+
+```bash [curl]
+curl -sS --fail-with-body --request PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"memory":{"dreaming":{"enabled":false}}}'
+```
+
+:::
+
+The Agent read returns the setting in force as `memory.dreaming.enabled`. `memory` accepts only
+`dreaming`; another key returns `400 invalid_request`.

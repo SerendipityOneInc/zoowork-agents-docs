@@ -2,7 +2,7 @@
 title: 风险与边界
 description: 了解 key、配置、Session 历史、文件、memory 和数据分别存在哪里，谁能读取或修改，以及如何降低主要风险。
 source: /en/security/risks-and-boundaries
-source_hash: 27fe7ecdcf8c7cbc353ff0e94551f66d5b332f3f1760334e6ea62138f85850b3
+source_hash: b7437f440166b52c2f6ccfd707c64413a7b2d350268dc519173db9d4cb27205d
 ---
 
 # 风险与边界
@@ -105,7 +105,7 @@ Agent、事件日志或你自己的日志能读到的任何地方，都可能泄
 - **放在工具参数或结果中：** `agent.tool` 事件会在调用开始时记录 `args`，在结束时记录 `resultPreview`。
 - **放在 Agent owner 的账号中：** 无论 Session 是否隔离，sandbox 都可以以 Agent owner 的 credential 行事。见 [Owner credential 不被隔离](../build/vault.md#owner-credentials)。
 
-服务凭据保存在后端，只在 custom tool 内部使用；也可以把每用户的 MCP credential 存进 [Vault](../build/vault.md)（beta），这样它们不会进入 sandbox 和 API 响应。custom tool 只返回任务需要的数据，不返回凭据本身。
+服务凭据保存在后端，只在 custom tool 内部使用；也可以把 MCP credential（每个用户自己的，或所有 Session 共用的一份）存进 [Vault](../build/vault.md)（beta），这样它们不会进入 sandbox 和 API 响应。custom tool 只返回任务需要的数据，不返回凭据本身。
 Platform API key、webhook signing secret 和 Artifact 下载 URL 也是凭据：
 保存在 secret 存储里，不写进日志；可能泄露时立即吊销或轮换。见
 [Authentication](../get-started/authentication.md#替换或撤销-key)、

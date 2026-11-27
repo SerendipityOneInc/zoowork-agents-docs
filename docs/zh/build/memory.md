@@ -2,7 +2,7 @@
 title: Agent Memory
 description: 让已启用 Memory 的 Agent 跨 session 保存和查找长期事实，并理解 Agent 与 actor 的作用域。
 source: /en/build/memory
-source_hash: dae82ab463b8d7ee730e3ff7c6482315e659fdf3668498b77d0d3712dd60efc6
+source_hash: 23d908b9f2a7889ac1bb4ae9159d2b4dbf1cb755e93c15ad8515bb2fdf6ed80a
 ---
 
 # Agent Memory
@@ -191,7 +191,7 @@ create input 的例子：
 
 Memory content 上限为 4,096 字符和 16 KiB UTF-8 数据。search 默认返回 8 条，最多 20 条。search 可按 turn identity 和 conversation type 缩小请求的 scope；`all` 不会授予其他 actor 私有 Memory 的访问权限。
 
-update 和 delete 使用当前 record 的 version。写入时 version 已变化，可能得到 `MEMORY_VERSION_CONFLICT`；重试前重新搜索并使用当前结果。content 已经相同的 update 可以直接返回 saved result，不产生新写入。使用 Memory 工具返回的 ID 和当前 version。这些工具由 Agent 调用；公共 SDK 不提供 `memoryCreate()` 等对应方法。
+update 和 delete 使用当前 record 的 version。写入时 version 已变化，可能得到 `MEMORY_VERSION_CONFLICT`；重试前重新搜索并使用当前结果。Memory 工具失败时，`phase: 'end'` 的 `agent.tool` 事件会在 `errorCode` 中带上错误码，例如 `MEMORY_SCOPE_FORBIDDEN` 或 `MEMORY_QUOTA_EXCEEDED`。content 已经相同的 update 可以直接返回 saved result，不产生新写入。使用 Memory 工具返回的 ID 和当前 version。这些工具由 Agent 调用；公共 SDK 不提供 `memoryCreate()` 等对应方法。
 
 ## Memory 与其他存储 {#capability-boundaries}
 
@@ -200,3 +200,32 @@ Session transcript、工作区文件和 [Agent Database](./data-storage.md) 与 
 ## Memory 与 Context compaction {#memory-and-context-compaction}
 
 Memory 可用且允许写入时，runtime 可以在压缩对话 context 前保留有用的事实。它使用同一组 Memory 工具保存事实和经验、解决矛盾并避免重复。这不保证每句话都会保存，也不保证每一轮都会搜索 Memory。
+
+## 在回合之外整理 Memory {#consolidate-memory-between-turns}
+
+Agent 连续 30 分钟没有 run 时，runtime 可以在回合之外整理它的 Memory，每个 Agent 每天最多 4 次。`agent` scope 和每个 `user_agent` actor 的 Memory 分开整理。整理会合并重复条目、用较晚的更正替换旧事实、把相对日期改写为绝对日期、退役被其他条目完全覆盖的条目，并补存用户在已结束对话中说过、但没有工具调用保存的事实。它不处理 channel 对话、用 `isolation: "session"` 创建的 Session，以及使用受限 Vault profile 的 Session。每次整理都会单独调用模型，按 Agent 的其他模型用量一样计费。
+
+整理会改变 Memory 的 ID 和 version。之后用旧 version 调用 Memory 工具会得到 `MEMORY_VERSION_CONFLICT`；重试前先重新搜索。
+
+整理默认开启。要为某个 Agent 关闭，把 `memory.dreaming.enabled` 设为 `false`：
+
+::: code-group
+
+```ts [TypeScript]
+await client.updateAgent(agentId, { memory: { dreaming: { enabled: false } } })
+```
+
+```python [Python]
+await client.update_agent(agent_id, {"memory": {"dreaming": {"enabled": False}}})
+```
+
+```bash [curl]
+curl -sS --fail-with-body --request PUT "$ZOOWORK_BASE_URL/agents/$AGENT_ID" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"memory":{"dreaming":{"enabled":false}}}'
+```
+
+:::
+
+读取 Agent 时，`memory.dreaming.enabled` 返回当前生效的设置。`memory` 只接受 `dreaming`，其他 key 返回 `400 invalid_request`。

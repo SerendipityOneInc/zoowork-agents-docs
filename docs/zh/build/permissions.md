@@ -2,7 +2,7 @@
 title: 权限策略
 description: 配置工具审批、MCP 默认策略、逐次确认，以及 pending approval 的处理。
 source: /en/build/permissions
-source_hash: 98216ecfb0bb1d59957f3652a51bc1905d5e76ee3f5a3989badabf4f7d3dcd5a
+source_hash: c260340dfb2c07af7699a2bc71435c8320376be9e06971f92b525275f72961bb
 ---
 
 # 权限策略
@@ -393,6 +393,7 @@ JSON
 如果 rule 是 Server 默认策略，授权可能覆盖同一个 Server 的其他工具，不会修改 Agent 存储的 policy。
 
 生成的 `always_ask` rules 最多等待十分钟的审批决定，超时后拒绝调用。
+审批被拒或超时后结束的 run，`status` 仍是 `succeeded`，run output 和 `run.finished` webhook 中的 `terminal_outcome` 为 `approval_rejected`；把 run 结果当作完成之前先检查它。
 这是审批应答期限，不是命令允许执行的时长。Agent 回合内 `exec` 调用的 `timeout` 控制批准后的命令执行时间，
 不需要受审批应答期限限制；custom tool 的结果 timeout 也是另一回事。
 

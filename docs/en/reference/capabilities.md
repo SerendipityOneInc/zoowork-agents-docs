@@ -19,7 +19,7 @@ Available features depend on your key's resource scope, enabled tools, and servi
 | Store structured data | [Agent Database](../build/data-storage.md) | Use the `agent_db` tool through Sessions; the production read-only viewer is unavailable. |
 | Save Agent memory | [Memory](../build/memory.md) | Tools must be enabled and available; no automatic recall on every new turn is promised. |
 | Separate users within one Agent | [An agent per user](../build/per-user-agents.md) | `isolation: "session"` separates workspace, Memory, and Artifacts; it does not separate the Agent Database or the Agent owner's credentials. |
-| Use per-user MCP credentials | [Vault (beta)](../build/vault.md) | Beta. Requires a Platform API key and TypeScript SDK 0.15.0+ or Python SDK 0.10.0+. |
+| Give MCP servers credentials, per user or shared by every Session | [Vault (beta)](../build/vault.md) | Beta. Requires a Platform API key and TypeScript SDK 0.15.0+ or Python SDK 0.10.0+. |
 | Continue or cancel work | [Session operations](../build/session-operations.md), [Events](../build/events.md) | A stream disconnection does not cancel the run. |
 | Receive server notifications | [Webhooks](../build/webhooks.md) | Service configuration and signature verification are required. |
 | Schedule recurring tasks | [Schedules](../build/schedules.md) | Outcome evaluation is limited to the documented scheduled agentTurn flow. |

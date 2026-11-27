@@ -1,8 +1,8 @@
 ---
 title: 工具
-description: 配置内置工具和由应用执行的工具，并观察调用结果。
+description: 配置内置工具，生成图片、视频和语音，接入由应用执行的工具，并观察调用结果。
 source: /en/build/tools
-source_hash: 01ae8ccb2317d384d12b5c5f15c4fceb7743d3dc6966db7d39379fa3609569b1
+source_hash: 1fd64a1c65017f69ce7ba052ac1c7e5245b7218190c9b8272a42d0aaf1a6ffd3
 ---
 
 # 工具
@@ -15,11 +15,14 @@ ZooWork 通过托管 runtime 执行内置工具。Custom tool 由应用执行并
 
 ## Agent 基础工具
 
-普通的 active Agent 在 `tool_policy` 为空时，默认可以看到这些名称。可见不保证调用成功：沙箱 backend 或 Web proxy 仍需可用，文件访问和网络请求也受各自的限制。
+普通的 active Agent 在 `tool_policy` 为空时，默认可以看到下面这些常用工具。本页不列出全部工具：完整的工具面由 runtime 和部署配置决定，[媒体生成工具](#media-generation-tools)和其他页面介绍的工具同样可用。可见不保证调用成功：沙箱 backend 或 Web proxy 仍需可用，文件访问和网络请求也受各自的限制。
 
 | 工具 | Agent 可以做什么 | 边界 |
 |---|---|---|
 | `read` | 读取沙箱中的文件。 | 相对路径从 `/workspace` 解析。 |
+| `glob` | 按 glob 模式查找沙箱文件。 | 只读。`tool_policy.deny` 匹配到 `read` 时一起隐藏；写了显式 `allow` 列表时要列上它。 |
+| `grep` | 按正则或固定字符串搜索沙箱中的文本文件。 | 只读。和 `glob` 一样受 `read` 规则约束。 |
+| `session_search` | 搜索之前对话的原文，包括已从 context 压缩掉的部分。 | 只读。搜索当前 Session 和它派生的 Session。 |
 | `write` | 新建或覆盖沙箱中的文件。 | 只能写入声明的可写目录。 |
 | `edit` | 修改已有文件中的文字。 | 同样受可写目录限制。 |
 | `apply_patch` | 对沙箱文件应用 patch。 | 同样受可写目录限制。 |
@@ -32,7 +35,10 @@ ZooWork 通过托管 runtime 执行内置工具。Custom tool 由应用执行并
 软件和资源规格见[云沙箱参考](./cloud-sandbox-reference.md)。沙箱的 `networking` 控制 `exec` 中 `curl` 等命令的网络访问；`web_fetch` 和搜索工具通过沙箱网络之外的平台服务执行。需要移除这些 Web 工具时，用 `tool_policy` 收窄 Agent 的工具面。
 
 这些是 Agent 工具，不是 SDK 按名称直接调用的方法。SDK 另有 `exec(agentId, args)`，
-可以在 agent-scope 沙箱中执行命令，不经过 Agent 的工具循环。
+可以在 agent-scope 沙箱中执行命令，不经过 Agent 的工具循环，用于准备或检查 workspace。
+沙箱环境中还有平台为自身 runtime 设置的变量，其中包括模型凭据。它们不是对外支持的接口：
+不要在命令或脚本中读取它们，也不要用它们调用模型或其他平台服务。这样发起的模型调用不会记录在 Agent 的 run 中。
+需要生成图片、视频或语音时，让 Agent 使用[媒体生成工具](#media-generation-tools)。
 
 ## 用 `tool_policy` 收窄工具集
 
@@ -399,18 +405,106 @@ if call is not None and call.phase == "requested":
 
 | 工具 | 输入与限制 |
 |---|---|
-| `pdf` | 必须提供 `prompt`，接受 `pdf` 或 `pdfs`。最多 10 份文件，单份最多 30 MiB，总计最多 30 MiB。 |
+| `pdf` | 接受 `pdf` 或 `pdfs`。最多 10 份文件，单份最多 30 MiB，总计最多 30 MiB。除使用 `find` 外必须提供 `prompt`。可选 `pages`、`find`、`mode`（`native` 或 `text`）、`password` 和 `maxTokens`（默认 16384）。 |
 | `image` | 接受 `image` 或 `images`，`prompt` 可选。最多 20 张 PNG、JPEG、GIF 或 WebP，单张最多 10 MiB，总计最多 25 MiB。`maxImages` 和 `maxBytesMb` 只能降低这些上限。 |
 
-PDF 不超过 10 MiB，且未指定 `pages` 或 `password` 时，使用 native PDF 处理。
-其他情况使用 `pdftotext`，每份文件最多提取 512 KiB 文字。
-`pages` 接受单页或最多包含 20 页的连续页码范围。文字提取可能丢失视觉布局，也可能无法恢复扫描内容。
+长文档先用 `find` 调用 `pdf`。`find` 接受用 `|` 分隔的字面关键词，返回包含这些关键词的页码，不调用模型。然后用 `pages` 再次调用 `pdf`，例如 `"1,3,5-7"`；一次调用在所有 PDF 中最多选择 50 页。不指定 `pages` 且按 PDF 发送时，一次调用的 PDF 合计最多 50 页。
+
+选中的页合计不超过 10 MiB 时，工具把它们作为 PDF 发给模型。以下情况改为提取文字，每份文件最多 512 KiB：`mode` 为 `text`、设置了 `password`、选中部分超过 10 MiB，或配置的模型不接受 PDF 输入。文字提取可能丢失视觉布局，也可能无法恢复扫描内容。
 
 Loader 接受 `/workspace` 路径、data URL、HTTP(S) URL，以及当前 Session 所有的 artifact reference。
 Session 消息只能携带文本。要把本地文件交给 Agent，先[上传到 `/workspace`](./files.md#send-a-file-to-the-agent)，再在消息中写出路径。
 
 `model.input: ['image']` 声明主模型自己读图，与 `image` 工具和图像生成是不同能力。
 Typed `AgentResource` 不能配置 `imageModel` 或 `pdfModel`；见 [Models](../reference/models.md)。
+
+## 媒体生成工具 {#media-generation-tools}
+
+Agent 可以用内置工具生成图片、视频和语音，不需要自己写 custom tool，也不需要自己的模型 key。
+在 Session 消息中直接提出要求，或在 persona 文档中写明什么时候使用这些工具；由 Agent 决定何时调用。
+
+| 工具 | 作用 | 主要参数 |
+|---|---|---|
+| `image_generate` | 生成或编辑图片。在后台运行。 | `prompt`、`model`、作为编辑参考图的 `image` 或 `images`、`size`、`aspectRatio`、`resolution`、`quality`、`outputFormat`、`background`、`count`、`save`。 |
+| `video_generate` | 每次调用生成一个视频。在后台运行。 | `prompt`、`model`、`mode`（`text_to_video`、`image_to_video` 或 `reference_to_video`）、`references`（图片参考，role 为 `first_frame` 或 `reference`）、`durationSeconds`、`aspectRatio`、`resolution`、`generateAudio`、`seed`、`save`。 |
+| `tts` | 把文字转成语音。音频生成后返回。 | `text`、`voice`、`speed`，以及描述风格和语气的 `instructions`。 |
+| `tts_voices` | 列出 `tts` 可用的音色。 | 无。 |
+
+可用模型和参数范围因部署而异，也会随时间变化，不要写死。以 `action: "list"` 调用 `image_generate` 和
+`video_generate`，会返回当前的模型、模式、参数范围和默认值。不传 `model` 时使用部署的默认模型。
+需要指定模型时，在消息或 persona 文档中写明，Agent 会把它作为 `model` 传入。不支持的参数在生成开始前就会被拒绝。
+供应商的安全拒绝是最终结果，不要让 Agent 重试同一个请求。
+
+`image_generate` 和 `video_generate` 启动后台任务后立即返回。任务完成后结果回到对话中，Agent 通常会等到结果再给出最终回复。
+传入 `save`（`/workspace` 下的 `directory`，可选 `fileName` 和 `overwrite`）时，工具还会把结果写入 workspace；只在确实需要文件留在那里时设置。
+
+### 下载生成的文件
+
+每个生成的文件都会产生一个 `attachment.created` 事件。从 payload 中读取 `toolName`、`toolCallId`、
+`fileName`、`mimeType` 和 `size`，其他 payload 字段视为内部字段。不要根据 Agent 的回复文字推断文件。
+
+用事件的 `id` 请求下载 URL，再下载文件，下载时不要带 API key。把 URL 当作 bearer credential。
+SDK 没有封装这个路由，直接用 HTTP 调用：
+
+::: code-group
+
+```ts [TypeScript]
+import { writeFile } from 'node:fs/promises'
+
+// ZOOWORK_BASE_URL 是鉴权页中的 Service API base URL。
+const events = await client.listAllEvents(agentId, sessionId, { types: ['attachment.created'] })
+for (const ev of events) {
+  if (!ev.id) continue
+  const route = `${process.env.ZOOWORK_BASE_URL}/agents/${agentId}/conversations/${sessionId}/attachments/${ev.id}:0/download`
+  const res = await fetch(route, { headers: { Authorization: `Bearer ${process.env.ZOOWORK_API_KEY}` } })
+  if (!res.ok) throw new Error(`Download URL failed: ${res.status}`)
+  const { url } = (await res.json()) as { url: string }
+  const file = await fetch(url)
+  if (!file.ok) throw new Error(`Download failed: ${file.status}`)
+  await writeFile(String(ev.payload.fileName), Buffer.from(await file.arrayBuffer()))
+}
+```
+
+```python [Python]
+import os
+from pathlib import Path
+import httpx
+
+events = await client.list_all_events(agent_id, session_id, types=["attachment.created"])
+base = os.environ["ZOOWORK_BASE_URL"]  # 鉴权页中的 Service API base URL
+headers = {"Authorization": f"Bearer {os.environ['ZOOWORK_API_KEY']}"}
+async with httpx.AsyncClient(follow_redirects=True) as http:
+    for event in events:
+        if not event.id:
+            continue
+        route = f"{base}/agents/{agent_id}/conversations/{session_id}/attachments/{event.id}:0/download"
+        response = await http.get(route, headers=headers)
+        response.raise_for_status()
+        file = await http.get(response.json()["url"])
+        file.raise_for_status()
+        Path(event.payload["fileName"]).write_bytes(file.content)
+```
+
+```bash [curl]
+EVENT_ID='event-id-from-attachment.created'
+download=$(curl -sS --fail-with-body \
+  "$ZOOWORK_BASE_URL/agents/$AGENT_ID/conversations/$SESSION_ID/attachments/$EVENT_ID:0/download" \
+  -H "Authorization: Bearer $ZOOWORK_API_KEY")
+FILE_URL=$(jq -er '.url' <<<"$download")
+curl -L -sS --fail-with-body "$FILE_URL" --output generated-file
+```
+
+:::
+
+attachment ID 是事件 `id` 加上 `:0`；每个 `attachment.created` 事件只对应一个文件。响应是 `{url}`。
+在使用 `isolation: "session"` 创建的 Session 中，这个路由返回 `409 attachment_stream_required`；
+改为请求 `.../attachments/{id}/content`，它通过 API 直接返回文件内容，而不是返回 URL。
+
+`video_generate` 的结果同时会发布为该 Session 的 Artifact。下载视频时使用 `listArtifacts` 和
+`downloadArtifact`，见[文件与产物](./files.md)。
+
+如果要用自己的图片或语音服务和自己的 key，放在由后端执行的 [custom tool](#应用执行的自定义工具) 中。
+key 留在后端，不要放进沙箱。
 
 ## 观察工具调用
 

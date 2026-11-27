@@ -17,21 +17,28 @@ Examples reuse the client and Agent from [Quickstart](../get-started/quickstart.
 
 ## Connection requirements
 
-Configure a remote HTTP endpoint that is publicly reachable. The public API connects through
-`streamable-http` or SSE. A server declared as shown below receives no credentials, so it must
-accept unauthenticated requests from the platform.
+Use a publicly reachable HTTP endpoint with one of these transports.
+
+- **Streamable HTTP (`streamable-http`, the default).** ZooWork first tries `server/discover` to
+  negotiate MCP `2026-07-28`. For older servers, it can fall back to the `initialize` handshake.
+- **SSE (`sse`).** ZooWork uses the `initialize` handshake.
+
+ZooWork selects the protocol version automatically. A server configured without Vault must
+accept unauthenticated requests from ZooWork.
 
 The URL cannot use loopback, private-network, or cloud-metadata addresses. Redirects are also
 rejected. These checks apply to catalog discovery and tool execution.
 
-::: info Per-user credentials with Vault (beta)
+::: info Credentials with Vault (beta)
 A server declared with `auth: { type: "vault" }` receives a credential from the
-[Vault](./vault.md) attached to each Session: each user's Session calls the server with that
-user's token or headers. Its URL must use HTTPS without a query string or fragment. In a Session
-without Vault credentials, the server is not loaded.
+[Vault](./vault.md) attached to each Session: each user's own token or headers, or one
+credential that every Session shares. Its URL must use HTTPS without a query string or
+fragment. In a Session without Vault credentials, the server is not loaded.
 :::
 
-The public API does not provide automatic OAuth setup or a managed private-network tunnel.
+The public API does not provide automatic OAuth setup or a managed private-network tunnel. For
+a server protected by OAuth, your application obtains the token and stores it in a Vault as an
+`mcp_oauth` credential.
 Runtime context is not a substitute for authentication. For a private service that only your
 backend can reach, use an
 [application-executed custom tool](./tools.md#application-executed-custom-tools).
@@ -132,6 +139,8 @@ mcp__pricing__quote
 
 Omit `toolFilter` to expose every tool in the catalog. Use it when an Agent needs only part of
 a server, especially when the server may add more tools later.
+
+On MCP `2026-07-28` connections, ZooWork omits tools with invalid `x-mcp-header` declarations.
 
 The Agent's [`tool_policy`](./tools.md#narrowing-the-tool-set-with-tool-policy) can further
 limit the combined tool surface by matching the prefixed name.
@@ -269,7 +278,7 @@ controls exposure after discovery; it does not reduce the server's discovery bud
 
 ## Related
 
-- [Vault (beta)](./vault.md) - give each user's Sessions their own MCP credentials.
+- [Vault (beta)](./vault.md) - store MCP credentials for each user or for every Session.
 - [Permission policies](./permissions.md) - decide which MCP calls require approval.
 - [Tools](./tools.md) - configure built-in and application-executed tools.
 - [Connect a knowledge base](./retrieval.md) - expose document search through MCP or a custom tool.

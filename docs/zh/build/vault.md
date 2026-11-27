@@ -1,8 +1,8 @@
 ---
 title: Vault（Beta）
-description: "Beta：把每个用户的 MCP 凭据存入 Vault，绑定到该用户的 Sessions，并在用户离开时撤销。"
+description: "Beta：把 MCP Server 的凭据存入 Vault（每个用户自己的，或所有 Session 共用的一份），绑定到 Sessions，并在用户离开时撤销。"
 source: /en/build/vault
-source_hash: 6a0a8502691ecd62cadf7f75fbde919abbac21ac6ae3871a9d94448b95b71d4e
+source_hash: 2bc602c81a9384f0abe1294f39ca2c8c19f2ebddd0cc071606b7a19babd42da3
 ---
 
 # Vault（Beta）
@@ -21,6 +21,8 @@ MCP 结果或错误写入 Session 之前，平台会从中移除凭据的原文�
 如果 Server 以编码后的形式返回该值，平台无法识别。
 
 当同一个 Agent 要代表多个用户调用同一个 MCP Server、且每个用户有各自的账号时，使用 Vault。
+当该 Server 需要所有 Session 共用的一份凭据（例如属于你的应用的 API key）时，也使用 Vault，
+见[工作原理](#how-the-pieces-fit)。
 如果服务只有你的后端能访问，请改用[应用执行的 custom tool](./tools.md#应用执行的自定义工具)。
 
 示例复用[快速开始](../get-started/quickstart.md)中的 `client`。Python 调用在 async 函数内运行。
@@ -45,6 +47,12 @@ MCP 结果或错误写入 Session 之前，平台会从中移除凭据的原文�
 
 Session 只使用你的应用绑定的 Vault。模型不能选择、列出或更改 Vault 或 credential。
 `external_user_ref` 和 `actor.ref` 只是标签，不授予任何访问权限。
+
+一个 Vault 也可以供所有 Session 使用。Server 需要整个部署共用的一份凭据时，把它存进一个
+Vault，在你的配置中保存这个 Vault 的 ID，每次创建 Session 时都在 `vault_ids` 中传入它。
+之后轮换这份凭据，所有 Session 在下一次调用时都会使用新值；归档或删除它，所有 Session 都会停止使用。
+Server 从每个 Session 收到的都是同一份凭据，无法区分你的用户，所以只暴露 Agent 的所有用户都可以使用的工具。
+如果多个 Project 中的 Agent 都需要这份凭据，使用 org Vault。
 
 ### 作用域与 key {#scopes-and-keys}
 
@@ -288,7 +296,7 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 
 | 字段 | 含义 |
 |---|---|
-| `isolation` | `session` 或 `shared`。带 Vault 字段时必须发送。省略时目前记录为 `session`；服务端之后可能以 `400 vault.isolation_required` 拒绝这种省略，两个 SDK 都已强制要求传入。Agent 服务多个终端用户时使用 `session`；见[带凭据的 Session 能使用什么](#what-a-session-with-credentials-can-use)。 |
+| `isolation` | 必填。`session` 或 `shared`；省略会返回 `400 vault.isolation_required`。Agent 服务多个终端用户时使用 `session`；见[带凭据的 Session 能使用什么](#what-a-session-with-credentials-can-use)。 |
 | `vault_ids` | 1–8 个唯一的 Vault ID，须对 Agent 所在的组织和 Project 可见。 |
 | `credential_bindings` | 可选，最多 16 个 `{ server_name, credential_id }` 条目，每个 Server 一个。仅当所绑定的 Vault 中有多份 credential 匹配同一个 Server 时才需要。 |
 | `external_user_ref` | 可选，最长 256 个字符的标签，会在 binding 上返回，供你自己对账。它不能更改，也不授予任何权限。 |
@@ -302,7 +310,9 @@ jq -n --arg vault "$VAULT_ID" --arg user "$USER_ID" \
 没有匹配 credential 的 Server 会使请求以 `409 vault.credential_missing` 失败；
 有多份匹配时，请求以 `409 vault.credential_ambiguous` 失败，直到你在 `credential_bindings` 中指定其一。
 所选 credential 不属于所绑定的 Vault，或与 Server URL 不匹配时，返回 `403 vault.binding_denied`。
-选定的 credential 保持不变：之后加入 Vault 的 credential 不会被已有 Session 使用。
+选定的 credential 在 Session 存续期间保持不变：之后加入 Vault 的 credential 不会被已有 Session 使用。
+轮换已选 credential 的 secret 则不同：已有 Session 在下一次调用时就会使用新的 secret，
+见[轮换并监控 credential](#rotate-and-monitor-a-credential)。
 
 创建响应在通常的 Session 回执上增加以下字段：
 
@@ -364,7 +374,8 @@ binding 的 `profile` 在创建 Session 时确定：
 `isolation: "session"` 在 Session 之间隔离文件、Memory 和 Artifacts，但不隔离 Agent owner 的凭据。
 无论是 `session` 还是 `shared` Session，模型在 sandbox 中运行的代码，以及以 owner 身份行动的内置工具，
 仍然可以使用 owner 的平台身份、owner 已连接的 GitHub 凭据、owner 的浏览器登录状态，
-以及 Agent 的模型计费 key。已有的 Skills 会保留这些凭据。
+以及 Agent 的模型计费 key。已有的 Skills 会保留这些凭据。沙箱代码用这把计费 key 调用模型时，
+会绕过 Agent 的 run 和工具策略，费用记在 owner 名下。
 
 因此，你的某个用户的一次请求，可能导致以 owner 的权限执行操作。
 不要向你的用户宣称 Vault Session 与 Agent owner 的账号是隔离的。
@@ -444,8 +455,11 @@ jq -n --arg token "$NEW_TOKEN" '{auth:{access_token:$token}}' |
 `stage: "resolve"` 和 `error_code: "credential_expired"`，不发出请求。
 校验不会刷新由 ZooWork 刷新的 token。
 
-`valid` 表示 Server 接受了带该 credential 的 MCP `initialize` 请求。校验不会调用工具，所以 Server 仍然可能拒绝之后的工具调用。
-除非 Server 返回了 HTTP 错误状态，否则 `http_status` 为 `null`。
+`valid` 表示 ZooWork 使用存储的 credential 成功连接 Server，并完成 MCP 协议探测。
+响应以 `stage: "initialize"` 表示这个阶段，也适用于
+[MCP `2026-07-28` 连接](./mcp.md#连接要求)使用的 `server/discover` 请求。
+校验不会调用工具，所以 Server 仍然可能拒绝之后的工具调用。
+`http_status` 默认为 `null`，校验报告 Server 的 HTTP 错误时会返回对应状态码。
 
 ### 让 ZooWork 刷新 OAuth token {#managed-refresh}
 
@@ -640,7 +654,7 @@ curl -sS --fail-with-body "$ZOOWORK_BASE_URL/vault-offboardings/$OFFBOARDING_ID"
   key 的作用域是你的组织和 Project。
 - update、archive、delete 和 revoke 还需要把资源当前的 `revision` 作为十进制 `If-Match` header 发送。
   revision 过期返回 `412 vault.revision_conflict`：重新读取，再决定如何处理。
-- 重试的 delete 如果返回 `404 vault.not_found`，说明它已经成功。
+- 重试 delete 仍返回 `204`；之后读取已删除的资源返回 `404 vault.not_found`。
 
 SDK 方法接受 `idempotencyKey` / `idempotency_key` 和 `revision`，并发送这些 header。
 

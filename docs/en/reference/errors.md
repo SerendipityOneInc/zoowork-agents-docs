@@ -119,7 +119,7 @@ your catch block.
 | `model_not_selectable` | 409 | A create or update selects a model catalog row that remains visible for existing references but no longer accepts new selection. | Refresh `listModels()`, choose a row whose `selectable` is not `false`, and use `expired_fallback_to` when the catalog supplies one. Do not retry the same alias unchanged. |
 | `not_found` / `service_api.not_found` | 404 | Unknown or deleted Agent or Session ID, or a resource outside the key's organization, Project, or owner scope. The Agent routes use `service_api.not_found`; Session and Schedule routes can use `not_found`. | Match both spellings or use `status === 404`. A 404 does not prove deletion. Keep a record of the IDs you create and use the key for their scope. |
 | `idempotency_conflict` | 409 | The same `Idempotency-Key` was replayed on `createAgent()` with a **different** body. Same key plus same body is a replay and returns the first result. | Use a new key, or send the original body. Derive keys from something stable in your own system. |
-| `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready, a `tool_policy` the runtime cannot parse. | Fix the request. Retrying unchanged fails identically. |
+| `invalid_request` | 400 | A malformed or rejected request body: a read missing its selector, a skill version pinned to a version that is not ready, a `tool_policy` the runtime cannot parse, a schedule with an unknown `tz` or an expression the scheduler cannot parse. | Fix the request. Retrying unchanged fails identically. |
 | *(may be absent)* | 404 | `putAgentSkill()` with an unknown Skill ID or one outside the key's visible scopes. | Branch on `status === 404` because this response may omit `type`. Check the Skill's visibility; see [Skills](../build/skills.md). |
 
 ### More 400s
@@ -203,6 +203,8 @@ These codes come from the [channel](../build/channels.md) routes. `{platform}` i
 | `channel.dm_policy_invalid` / `channel.group_policy_invalid` | 400 | An unsupported policy value. | Use `open`, `allowlist`, or `disabled`. |
 | `channel.pairing_unsupported` | 400 | `dm_policy: 'pairing'`. | Use another policy. |
 | `channel.allowlist_unsupported` | 400 | WeChat setup with `dm_policy: 'allowlist'`. | Use `open` or `disabled`. |
+| `channel.unsupported_setting` | 400 | An interaction setting the platform does not support, such as a group allowlist on Slack. | Check `interaction_settings.supports_*` before sending it. |
+| `channel.settings_conflict` | 409 | `expected_config_version` no longer matches the connection's settings. | Read the connection again and retry with its current `config_version`. |
 | `channel.dingtalk_dm_policy_unsupported` | 400 | A DingTalk policy other than `open` or `allowlist`, or `allowlist` without explicit sender IDs. | Use `open`, or `allowlist` with explicit `allow_from` IDs. |
 | `channel.permission_admin_not_supported` | 400 | `permission_admin_enabled` on a platform other than Feishu. | Remove the field. |
 | `channel.not_found` | 404 | `updateChannel()` on a platform the Agent is not connected to. | Connect the platform first. |
@@ -232,7 +234,7 @@ which accepts both spellings and returns the dotted code. `code` is set by TypeS
 | `service_api.not_found` | 404 | On a Vault route: the key is not a Platform API key. The SDK raises `VaultBetaUnavailableError`. On the revoke route it can also mean an unknown Agent or Session. | Use a Platform API key. |
 | `vault.session_fields_unavailable` | 400 | `createSession()` with Vault fields and a key that is not a Platform API key. The SDK raises `VaultBetaUnavailableError`. | As above, or create the Session without Vault fields. |
 | `vault.management_forbidden` | 403 | The key cannot manage Vaults of this scope: a named Project key reading or changing an org Vault, or any key listing or creating Vaults of the other scope. A Default Project key reading a project Vault by ID gets `404 vault.not_found` instead. | Use the key for that scope. |
-| `vault.not_found` | 404 | Unknown Vault, credential, offboarding ledger, or binding, or one outside the key's scope. A retried delete that already succeeded also answers this. | Check the ID and key; treat it as done after a delete retry. |
+| `vault.not_found` | 404 | Unknown Vault, credential, offboarding ledger, or binding, or one outside the key's scope. A read of a deleted resource also answers this; a retried delete answers `204` again. | Check the ID and key. |
 | `vault.project_not_found` | 404 | `project_id` is not the key's own Project. | Send the `proj_…` ID of the key's Project. |
 | `platform.project_rebuild_required` | 409 | The key's Project predates the project records Vault needs. | Contact ZooWork support. |
 
@@ -246,7 +248,7 @@ which accepts both spellings and returns the dotted code. `code` is set by TypeS
 | `vault.project_required` | 400 | A project Vault without an explicit `project_id`. |
 | `vault.unsupported_purpose` | 400 | A credential `purpose` other than `mcp`. |
 | `vault.invalid_vault_request` | 400 | `credential_bindings`, `external_user_ref`, or `vault_binding_options` without a non-empty `vault_ids`. |
-| `vault.isolation_required` | 400 | Not returned today: with Vault fields, an omitted `isolation` is currently recorded as `session`. The service may start returning this code for the omission, so always send `isolation`. |
+| `vault.isolation_required` | 400 | A Session create with Vault fields omitted `isolation`. Send `isolation: "session"` or `"shared"`. A retry that reuses the `Idempotency-Key` must also send it. |
 | `vault.unsupported_binding_option` | 400 | `allow_delegate` or `allow_unattended` set to `true`. |
 | `invalid_request` | 400 | With Vault fields: a `runtime_mode` other than `active`, `config_version`, `skill_config_version`, `idle_compaction`, or a past `vault_binding_options.expires_at`. |
 | `vault.binding_denied` | 403 | A `credential_bindings` entry names a server that is not a Vault server of the Agent, a credential outside the attached Vaults, or one whose URL does not match. |

@@ -2,7 +2,7 @@
 title: 文件与产物
 description: 把文件发送给 Agent，让它创建工作区文件，再发布和下载产物。
 source: /en/build/files
-source_hash: bce4542280a434c0121fff1913b7406a83a7f7d33274735a0e1fc3c4e13d2344
+source_hash: ed54c511cfed9ea0140625f5efc0628d2c2e8af5a5f1d01daa2c137910a8d339
 ---
 
 # 文件与产物
@@ -274,3 +274,5 @@ curl -sS --fail-with-body --get --request DELETE \
 ## 分析 PDF 与图片 {#analyze-pdfs-and-images}
 
 PDF 或图片位于 `/workspace` 时（包括你[上传](#send-a-file-to-the-agent)的文件），让 Agent 使用 `pdf` 或 `image` 工具。参数、模型要求和限制见[图像与 PDF 工具](./tools.md#图像与-pdf-工具)。
+
+在较长的 Session 中，模型只能看到之前回合里最近的图片：按数量保留 20 到 39 张，合计不超过 48 MiB，最新的一张总会保留。更早的图片在模型 context 中变成一条“图片已省略”的提示，Session 的 transcript 仍然保留原图。
