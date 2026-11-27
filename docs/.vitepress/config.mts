@@ -253,6 +253,7 @@ interface PageSet {
   webhooks: string
   schedules: string
   pythonSdk: string
+  goSdk: string
   models: string
   usage: string
   capabilities: string
@@ -300,6 +301,7 @@ const EN: PageSet = {
   webhooks: 'Webhooks',
   schedules: 'Schedules',
   pythonSdk: 'Python SDK',
+  goSdk: 'Go SDK',
   models: 'Models',
   usage: 'Usage',
   capabilities: 'Availability and limits',
@@ -347,6 +349,7 @@ const ZH: PageSet = {
   webhooks: 'Webhooks',
   schedules: 'Schedules',
   pythonSdk: 'Python SDK',
+  goSdk: 'Go SDK',
   models: 'Models',
   usage: 'Usage',
   capabilities: '可用性与限制',
@@ -361,6 +364,7 @@ function sidebar(t: PageSet, base: string): DefaultTheme.SidebarItem[] {
     { text: t.authentication, link: `${base}/get-started/authentication` },
     { text: t.sdk, link: `${base}/reference/typescript-sdk` },
     { text: t.pythonSdk, link: `${base}/reference/python-sdk` },
+    { text: t.goSdk, link: `${base}/reference/go-sdk` },
     { text: t.models, link: `${base}/reference/models` },
     { text: t.usage, link: `${base}/reference/usage` },
     { text: t.errors, link: `${base}/reference/errors` },
@@ -462,7 +466,7 @@ function nav(t: PageSet, base: string): DefaultTheme.NavItem[] {
 
 export default defineConfig({
   title: 'ZooWork Docs',
-  description: 'Build agent products on ZooWork. TypeScript and Python SDKs, sessions, and streaming events.',
+  description: 'Build agent products on ZooWork. TypeScript, Python, and Go SDKs, sessions, and streaming events.',
   // The site does not own a host of its own: it is served from a path on the main
   // domain, at zoowork.ai/docs, next to /blog and /industry. `base` puts that prefix
   // on every generated URL; `outDir` mirrors the prefix in the build output so the
@@ -545,7 +549,7 @@ export default defineConfig({
       label: '简体中文',
       lang: 'zh-CN',
       link: '/zh/',
-      description: '在 ZooWork 上构建你自己的 agent 产品。TypeScript 和 Python SDK、会话与流式事件。',
+      description: '在 ZooWork 上构建你自己的 Agent 产品。TypeScript、Python 和 Go SDK、会话与流式事件。',
       themeConfig: {
         nav: nav(ZH, '/zh'),
         sidebar: sidebar(ZH, '/zh'),

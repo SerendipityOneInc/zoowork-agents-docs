@@ -1,13 +1,13 @@
 ---
 description: 对比 Managed Agents 与自建 agent loop，了解核心资源、支持的工具、执行流程、预览状态和计费。
 source: /en/get-started/overview
-source_hash: 3480c3d6b75debf4b78b192ed461ad4f9279020eb792e7676510dc9e4c393633
+source_hash: 21b01192e7420e38f2f4c442bb1f67f9fc20e3c8ed6d435b52c3da5d80a357d1
 ---
 
 # ZooWork Managed Agents 概览
 
 ZooWork Managed Agents 提供托管的 Agent runtime，让 Agent 使用模型和工具完成任务。
-定义 Agent、发送任务，再通过 TypeScript SDK、Python SDK 或 HTTP API 接收进度和结果。
+定义 Agent、发送任务，再通过 TypeScript、Python 或 Go SDK 接收进度和结果。也可以直接使用 HTTP API。
 
 你的应用提供指令、业务工具和用户访问检查。ZooWork 管理模型与工具循环、对话历史、
 sandbox 执行和持久化事件。先在 ZooWork Platform [创建 API key 并充值](./authentication.md)，再跟随[快速开始](./quickstart.md)完成一个报告任务。

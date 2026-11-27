@@ -6,7 +6,7 @@ description: Compare Managed Agents with your own agent loop, and understand its
 
 ZooWork Managed Agents provides a managed runtime for agents that work through tasks using
 models and tools. Define an Agent, send it a task, and receive progress and results through
-the TypeScript SDK, Python SDK, or HTTP API.
+the TypeScript, Python, or Go SDK, or the HTTP API.
 
 Your application supplies instructions, business tools, and user access checks. ZooWork
 manages the model and tool loop, conversation history, sandbox execution, and saved events.
